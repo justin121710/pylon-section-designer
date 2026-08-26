@@ -19,8 +19,8 @@
   --curveN:#64748b; --curveD:#38bdf8; --curveM:#a78bfa; --pt:#94a3b8; --ptc:#ef4444;
 }
 html,body{background:var(--bg);color:var(--txt);font-family:ui-sans-serif,"Noto Sans TC",system-ui,sans-serif;margin:0}
-.fallback-grid{display:grid;grid-template-columns:380px 1fr;gap:14px;padding:14px}
-@media(max-width:1100px){.fallback-grid{grid-template-columns:1fr}}
+.fallback-grid{display:grid;grid-template-columns:150px 430px 1fr;gap:12px;padding:14px}
+@media(max-width:1320px){.fallback-grid{grid-template-columns:1fr}.pin-detail{max-height:none}}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:12px}
 input,select{background:#0d1526;color:var(--txt);border:1px solid var(--line);border-radius:6px;padding:4px 7px;width:100%;font-size:13px}
 input:focus,select:focus{outline:2px solid var(--acc);outline-offset:-1px}
@@ -43,6 +43,67 @@ h2{font-size:14px;font-weight:700;margin:0 0 8px;letter-spacing:.03em}
 svg{display:block;width:100%;height:auto}
 .mono{font-family:ui-monospace,"Cascadia Code",Consolas,monospace;font-variant-numeric:tabular-nums}
 #report{display:none}
+
+/* ---- 參數輸入面板（方向 ④）---- */
+/* app 區填滿視窗高度：參數表自行捲動、說明卡釘在其下方、右欄各自捲動 */
+html,body{height:100%}
+body{overflow:hidden;display:flex;flex-direction:column}
+#topbar{flex-shrink:0}
+#app,#appBeam{flex-grow:1;min-height:0}
+#app>div:last-of-type,#appBeam>div:last-of-type{overflow-y:auto;min-height:0}
+body.rp-open{overflow:auto;display:block}          /* 預覽報告時恢復整頁捲動 */
+body.rp-open #app,body.rp-open #appBeam{display:none!important}
+@media(max-width:1320px){
+  body{overflow:auto;display:block}
+  #app,#appBeam{height:auto}
+  #app>div:last-of-type,#appBeam>div:last-of-type{overflow:visible}
+  .pin-sheet{max-height:520px}
+}
+
+.pin-rail{display:flex;flex-direction:column;gap:2px;min-height:0}
+.pin-all,.pin-g{cursor:pointer;border-radius:8px;border:1px solid transparent}
+.pin-all{padding:7px 9px;font-size:12.5px;font-weight:700;background:var(--panel);border-color:var(--line);color:var(--dim)}
+.pin-all.on{background:#0369a1;border-color:#0284c7;color:#fff}
+.pin-g{display:flex;align-items:flex-start;gap:8px;padding:7px 9px}
+.pin-g.on{background:#16213a;border-color:var(--acc)}
+.pin-g:hover{background:#16213a}
+.pin-gl{font-size:12.5px;line-height:1.3}
+.pin-gs{font-size:10.5px;color:#5b6b8a;margin-top:1px}
+.pin-mk{width:19px;height:19px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;
+  justify-content:center;font-size:10.5px;font-weight:700;margin-top:1px}
+.pin-mk.ok{background:rgba(34,197,94,.14);color:var(--ok);border:1px solid rgba(34,197,94,.5)}
+.pin-mk.warn{background:rgba(245,158,11,.16);color:var(--warn);border:1px solid var(--warn)}
+.pin-mk.bad{background:rgba(239,68,68,.16);color:var(--bad);border:1px solid var(--bad)}
+
+.pin-mid{display:flex;flex-direction:column;gap:10px;min-height:0}
+.pin-sheet{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+  display:flex;flex-direction:column;min-height:0;overflow:hidden;flex-grow:1}
+.pin-head{display:grid;grid-template-columns:64px 1fr 108px 58px 52px;background:#16213a;
+  border-bottom:1px solid var(--line);font-size:11.5px;font-weight:600}
+.pin-head>div{padding:6px 9px}
+.pin-body{overflow-y:auto;flex-grow:1}
+.pin-sec{padding:9px 10px 5px;font-size:11px;font-weight:700;letter-spacing:.05em;color:#5b6b8a;
+  background:rgba(13,21,38,.5);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:1}
+.pin-row{display:grid;grid-template-columns:64px 1fr 108px 58px 52px;align-items:center;
+  min-height:33px;cursor:pointer;border-bottom:1px solid rgba(36,51,82,.5)}
+.pin-row:hover{background:rgba(56,189,248,.05)}
+.pin-row.on{background:rgba(56,189,248,.10);box-shadow:inset 3px 0 0 var(--acc)}
+.pin-c{padding:0 9px;font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums}
+.pin-n{padding:0 9px;font-size:12.5px}
+.pin-v{padding:0 5px}
+.pin-u{padding:0 9px;font-size:12px;color:var(--dim)}
+.pin-s{padding:0 4px;text-align:center}
+.pin-chip{display:inline-block;padding:1px 6px;border-radius:10px;font-size:10.5px}
+.pin-chip.ok{background:rgba(34,197,94,.16);color:var(--ok)}
+.pin-chip.warn{background:rgba(245,158,11,.16);color:var(--warn)}
+.pin-chip.bad{background:rgba(239,68,68,.16);color:var(--bad)}
+
+.pin-detail{background:var(--panel);border:1px solid var(--acc);border-radius:10px;
+  padding:12px 13px;flex-shrink:0;max-height:296px;overflow-y:auto}
+.pin-dt{font-size:11px;color:var(--acc);letter-spacing:.06em;margin-bottom:6px}
+.pin-dl{font-size:11px;color:var(--dim);letter-spacing:.05em;margin-bottom:4px}
+.pin-rule{font-size:12.5px;line-height:1.65;background:#0d1526;border:1px solid var(--line);
+  border-radius:7px;padding:8px 10px;font-variant-numeric:tabular-nums}
 
 /* ---- 列印 / PDF ---- */
 @media print{
@@ -95,8 +156,15 @@ svg{display:block;width:100%;height:auto}
 
 <div id="app" class="fallback-grid">
 
-  <!-- ============ 左：輸入 ============ -->
-  <div>
+  <div class="pin-rail" id="railP"></div>
+  <div class="pin-mid">
+    <div class="pin-sheet" id="sheetP"></div>
+    <div id="derivedP" class="card" style="flex-shrink:0;margin:0;padding:8px 11px"></div>
+    <div class="pin-detail" id="detailP"></div>
+  </div>
+
+  <!-- 原輸入卡片：控制項會被 pinBuild() 搬進上方參數表，此容器僅作為暫存 -->
+  <div id="stashP" style="display:none">
     <div class="card">
       <h2>① 斷面幾何</h2>
       <div class="fld"><span><b>斷面範本</b></span><select id="preset"></select></div>
@@ -227,7 +295,13 @@ svg{display:block;width:100%;height:auto}
 </div>
 
 <div id="appBeam" class="fallback-grid" style="display:none">
-  <div>
+  <div class="pin-rail" id="railB"></div>
+  <div class="pin-mid">
+    <div class="pin-sheet" id="sheetB"></div>
+    <div id="derivedB" class="card" style="flex-shrink:0;margin:0;padding:8px 11px"></div>
+    <div class="pin-detail" id="detailB"></div>
+  </div>
+  <div id="stashB" style="display:none">
     <div class="card">
       <h2>① 斷面幾何</h2>
       <div class="fld"><span><b>斷面範本</b></span><select id="bPreset"></select></div>
@@ -1286,6 +1360,7 @@ function render(){
   document.getElementById('axY').style.outline = AXIS==='y'?'2px solid var(--acc)':'none';
 
   renderSummary(M); renderAlerts(M);
+  pinStatus('pylon', pinMapPylon(M));
   if(document.getElementById('report').classList.contains('preview')) buildReport(M);
   return M;
 }
@@ -2459,6 +2534,7 @@ function renderBeam(){
   }
   document.getElementById('bSummary').innerHTML=SB(h);
   renderBeamAlerts(B);
+  pinStatus('beam', pinMapBeam(B));
   if(document.getElementById('report').classList.contains('preview')) buildBeamReport(B);
   return B;
 }
@@ -2788,6 +2864,308 @@ function buildBeamReport(B){
     fleqn:true, throwOnError:false});
 }
 
+
+/* =========================================================================
+   參數輸入面板（方向 ④：工程表 ＋ 就地說明）
+   導軌（分組＋狀態） | 密集參數表 | 選取列的完整說明
+
+   作法：不重建控制項，而是把原有的 <input>/<select> 從舊卡片「搬進」新版面。
+   所有 id、options、預設值與已註冊的事件監聽因此全部原封不動，
+   compute() / computeBeam() 一行都不用改。
+   ========================================================================= */
+
+/* [id, 代號, 參數名, 單位, 影響什麼, 規範限制, 警示] */
+const PIN_META = {
+  pylon: [
+    ['斷面幾何', [
+      ['preset','—','斷面範本','','一次帶入尺寸、材料、配筋與載重組合。','',''],
+      ['secType','—','斷面型式','','決定受壓區積分方式。中空箱型須扣掉中空區，分段涵蓋 a ≤ t_w、t_w < a < D−t_w、a ≥ D−t_w 三種情形。','',''],
+      ['B','B','外寬','cm','毛斷面積 A_g、繞 Y 軸的有效深度。','',''],
+      ['H','H','外高','cm','繞 X 軸的有效深度與 P-M 曲線形狀。','',''],
+      ['tw','t_w','壁厚','cm','箱型剪力的 b_w = 2t_w；也決定主筋能否排雙層。','需容納 外保護層 + 箍筋 + 雙層主筋','']    ,
+      ['covO','c_o','外側保護層','cm','主筋位置 d_i、圍束核心尺寸 A_ch。','橋塔外露面慣用 7.5；海洋環境 10',''],
+      ['covI','c_i','內側保護層','cm','內層主筋位置與牆片核心厚度 b_c,t。','',''],
+      ['dagg','d_agg','骨材最大粒徑','cm','主筋淨距下限之一。','淨距 ≥ max(4.0, 1.5d_b, 4/3·d_agg)　（4 cm 為柱之規定，非梁的 2.5）','']
+    ]],
+    ['材料', [
+      ['fc',"f'_c",'混凝土抗壓強度','kgf/cm²',"β₁、E_c、V_c、A_sh 需求、Mander f'_cc 全部由它導出。","β₁ = max(0.65, min(0.85, 0.85 − 0.05(f'_c−280)/70))",''],
+      ['fy','f_y','主筋降伏強度','kgf/cm²','鋼筋應力上限與 ε_ty（φ 過渡起點）。','ε_ty = f_y / E_s',''],
+      ['fyt','f_yt','橫向筋降伏強度','kgf/cm²',"V_s、A_sh 需求、Mander 圍束壓力 f'_l。",'',''],
+      ['Es','E_s','鋼筋彈性模數','kgf/cm²','鋼筋應變→應力的斜率。','',''],
+      ['ecu','ε_cu','混凝土極限壓應變','','非圍束 P-M 曲線的應變上限。','圍束值 ε_cu,c 由 Mander 另算',''],
+      ['esu','ε_su','箍筋極限應變','','Mander 圍束混凝土的 ε_cu,c。','','']
+    ]],
+    ['主筋', [
+      ['barSize','—','主筋號數','','d_b 影響淨距需求與塑鉸區箍筋間距上限 6d_b。','#4 ~ #18（CNS 560）',''],
+      ['nB','n_B','B 向每面根數','根','中心距與淨距，進而決定繫筋根數與 h_x。','',''],
+      ['nH','n_H','H 向每面根數','根','同上（H 向）。','',''],
+      ['dbl','—','內層同配置','','雙層才有 4 肢剪力肢數；內層座標對齊外層網格，使繫筋垂直穿過壁厚。','','']
+    ]],
+    ['橫向筋 / 耐震', [
+      ['tieSize','—','箍筋 / 繫筋號數','','A_v 與 A_sh 的單肢面積。','',''],
+      ['ph','—','此斷面為塑鉸區','','開啟後：V_c 依軸壓折減、箍筋間距受 min(b/4, 6d_b, 15cm) 限制、啟動容量設計剪力。','',
+       "塑鉸區且 N_u < 0.1f'_c·A_g 時 V_c 取 0，全部剪力由箍筋承擔。"],
+      ['phio','φ_o','超強係數','','塑鉸超強彎矩 M_o = φ_o·M_n，用來反算設計剪力。','V_e = φ_o·M_n / L_v',''],
+      ['Lv','L_v','剪力跨度','cm','V_e 的分母。','設計剪力取 max(V_e, V_u)',''],
+      ['theta','θ','扭矩桁架角','°','A_t/s 與扭矩縱筋 A_l。','',''],
+      ['tieLayout','—','繫筋配置','','每隔一根 vs 每一根，直接改變 A_sh 提供量。','規範：每隔一根縱筋須側向支撐，且距被支撐筋淨距 ≤ 15 cm',''],
+      ['ashPair','b_c','A_sh 之 b_c 配對','','A_sh/(s·b_c) 的分母取哪個方向的核心尺寸。',
+       '垂直＝肢分布的跨距　·　平行＝量至肢外緣',
+       "⚠ 規範條文對 b_c 方向的敘述有歧義，箱型牆片兩種讀法差 7 倍以上，直接決定箍筋間距。請對照條文確認後再選。k_e、ρ_s、f'_l 一律採物理配對，不受此開關影響。"]
+    ]],
+    ['規範係數', [
+      ['phic','φ_c','壓力控制','','P-M 設計曲線在壓控段的折減。','土木401 橫箍柱 0.65',''],
+      ['phit','φ_t','拉力控制','','拉控段折減與 φ 過渡終點。','',''],
+      ['phiv','φ_v','剪力 / 扭矩','','V_s 需求 = V_des/φ_v − V_c。',"搭配 ACI 型 V_c = 0.53√f'_c·b_w·d",
+       'AASHTO 的 φ_v = 0.90 是為 MCFT 校準的，套在此處會偷掉 20% 剪力裕度。'],
+      ['pmaxf','—','軸力截斷（×P_o）','','φP_n,max 水平截斷線的高度。','橫箍柱 0.80',''],
+      ['alpha','α','低軸壓輪廓指數','','PCA 載重輪廓法的指數。',"P_u < 0.1f'_c·A_g 時取代 Bresler",'']
+    ]]
+  ],
+
+  beam: [
+    ['斷面幾何', [
+      ['bPreset','—','斷面範本','','一次帶入尺寸、材料、配筋與載重組合。','',''],
+      ['bType','—','斷面型式','','T 型時翼緣參與受壓（僅正彎矩）；負彎矩一律退化為 b_w×h 矩形。','',''],
+      ['bw','b_w','腹板寬','cm','剪力的 b_w、A_s,min、主筋每排可排根數。','耐震：b_w ≥ max(0.3h, 25 cm)',''],
+      ['bh','h','全深','cm','有效深度 d、I_g、加密區長度 2h。','',''],
+      ['bhf','h_f','翼緣厚','cm','受壓區分段點：a ≤ h_f 走矩形、a > h_f 走 T 型分段積分。','',''],
+      ['bL','L','跨度','cm','有效翼緣寬 b_e 與撓度 Δ = K·M_a·L²/(E_c·I_e)。','',''],
+      ['bSpacing','—','梁中心距','cm','b_e 的候選值之一。','b_e = min(L/4, b_w+16h_f, 梁中心距)',''],
+      ['bEdge','—','梁位置','','內梁雙側翼緣、邊梁單側，b_e 公式不同。','邊梁：b_e = b_w + min(L/12, 6h_f, 淨距/2)',''],
+      ['bSclear','—','邊梁淨距','cm','邊梁 b_e 的候選值之一。','',''],
+      ['bCover','c_c','保護層','cm','有效深度 d 與裂縫控制的 c_c。','',''],
+      ['bDagg','d_agg','骨材最大粒徑','cm','主筋淨距下限之一。','','']
+    ]],
+    ['材料', [
+      ['bfc',"f'_c",'混凝土抗壓強度','kgf/cm²','β₁、E_c、V_c、f_r（M_cr 用）。','',''],
+      ['bfy','f_y','主筋降伏強度','kgf/cm²','M_n、A_s,min、M_pr（1.25f_y）。','',''],
+      ['bfyt','f_yt','橫向筋降伏強度','kgf/cm²','V_s 與扭矩鋼筋。','',''],
+      ['bEs','E_s','鋼筋彈性模數','kgf/cm²','應變相容求解與轉換斷面比 n = E_s/E_c。','',''],
+      ['becu','ε_cu','極限壓應變','','撓曲求解的應變上限。','','']
+    ]],
+    ['配筋', [
+      ['bBotSize','—','底筋號數','','正彎矩的受拉筋；負彎矩時轉為受壓筋。','',''],
+      ['bNbot','—','底筋根數','根','依淨距自動判斷排數（上限 2 排）並重算形心與 d。','',''],
+      ['bTopSize','—','頂筋號數','',"負彎矩的受拉筋；正彎矩時為受壓筋（自動判斷 f'_s < f_y）。",'',''],
+      ['bNtop','—','頂筋根數','根','耐震要求接頭面 φM_n⁺ ≥ 0.50 φM_n⁻。','',''],
+      ['bTieSize','—','箍筋號數','','A_v 與扭矩 A_t 的單肢面積。','',''],
+      ['bNlegs','n_legs','箍筋肢數','肢','A_v = n_legs × A_t。','','']
+    ]],
+    ['耐震 / 剪力', [
+      ['bSeismic','—','耐震等級','','切到「特殊抗彎構材」會啟動容量設計剪力、加密區、b_w/l_n/ρ 限制與接頭面彎矩比查核。','',''],
+      ['bLn','l_n','淨跨','cm','V_e 的分母。','耐震：l_n ≥ 4d',''],
+      ['bVg','V_g','重力剪力','tf','V_e = (M_pr⁺+M_pr⁻)/l_n + V_g。','',''],
+      ['bTheta','θ','扭矩桁架角','°','A_t/s 與扭矩縱筋 A_l。','',''],
+      ['bphit','φ_t','拉力控制','','φM_n = φ·M_n。','ε_t ≥ 0.005 時 φ = 0.90',''],
+      ['bphiv','φ_v','剪力 / 扭矩','','V_s 需求 = V_des/φ_v − V_c。','土木401 為 0.75','']
+    ]],
+    ['使用性（撓度）', [
+      ['bDeflCase','K','支承 / 載重型式','','撓度係數 K：Δ = K·M_a·L²/(E_c·I_e)。','簡支均佈 K = 5/48　·　懸臂均佈 K = 1/4',''],
+      ['bMD','M_D','靜載彎矩','tf·m','I_e 與持續載重撓度 Δ_sus。','',''],
+      ['bML','M_L','活載彎矩','tf·m','即時活載撓度 Δ_L。','',''],
+      ['bSustain','—','持續活載比例','','M_sus = M_D + 比例 × M_L。','',''],
+      ['bXi','ξ','長期係數','',"λ_Δ = ξ/(1+50ρ')。",'5 年以上取 2.0',''],
+      ['bLimLive','—','活載限值 L/','','Δ_L 的允許值。','',''],
+      ['bLimTotal','—','總撓度限值 L/','','Δ_LT 的允許值。','','']
+    ]]
+  ]
+};
+
+const PIN = {
+  pylon: { group:-1, sel:null, rail:null, sheet:null, detail:null },
+  beam:  { group:-1, sel:null, rail:null, sheet:null, detail:null }
+};
+
+/* 由 render()/renderBeam() 回填：id → {state:'ok'|'warn'|'bad', chip:'文字'} */
+let PIN_STATUS = { pylon:{}, beam:{} };
+
+function pinBuild(mod, railEl, sheetEl, detailEl){
+  const st = PIN[mod];
+  st.rail = railEl; st.sheet = sheetEl; st.detail = detailEl;
+  const meta = PIN_META[mod];
+
+  // 把原有控制項搬進 sheet：先建列，再 appendChild（保留 id / options / listener）
+  st.rows = [];
+  meta.forEach((g, gi) => {
+    g[1].forEach((p, ri) => {
+      const el = document.getElementById(p[0]);
+      if(!el) return;
+      st.rows.push({ gi, ri, id:p[0], code:p[1], name:p[2], unit:p[3],
+                     affects:p[4], rule:p[5], warn:p[6], el });
+    });
+  });
+  if(!st.sel && st.rows.length) st.sel = st.rows[0].id;
+  pinRender(mod);
+}
+
+function pinRender(mod){
+  const st = PIN[mod], meta = PIN_META[mod], S = PIN_STATUS[mod] || {};
+  if(!st.sheet) return;
+
+  /* ---- 導軌 ---- */
+  const all = st.group < 0;
+  let rh = `<div class="pin-all${all?' on':''}" data-g="-1">全部參數</div><div style="height:8px"></div>`;
+  meta.forEach((g,i) => {
+    const ids = g[1].map(p=>p[0]);
+    const worst = ids.reduce((a,id)=>{
+      const s = (S[id]||{}).state;
+      return s==='bad' ? 'bad' : (s==='warn' && a!=='bad') ? 'warn' : a;
+    },'ok');
+    rh += `<div class="pin-g${st.group===i?' on':''}" data-g="${i}">
+      <div class="pin-mk ${worst}">${worst==='ok'?'✓':worst==='warn'?'!':'✗'}</div>
+      <div style="flex-grow:1;min-width:0">
+        <div class="pin-gl">${esc(g[0])}</div>
+        <div class="pin-gs">${g[1].length} 項</div>
+      </div></div>`;
+  });
+  st.rail.innerHTML = SB(rh);
+  st.rail.querySelectorAll('[data-g]').forEach(d=>d.onclick=()=>{
+    const g = +d.dataset.g;
+    st.group = (g<0 || st.group===g) ? -1 : g;
+    pinRender(mod);
+  });
+
+  /* ---- 參數表 ---- */
+  st.sheet.innerHTML = SB(
+    `<div class="pin-head"><div>代號</div><div>參數</div><div style="text-align:right">值</div><div>單位</div><div style="text-align:center">狀態</div></div>
+     <div class="pin-body"></div>`);
+  const body = st.sheet.querySelector('.pin-body');
+
+  meta.forEach((g,gi) => {
+    if(!all && gi !== st.group) return;
+    if(all){
+      const h = document.createElement('div');
+      h.className = 'pin-sec'; h.innerHTML = SB(esc(g[0]));
+      body.appendChild(h);
+    }
+    g[1].forEach(p => {
+      const rec = st.rows.find(r => r.id === p[0]);
+      if(!rec) return;
+      const s = S[p[0]] || {};
+      const row = document.createElement('div');
+      row.className = 'pin-row' + (st.sel===p[0] ? ' on' : '');
+      row.innerHTML = SB(
+        `<div class="pin-c">${esc(p[1])}</div><div class="pin-n">${esc(p[2])}</div>
+         <div class="pin-v"></div><div class="pin-u">${esc(p[3])}</div>
+         <div class="pin-s"><span class="pin-chip ${s.state||'ok'}">${esc(s.chip || (s.state==='warn'?'⚠':s.state==='bad'?'✗':'✓'))}</span></div>`);
+      row.querySelector('.pin-v').appendChild(rec.el);      // 搬移，不重建
+      row.onclick = e => {
+        if(e.target.tagName==='INPUT' || e.target.tagName==='SELECT'){ st.sel = p[0]; pinDetail(mod); pinMarkSel(mod); return; }
+        st.sel = p[0]; pinDetail(mod); pinMarkSel(mod);
+      };
+      body.appendChild(row);
+    });
+  });
+  pinDetail(mod);
+}
+
+function pinMarkSel(mod){
+  const st = PIN[mod];
+  st.sheet.querySelectorAll('.pin-row').forEach(r=>r.classList.remove('on'));
+  const rec = st.rows.find(r=>r.id===st.sel);
+  if(rec && rec.el && rec.el.closest('.pin-row')) rec.el.closest('.pin-row').classList.add('on');
+}
+
+function pinDetail(mod){
+  const st = PIN[mod], S = PIN_STATUS[mod] || {};
+  const r = st.rows.find(x => x.id === st.sel);
+  if(!r){ st.detail.innerHTML = ''; return; }
+  const el = r.el;
+  const val = el.tagName === 'SELECT'
+    ? (el.options[el.selectedIndex] ? el.options[el.selectedIndex].text : '')
+    : el.value;
+  const s = S[r.id] || {};
+  const vc = s.state==='bad' ? 'color:var(--bad)' : s.state==='warn' ? 'color:var(--warn)' : '';
+  let h = `<div class="pin-dt">選取的參數</div>
+    <div style="display:flex;align-items:baseline;gap:9px">
+      <div style="font-size:16px;font-weight:700">${esc(r.name)}</div>
+      <div style="font-size:12.5px;color:var(--dim)">${r.code==='—'?'':esc(r.code)}</div>
+    </div>
+    <div style="display:flex;align-items:baseline;gap:6px;margin-top:7px">
+      <div style="font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;${vc}">${esc(val)}</div>
+      <div style="font-size:12.5px;color:var(--dim)">${esc(r.unit)}</div>
+    </div>
+    <div style="height:1px;background:var(--line);margin:11px 0"></div>
+    <div class="pin-dl">影響什麼</div>
+    <div style="font-size:12.5px;line-height:1.65">${esc(r.affects)}</div>`;
+  if(r.rule) h += `<div class="pin-dl" style="margin-top:10px">規範限制</div>
+    <div class="pin-rule">${esc(r.rule)}</div>`;
+  if(r.warn) h += `<div class="alert ${r.warn.indexOf('⚠')===0?'a-warn':'a-info'}" style="margin-top:10px;font-size:12px">${esc(r.warn)}</div>`;
+  st.detail.innerHTML = SB(h);
+}
+
+/* 檢核結果 → 每個參數的狀態徽章（哪個參數該為此負責） */
+function pinMapPylon(M){
+  const c = M.chk, s = {}, OK = {state:'ok',chip:'✓'};
+  const spacingBad = c.clB < c.need || c.clH < c.need;
+  s.nB = c.clB < c.need ? {state:'bad',chip:'淨距'} : OK;
+  s.nH = c.clH < c.need ? {state:'bad',chip:'淨距'} : OK;
+  s.dagg = spacingBad ? {state:'warn',chip:'⚠'} : OK;
+  s.barSize = spacingBad ? {state:'warn',chip:'⚠'}
+            : (c.rho<1||c.rho>4) ? {state:'warn',chip:'ρ'} : {state:'ok',chip:f(c.rho,2)+'%'};
+  s.tieLayout = (c.hxMaxB>35||c.hxMaxH>35) ? {state:'bad',chip:'h_x'}
+              : (M.fin.gov.tag.indexOf('A_sh')>=0 ? {state:'warn',chip:'控制'} : OK);
+  s.ashPair = {state:'warn',chip:'歧義'};
+  s.ph = M.opt.plastic ? {state:'warn',chip:'塑鉸'} : OK;
+  s.phiv = {state:'warn',chip:'配對'};
+  s.fc = {state:'ok',chip:'β₁'};
+  s.tieSize = {state:'ok',chip:'@'+f(M.fin.sUse,1)};
+  s.dbl = M.R.inner ? {state:'ok',chip:'雙層'} : {state:'warn',chip:'單層'};
+  s.tw = (M.s.type==='box' && M.chk.layerGap!==null && M.chk.layerGap<2.5)
+       ? {state:'bad',chip:'層距'} : OK;
+  return s;
+}
+function pinMapBeam(B){
+  const s = {}, OK = {state:'ok',chip:'✓'}, C = B.ctrl;
+  const noM = !C || C.k.Mu < 1e-6;
+  const asBad = !noM && B.AsTen < B.AsMin;
+  s.bNbot = (B.S.sign==='pos' && asBad) ? {state:'bad',chip:'A_s'} : OK;
+  s.bNtop = (B.S.sign==='neg' && asBad) ? {state:'bad',chip:'A_s'} : OK;
+  s.bBotSize = B.sol.eps_t < 0.004 ? {state:'bad',chip:'ε_t'} : {state:'ok',chip:f(B.rho*100,2)+'%'};
+  s.bTopSize = OK;
+  s.bTieSize = {state:'ok',chip:'@'+f(B.fin.sUse,1)};
+  s.bSeismic = B.S.seismic ? {state:'warn',chip:'耐震'} : OK;
+  s.bw = (B.S.seismic && B.S.bw < Math.max(0.3*B.S.h,25)) ? {state:'bad',chip:'b_w'} : OK;
+  s.bLn = (B.S.seismic && B.S.ln < 4*B.d) ? {state:'bad',chip:'l_n'} : OK;
+  s.bType = (B.S.type==='T' && B.S.sign==='neg') ? {state:'warn',chip:'退化'} : OK;
+  s.bCover = B.crack.ok ? OK : {state:'bad',chip:'裂縫'};
+  s.bML = B.defl.okL ? OK : {state:'bad',chip:'Δ_L'};
+  s.bMD = B.defl.okT ? OK : {state:'bad',chip:'Δ_LT'};
+  s.bDeflCase = {state:'ok',chip:'K'};
+  s.bphiv = {state:'warn',chip:'配對'};
+  return s;
+}
+
+/* render()/renderBeam() 結束時呼叫，把檢核結果反映到狀態欄與導軌 */
+function pinStatus(mod, map){
+  PIN_STATUS[mod] = map || {};
+  const st = PIN[mod];
+  if(!st.sheet) return;
+  const S = PIN_STATUS[mod];
+  st.rows.forEach(r => {
+    const row = r.el && r.el.closest ? r.el.closest('.pin-row') : null;
+    if(!row) return;
+    const chip = row.querySelector('.pin-chip');
+    if(!chip) return;
+    const s = S[r.id] || {};
+    chip.className = 'pin-chip ' + (s.state || 'ok');
+    chip.innerHTML = SB(esc(s.chip || (s.state==='warn'?'⚠':s.state==='bad'?'✗':'✓')));
+  });
+  // 導軌狀態點
+  PIN_META[mod].forEach((g,i) => {
+    const d = st.rail.querySelector('[data-g="'+i+'"] .pin-mk');
+    if(!d) return;
+    const worst = g[1].map(p=>p[0]).reduce((a,id)=>{
+      const s2 = (S[id]||{}).state;
+      return s2==='bad' ? 'bad' : (s2==='warn' && a!=='bad') ? 'warn' : a;
+    },'ok');
+    d.className = 'pin-mk ' + worst;
+    d.textContent = worst==='ok' ? '✓' : worst==='warn' ? '!' : '✗';
+  });
+  pinDetail(mod);
+}
+
 /* =========================================================================
    啟動
    ========================================================================= */
@@ -2825,7 +3203,9 @@ function buildBeamReport(B){
   document.getElementById('btnPreview').onclick=()=>{
     const el=document.getElementById('report');
     el.classList.toggle('preview');
-    if(el.classList.contains('preview')){ buildActive(); el.scrollIntoView({behavior:'smooth'}); }
+    const on=el.classList.contains('preview');
+    document.body.classList.toggle('rp-open', on);
+    if(on){ buildActive(); el.scrollIntoView({behavior:'smooth'}); }
   };
   document.getElementById('btnPrint').onclick=()=>{ buildActive(); setTimeout(()=>window.print(),260); };
 
@@ -2872,10 +3252,27 @@ function buildBeamReport(B){
     document.getElementById('tabPylon').style.background = t==='pylon'?'#1d4ed8':'transparent';
     document.getElementById('tabBeam').style.background  = t==='beam' ?'#1d4ed8':'transparent';
     document.getElementById('report').classList.remove('preview');
+    document.body.classList.remove('rp-open');
     if(t==='beam') renderBeam(); else render();
   };
   document.getElementById('tabPylon').onclick=()=>setTab('pylon');
   document.getElementById('tabBeam').onclick =()=>setTab('beam');
+
+  // 建立方向 ④ 的輸入面板：把原卡片內的控制項搬進導軌／參數表／說明三欄
+  const moveDerived = (ids, target) => {
+    const seen = new Set();
+    ids.forEach(id => {
+      const el = document.getElementById(id);
+      if(!el) return;
+      const box = el.parentElement;
+      if(!box || seen.has(box)) return;
+      seen.add(box); box.style.margin='0'; target.appendChild(box);
+    });
+  };
+  pinBuild('pylon', document.getElementById('railP'), document.getElementById('sheetP'), document.getElementById('detailP'));
+  moveDerived(['oB1','oNbar','oEty'], document.getElementById('derivedP'));
+  pinBuild('beam', document.getElementById('railB'), document.getElementById('sheetB'), document.getElementById('detailB'));
+  moveDerived(['bOutB1','bOutD'], document.getElementById('derivedB'));
 
   applyBPreset('deckT');
   setTab('pylon');

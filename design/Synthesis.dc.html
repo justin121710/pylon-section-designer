@@ -1,0 +1,336 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin:0; background:#0b1220; color:#e6edf7;
+           font-family: ui-sans-serif,"Noto Sans TC",system-ui,sans-serif; }
+    a { color:#38bdf8; } a:hover { color:#7dd3fc; }
+    * { box-sizing:border-box; }
+    input, select { background:#0d1526; color:#e6edf7; border:1px solid #243352;
+      border-radius:6px; padding:4px 7px; font-size:13px; width:100%;
+      font-family:inherit; font-variant-numeric:tabular-nums; text-align:right; }
+    input:focus, select:focus { outline:2px solid #38bdf8; outline-offset:-1px; }
+    select { text-align:left; }
+  </style>
+</helmet>
+
+<div style="width:1440px; height:900px; display:flex; flex-direction:column; overflow:hidden">
+
+  <div style="display:flex; align-items:center; gap:8px; padding:10px 16px;
+              background:#111a2e; border-bottom:1px solid #243352; flex-shrink:0">
+    <div style="font-weight:800; font-size:17px">RC 斷面設計工具</div>
+    <div style="font-size:11.5px; color:#93a4c2">土木401 + 公路橋梁耐震設計規範　｜　kgf-cm 制</div>
+    <div style="flex-grow:1"></div>
+    <div style="display:flex; gap:4px; background:#0d1526; border:1px solid #243352; border-radius:8px; padding:3px">
+      <div style="padding:4px 12px; font-size:13px; border-radius:6px; background:#1d4ed8">橋塔／柱斷面</div>
+      <div style="padding:4px 12px; font-size:13px; border-radius:6px; color:#93a4c2">梁斷面</div>
+    </div>
+    <div style="padding:6px 12px; font-size:13px; border:1px solid #0284c7; border-radius:6px; background:#0369a1">列印 / 存成 PDF</div>
+  </div>
+
+  <div style="display:grid; grid-template-columns:150px 1fr 366px; gap:14px; padding:14px;
+              flex-grow:1; min-height:0">
+
+    <!-- 左：分組導軌（② 的順序感，但不擋路） -->
+    <div style="display:flex; flex-direction:column; gap:2px; min-height:0">
+      <div onClick="{{ showAll }}" style="{{allStyle}}">全部參數</div>
+      <div style="height:8px"></div>
+      <sc-for list="{{rail}}" as="r" hint-placeholder-count="6">
+        <div onClick="{{ r.pick }}" style="{{r.style}}">
+          <div style="{{r.mark}}">{{r.markText}}</div>
+          <div style="flex-grow:1; min-width:0">
+            <div style="font-size:12.5px; line-height:1.3">{{r.label}}</div>
+            <div style="font-size:10.5px; color:#5b6b8a; margin-top:1px">{{r.sub}}</div>
+          </div>
+        </div>
+      </sc-for>
+      <div style="flex-grow:1"></div>
+      <div style="border:1px solid #243352; border-radius:8px; padding:9px 10px; background:#111a2e">
+        <div style="font-size:11px; color:#93a4c2; line-height:1.5">
+          鍵盤：↑↓ 換列　Tab 下一格　⌘V 整欄貼上
+        </div>
+      </div>
+    </div>
+
+    <!-- 中：密集表（① 的密度） -->
+    <div style="background:#111a2e; border:1px solid #243352; border-radius:10px;
+                display:flex; flex-direction:column; min-height:0; overflow:hidden">
+
+      <div style="display:flex; align-items:center; gap:10px; padding:10px 12px; border-bottom:1px solid #243352">
+        <select style="width:280px"><option>中空箱型 600×800×90（長跨徑橋塔）</option></select>
+        <div style="flex-grow:1"></div>
+        <div style="font-size:12px; color:#93a4c2">{{scopeLabel}}　·　共 {{count}} 項</div>
+      </div>
+
+      <div style="display:grid; grid-template-columns:74px 1fr 116px 62px 88px;
+                  background:#16213a; border-bottom:1px solid #243352;
+                  font-size:12px; font-weight:600">
+        <div style="padding:6px 10px">代號</div>
+        <div style="padding:6px 10px">參數</div>
+        <div style="padding:6px 10px; text-align:right">值</div>
+        <div style="padding:6px 10px">單位</div>
+        <div style="padding:6px 10px; text-align:center">狀態</div>
+      </div>
+
+      <div style="overflow:hidden; flex-grow:1">
+        <sc-for list="{{rows}}" as="r" hint-placeholder-count="14">
+          <sc-if value="{{r.isHead}}" hint-placeholder-val="{{ false }}">
+            <div style="padding:9px 12px 5px; font-size:11.5px; font-weight:700; letter-spacing:.05em;
+                        color:#5b6b8a; background:rgba(13,21,38,.5); border-bottom:1px solid #243352">{{r.name}}</div>
+          </sc-if>
+          <sc-if value="{{r.isRow}}" hint-placeholder-val="{{ true }}">
+            <div onClick="{{ r.pick }}" style="{{r.rowStyle}}">
+              <div style="padding:0 10px; font-size:12.5px; color:#93a4c2">{{r.code}}</div>
+              <div style="padding:0 10px; font-size:13px">{{r.name}}</div>
+              <div style="padding:0 6px">
+                <sc-if value="{{r.isSelect}}" hint-placeholder-val="{{ false }}">
+                  <select><option>{{r.val}}</option></select>
+                </sc-if>
+                <sc-if value="{{r.isInput}}" hint-placeholder-val="{{ true }}">
+                  <input value="{{r.val}}">
+                </sc-if>
+              </div>
+              <div style="padding:0 10px; font-size:12.5px; color:#93a4c2">{{r.unit}}</div>
+              <div style="padding:0 6px; text-align:center">
+                <span style="{{r.chip}}">{{r.chipText}}</span>
+              </div>
+            </div>
+          </sc-if>
+        </sc-for>
+      </div>
+    </div>
+
+    <!-- 右：選取列的說明（② 的解釋空間，但按需出現） -->
+    <div style="display:flex; flex-direction:column; gap:12px; min-height:0">
+
+      <div style="background:#111a2e; border:1px solid #38bdf8; border-radius:10px; padding:13px 14px">
+        <div style="font-size:11px; color:#38bdf8; letter-spacing:.06em; margin-bottom:7px">選取的參數</div>
+        <div style="display:flex; align-items:baseline; gap:9px">
+          <div style="font-size:17px; font-weight:700">{{sel.name}}</div>
+          <div style="font-size:12.5px; color:#93a4c2">{{sel.code}}</div>
+        </div>
+        <div style="display:flex; align-items:baseline; gap:6px; margin-top:9px">
+          <div style="font-size:25px; font-weight:800; font-variant-numeric:tabular-nums; {{sel.valColor}}">{{sel.val}}</div>
+          <div style="font-size:13px; color:#93a4c2">{{sel.unit}}</div>
+        </div>
+
+        <div style="height:1px; background:#243352; margin:12px 0"></div>
+
+        <div style="font-size:11px; color:#93a4c2; letter-spacing:.05em; margin-bottom:5px">影響什麼</div>
+        <div style="font-size:12.5px; line-height:1.65">{{sel.affects}}</div>
+
+        <sc-if value="{{sel.hasRule}}" hint-placeholder-val="{{ true }}">
+          <div style="font-size:11px; color:#93a4c2; letter-spacing:.05em; margin:11px 0 5px">規範限制</div>
+          <div style="font-size:12.5px; line-height:1.65; background:#0d1526; border:1px solid #243352;
+                      border-radius:7px; padding:8px 10px; font-variant-numeric:tabular-nums">{{sel.rule}}</div>
+        </sc-if>
+
+        <sc-if value="{{sel.hasWarn}}" hint-placeholder-val="{{ true }}">
+          <div style="margin-top:11px; border-radius:8px; padding:9px 11px; font-size:12px; line-height:1.6;
+                      {{sel.warnStyle}}">{{sel.warn}}</div>
+        </sc-if>
+      </div>
+
+      <div style="background:#111a2e; border:1px solid #243352; border-radius:10px; padding:12px;
+                  flex-grow:1; min-height:0; overflow:hidden">
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:9px">
+          <div style="font-size:12px; color:#93a4c2">即時檢核</div>
+          <div style="flex-grow:1"></div>
+          <div style="font-size:12px; color:#22c55e; font-weight:700">D/C 0.897 ✓</div>
+        </div>
+        <svg viewBox="0 0 340 150" style="width:100%; display:block; margin-bottom:9px">
+          <rect x="118" y="8" width="104" height="132" fill="#334155" stroke="#64748b" stroke-width="1.6"/>
+          <rect x="134" y="24" width="72" height="100" fill="#0b1220" stroke="#64748b" stroke-width="1.6"/>
+          <rect x="121" y="11" width="98" height="126" fill="none" stroke="#38bdf8" stroke-width="1.1" rx="2"/>
+          <rect x="131" y="21" width="78" height="106" fill="none" stroke="#38bdf8" stroke-width="1" stroke-dasharray="4 3" rx="2"/>
+          <g fill="#f8fafc">
+            <circle cx="125" cy="14" r="1.8"/><circle cx="145" cy="14" r="1.8"/><circle cx="165" cy="14" r="1.8"/>
+            <circle cx="185" cy="14" r="1.8"/><circle cx="205" cy="14" r="1.8"/><circle cx="215" cy="14" r="1.8"/>
+            <circle cx="125" cy="134" r="1.8"/><circle cx="145" cy="134" r="1.8"/><circle cx="165" cy="134" r="1.8"/>
+            <circle cx="185" cy="134" r="1.8"/><circle cx="205" cy="134" r="1.8"/><circle cx="215" cy="134" r="1.8"/>
+            <circle cx="125" cy="48" r="1.8"/><circle cx="125" cy="82" r="1.8"/><circle cx="125" cy="116" r="1.8"/>
+            <circle cx="215" cy="48" r="1.8"/><circle cx="215" cy="82" r="1.8"/><circle cx="215" cy="116" r="1.8"/>
+          </g>
+        </svg>
+        <sc-for list="{{checks}}" as="c" hint-placeholder-count="4">
+          <div style="display:flex; justify-content:space-between; gap:10px; font-size:12.5px;
+                      padding:4px 0; border-bottom:1px dashed #243352">
+            <span style="color:#93a4c2">{{c.k}}</span>
+            <b style="{{c.color}}; font-variant-numeric:tabular-nums">{{c.v}}</b>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(p){ super(p); this.state = { group: -1, sel: 'bc' }; }
+
+  groups(){
+    return [
+      { label:'斷面幾何', sub:'7 項', rows:[
+        ['type','斷面型式','中空箱型','',1,'ok','',
+         '決定受壓區積分方式。中空箱型的受壓面積要扣掉中空區，分段涵蓋 a ≤ t_w、t_w < a < D−t_w、a ≥ D−t_w 三種情形。','',''],
+        ['B','外寬 B','600','cm',0,'ok','',
+         '毛斷面積 A_g、繞 Y 軸的有效深度、以及剪力的 b_w（實心時）。','',''],
+        ['H','外高 H','800','cm',0,'ok','',
+         '繞 X 軸的有效深度與 P-M 曲線形狀。','',''],
+        ['t_w','壁厚','90','cm',0,'ok','',
+         '箱型剪力的 b_w = 2t_w；也決定主筋能不能排雙層。',
+         '需容納 外保護層 7.5 + 箍筋 + 雙層主筋 ≈ 25 cm',''],
+        ['c_o','外側保護層','7.5','cm',0,'ok','',
+         '主筋位置 d_i、圍束核心尺寸 A_ch。','橋塔外露面慣用 7.5；海洋環境 10',''],
+        ['c_i','內側保護層','5.0','cm',0,'ok','','內層主筋位置與牆片核心厚度 b_c,t。','',''],
+        ['d_agg','骨材最大粒徑','2.5','cm',0,'ok','',
+         '主筋淨距下限之一。','淨距 ≥ max(4.0, 1.5d_b, 4/3·d_agg) = 5.37 cm','']
+      ]},
+      { label:'材料', sub:'6 項', rows:[
+        ["f'_c",'混凝土抗壓強度','420','kgf/cm²',0,'val','β₁ 0.750',
+         'β₁、E_c、V_c、A_sh 需求、Mander f′_cc 全部由它導出。',
+         "β₁ = max(0.65, min(0.85, 0.85 − 0.05(f'_c−280)/70)) = 0.750",''],
+        ['f_y','主筋降伏強度','4200','kgf/cm²',1,'ok','',
+         '鋼筋應力上限與 ε_ty（φ 過渡起點）。','ε_ty = f_y/E_s = 0.00206',''],
+        ['f_yt','橫向筋降伏強度','4200','kgf/cm²',1,'ok','','V_s、A_sh 需求、Mander 圍束壓力。','',''],
+        ['E_s','鋼筋彈性模數','2040000','kgf/cm²',0,'ok','','鋼筋應變→應力的斜率。','',''],
+        ['ε_cu','極限壓應變','0.003','',0,'ok','','非圍束 P-M 曲線的應變上限。','',''],
+        ['ε_su','箍筋極限應變','0.09','',0,'ok','','Mander 圍束混凝土的 ε_cu,c。','','']
+      ]},
+      { label:'主筋', sub:'4 項', rows:[
+        ['—','主筋號數','#11 (D36)','',1,'ok','',
+         'd_b 影響淨距需求與塑鉸區箍筋間距上限 6d_b。','#4 ~ #18（CNS 560）',''],
+        ['n_B','B 向每面根數','39','根',0,'ok','','中心距與淨距，進而決定繫筋根數。',
+         '中心距 15.2 cm　·　淨距 11.6 ≥ 5.37 cm ✓',''],
+        ['n_H','H 向每面根數','53','根',0,'ok','','同上（H 向）。','中心距 15.0 cm　·　淨距 11.4 cm ✓',''],
+        ['—','內層同配置','是（雙層）','',1,'ok','',
+         '雙層才有 4 肢剪力肢數；內層座標對齊外層網格，使繫筋垂直穿過壁厚。','','']
+      ]},
+      { label:'橫向筋 / 耐震', sub:'需注意', rows:[
+        ['—','箍筋 / 繫筋號數','#6 (D19)','',1,'ok','','A_v、A_sh 的單肢面積。','',''],
+        ['—','此斷面為塑鉸區','是','',1,'warn','',
+         '開啟後：V_c 依軸壓折減、箍筋間距受 min(b/4, 6d_b, 15cm) 限制、啟動容量設計剪力。','',
+         'N_u = 2,800 < 0.1f′_c·A_g = 9,223 tf → V_c 取 0，全部剪力由箍筋承擔。'],
+        ['φ_o','超強係數','1.25','',0,'ok','',
+         '塑鉸超強彎矩 M_o = φ_o·M_n，用來反算設計剪力。','V_e = φ_o·M_n / L_v = 1,932 tf',''],
+        ['L_v','剪力跨度','4000','cm',0,'ok','','V_e 的分母。','設計剪力取 max(V_e, V_u) = 1,932 tf',''],
+        ['—','繫筋配置','規範最低（每隔一根）','',1,'val','可放寬',
+         '每隔一根 vs 每一根。直接改變 A_sh 提供量。',
+         '規範：每隔一根縱筋須側向支撐，且距被支撐筋淨距 ≤ 15 cm',
+         '切成「每一根」可讓 A_sh 需求的間距從 7.6 放寬到 8.2 cm。'],
+        ['b_c','A_sh 之 b_c 配對','垂直（肢的跨距）','',1,'warn','歧義',
+         'A_sh/(s·b_c) 的分母取哪個方向的核心尺寸。',
+         '垂直＝肢分布的跨距（585 cm）　·　平行＝量至肢外緣（77.5 cm）',
+         '⚠ 規範條文對 b_c 方向的敘述有歧義，箱型牆片兩種讀法差 7 倍以上，直接決定箍筋間距。請對照你手上的條文確認後再選 —— 這題我不替你決定。']
+      ]},
+      { label:'規範係數', sub:'5 項', rows:[
+        ['φ_c','壓力控制','0.65','',0,'ok','','P-M 設計曲線在壓控段的折減。','土木401 橫箍柱',''],
+        ['φ_t','拉力控制','0.90','',0,'ok','','拉控段折減與 φ 過渡終點。','',''],
+        ['φ_v','剪力 / 扭矩','0.75','',0,'warn','',
+         'V_s 需求 = V_des/φ_v − V_c。',"搭配 ACI 型 V_c = 0.53√f'_c·b_w·d",
+         'AASHTO 的 φ_v = 0.90 是為 MCFT 校準的，套在這裡會偷掉 20% 剪力裕度。'],
+        ['—','軸力截斷','0.80','×P_o',0,'ok','','φP_n,max 水平截斷線的高度。','橫箍柱',''],
+        ['α','低軸壓輪廓指數','1.00','',0,'ok','','PCA 載重輪廓法的指數。','低軸壓時取代 Bresler','']
+      ]},
+      { label:'載重組合', sub:'4 組', rows:[
+        ['1','D+L','4200 / 21000 / 8000','tf·m',0,'ok','D/C 0.381','P_u / M_ux / M_uy','',''],
+        ['2','地震 X 最大彎矩','2800 / 40000 / 7500','tf·m',0,'ok','D/C 0.859','','',''],
+        ['3','地震 Y 最大彎矩','2650 / 9000 / 30000','tf·m',0,'ok','D/C 0.845','','',''],
+        ['4','最小軸力（拉）','−350 / 33000 / 6000','tf·m',0,'bad','控制',
+         '控制組合。軸拉使 V_c 改用分母 35 之公式並夾至 ≥ 0。','D/C = 0.897（定偏心射線法）','']
+      ]}
+    ];
+  }
+
+  renderVals(){
+    const G = this.groups(), S = this.state;
+    const chipStyles = {
+      ok:  'display:inline-block; padding:1px 7px; border-radius:10px; font-size:11px; background:rgba(34,197,94,.16); color:#22c55e;',
+      warn:'display:inline-block; padding:1px 7px; border-radius:10px; font-size:11px; background:rgba(245,158,11,.16); color:#f59e0b;',
+      bad: 'display:inline-block; padding:1px 7px; border-radius:10px; font-size:11px; background:rgba(239,68,68,.16); color:#ef4444;',
+      val: 'display:inline-block; padding:1px 7px; border-radius:10px; font-size:11px; background:rgba(56,189,248,.14); color:#38bdf8;'
+    };
+    const chipText = { ok:'✓', warn:'⚠', bad:'控制', val:'' };
+
+    const rail = G.map((g,i) => {
+      const on = S.group === i;
+      const hasWarn = g.rows.some(r => r[5] === 'warn');
+      return {
+        label:g.label, sub:g.sub,
+        pick: () => this.setState({ group: on ? -1 : i }),
+        style: 'display:flex; align-items:flex-start; gap:8px; padding:7px 9px; border-radius:8px; cursor:pointer;'
+          + (on ? ' background:#16213a; border:1px solid #38bdf8;' : ' border:1px solid transparent;'),
+        mark: 'width:19px; height:19px; border-radius:50%; flex-shrink:0; display:flex; align-items:center;'
+          + ' justify-content:center; font-size:10.5px; font-weight:700; margin-top:1px;'
+          + (hasWarn ? ' background:rgba(245,158,11,.16); color:#f59e0b; border:1px solid #f59e0b;'
+                     : ' background:rgba(34,197,94,.14); color:#22c55e; border:1px solid rgba(34,197,94,.5);'),
+        markText: hasWarn ? '!' : '✓'
+      };
+    });
+
+    const rows = [], all = S.group < 0;
+    const idOf = (gi,ri) => gi + '-' + ri;
+    G.forEach((g,gi) => {
+      if (!all && gi !== S.group) return;
+      if (all) rows.push({ isHead:true, isRow:false, name: g.label });
+      g.rows.forEach((r,ri) => {
+        const id = idOf(gi,ri), on = S.sel === id || (S.sel === 'bc' && r[0] === 'b_c');
+        rows.push({
+          isHead:false, isRow:true,
+          code:r[0], name:r[1], val:r[2], unit:r[3],
+          isSelect: r[4]===1, isInput: r[4]!==1,
+          chip: chipStyles[r[5]] || chipStyles.ok,
+          chipText: r[6] || chipText[r[5]] || '',
+          pick: () => this.setState({ sel:id }),
+          rowStyle: 'display:grid; grid-template-columns:74px 1fr 116px 62px 88px; align-items:center;'
+            + ' height:34px; cursor:pointer; border-bottom:1px solid rgba(36,51,82,.5);'
+            + (on ? ' background:rgba(56,189,248,.10); box-shadow:inset 3px 0 0 #38bdf8;' : '')
+        });
+      });
+    });
+
+    // 選取列的完整說明
+    let pick = null;
+    G.forEach((g,gi) => g.rows.forEach((r,ri) => {
+      if (idOf(gi,ri) === S.sel || (S.sel === 'bc' && r[0] === 'b_c')) pick = r;
+    }));
+    if (!pick) pick = G[0].rows[0];
+
+    return {
+      rail, rows,
+      showAll: () => this.setState({ group:-1 }),
+      allStyle: 'padding:7px 9px; border-radius:8px; cursor:pointer; font-size:12.5px; font-weight:700;'
+        + (all ? ' background:#0369a1; border:1px solid #0284c7; color:#fff;'
+               : ' background:#111a2e; border:1px solid #243352; color:#93a4c2;'),
+      scopeLabel: all ? '全部參數' : G[S.group].label,
+      count: rows.filter(r => r.isRow).length,
+      sel: {
+        code: pick[0] === '—' ? '' : pick[0],
+        name: pick[1], val: pick[2], unit: pick[3],
+        valColor: pick[5]==='warn' ? 'color:#f59e0b' : pick[5]==='bad' ? 'color:#ef4444' : 'color:#e6edf7',
+        affects: pick[7] || '—',
+        hasRule: !!pick[8], rule: pick[8] || '',
+        hasWarn: !!pick[9], warn: pick[9] || '',
+        warnStyle: pick[5]==='warn'
+          ? 'background:rgba(245,158,11,.13); border-left:4px solid #f59e0b'
+          : 'background:rgba(56,189,248,.11); border-left:4px solid #38bdf8'
+      },
+      checks: [
+        { k:'鋼筋比 ρ_g', v:'1.504 %', color:'color:#22c55e' },
+        { k:'主筋淨距', v:'11.6 cm', color:'color:#22c55e' },
+        { k:'採用箍筋', v:'#6 @ 7.5 cm', color:'color:#f59e0b' },
+        { k:'h_x（≤ 35）', v:'30.4 cm', color:'color:#22c55e' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

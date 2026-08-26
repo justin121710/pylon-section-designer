@@ -1,0 +1,261 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin:0; background:#0b1220; color:#e6edf7;
+           font-family: ui-sans-serif,"Noto Sans TC",system-ui,sans-serif; }
+    a { color:#38bdf8; } a:hover { color:#7dd3fc; }
+    * { box-sizing:border-box; }
+    input, select { background:#0d1526; color:#e6edf7; border:1px solid #243352;
+      border-radius:6px; padding:4px 7px; font-size:13px; width:100%;
+      font-family:inherit; font-variant-numeric:tabular-nums; text-align:right; }
+    input:focus, select:focus { outline:2px solid #38bdf8; outline-offset:-1px; }
+    select { text-align:left; }
+  </style>
+</helmet>
+
+<div style="width:1440px; height:900px; display:flex; flex-direction:column; overflow:hidden">
+
+  <!-- 頂列（沿用現有 app） -->
+  <div style="display:flex; align-items:center; gap:8px; padding:10px 16px;
+              background:#111a2e; border-bottom:1px solid #243352; flex-shrink:0">
+    <div style="font-weight:800; font-size:17px; letter-spacing:.01em">RC 斷面設計工具</div>
+    <div style="font-size:11.5px; color:#93a4c2">土木401 + 公路橋梁耐震設計規範　｜　kgf-cm 制</div>
+    <div style="flex-grow:1"></div>
+    <div style="display:flex; gap:4px; background:#0d1526; border:1px solid #243352;
+                border-radius:8px; padding:3px">
+      <div style="padding:4px 12px; font-size:13px; border-radius:6px; background:#1d4ed8">橋塔／柱斷面</div>
+      <div style="padding:4px 12px; font-size:13px; border-radius:6px; color:#93a4c2">梁斷面</div>
+    </div>
+    <div style="padding:6px 12px; font-size:13px; border:1px solid #243352; border-radius:6px; background:#16213a">內部自測</div>
+    <div style="padding:6px 12px; font-size:13px; border:1px solid #243352; border-radius:6px; background:#16213a">預覽報告</div>
+    <div style="padding:6px 12px; font-size:13px; border:1px solid #0284c7; border-radius:6px; background:#0369a1">列印 / 存成 PDF</div>
+  </div>
+
+  <div style="display:grid; grid-template-columns:1fr 420px; gap:14px; padding:14px; flex-grow:1; min-height:0">
+
+    <!-- 左：參數工程表 -->
+    <div style="display:flex; flex-direction:column; gap:10px; min-height:0">
+
+      <div style="display:flex; align-items:center; gap:10px">
+        <div style="font-size:13px; color:#93a4c2">斷面範本</div>
+        <select style="width:260px">
+          <option>中空箱型 600×800×90（長跨徑橋塔）</option>
+        </select>
+        <div style="flex-grow:1"></div>
+        <div style="font-size:11.5px; color:#93a4c2">
+          ↑↓ 移動　·　Tab 下一格　·　⌘V 整欄貼上　·　/ 搜尋參數
+        </div>
+      </div>
+
+      <!-- 分組標籤 -->
+      <div style="display:flex; gap:6px">
+        <sc-for list="{{tabs}}" as="t" hint-placeholder-count="6">
+          <div onClick="{{ t.pick }}"
+               style="{{t.style}}">
+            <span style="opacity:.55; font-variant-numeric:tabular-nums">{{t.num}}</span>&nbsp;&nbsp;{{t.label}}
+            <sc-if value="{{t.flag}}" hint-placeholder-val="{{ true }}">
+              <span style="display:inline-block; width:6px; height:6px; border-radius:50%;
+                           background:#f59e0b; margin-left:6px; vertical-align:middle"></span>
+            </sc-if>
+          </div>
+        </sc-for>
+      </div>
+
+      <!-- 表 -->
+      <div style="background:#111a2e; border:1px solid #243352; border-radius:10px;
+                  flex-grow:1; min-height:0; display:flex; flex-direction:column; overflow:hidden">
+        <div style="display:grid; grid-template-columns:78px 1fr 118px 74px 1fr;
+                    background:#16213a; border-bottom:1px solid #243352;
+                    font-size:12px; font-weight:600; color:#e6edf7">
+          <div style="padding:7px 10px">代號</div>
+          <div style="padding:7px 10px">參數</div>
+          <div style="padding:7px 10px; text-align:right">值</div>
+          <div style="padding:7px 10px">單位</div>
+          <div style="padding:7px 10px">限制 / 備註</div>
+        </div>
+
+        <div style="overflow:hidden; flex-grow:1">
+          <sc-for list="{{rows}}" as="r" hint-placeholder-count="9">
+            <div onClick="{{ r.pick }}" style="{{r.rowStyle}}">
+              <div style="padding:0 10px; font-size:12.5px; color:#93a4c2; font-variant-numeric:tabular-nums">{{r.code}}</div>
+              <div style="padding:0 10px; font-size:13px">{{r.name}}</div>
+              <div style="padding:0 6px">
+                <sc-if value="{{r.isSelect}}" hint-placeholder-val="{{ false }}">
+                  <select><option>{{r.val}}</option></select>
+                </sc-if>
+                <sc-if value="{{r.isInput}}" hint-placeholder-val="{{ true }}">
+                  <input value="{{r.val}}">
+                </sc-if>
+              </div>
+              <div style="padding:0 10px; font-size:12.5px; color:#93a4c2">{{r.unit}}</div>
+              <div style="padding:0 10px; font-size:12px; {{r.noteColor}}">{{r.note}}</div>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="border-top:1px solid #243352; padding:8px 12px; display:flex; align-items:center; gap:8px">
+          <div style="font-size:12px; color:#93a4c2">共 {{count}} 項　·　本組已改 {{dirty}} 項</div>
+          <div style="flex-grow:1"></div>
+          <div style="padding:5px 11px; font-size:12.5px; border:1px solid #243352; border-radius:6px; background:#16213a">回復本組預設</div>
+          <div style="padding:5px 11px; font-size:12.5px; border:1px solid #243352; border-radius:6px; background:#16213a">貼上 CSV</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右：常駐圖面 + 即時檢核 -->
+    <div style="display:flex; flex-direction:column; gap:12px; min-height:0">
+
+      <div style="background:#111a2e; border:1px solid #243352; border-radius:10px; padding:12px">
+        <div style="font-size:14px; font-weight:700; letter-spacing:.03em; margin-bottom:8px">斷面配筋圖</div>
+        <svg viewBox="0 0 380 250" style="width:100%; display:block">
+          <rect x="118" y="16" width="144" height="192" fill="#334155" stroke="#64748b" stroke-width="2"/>
+          <rect x="140" y="38" width="100" height="148" fill="#0b1220" stroke="#64748b" stroke-width="2"/>
+          <g fill="#f8fafc">
+            <circle cx="125" cy="23" r="2.4"/><circle cx="145" cy="23" r="2.4"/><circle cx="165" cy="23" r="2.4"/>
+            <circle cx="185" cy="23" r="2.4"/><circle cx="205" cy="23" r="2.4"/><circle cx="225" cy="23" r="2.4"/>
+            <circle cx="245" cy="23" r="2.4"/><circle cx="255" cy="23" r="2.4"/>
+            <circle cx="125" cy="201" r="2.4"/><circle cx="145" cy="201" r="2.4"/><circle cx="165" cy="201" r="2.4"/>
+            <circle cx="185" cy="201" r="2.4"/><circle cx="205" cy="201" r="2.4"/><circle cx="225" cy="201" r="2.4"/>
+            <circle cx="245" cy="201" r="2.4"/><circle cx="255" cy="201" r="2.4"/>
+            <circle cx="125" cy="60" r="2.4"/><circle cx="125" cy="97" r="2.4"/><circle cx="125" cy="134" r="2.4"/><circle cx="125" cy="171" r="2.4"/>
+            <circle cx="255" cy="60" r="2.4"/><circle cx="255" cy="97" r="2.4"/><circle cx="255" cy="134" r="2.4"/><circle cx="255" cy="171" r="2.4"/>
+          </g>
+          <rect x="121" y="19" width="138" height="186" fill="none" stroke="#38bdf8" stroke-width="1.4" rx="2"/>
+          <rect x="137" y="35" width="106" height="154" fill="none" stroke="#38bdf8" stroke-width="1.2" stroke-dasharray="5 3" rx="2"/>
+          <g stroke="#f472b6" stroke-width="1">
+            <line x1="145" y1="21" x2="145" y2="37"/><line x1="185" y1="21" x2="185" y2="37"/><line x1="225" y1="21" x2="225" y2="37"/>
+            <line x1="145" y1="187" x2="145" y2="203"/><line x1="185" y1="187" x2="185" y2="203"/><line x1="225" y1="187" x2="225" y2="203"/>
+            <line x1="123" y1="97" x2="139" y2="97"/><line x1="241" y1="97" x2="257" y2="97"/>
+          </g>
+          <line x1="118" y1="228" x2="262" y2="228" stroke="#93a4c2" stroke-width="1"/>
+          <text x="190" y="243" fill="#93a4c2" font-size="11" text-anchor="middle" font-family="ui-sans-serif,system-ui">B = 600 cm</text>
+          <line x1="96" y1="16" x2="96" y2="208" stroke="#93a4c2" stroke-width="1"/>
+          <text x="88" y="118" fill="#93a4c2" font-size="11" text-anchor="middle"
+                transform="rotate(-90 88 118)" font-family="ui-sans-serif,system-ui">H = 800 cm</text>
+        </svg>
+      </div>
+
+      <div style="background:#111a2e; border:1px solid #243352; border-radius:10px; padding:12px;
+                  flex-grow:1; min-height:0; overflow:hidden">
+        <div style="font-size:14px; font-weight:700; letter-spacing:.03em; margin-bottom:8px">即時檢核</div>
+        <sc-for list="{{checks}}" as="c" hint-placeholder-count="5">
+          <div style="display:flex; justify-content:space-between; gap:10px; font-size:13px;
+                      padding:5px 0; border-bottom:1px dashed #243352">
+            <span style="color:#93a4c2">{{c.k}}</span>
+            <b style="{{c.color}}; font-variant-numeric:tabular-nums">{{c.v}}</b>
+          </div>
+        </sc-for>
+        <div style="margin-top:10px; border-radius:8px; padding:8px 11px; font-size:12.5px;
+                    line-height:1.55; background:rgba(245,158,11,.13); border-left:4px solid #f59e0b">
+          A<sub>sh</sub> 為控制項 — 箍筋間距由圍束需求決定，非剪力強度。
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(p){ super(p); this.state = { tab: 0, row: 2 }; }
+
+  data(){
+    return [
+      { num:'①', label:'斷面幾何', flag:false, rows:[
+        ['type','斷面型式','中空箱型','','實心 / 中空箱型',0,1],
+        ['B','外寬 B','600','cm','',0,0],
+        ['H','外高 H','800','cm','',0,0],
+        ['t_w','壁厚','90','cm','≥ 內外保護層 + 雙層主筋',0,0],
+        ['c_o','外側保護層','7.5','cm','橋塔外露面慣用 7.5',0,0],
+        ['c_i','內側保護層','5.0','cm','',0,0],
+        ['d_agg','骨材最大粒徑','2.5','cm','影響主筋淨距下限',0,0]
+      ]},
+      { num:'②', label:'材料', flag:false, rows:[
+        ["f'_c",'混凝土抗壓強度','420','kgf/cm²','β₁ = 0.750　≈ 41.2 MPa',0,0],
+        ['f_y','主筋降伏強度','4200','kgf/cm²','SD420',0,1],
+        ['f_yt','橫向筋降伏強度','4200','kgf/cm²','SD420',0,1],
+        ['E_s','鋼筋彈性模數','2040000','kgf/cm²','',0,0],
+        ['ε_cu','混凝土極限壓應變','0.003','','非圍束',0,0],
+        ['ε_su','箍筋極限應變','0.09','','Mander ε_cu,c 用',0,0]
+      ]},
+      { num:'③', label:'主筋', flag:false, rows:[
+        ['—','主筋號數','#11 (D36)','','#4~#18',0,1],
+        ['n_B','B 向每面根數','39','根','中心距 15.2 cm',0,0],
+        ['n_H','H 向每面根數','53','根','中心距 15.0 cm',0,0],
+        ['—','內層同配置','是（雙層）','','',0,1],
+        ['ρ_g','鋼筋比','1.504','%','1.0 ~ 4.0 ✓',1,0],
+        ['A_st','總鋼筋面積','3303','cm²','328 根',2,0]
+      ]},
+      { num:'④', label:'橫向筋 / 耐震', flag:true, rows:[
+        ['—','箍筋 / 繫筋號數','#6 (D19)','','',0,1],
+        ['—','此斷面為塑鉸區','是','','V_c 折減、間距加密',0,1],
+        ['φ_o','超強係數','1.25','','容量設計剪力用',0,0],
+        ['L_v','剪力跨度','4000','cm','V_e = φ_o·M_n / L_v',0,0],
+        ['θ','扭矩桁架角','45','°','',0,0],
+        ['—','繫筋配置','規範最低（每隔一根）','','切「每一根」可放寬 A_sh',3,1],
+        ['b_c','A_sh 之 b_c 配對','垂直（肢的跨距）','','⚠ 條文有歧義，箱型差 7 倍',4,1]
+      ]},
+      { num:'⑤', label:'規範係數', flag:false, rows:[
+        ['φ_c','壓力控制','0.65','','土木401 橫箍柱',0,0],
+        ['φ_t','拉力控制','0.90','','',0,0],
+        ['φ_v','剪力 / 扭矩','0.75','',"搭配 V_c = 0.53√f'_c·b_w·d",0,0],
+        ['—','軸力截斷','0.80','×P_o','橫箍柱',0,0],
+        ['α','低軸壓輪廓指數','1.00','','PCA 載重輪廓法',0,0]
+      ]},
+      { num:'⑥', label:'載重組合', flag:false, rows:[
+        ['1','D+L','4200 / 21000 / 8000','tf, tf·m','D/C = 0.381',1,0],
+        ['2','地震 X 最大彎矩','2800 / 40000 / 7500','tf, tf·m','D/C = 0.859',1,0],
+        ['3','地震 Y 最大彎矩','2650 / 9000 / 30000','tf, tf·m','D/C = 0.845',1,0],
+        ['4','最小軸力（拉）','−350 / 33000 / 6000','tf, tf·m','D/C = 0.897　控制',5,0]
+      ]}
+    ];
+  }
+
+  renderVals(){
+    const D = this.data();
+    const ti = this.state.tab;
+    const noteColors = ['color:#93a4c2','color:#22c55e','color:#93a4c2','color:#38bdf8','color:#f59e0b','color:#ef4444;font-weight:700'];
+
+    const tabs = D.map((g,i) => ({
+      num:g.num, label:g.label, flag:g.flag,
+      pick: () => this.setState({ tab:i, row:0 }),
+      style: 'padding:7px 14px; font-size:13px; border-radius:8px 8px 0 0; cursor:pointer;'
+        + (i===ti
+            ? ' background:#111a2e; border:1px solid #243352; border-bottom-color:#111a2e; color:#e6edf7; font-weight:700;'
+            : ' background:transparent; border:1px solid transparent; color:#93a4c2;')
+    }));
+
+    const rows = D[ti].rows.map((r,i) => ({
+      code:r[0], name:r[1], val:r[2], unit:r[3], note:r[4],
+      noteColor: noteColors[r[5]] || 'color:#93a4c2',
+      isSelect: r[6]===1, isInput: r[6]!==1,
+      pick: () => this.setState({ row:i }),
+      rowStyle: 'display:grid; grid-template-columns:78px 1fr 118px 74px 1fr; align-items:center;'
+        + ' height:38px; cursor:pointer; border-bottom:1px solid rgba(36,51,82,.55);'
+        + (i===this.state.row ? ' background:rgba(56,189,248,.10); box-shadow:inset 3px 0 0 #38bdf8;' : '')
+    }));
+
+    return {
+      tabs, rows,
+      count: D[ti].rows.length,
+      dirty: [2,0,1,2,0,4][ti],
+      checks: [
+        { k:'控制組合 D/C', v:'0.897', color:'color:#22c55e' },
+        { k:'鋼筋比 ρ_g', v:'1.504 %', color:'color:#22c55e' },
+        { k:'主筋淨距', v:'11.6 cm', color:'color:#22c55e' },
+        { k:'採用箍筋', v:'#6 @ 7.5 cm', color:'color:#f59e0b' },
+        { k:'h_x（≤ 35 cm）', v:'30.4 cm', color:'color:#22c55e' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>
