@@ -758,9 +758,10 @@ function finalSpacing(M){
    ========================================================================= */
 function svgSection(M,forPrint){
   const {s,r,R,conf}=M;
-  const W=760, Hh=560, pad=78;
-  const k = Math.min((W-2*pad)/s.B, (Hh-2*pad)/s.H);
-  const X = x=>W/2 + x*k, Y = y=>Hh/2 - y*k;
+  const W=760, Hh=628, pad=78, band=76;   // band：頂部保留給圖例，避免與淨距標註重疊
+  const k = Math.min((W-2*pad)/s.B, (Hh-band-2*pad)/s.H);
+  const cy = band + (Hh-band)/2;
+  const X = x=>W/2 + x*k, Y = y=>cy - y*k;
   const o=[];
   const C = forPrint
     ? {conc:'#dcdcdc',void:'#ffffff',line:'#000',bar:'#000',tie:'#000',ct:'#000',txt:'#000',bad:'#000',dim:'#333'}
