@@ -249,6 +249,41 @@ const esc = s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;
 /* D/C 可能為 Infinity（射線與包絡線無交點＝載重點完全在外），需與一般數值分開顯示 */
 const fdc = x => Number.isFinite(x) ? f(x,3) : '∞';
 
+/* ---------- 上下標排版 ----------
+   內部字串一律以 X_ab / X^ab（多字元用 X_{ab}）書寫，於輸出前轉為真正的上下標。
+   SB()     → HTML 的 <sub>/<sup>；會跳過 \( … \) 的 KaTeX 原始碼不動。
+   svgTxt() → SVG 無 <sub>，改以 tspan 的 dy 位移實作，並逐段扣回基線。 */
+const _norm = t => String(t).replace(/f'(cc|cl|c|l|yt|y)(?![A-Za-z])/g, "f'_$1");
+function _sbOne(t){
+  return _norm(t)
+    .replace(/([A-Za-zÀ-ɏͰ-Ͽ'’)\]])_\{([^}]+)\}/g, '$1<sub>$2</sub>')
+    .replace(/([A-Za-zÀ-ɏͰ-Ͽ'’)\]])\^\{([^}]+)\}/g, '$1<sup>$2</sup>')
+    .replace(/([A-Za-zÀ-ɏͰ-Ͽ'’)\]])_([A-Za-z0-9]+(?:,[A-Za-z0-9]+)*)/g, '$1<sub>$2</sub>')
+    .replace(/([A-Za-zÀ-ɏͰ-Ͽ'’)\]])\^([A-Za-z0-9]+)/g, '$1<sup>$2</sup>');
+}
+/* 以 \( … \) 為界切開，偶數段（一般 HTML）才做轉換，奇數段（數學式）原樣保留 */
+const SB = html => String(html).split(/(\\\([\s\S]*?\\\))/)
+  .map((seg,i)=> i%2 ? seg : _sbOne(seg)).join('');
+
+function svgTxt(t, fs){
+  fs = fs || 12;
+  const src = _norm(t);
+  const re = /([_^])(\{[^}]+\}|[A-Za-z0-9]+(?:,[A-Za-z0-9]+)*)/g;
+  let out='', last=0, m, shift=0;
+  while((m=re.exec(src))){
+    out += esc(src.slice(last,m.index));
+    const body = m[2][0]==='{' ? m[2].slice(1,-1) : m[2];
+    const d = (m[1]==='_'?1:-1)*fs*0.30;
+    out += `<tspan dy="${(d-shift).toFixed(2)}" font-size="${(fs*0.74).toFixed(1)}">${esc(body)}</tspan>`;
+    shift = d;
+    last = re.lastIndex;
+  }
+  const tail = src.slice(last);
+  if(tail) out += shift ? `<tspan dy="${(-shift).toFixed(2)}">${esc(tail)}</tspan>` : esc(tail);
+  else if(shift) out += `<tspan dy="${(-shift).toFixed(2)}"> </tspan>`;
+  return out;
+}
+
 /* ---------- 基本力學 ---------- */
 const beta1 = fc => Math.max(0.65, Math.min(0.85, 0.85 - 0.05*(fc-280)/70));
 const Ecof  = fc => 15000*Math.sqrt(fc);
@@ -817,7 +852,7 @@ function finalSpacing(M){
     push(sh.s_ph,   `塑鉸區間距上限 (${sh.dir.toUpperCase()} 向)`);
     push(sh.s_tors, `扭矩間距上限 (${sh.dir.toUpperCase()} 向)`);
   }
-  push(M.conf.sAsh, '圍束筋量 Ash');
+  push(M.conf.sAsh, '圍束筋量 A_sh');
   const gov = cands.reduce((a,b)=> b.v<a.v?b:a, cands[0]);
   const sUse = PRACTICAL_S.find(v=>v<=gov.v) || PRACTICAL_S[PRACTICAL_S.length-1];
   return {cands,gov,sUse,tooTight: sUse > gov.v};
@@ -888,13 +923,13 @@ function svgSection(M,forPrint){
         LN(a1,dy,b1,dy);
         q.push(`<path d="M${a1},${dy} L${a1+arw},${dy-hh} L${a1+arw},${dy+hh} Z" fill="${color}"/>`);
         q.push(`<path d="M${b1},${dy} L${b1-arw},${dy-hh} L${b1-arw},${dy+hh} Z" fill="${color}"/>`);
-        q.push(`<text x="${(a1+b1)/2}" y="${dy-ext-4}" fill="${color}" font-size="${fs}" text-anchor="middle" font-weight="${fw}">${label}</text>`);
+        q.push(`<text x="${(a1+b1)/2}" y="${dy-ext-4}" fill="${color}" font-size="${fs}" text-anchor="middle" font-weight="${fw}">${svgTxt(label,fs)}</text>`);
       }else{                                            // 箭頭外置 + 引線
         const land=b1+2.6*arw+14;
         LN(a1-2.6*arw, dy, land, dy);
         q.push(`<path d="M${a1},${dy} L${a1-arw},${dy-hh} L${a1-arw},${dy+hh} Z" fill="${color}"/>`);
         q.push(`<path d="M${b1},${dy} L${b1+arw},${dy-hh} L${b1+arw},${dy+hh} Z" fill="${color}"/>`);
-        q.push(`<text x="${land+4}" y="${dy+fs*0.36}" fill="${color}" font-size="${fs}" font-weight="${fw}">${label}</text>`);
+        q.push(`<text x="${land+4}" y="${dy+fs*0.36}" fill="${color}" font-size="${fs}" font-weight="${fw}">${svgTxt(label,fs)}</text>`);
       }
     }else{
       const dx=dimPos, sg=Math.sign(dx-p1[0])||1;
@@ -906,14 +941,14 @@ function svgSection(M,forPrint){
         q.push(`<path d="M${dx},${a1} L${dx-hh},${a1+arw} L${dx+hh},${a1+arw} Z" fill="${color}"/>`);
         q.push(`<path d="M${dx},${b1} L${dx-hh},${b1-arw} L${dx+hh},${b1-arw} Z" fill="${color}"/>`);
         const my=(a1+b1)/2;
-        q.push(`<text x="${dx-6}" y="${my}" fill="${color}" font-size="${fs}" text-anchor="middle" font-weight="${fw}" transform="rotate(-90 ${dx-6} ${my})">${label}</text>`);
+        q.push(`<text x="${dx-6}" y="${my}" fill="${color}" font-size="${fs}" text-anchor="middle" font-weight="${fw}" transform="rotate(-90 ${dx-6} ${my})">${svgTxt(label,fs)}</text>`);
       }else{
         const land=b1+2.6*arw+12;
         LN(dx,a1-2.6*arw,dx,land);
         q.push(`<path d="M${dx},${a1} L${dx-hh},${a1-arw} L${dx+hh},${a1-arw} Z" fill="${color}"/>`);
         q.push(`<path d="M${dx},${b1} L${dx-hh},${b1+arw} L${dx+hh},${b1+arw} Z" fill="${color}"/>`);
         LN(dx,land,dx+14,land);                          // 引線水平段
-        q.push(`<text x="${dx+18}" y="${land+fs*0.36}" fill="${color}" font-size="${fs}" font-weight="${fw}">${label}</text>`);
+        q.push(`<text x="${dx+18}" y="${land+fs*0.36}" fill="${color}" font-size="${fs}" font-weight="${fw}">${svgTxt(label,fs)}</text>`);
       }
     }
     o.push(q.join(''));
@@ -961,7 +996,7 @@ function svgSection(M,forPrint){
     else o.push(`<line x1="7" y1="${yy}" x2="26" y2="${yy}" stroke="${L[2]}"
       stroke-width="${L[0]==='thin'?(forPrint?1.3:1.8):(forPrint?2:2.4)}"
       ${L[0]==='dash'?'stroke-dasharray="6 3"':''}/>`);
-    o.push(`<text x="31" y="${yy+4}" fill="${C.txt}" font-size="11.5">${esc(L[1])}</text>`);
+    o.push(`<text x="31" y="${yy+4}" fill="${C.txt}" font-size="11.5">${svgTxt(L[1],11.5)}</text>`);
   });
   o.push(`</svg>`);
   return o.join('');
@@ -999,7 +1034,7 @@ function svgPM(M,axis,forPrint){
   }
   o.push(`<line x1="${L}" y1="${Y(0)}" x2="${W-Rr}" y2="${Y(0)}" stroke="${C.ax}" stroke-width="1.8"/>`);
   o.push(`<line x1="${L}" y1="${T}" x2="${L}" y2="${Hh-Bm}" stroke="${C.ax}" stroke-width="1.8"/>`);
-  o.push(`<text x="${(L+W-Rr)/2}" y="${Hh-14}" fill="${C.txt}" font-size="12.5" text-anchor="middle">M${axis==='x'?'ₓ':'ᵧ'} (tf·m)</text>`);
+  o.push(`<text x="${(L+W-Rr)/2}" y="${Hh-14}" fill="${C.txt}" font-size="12.5" text-anchor="middle">${svgTxt(`M_${axis} (tf·m)`,12.5)}</text>`);
   o.push(`<text x="16" y="${(T+Hh-Bm)/2}" fill="${C.txt}" font-size="12.5" text-anchor="middle" transform="rotate(-90 16 ${(T+Hh-Bm)/2})">P (tf)  壓為正</text>`);
 
   const path=(arr,col,w,dash)=>{
@@ -1015,7 +1050,7 @@ function svgPM(M,axis,forPrint){
   path(pd.poly.map(p=>[p[0]/TFM,p[1]/TF]), C.d, 2.6);
   // 截斷線
   o.push(`<line x1="${L}" y1="${Y(pd.cap/TF)}" x2="${W-Rr}" y2="${Y(pd.cap/TF)}" stroke="${C.d}" stroke-width="1.2" stroke-dasharray="4 4"/>`);
-  o.push(`<text x="${W-Rr-4}" y="${Y(pd.cap/TF)-5}" fill="${C.d}" font-size="10.5" text-anchor="end">φP_n,max = ${f(pd.cap/TF,0)} tf</text>`);
+  o.push(`<text x="${W-Rr-4}" y="${Y(pd.cap/TF)-5}" fill="${C.d}" font-size="10.5" text-anchor="end">${svgTxt(`φP_{n,max} = ${f(pd.cap/TF,0)} tf`,10.5)}</text>`);
   // 平衡點
   let bal=cv.pts[0],bd=1e9;
   for(const p of cv.pts){ const dd=Math.abs(p.eps_t-M.m.ety); if(dd<bd){bd=dd;bal=p;} }
@@ -1050,12 +1085,12 @@ function svgPM(M,axis,forPrint){
     o.push(`<text x="${bx+240}" y="${yy}" fill="${R2.dc>1?C.bad:(isC?C.ptc:C.txt)}" font-size="10" font-weight="${isC?700:400}" text-anchor="end">${fdc(R2.dc)}</text>`);
   });
   // 圖例
-  const lg=[['標稱 P_n–M_n',C.n,'1.7',''],['設計 φP_n–φM_n',C.d,'2.6',''],
+  const lg=[['標稱 P_n – M_n',C.n,'1.7',''],['設計 φP_n – φM_n',C.d,'2.6',''],
             ['Mander 圍束核心（保護層剝落）'+(confClipped?'（已裁切）':''),C.mc,'1.7','8 4']];
   lg.forEach((g2,i)=>{
     const yy=Hh-Bm-8-(lg.length-1-i)*15;
     o.push(`<line x1="${W-Rr-286}" y1="${yy}" x2="${W-Rr-254}" y2="${yy}" stroke="${g2[1]}" stroke-width="${g2[2]}" ${g2[3]?`stroke-dasharray="${g2[3]}"`:''}/>`);
-    o.push(`<text x="${W-Rr-248}" y="${yy+4}" fill="${C.txt}" font-size="10.5">${esc(g2[0])}</text>`);
+    o.push(`<text x="${W-Rr-248}" y="${yy+4}" fill="${C.txt}" font-size="10.5">${svgTxt(g2[0],10.5)}</text>`);
   });
   o.push(`</svg>`);
   return o.join('');
@@ -1148,7 +1183,7 @@ function renderSummary(M){
   h+=row('A_t/s 扭矩單肢 (cm²/cm)',f(X.AtS,4),f(Y.AtS,4));
   h+=row('A_l 扭矩縱筋 (cm²)',f(X.Al,1),f(Y.Al,1));
   h+=`</tbody></table></div>`;
-  document.getElementById('summary').innerHTML=h;
+  document.getElementById('summary').innerHTML=SB(h);
 }
 
 function renderAlerts(M){
@@ -1194,10 +1229,10 @@ function renderAlerts(M){
   if(M.fin.tooTight) add('bad',`<b>實務間距無解</b>：需求 s = ${f(M.fin.gov.v,2)} cm（${M.fin.gov.tag}）已小於最小實務間距 ${PRACTICAL_S[PRACTICAL_S.length-1]} cm。`);
   else add('ok',`採用 ${M.r.tieSize} @ ${f(M.fin.sUse,1)} cm（控制項：${M.fin.gov.tag}，需求 ≤ ${f(M.fin.gov.v,2)} cm）。`);
 
-  if(M.conf.sAsh===M.fin.gov.v) add('info',`<b>圍束筋量 Ash 為控制項</b> —— 橋塔塑鉸區常見情形，箍筋間距由圍束需求而非剪力強度決定。`);
+  if(M.conf.sAsh===M.fin.gov.v) add('info',`<b>圍束筋量 A_sh 為控制項</b> —— 橋塔塑鉸區常見情形，箍筋間距由圍束需求而非剪力強度決定。`);
   if(M.cf.MD) add('info',`Mander 圍束：f'_cc = ${f(M.cf.MD.fcc,0)} kgf/cm²（提升 ${f((M.cf.MD.fcc/M.m.fc-1)*100,1)}%）、ε_cu,c = ${f(M.cf.MD.ecu,4)}、k_e = ${f(M.cf.ke,3)}、ρ_s = ${f(M.cf.rho_s*100,3)}%。虛線即為保護層剝落後之圍束核心容量。`);
   add('info',`<b>二次效應</b>：本工具不計算彎矩放大係數。輸入之 P_u、M_u 必須來自已含 P-Δ 之大變形幾何非線性分析；若餵入一階分析結果，撓曲容量將被高估。`);
-  document.getElementById('alerts').innerHTML=A.join('');
+  document.getElementById('alerts').innerHTML=SB(A.join(''));
 }
 
 /* =========================================================================
@@ -1416,7 +1451,7 @@ function buildReport(M){
   o.push(`</div>`);
 
   const el=document.getElementById('report');
-  el.innerHTML=o.join('');
+  el.innerHTML=SB(o.join(''));
   if(window.renderMathInElement) renderMathInElement(el,{delimiters:[{left:'\\(',right:'\\)',display:false}],throwOnError:false});
 }
 
@@ -1619,12 +1654,12 @@ function selfTest(){
   T('純壓端 φ = φ_c', Math.abs(big.phi-m.phic)<1e-9, `φ=${f(big.phi,3)}`);
 
   const pass=out.filter(o=>o.ok).length;
-  document.getElementById('testOut').innerHTML =
+  document.getElementById('testOut').innerHTML = SB(
     `<div class="mb-2" style="font-weight:700;color:${pass===out.length?'var(--ok)':'var(--bad)'}">
       ${pass} / ${out.length} 項通過</div>` +
     out.map(o=>`<div style="padding:3px 0;border-bottom:1px dashed var(--line)">
       <span style="color:${o.ok?'var(--ok)':'var(--bad)'};font-weight:700">${o.ok?'✓':'✗'}</span>
-      <b>${esc(o.name)}</b><br><span class="mono" style="font-size:11.5px;margin-left:18px">${o.msg}</span></div>`).join('');
+      <b>${esc(o.name)}</b><br><span class="mono" style="font-size:11.5px;margin-left:18px">${o.msg}</span></div>`).join(''));
 }
 
 /* =========================================================================
