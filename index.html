@@ -92,6 +92,8 @@ svg{display:block;width:100%;height:auto}
   <div>
     <div class="card">
       <h2>① 斷面幾何</h2>
+      <div class="fld"><span><b>斷面範本</b></span><select id="preset"></select></div>
+      <div style="border-top:1px solid var(--line);margin:8px 0"></div>
       <div class="fld"><span>斷面型式</span>
         <select id="secType"><option value="box">中空箱型</option><option value="solid">實心矩形</option></select></div>
       <div class="fld"><span>外寬 B (cm)</span><input id="B" type="number" step="1" value="600"></div>
@@ -139,6 +141,20 @@ svg{display:block;width:100%;height:auto}
       <div class="fld"><span>超強係數 φ<sub>o</sub></span><input id="phio" type="number" step="0.05" value="1.25"></div>
       <div class="fld"><span>剪力跨度 L<sub>v</sub> (cm)</span><input id="Lv" type="number" step="10" value="4000"></div>
       <div class="fld"><span>扭矩桁架角 θ (°)</span><input id="theta" type="number" step="5" value="45"></div>
+      <div class="fld"><span>繫筋配置</span>
+        <select id="tieLayout">
+          <option value="code">規範最低（每隔一根）</option>
+          <option value="all">每一根主筋皆設</option>
+        </select></div>
+      <div class="fld"><span>A<sub>sh</sub> 之 b<sub>c</sub> 配對</span>
+        <select id="ashPair">
+          <option value="perp">垂直（肢的跨距）</option>
+          <option value="para">平行（量至肢外緣）</option>
+        </select></div>
+      <div class="text-[11.5px] mt-1" style="color:var(--warn)">
+        ⚠ 規範對 b<sub>c</sub> 方向的敘述有歧義，箱型牆片兩種讀法可差 7 倍以上。
+        請對照你手上的條文確認後再選。
+      </div>
     </div>
 
     <div class="card">
@@ -153,24 +169,6 @@ svg{display:block;width:100%;height:auto}
       </div>
     </div>
 
-    <div class="card">
-      <h2>⑥ 載重組合</h2>
-      <div class="text-[11.5px] mb-2" style="color:var(--dim)">
-        P<sub>u</sub>：壓為正、拉為負 (tf)；M (tf·m)；V (tf)；T (tf·m)
-      </div>
-      <table id="loadTbl">
-        <thead><tr><th class="l">組合</th><th>P<sub>u</sub></th><th>M<sub>ux</sub></th><th>M<sub>uy</sub></th><th>V<sub>ux</sub></th><th>V<sub>uy</sub></th><th>T<sub>u</sub></th><th></th></tr></thead>
-        <tbody></tbody>
-      </table>
-      <div class="flex gap-2 mt-2">
-        <button id="btnAddRow">+ 新增組合</button>
-        <button id="btnPaste">貼上 CSV</button>
-      </div>
-      <textarea id="csvBox" class="hidden w-full mt-2 text-[12px] p-2 rounded" rows="4"
-        style="background:#0d1526;border:1px solid var(--line);color:var(--txt)"
-        placeholder="名稱,Pu,Mux,Muy,Vux,Vuy,Tu  每行一組，貼上後按下方套用"></textarea>
-      <button id="btnCsvApply" class="hidden mt-2">套用 CSV</button>
-    </div>
   </div>
 
   <!-- ============ 右：視覺化與結果 ============ -->
@@ -192,6 +190,27 @@ svg{display:block;width:100%;height:auto}
         </div>
       </div>
       <div id="pmWrap"></div>
+    </div>
+
+    <div class="card">
+      <h2>⑥ 載重組合</h2>
+      <div class="text-[11.5px] mb-2" style="color:var(--dim)">
+        P<sub>u</sub>：壓為正、拉為負 (tf)　｜　M (tf·m)　｜　V (tf)　｜　T (tf·m)
+      </div>
+      <div style="overflow-x:auto">
+        <table id="loadTbl" style="min-width:620px">
+          <thead><tr><th class="l">組合</th><th>P<sub>u</sub></th><th>M<sub>ux</sub></th><th>M<sub>uy</sub></th><th>V<sub>ux</sub></th><th>V<sub>uy</sub></th><th>T<sub>u</sub></th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="flex gap-2 mt-2">
+        <button id="btnAddRow">+ 新增組合</button>
+        <button id="btnPaste">貼上 CSV</button>
+      </div>
+      <textarea id="csvBox" class="hidden w-full mt-2 text-[12px] p-2 rounded" rows="4"
+        style="background:#0d1526;border:1px solid var(--line);color:var(--txt)"
+        placeholder="名稱,Pu,Mux,Muy,Vux,Vuy,Tu　每行一組，貼上後按下方套用"></textarea>
+      <button id="btnCsvApply" class="hidden mt-2">套用 CSV</button>
     </div>
 
     <div class="card"><h2>設計結果摘要</h2><div id="summary"></div></div>
@@ -219,8 +238,8 @@ const BAR = {
   '#9':{d:2.865,A:6.469},  '#10':{d:3.226,A:8.143},'#11':{d:3.581,A:10.07},
   '#14':{d:4.300,A:14.52}, '#18':{d:5.733,A:25.79}
 };
-const MAIN_SIZES = ['#8','#9','#10','#11','#14','#18'];
-const TIE_SIZES  = ['#4','#5','#6','#7'];
+const MAIN_SIZES = ['#4','#5','#6','#7','#8','#9','#10','#11','#14','#18'];
+const TIE_SIZES  = ['#3','#4','#5','#6','#7'];
 const PRACTICAL_S = [30,25,20,15,12.5,10,7.5];
 
 const num = (id,dflt=0)=>{const v=parseFloat(document.getElementById(id).value);return Number.isFinite(v)?v:dflt;};
@@ -485,10 +504,11 @@ function pmCurveConfined(ctx, MD, coreGeo){
 }
 
 /* ---------- 繫筋 / 側向支撐排布 ---------- */
-function edgeTies(n,pitch,db){
+function edgeTies(n,pitch,db,forceAll){
   n=Math.max(2,Math.round(n));
   const clear = pitch-db;
-  const everyBar = clear > 15.0;      // 距被支撐筋淨距須 ≤ 15 cm → 每一根都要支撐
+  // 淨距 > 15 cm 時規範強制每根支撐；forceAll 為使用者主動加密（常因 Ash 控制）
+  const everyBar = !!forceAll || clear > 15.0;
   const idx=[];
   for(let i=1;i<n-1;i++) if(everyBar || i%2===0) idx.push(i);
   return {ties:idx.length, idx, clear, pitch, everyBar, hx: everyBar? pitch : 2*pitch, n};
@@ -507,14 +527,51 @@ function VcCalc(m,bw,d,Nu,plastic){
 /* =========================================================================
    主計算
    ========================================================================= */
-let LOADS = [
-  {name:'CASE-1 地震X 最大彎矩', Pu:2800, Mux:40000, Muy:7500, Vux:1450, Vuy:320, Tu:900},
-  {name:'CASE-2 地震Y 最大彎矩', Pu:2650, Mux:9000, Muy:30000, Vux:300, Vuy:1180, Tu:1100},
-  {name:'CASE-3 最大軸力',       Pu:4200, Mux:21000, Muy:8000,  Vux:600, Vuy:250, Tu:400},
-  {name:'CASE-4 最小軸力(拉)',   Pu:-350, Mux:33000, Muy:6000,  Vux:980, Vuy:200, Tu:300}
-];
+let LOADS = [];
 let AXIS = 'x';
 let MODEL = null;
+
+/* 斷面範本：涵蓋一般橋墩柱到長跨徑橋塔的量體差距（Ag 相差 20 倍以上） */
+const PRESETS = {
+  pier100: {label:'實心 100×100（一般橋墩柱）',
+    type:'solid', B:100, H:100, tw:20, fc:280, bar:'#8', nB:6, nH:6, tie:'#5',
+    covO:5, covI:5, Lv:800, dagg:2.5,
+    loads:[{name:'D+L',Pu:320,Mux:60,Muy:25,Vux:20,Vuy:10,Tu:2},
+           {name:'地震 X',Pu:280,Mux:196,Muy:40,Vux:52,Vuy:12,Tu:5},
+           {name:'地震 Y',Pu:280,Mux:40,Muy:196,Vux:12,Vuy:52,Tu:5},
+           {name:'最小軸力',Pu:120,Mux:152,Muy:32,Vux:44,Vuy:10,Tu:4}]},
+  pier200: {label:'實心 200×300（橋墩）',
+    type:'solid', B:200, H:300, tw:40, fc:280, bar:'#11', nB:13, nH:19, tie:'#5',
+    covO:7.5, covI:5, Lv:1500, dagg:2.5,
+    loads:[{name:'D+L',Pu:1500,Mux:600,Muy:250,Vux:80,Vuy:40,Tu:20},
+           {name:'地震 X',Pu:1300,Mux:2450,Muy:400,Vux:330,Vuy:60,Tu:60},
+           {name:'地震 Y',Pu:1300,Mux:400,Muy:1750,Vux:60,Vuy:240,Tu:60},
+           {name:'最小軸力',Pu:600,Mux:2150,Muy:350,Vux:290,Vuy:55,Tu:50}]},
+  box300: {label:'中空箱型 300×400×40（中跨徑橋塔）',
+    type:'box', B:300, H:400, tw:40, fc:350, bar:'#8', nB:19, nH:25, tie:'#5',
+    covO:7.5, covI:5, Lv:2500, dagg:2.5,
+    loads:[{name:'D+L',Pu:2200,Mux:900,Muy:400,Vux:120,Vuy:60,Tu:40},
+           {name:'地震 X',Pu:1900,Mux:6300,Muy:1100,Vux:520,Vuy:110,Tu:150},
+           {name:'地震 Y',Pu:1850,Mux:1200,Muy:4700,Vux:120,Vuy:400,Tu:180},
+           {name:'最小軸力',Pu:700,Mux:5400,Muy:950,Vux:450,Vuy:100,Tu:120}]},
+  box600: {label:'中空箱型 600×800×90（長跨徑橋塔）',
+    type:'box', B:600, H:800, tw:90, fc:420, bar:'#11', nB:39, nH:53, tie:'#6',
+    covO:7.5, covI:5, Lv:4000, dagg:2.5,
+    loads:[{name:'D+L',Pu:4200,Mux:21000,Muy:8000,Vux:600,Vuy:250,Tu:400},
+           {name:'地震 X 最大彎矩',Pu:2800,Mux:40000,Muy:7500,Vux:1450,Vuy:320,Tu:900},
+           {name:'地震 Y 最大彎矩',Pu:2650,Mux:9000,Muy:30000,Vux:300,Vuy:1180,Tu:1100},
+           {name:'最小軸力(拉)',Pu:-350,Mux:33000,Muy:6000,Vux:980,Vuy:200,Tu:300}]}
+};
+function applyPreset(key){
+  const P=PRESETS[key]; if(!P) return;
+  const S=(id,v)=>{const e=document.getElementById(id); if(e) e.value=v;};
+  S('secType',P.type); S('B',P.B); S('H',P.H); S('tw',P.tw); S('fc',P.fc);
+  S('barSize',P.bar); S('nB',P.nB); S('nH',P.nH); S('tieSize',P.tie);
+  S('covO',P.covO); S('covI',P.covI); S('Lv',P.Lv); S('dagg',P.dagg);
+  S('dbl', P.type==='box' ? '1' : '0');
+  LOADS = P.loads.map(l=>({...l}));
+  drawLoads(); render();
+}
 
 function compute(){
   /* --- 讀入 --- */
@@ -546,7 +603,9 @@ function compute(){
   const opt = {
     plastic: document.getElementById('ph').value==='1',
     phio: pos('phio',1.25), Lv: pos('Lv',4000),
-    theta: pos('theta',45), dagg: Math.max(0.5,num('dagg',2.5))
+    theta: pos('theta',45), dagg: Math.max(0.5,num('dagg',2.5)),
+    ashPair: document.getElementById('ashPair').value,
+    tieAll: document.getElementById('tieLayout').value==='all'
   };
 
   /* --- P-M（兩軸） --- */
@@ -591,56 +650,67 @@ function coreGeom(s,r,axis){
   return axis==='x'?{D:Hc,W:Bc,Dv:vh,Wv:vw,hollow:true}:{D:Bc,W:Hc,Dv:vw,Wv:vh,hollow:true};
 }
 
-/* ---------- 圍束筋 Ash（四片獨立牆片） ---------- */
+/* ---------- 圍束筋 Ash ----------
+   Ash/(s·bc) ≥ max{0.3(Ag/Ach−1)f'c/fyt, 0.09f'c/fyt}
+   bc 與 Ash 肢的方向配對，規範條文讀法有歧義（對箱型牆片差達 7.5 倍），故做成可切換：
+     perp（預設）：bc 取與該組肢「垂直」之核心尺寸 —— 即這些肢分布的跨距，
+                   使 Ash/(s·bc) 具有圍束壓力比的物理意義
+     para        ：bc 取與該組肢「平行」之核心尺寸（量至該組肢外緣的字面讀法）
+   ------------------------------------------------------------------ */
 function confinement(s,r,R,m,opt){
   const At = BAR[r.tieSize].A, dt = BAR[r.tieSize].d, db = R.db;
   const hxO=s.B/2-R.dOut, hyO=s.H/2-R.dOut;
   const pitchB = 2*hxO/(r.nB-1), pitchH = 2*hyO/(r.nH-1);
-  const eB = edgeTies(r.nB,pitchB,db), eH = edgeTies(r.nH,pitchH,db);
-  // 繫筋實際可設位置：須有內層主筋可勾；角隅區（|x|≥h_xI）之主筋由交叉之另一向箍筋支撐
+  const eB = edgeTies(r.nB,pitchB,db,opt.tieAll), eH = edgeTies(r.nH,pitchH,db,opt.tieAll);
   const lim = R.inner;
+  // 繫筋實際可設位置：箱型須有內層主筋可勾（角隅區主筋由交叉之另一向箍筋支撐）
   const tieX = eB.idx.map(i=>R.xsO[i]).filter(x=> !lim || Math.abs(x) < lim.hxI-1e-6);
   const tieY = eH.idx.map(j=>R.ysO[j]).filter(y=> !lim || Math.abs(y) < lim.hyI-1e-6);
+  const perp = opt.ashPair !== 'para';
 
   const walls=[];
-  const mk=(tag,L,nTies,e)=>{
-    // 牆片視為獨立矩形：厚 tw(或實心時全斷面)、長 L
-    const tw = s.type==='box'? s.tw : Math.min(s.B,s.H);
-    const bc_t = Math.max(1, tw - r.covO - r.covI);       // 厚度向核心尺寸
-    const bc_L = Math.max(1, L - 2*r.covO);               // 長度向核心尺寸
-    const Ag_w = tw*L, Ach_w = bc_t*bc_L;
-    // 提供量：貫穿厚度的繫筋（垂直壁面）／沿壁長的箍筋肢（內外面各一）
-    const Ash_t = nTies*At;       // 貫穿壁厚之繫筋，對應 bc = bc_L
-    const Ash_L = 2*At;           // 沿壁長之內外面箍筋肢，對應 bc = bc_t
-    const req = bc => Math.max(0.3*bc*(Ag_w/Ach_w-1)*m.fc/m.fyt, 0.09*bc*m.fc/m.fyt); // 每單位 s
-    const rq_t = req(bc_L), rq_L = req(bc_t);
-    const s_t = rq_t>1e-9 ? Ash_t/rq_t : 1e9;
-    const s_L = rq_L>1e-9 ? Ash_L/rq_L : 1e9;
-    walls.push({tag,L,tw,bc_t,bc_L,Ag_w,Ach_w,Ash_t,Ash_L,rq_t,rq_L,s_t,s_L,
-                sMax:Math.min(s_t,s_L), ties:nTies, e});
+  const panel=(tag,g1,g2,c1,c2,Ash1,Ash2,lab1,lab2)=>{
+    const Ag_w=g1*g2, Ach_w=Math.max(1,c1*c2);
+    const rq = bc => Math.max(0.3*bc*(Ag_w/Ach_w-1)*m.fc/m.fyt, 0.09*bc*m.fc/m.fyt);
+    const bc1 = perp?c2:c1, bc2 = perp?c1:c2;
+    const rq1=rq(bc1), rq2=rq(bc2);
+    const s1 = rq1>1e-9?Ash1/rq1:1e9, s2 = rq2>1e-9?Ash2/rq2:1e9;
+    walls.push({tag,g1,g2,c1,c2,bc1,bc2,Ag_w,Ach_w,Ash1,Ash2,rq1,rq2,s1,s2,
+                sMax:Math.min(s1,s2),lab1,lab2});
   };
-  mk('頂/底壁 (長 B)', s.B, tieX.length, eB);
-  mk('左/右壁 (長 H)', s.H, tieY.length, eH);
-  const sAsh = Math.min(...walls.map(w=>w.sMax));
 
-  // ke 與 ρs（取控制牆片）
+  if(s.type==='box'){
+    const c_t = Math.max(1, s.tw - r.covO - r.covI);
+    // 每片牆：方向1 = 沿壁長（外／內面箍筋肢共 2 肢）；方向2 = 貫穿壁厚（繫筋）
+    panel('頂/底壁（長 B）', s.B, s.tw, Math.max(1,s.B-2*r.covO), c_t,
+          2*At, tieX.length*At, '沿壁長箍筋肢 ×2', `貫穿壁厚繫筋 ×${tieX.length}`);
+    panel('左/右壁（長 H）', s.H, s.tw, Math.max(1,s.H-2*r.covO), c_t,
+          2*At, tieY.length*At, '沿壁長箍筋肢 ×2', `貫穿壁厚繫筋 ×${tieY.length}`);
+  }else{
+    const cx=Math.max(1,s.B-2*r.covO), cy=Math.max(1,s.H-2*r.covO);
+    // 實心：每向皆為「閉合箍筋 2 肢 + 該向繫筋」——舊版漏計箍筋本身兩肢
+    panel('實心全斷面', s.B, s.H, cx, cy,
+          (2+tieY.length)*At, (2+tieX.length)*At,
+          `平行 X 之肢：箍筋 ×2 + 繫筋 ×${tieY.length}`,
+          `平行 Y 之肢：箍筋 ×2 + 繫筋 ×${tieX.length}`);
+  }
+  const sAsh = Math.min(...walls.map(w=>w.sMax));
   const wc = walls.reduce((a,b)=> b.sMax<a.sMax?b:a, walls[0]);
-  const nUnsup = wc.e.everyBar ? 0 : Math.max(0, wc.e.n-2-wc.e.ties);
-  const wi = wc.e.clear;
-  const sumW2 = (wc.e.n-1)*2*wi*wi;                      // 內外兩層沿壁長的淨距平方和（近似）
-  const rho_cc = Math.min(0.06, m.Ast/ (m.Ag||1));
-  return {walls, sAsh, wc, At, dt, eB, eH, tieX, tieY,
+  const rho_cc = Math.min(0.06, m.Ast/(m.Ag||1));
+  const sumW2 = (Math.max(2,eB.n)-1)*2*eB.clear*eB.clear;
+
+  return {walls, sAsh, wc, At, dt, eB, eH, tieX, tieY, perp,
           nTieB:tieX.length, nTieH:tieY.length, pitchB, pitchH, sumW2, rho_cc,
           finalize(sUse){
-            const w=this.wc;
-            const sp = Math.max(0.1, sUse - this.dt);
-            let ke = (1 - this.sumW2/(6*w.bc_t*w.bc_L)) * (1-sp/(2*w.bc_t)) * (1-sp/(2*w.bc_L)) / (1-this.rho_cc);
-            ke = Math.max(0.25, Math.min(0.95, ke));
-            const rho_t = w.Ash_t/(sUse*w.bc_L), rho_L = w.Ash_L/(sUse*w.bc_t);
-            const rho_s = rho_t + rho_L;
-            const fl = ke*Math.min(rho_t,rho_L)*m.fyt;
+            const w=this.wc, sp=Math.max(0.1,sUse-this.dt);
+            let ke=(1-this.sumW2/(6*w.c1*w.c2))*(1-sp/(2*w.c1))*(1-sp/(2*w.c2))/(1-this.rho_cc);
+            ke=Math.max(0.25,Math.min(0.95,ke));
+            // ke／ρs／f'l 一律採物理配對（肢的跨距），與上方 ACI 條文讀法之切換無關
+            const rho_1=w.Ash1/(sUse*w.c2), rho_2=w.Ash2/(sUse*w.c1);
+            const rho_s=rho_1+rho_2;
+            const fl=ke*Math.min(rho_1,rho_2)*m.fyt;
             const MD = fl>1e-6 ? manderCore(m.fc,fl,rho_s,m.fyt,m.esu) : null;
-            return {ke,rho_t,rho_L,rho_s,fl,MD};
+            return {ke,rho_t:rho_1,rho_L:rho_2,rho_s,fl,MD};
           }};
 }
 
@@ -676,8 +746,8 @@ function shearDesign(s,r,R,m,opt,cv,res,dir){
   // 肢數：沿剪力方向之箍筋肢，量於腹板寬度方向
   let nlegs;
   if(s.type==='box') nlegs = r.dbl? 4 : 2;
-  else nlegs = 2 + (dir==='x' ? edgeTies(r.nH, 2*(s.H/2-R.dOut)/(r.nH-1), R.db).ties
-                              : edgeTies(r.nB, 2*(s.B/2-R.dOut)/(r.nB-1), R.db).ties);
+  else nlegs = 2 + (dir==='x' ? edgeTies(r.nH, 2*(s.H/2-R.dOut)/(r.nH-1), R.db, opt.tieAll).ties
+                              : edgeTies(r.nB, 2*(s.B/2-R.dOut)/(r.nB-1), R.db, opt.tieAll).ties);
   const At1 = BAR[r.tieSize].A;
   const Av = nlegs*At1;
 
@@ -1217,26 +1287,39 @@ function buildReport(M){
 
   /* --- 第 6 頁：圍束筋 + 繫筋 + 施工性 --- */
   o.push(`<div class="rp-page">`);
-  o.push(`<div class="rp-h2">7. 耐震圍束筋量 A_sh（四片獨立牆片）</div>`);
+  o.push(`<div class="rp-h2">7. 耐震圍束筋量 A_sh</div>`);
   o.push(eq(`\\frac{A_{sh}}{s\\,b_c}\\ \\ge\\ \\max\\left\\{0.3\\left(\\frac{A_g}{A_{ch}}-1\\right)\\frac{f'_c}{f_{yt}},
     \\ \\ 0.09\\frac{f'_c}{f_{yt}}\\right\\}`));
-  o.push(note(`規範原文係針對實心柱。中空箱型依第二輪決議<b>拆為四片獨立牆片</b>逐片檢核：
-    每片視為厚 \\(t_w\\)、長 \\(L\\) 之矩形，\\(b_{c,t}=t_w-c_o-c_i\\)（厚度向）、\\(b_{c,L}=L-2c_o\\)（長度向）。
-    貫穿壁厚之繫筋對應 \\(b_c=b_{c,L}\\)；沿壁長之內外面箍筋肢對應 \\(b_c=b_{c,t}\\)。`));
-  o.push(`<table class="no-break"><thead><tr><th class="l">牆片</th><th>t_w</th><th>L</th><th>b_c,t</th><th>b_c,L</th>
-    <th>A_g/A_ch</th><th>A_sh 提供(厚向)</th><th>A_sh 提供(長向)</th><th>s 上限</th></tr></thead><tbody>`);
-  for(const w of M.conf.walls) o.push(`<tr><td class="l">${w.tag}</td><td>${d(w.tw,0)}</td><td>${d(w.L,0)}</td>
-    <td>${d(w.bc_t,1)}</td><td>${d(w.bc_L,1)}</td><td>${d(w.Ag_w/w.Ach_w,4)}</td>
-    <td>${d(w.Ash_t,2)} cm²</td><td>${d(w.Ash_L,2)} cm²</td><td><b>${d(w.sMax,2)} cm</b></td></tr>`);
+  o.push(note(M.s.type==='box'
+    ? `規範原文係針對實心柱。中空箱型依決議<b>拆為四片獨立牆片</b>逐片檢核：每片視為厚 t_w、長 L 之矩形，
+       核心尺寸 \\(c_1=L-2c_o\\)（沿壁長）、\\(c_2=t_w-c_o-c_i\\)（貫穿壁厚）。`
+    : `實心斷面兩向分別檢核。<b>每向的 A_sh 包含閉合箍筋本身之 2 肢，加上該向之繫筋</b>。`));
+  o.push(note(`<b>b<sub>c</sub> 配對方式：目前採「${M.conf.perp?'垂直——b_c 取與該組肢垂直之核心尺寸（即這些肢分布的跨距）':'平行——b_c 取與該組肢平行之核心尺寸（量至該組肢外緣的字面讀法）'}」。</b>
+    規範條文對此敘述有歧義，兩種讀法對箱型牆片可差 7 倍以上，請自行對照條文複核。
+    （k_e、ρ_s、f'_l 之計算一律採物理配對，不受此切換影響。）`));
+
+  o.push(`<table class="no-break"><thead><tr><th class="l">部位</th><th>方向</th><th>A_sh 提供</th>
+    <th>b_c (cm)</th><th>A_g/A_ch</th><th>(A_sh/s)_req</th><th>s 上限 (cm)</th></tr></thead><tbody>`);
+  for(const w of M.conf.walls){
+    o.push(`<tr><td class="l" rowspan="2">${esc(w.tag)}<br><span style="font-size:10.5px;color:#555">
+      A_g=${d(w.Ag_w,0)}、A_ch=${d(w.Ach_w,0)} cm²</span></td>
+      <td class="l">${esc(w.lab1)}</td><td>${d(w.Ash1,2)} cm²</td><td>${d(w.bc1,1)}</td>
+      <td rowspan="2">${d(w.Ag_w/w.Ach_w,4)}</td><td>${d(w.rq1,4)}</td><td>${d(w.s1,2)}</td></tr>`);
+    o.push(`<tr><td class="l">${esc(w.lab2)}</td><td>${d(w.Ash2,2)} cm²</td><td>${d(w.bc2,1)}</td>
+      <td>${d(w.rq2,4)}</td><td>${d(w.s2,2)}</td></tr>`);
+  }
   o.push(`</tbody></table>`);
-  const wc=M.conf.wc;
-  o.push(`<div class="rp-h3">7.1 控制牆片逐步代入（${wc.tag}）</div>`);
-  o.push(eq(`\\frac{A_g}{A_{ch}}=\\frac{${d(wc.tw,0)}\\times${d(wc.L,0)}}{${d(wc.bc_t,1)}\\times${d(wc.bc_L,1)}}
+  const wc=M.conf.wc, ctl = wc.s1<=wc.s2 ? 1 : 2;
+  const cAsh=ctl===1?wc.Ash1:wc.Ash2, cbc=ctl===1?wc.bc1:wc.bc2,
+        crq=ctl===1?wc.rq1:wc.rq2, cs=ctl===1?wc.s1:wc.s2, clab=ctl===1?wc.lab1:wc.lab2;
+  o.push(`<div class="rp-h3">7.1 控制部位逐步代入（${esc(wc.tag)}　—　${esc(clab)}）</div>`);
+  o.push(eq(`\\frac{A_g}{A_{ch}}=\\frac{${d(wc.g1,0)}\\times${d(wc.g2,0)}}{${d(wc.c1,1)}\\times${d(wc.c2,1)}}
     =\\frac{${d(wc.Ag_w,0)}}{${d(wc.Ach_w,0)}}=${d(wc.Ag_w/wc.Ach_w,4)}`));
-  o.push(eq(`\\left(\\frac{A_{sh}}{s}\\right)_{req,t}=\\max\\left\\{0.3\\,b_{c,L}\\left(\\frac{A_g}{A_{ch}}-1\\right)\\frac{f'_c}{f_{yt}},
-    \\ 0.09\\,b_{c,L}\\frac{f'_c}{f_{yt}}\\right\\}=${d(wc.rq_t,4)}\\ \\text{cm}^2/\\text{cm}`));
-  o.push(eq(`s\\le\\frac{A_{sh,prov,t}}{(A_{sh}/s)_{req,t}}=\\frac{${d(wc.Ash_t,2)}}{${d(wc.rq_t,4)}}=${d(wc.s_t,2)}\\ \\text{cm}
-    \\qquad s\\le\\frac{${d(wc.Ash_L,2)}}{${d(wc.rq_L,4)}}=${d(wc.s_L,2)}\\ \\text{cm}`));
+  o.push(eq(`\\left(\\frac{A_{sh}}{s}\\right)_{req}=\\max\\left\\{0.3\\times${d(cbc,1)}\\times(${d(wc.Ag_w/wc.Ach_w,4)}-1)\\times\\frac{${d(m.fc,0)}}{${d(m.fyt,0)}},
+    \\ 0.09\\times${d(cbc,1)}\\times\\frac{${d(m.fc,0)}}{${d(m.fyt,0)}}\\right\\}`));
+  o.push(eq(`=\\max\\{${d(0.3*cbc*(wc.Ag_w/wc.Ach_w-1)*m.fc/m.fyt,4)},\\ ${d(0.09*cbc*m.fc/m.fyt,4)}\\}
+    =${d(crq,4)}\\ \\text{cm}^2/\\text{cm}`));
+  o.push(eq(`s\\le\\frac{A_{sh,prov}}{(A_{sh}/s)_{req}}=\\frac{${d(cAsh,2)}}{${d(crq,4)}}=${d(cs,2)}\\ \\text{cm}`));
 
   o.push(`<div class="rp-h2">8. 繫筋排布與彎鉤</div>`);
   o.push(note(`規範（土木401 / ACI 25.7.2.3）：<b>每隔一根</b>縱筋須由箍角或繫筋提供側向支撐，
@@ -1527,6 +1610,7 @@ function drawLoads(){
   TIE_SIZES.forEach(k=>ts.insertAdjacentHTML('beforeend',`<option value="${k}"${k==='#6'?' selected':''}>${k} (D${Math.round(BAR[k].d*10)})</option>`));
 
   document.querySelectorAll('#app input,#app select').forEach(el=>{
+    if(el.id==='preset') return;
     el.addEventListener('input',()=>{ if(!el.closest('#loadTbl')) render(); });
     el.addEventListener('change',()=>{ if(!el.closest('#loadTbl')) render(); });
   });
@@ -1567,7 +1651,10 @@ function drawLoads(){
     }
   },1200);
 
-  drawLoads(); render();
+  const ps=document.getElementById('preset');
+  Object.entries(PRESETS).forEach(([k,P])=>ps.insertAdjacentHTML('beforeend',`<option value="${k}">${P.label}</option>`));
+  ps.addEventListener('change',e=>applyPreset(e.target.value));
+  applyPreset('pier100');
 })();
 </script>
 </body>
