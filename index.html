@@ -834,8 +834,8 @@ function svgSection(M,forPrint){
   const X = x=>W/2 + x*k, Y = y=>cy - y*k;
   const o=[];
   const C = forPrint
-    ? {conc:'#dcdcdc',void:'#ffffff',line:'#000',bar:'#000',tie:'#000',ct:'#000',txt:'#000',bad:'#000',dim:'#333'}
-    : {conc:'#334155',void:'#0b1220',line:'#64748b',bar:'#f8fafc',tie:'#38bdf8',ct:'#f472b6',txt:'#e6edf7',bad:'#ef4444',dim:'#93a4c2'};
+    ? {conc:'#dcdcdc',void:'#ffffff',line:'#000',bar:'#000',tie:'#000',ct:'#000',txt:'#000',bad:'#000',dim:'#333',ann:'#000',annBad:'#000'}
+    : {conc:'#334155',void:'#0b1220',line:'#64748b',bar:'#f8fafc',tie:'#38bdf8',ct:'#f472b6',txt:'#e6edf7',bad:'#ef4444',dim:'#93a4c2',ann:'#fbbf24',annBad:'#ef4444'};
 
   o.push(`<svg viewBox="0 0 ${W} ${Hh}" xmlns="http://www.w3.org/2000/svg" font-family="ui-sans-serif,system-ui,sans-serif">`);
   o.push(`<rect width="${W}" height="${Hh}" fill="${forPrint?'#fff':'transparent'}"/>`);
@@ -869,35 +869,85 @@ function svgSection(M,forPrint){
   for(const b of R.bars)
     o.push(`<circle cx="${X(b.x)}" cy="${Y(b.y)}" r="${rad}" fill="${C.bar}" stroke="${forPrint?'#000':'#0b1220'}" stroke-width="0.7"/>`);
 
-  // 淨距標註 + 違規紅標
-  const bad = M.chk.clB < M.chk.need, badH = M.chk.clH < M.chk.need;
-  const ro=R.rings[0];
-  const annot=(x1,y1,x2,y2,txt,isBad)=>{
-    const col=isBad?C.bad:C.txt;
-    o.push(`<line x1="${X(x1)}" y1="${Y(y1)}" x2="${X(x2)}" y2="${Y(y2)}" stroke="${col}" stroke-width="${isBad?3:1.6}"/>`);
-    o.push(`<text x="${(X(x1)+X(x2))/2}" y="${(Y(y1)+Y(y2))/2-7}" fill="${col}" font-size="12" text-anchor="middle" font-weight="${isBad?700:400}">${txt}</text>`);
+  /* ---------- CAD 式線性標註 ----------
+     尺寸界線（起點留間隙、末端超出尺寸線）→ 尺寸線 → 實心箭頭 → 文字。
+     量測距離不足以容納箭頭時自動改為「箭頭外置 + 引線 + 文字」，仿 AutoCAD DIMFIT。
+     文字一律置於斷面輪廓之外，不壓在配筋上。 */
+  const cadDim = (p1, p2, dimPos, cfg) => {
+    const { dir='h', color=C.ann, label='', gap=5, ext=7, fs=11.5, lw=1.15,
+            arw=7, bold=false } = cfg || {};
+    const q=[];
+    const LN=(x1,y1,x2,y2,w)=>q.push(`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${color}" stroke-width="${w||lw}"/>`);
+    const hh=arw*0.30, fw=(bold?700:500);
+    if(dir==='h'){
+      const dy=dimPos, sg=Math.sign(dy-p1[1])||-1;
+      LN(p1[0], p1[1]+sg*gap, p1[0], dy+sg*ext);        // 尺寸界線
+      LN(p2[0], p2[1]+sg*gap, p2[0], dy+sg*ext);
+      const a1=Math.min(p1[0],p2[0]), b1=Math.max(p1[0],p2[0]);
+      if(b1-a1 > 3.6*arw){                              // 箭頭內置
+        LN(a1,dy,b1,dy);
+        q.push(`<path d="M${a1},${dy} L${a1+arw},${dy-hh} L${a1+arw},${dy+hh} Z" fill="${color}"/>`);
+        q.push(`<path d="M${b1},${dy} L${b1-arw},${dy-hh} L${b1-arw},${dy+hh} Z" fill="${color}"/>`);
+        q.push(`<text x="${(a1+b1)/2}" y="${dy-ext-4}" fill="${color}" font-size="${fs}" text-anchor="middle" font-weight="${fw}">${label}</text>`);
+      }else{                                            // 箭頭外置 + 引線
+        const land=b1+2.6*arw+14;
+        LN(a1-2.6*arw, dy, land, dy);
+        q.push(`<path d="M${a1},${dy} L${a1-arw},${dy-hh} L${a1-arw},${dy+hh} Z" fill="${color}"/>`);
+        q.push(`<path d="M${b1},${dy} L${b1+arw},${dy-hh} L${b1+arw},${dy+hh} Z" fill="${color}"/>`);
+        q.push(`<text x="${land+4}" y="${dy+fs*0.36}" fill="${color}" font-size="${fs}" font-weight="${fw}">${label}</text>`);
+      }
+    }else{
+      const dx=dimPos, sg=Math.sign(dx-p1[0])||1;
+      LN(p1[0]+sg*gap, p1[1], dx+sg*ext, p1[1]);
+      LN(p2[0]+sg*gap, p2[1], dx+sg*ext, p2[1]);
+      const a1=Math.min(p1[1],p2[1]), b1=Math.max(p1[1],p2[1]);
+      if(b1-a1 > 3.6*arw){
+        LN(dx,a1,dx,b1);
+        q.push(`<path d="M${dx},${a1} L${dx-hh},${a1+arw} L${dx+hh},${a1+arw} Z" fill="${color}"/>`);
+        q.push(`<path d="M${dx},${b1} L${dx-hh},${b1-arw} L${dx+hh},${b1-arw} Z" fill="${color}"/>`);
+        const my=(a1+b1)/2;
+        q.push(`<text x="${dx-6}" y="${my}" fill="${color}" font-size="${fs}" text-anchor="middle" font-weight="${fw}" transform="rotate(-90 ${dx-6} ${my})">${label}</text>`);
+      }else{
+        const land=b1+2.6*arw+12;
+        LN(dx,a1-2.6*arw,dx,land);
+        q.push(`<path d="M${dx},${a1} L${dx-hh},${a1-arw} L${dx+hh},${a1-arw} Z" fill="${color}"/>`);
+        q.push(`<path d="M${dx},${b1} L${dx-hh},${b1+arw} L${dx+hh},${b1+arw} Z" fill="${color}"/>`);
+        LN(dx,land,dx+14,land);                          // 引線水平段
+        q.push(`<text x="${dx+18}" y="${land+fs*0.36}" fill="${color}" font-size="${fs}" font-weight="${fw}">${label}</text>`);
+      }
+    }
+    o.push(q.join(''));
   };
-  const x0=-ro.hx, x1a=-ro.hx+M.chk.pB;
-  annot(x0,ro.hy,x1a,ro.hy, `淨距 ${f(M.chk.clB,1)} cm`, bad);
-  const y0=ro.hy, y1a=ro.hy-M.chk.pH;
-  o.push(`<line x1="${X(ro.hx)}" y1="${Y(y0)}" x2="${X(ro.hx)}" y2="${Y(y1a)}" stroke="${badH?C.bad:C.txt}" stroke-width="${badH?3:1.6}"/>`);
-  o.push(`<text x="${X(ro.hx)+8}" y="${(Y(y0)+Y(y1a))/2}" fill="${badH?C.bad:C.txt}" font-size="12" font-weight="${badH?700:400}">淨距 ${f(M.chk.clH,1)} cm</text>`);
 
-  // 尺寸線
-  const dim=(x1,y1,x2,y2,txt,off,vert)=>{
-    const ax=vert?X(x1)+off:X(x1), ay=vert?Y(y1):Y(y1)+off;
-    const bx=vert?X(x2)+off:X(x2), by=vert?Y(y2):Y(y2)+off;
-    o.push(`<line x1="${ax}" y1="${ay}" x2="${bx}" y2="${by}" stroke="${C.dim}" stroke-width="1.2" marker-start="url(#ar)" marker-end="url(#ar)"/>`);
-    o.push(`<text x="${(ax+bx)/2}" y="${(ay+by)/2 + (vert?0:16)}" fill="${C.dim}" font-size="13" text-anchor="middle" ${vert?`transform="rotate(-90 ${(ax+bx)/2} ${(ay+by)/2})"`:''}>${txt}</text>`);
-  };
-  o.push(`<defs><marker id="ar" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto"><path d="M1,4 L7,1.6 L7,6.4 Z" fill="${C.dim}"/></marker></defs>`);
-  dim(-s.B/2,-s.H/2, s.B/2,-s.H/2, `B = ${f(s.B,0)} cm`, 34, false);
-  dim(-s.B/2, s.H/2,-s.B/2,-s.H/2, `H = ${f(s.H,0)} cm`, -34, true);
-  if(s.type==='box'){
-    o.push(`<line x1="${X(-s.B/2)}" y1="${Y(0)}" x2="${X(-s.B/2+s.tw)}" y2="${Y(0)}" stroke="${C.dim}" stroke-width="1.2" marker-start="url(#ar)" marker-end="url(#ar)"/>`);
-    o.push(`<text x="${X(-s.B/2+s.tw)+7}" y="${Y(0)+4}" fill="${C.dim}" font-size="12">t_w = ${f(s.tw,0)} cm</text>`);
+  // ---- 主筋淨距（CAD 標註，引出斷面外） ----
+  const ro=R.rings[0];
+  const badB = M.chk.clB < M.chk.need, badH = M.chk.clH < M.chk.need;
+  const lblClr = (v,bad)=> bad ? `淨距 ${f(v,1)} ＜ 需求 ${f(M.chk.need,1)} cm ✗`
+                               : `主筋淨距 ${f(v,1)} cm`;
+  const topDim = Y(s.H/2)-30, rightDim = X(s.B/2)+30;
+  {   // 取頂緣中央相鄰兩根，尺寸界線量至鋼筋外緣
+    const i=Math.max(0,Math.floor((R.xsO.length-1)/2)-1);
+    const xa=R.xsO[i]+R.db/2, xb=R.xsO[i+1]-R.db/2, yb=Y(ro.hy);
+    cadDim([X(xa),yb],[X(xb),yb], topDim,
+           {dir:'h', color:badB?C.annBad:C.ann, label:lblClr(M.chk.clB,badB), bold:badB});
   }
-  // 圖例
+  {   // 右緣中央相鄰兩根
+    const j=Math.max(0,Math.floor((R.ysO.length-1)/2)-1);
+    const ya=R.ysO[j]+R.db/2, yb2=R.ysO[j+1]-R.db/2, xb=X(ro.hx);
+    cadDim([xb,Y(ya)],[xb,Y(yb2)], rightDim,
+           {dir:'v', color:badH?C.annBad:C.ann, label:lblClr(M.chk.clH,badH), bold:badH});
+  }
+  // ---- 壁厚（同一標註層，置於左側壁上方） ----
+  if(s.type==='box')
+    cadDim([X(-s.B/2),Y(s.H/2)],[X(-s.B/2+s.tw),Y(s.H/2)], topDim,
+           {dir:'h', color:C.dim, label:`t_w = ${f(s.tw,0)} cm`, fs:11});
+
+  // ---- 外廓總尺寸（最外層標註） ----
+  cadDim([X(-s.B/2),Y(-s.H/2)],[X(s.B/2),Y(-s.H/2)], Y(-s.H/2)+42,
+         {dir:'h', color:C.dim, label:`B = ${f(s.B,0)} cm`, fs:13, arw:8});
+  cadDim([X(-s.B/2),Y(-s.H/2)],[X(-s.B/2),Y(s.H/2)], X(-s.B/2)-46,
+         {dir:'v', color:C.dim, label:`H = ${f(s.H,0)} cm`, fs:13, arw:8});
+
   // 圖例：列印時全為黑色，故以各自的真實線型（實心圓／實線／虛線／細線）區分
   const lg=[
     ['dot',  `主筋 ${M.r.barSize} ×${R.bars.length}`, C.bar],
