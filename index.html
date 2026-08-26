@@ -1,0 +1,1573 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RC 橋塔斷面設計工具</title>
+
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" crossorigin="anonymous">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" crossorigin="anonymous"></script>
+
+<style>
+/* ---- Tailwind 載入失敗時的保底版面（降級但可用） ---- */
+:root{
+  --bg:#0b1220; --panel:#111a2e; --line:#243352; --txt:#e6edf7; --dim:#93a4c2;
+  --acc:#38bdf8; --ok:#22c55e; --warn:#f59e0b; --bad:#ef4444;
+  --conc:#334155; --void:#0b1220; --bar:#f8fafc; --tie:#38bdf8; --ct:#f472b6;
+  --curveN:#64748b; --curveD:#38bdf8; --curveM:#a78bfa; --pt:#94a3b8; --ptc:#ef4444;
+}
+html,body{background:var(--bg);color:var(--txt);font-family:ui-sans-serif,"Noto Sans TC",system-ui,sans-serif;margin:0}
+.fallback-grid{display:grid;grid-template-columns:380px 1fr;gap:14px;padding:14px}
+@media(max-width:1100px){.fallback-grid{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:12px}
+input,select{background:#0d1526;color:var(--txt);border:1px solid var(--line);border-radius:6px;padding:4px 7px;width:100%;font-size:13px}
+input:focus,select:focus{outline:2px solid var(--acc);outline-offset:-1px}
+button{cursor:pointer;border-radius:6px;border:1px solid var(--line);background:#16213a;color:var(--txt);padding:6px 12px;font-size:13px}
+button:hover{background:#1d2b48}
+table{border-collapse:collapse;width:100%;font-size:12.5px}
+th,td{border:1px solid var(--line);padding:3px 6px;text-align:right}
+th{background:#16213a;text-align:center;font-weight:600}
+td.l,th.l{text-align:left}
+.fld{display:grid;grid-template-columns:1fr 96px;align-items:center;gap:6px;margin:5px 0;font-size:13px}
+.fld span{color:var(--dim)}
+h2{font-size:14px;font-weight:700;margin:0 0 8px;letter-spacing:.03em}
+.alert{border-radius:8px;padding:8px 11px;margin:6px 0;font-size:13px;line-height:1.55;border-left:4px solid}
+.a-bad{background:rgba(239,68,68,.13);border-color:var(--bad)}
+.a-warn{background:rgba(245,158,11,.13);border-color:var(--warn)}
+.a-ok{background:rgba(34,197,94,.13);border-color:var(--ok)}
+.a-info{background:rgba(56,189,248,.11);border-color:var(--acc)}
+.kv{display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:3px 0;border-bottom:1px dashed var(--line)}
+.kv b{font-variant-numeric:tabular-nums}
+svg{display:block;width:100%;height:auto}
+.mono{font-family:ui-monospace,"Cascadia Code",Consolas,monospace;font-variant-numeric:tabular-nums}
+#report{display:none}
+
+/* ---- 列印 / PDF ---- */
+@media print{
+  @page{size:A4 portrait;margin:14mm 12mm}
+  html,body{background:#fff!important;color:#000!important}
+  :root{
+    --bg:#fff;--panel:#fff;--line:#999;--txt:#000;--dim:#333;
+    --conc:#d9d9d9;--void:#fff;--bar:#000;--tie:#000;--ct:#000;
+    --curveN:#888;--curveD:#000;--curveM:#555;--pt:#777;--ptc:#000;
+  }
+  #app,#topbar{display:none!important}
+  #report{display:block!important}
+  .rp-page{page-break-after:always}
+  .rp-page:last-child{page-break-after:auto}
+  .no-break{page-break-inside:avoid}
+  table{font-size:10pt}
+  th,td{border:1px solid #666}
+  th{background:#eee!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .rp-fig{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+/* 報告在螢幕上預覽時的樣式 */
+#report.preview{display:block;background:#fff;color:#111;padding:26px;margin:14px;border-radius:10px}
+#report.preview table th{background:#eee}
+#report.preview table th,#report.preview table td{border:1px solid #999;color:#111}
+.rp-h1{font-size:20px;font-weight:800;margin:0 0 4px}
+.rp-h2{font-size:15px;font-weight:800;margin:18px 0 7px;border-bottom:2px solid #333;padding-bottom:3px}
+.rp-h3{font-size:13.5px;font-weight:700;margin:12px 0 5px}
+.rp-eq{margin:7px 0 7px 14px;font-size:13px;line-height:2.0}
+.rp-note{font-size:11.5px;color:#444;margin:4px 0 4px 14px;line-height:1.6}
+.rp-fig{border:1px solid #999;padding:6px;margin:8px 0;background:#fff}
+</style>
+</head>
+<body>
+
+<div id="topbar" class="flex flex-wrap items-center gap-2 px-4 py-3 border-b" style="border-color:var(--line);background:var(--panel)">
+  <div class="font-extrabold text-[17px] tracking-wide">RC 橋塔斷面設計 · P-M 互制 · 耐震剪力配筋</div>
+  <div class="text-[11.5px]" style="color:var(--dim)">土木401 + 公路橋梁耐震設計規範 ｜ kgf-cm 制</div>
+  <div class="grow"></div>
+  <button id="btnTest">內部自測</button>
+  <button id="btnPreview">預覽報告</button>
+  <button id="btnPrint" style="background:#0369a1;border-color:#0284c7">列印 / 存成 PDF</button>
+</div>
+
+<div id="app" class="fallback-grid">
+
+  <!-- ============ 左：輸入 ============ -->
+  <div>
+    <div class="card">
+      <h2>① 斷面幾何</h2>
+      <div class="fld"><span>斷面型式</span>
+        <select id="secType"><option value="box">中空箱型</option><option value="solid">實心矩形</option></select></div>
+      <div class="fld"><span>外寬 B (cm)</span><input id="B" type="number" step="1" value="600"></div>
+      <div class="fld"><span>外高 H (cm)</span><input id="H" type="number" step="1" value="800"></div>
+      <div class="fld" id="rowTw"><span>壁厚 t<sub>w</sub> (cm)</span><input id="tw" type="number" step="1" value="90"></div>
+      <div class="fld"><span>外側保護層 (cm)</span><input id="covO" type="number" step="0.5" value="7.5"></div>
+      <div class="fld"><span>內側保護層 (cm)</span><input id="covI" type="number" step="0.5" value="5"></div>
+      <div class="fld"><span>骨材最大粒徑 (cm)</span><input id="dagg" type="number" step="0.5" value="2.5"></div>
+    </div>
+
+    <div class="card">
+      <h2>② 材料</h2>
+      <div class="fld"><span>f'<sub>c</sub> (kgf/cm²)</span><input id="fc" type="number" step="10" value="420"></div>
+      <div class="fld"><span>f<sub>y</sub> 主筋 (kgf/cm²)</span>
+        <select id="fy"><option value="4200">4200 (SD420)</option><option value="5000">5000 (SD490)</option></select></div>
+      <div class="fld"><span>f<sub>yt</sub> 橫向筋 (kgf/cm²)</span>
+        <select id="fyt"><option value="4200">4200 (SD420)</option><option value="2800">2800 (SD280)</option><option value="5000">5000 (SD490)</option></select></div>
+      <div class="fld"><span>E<sub>s</sub> (kgf/cm²)</span><input id="Es" type="number" step="10000" value="2040000"></div>
+      <div class="fld"><span>ε<sub>cu</sub> (非圍束)</span><input id="ecu" type="number" step="0.0001" value="0.003"></div>
+      <div class="fld"><span>ε<sub>su</sub> 箍筋極限應變</span><input id="esu" type="number" step="0.01" value="0.09"></div>
+      <div class="text-[11.5px] mt-1" style="color:var(--dim)">
+        β<sub>1</sub> = <b id="oB1" class="mono">—</b> ｜ E<sub>c</sub> = <b id="oEc" class="mono">—</b> kgf/cm²
+        ｜ ≈ <b id="oMPa" class="mono">—</b> MPa
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>③ 主筋配置（箱壁內外雙層均佈）</h2>
+      <div class="fld"><span>主筋號數</span><select id="barSize"></select></div>
+      <div class="fld"><span>B 向每面根數 n<sub>B</sub></span><input id="nB" type="number" step="1" value="39"></div>
+      <div class="fld"><span>H 向每面根數 n<sub>H</sub></span><input id="nH" type="number" step="1" value="53"></div>
+      <div class="fld" id="rowDbl"><span>內層同配置</span>
+        <select id="dbl"><option value="1">是（雙層）</option><option value="0">否（單層）</option></select></div>
+      <div class="text-[11.5px] mt-1" style="color:var(--dim)">
+        總根數 <b id="oNbar" class="mono">—</b> ｜ A<sub>st</sub> = <b id="oAst" class="mono">—</b> cm²
+        ｜ A<sub>g</sub> = <b id="oAg" class="mono">—</b> cm² ｜ ρ<sub>g</sub> = <b id="oRho" class="mono">—</b> %
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>④ 橫向鋼筋 / 塑鉸區</h2>
+      <div class="fld"><span>箍筋 / 繫筋號數</span><select id="tieSize"></select></div>
+      <div class="fld"><span>此斷面為塑鉸區</span>
+        <select id="ph"><option value="1">是（塔底 / 塑鉸）</option><option value="0">否（一般斷面）</option></select></div>
+      <div class="fld"><span>超強係數 φ<sub>o</sub></span><input id="phio" type="number" step="0.05" value="1.25"></div>
+      <div class="fld"><span>剪力跨度 L<sub>v</sub> (cm)</span><input id="Lv" type="number" step="10" value="4000"></div>
+      <div class="fld"><span>扭矩桁架角 θ (°)</span><input id="theta" type="number" step="5" value="45"></div>
+    </div>
+
+    <div class="card">
+      <h2>⑤ 規範係數</h2>
+      <div class="fld"><span>φ<sub>c</sub> 壓力控制</span><input id="phic" type="number" step="0.05" value="0.65"></div>
+      <div class="fld"><span>φ<sub>t</sub> 拉力控制</span><input id="phit" type="number" step="0.05" value="0.90"></div>
+      <div class="fld"><span>φ<sub>v</sub> 剪力 / 扭矩</span><input id="phiv" type="number" step="0.05" value="0.75"></div>
+      <div class="fld"><span>軸力截斷 (×P<sub>o</sub>)</span><input id="pmaxf" type="number" step="0.05" value="0.80"></div>
+      <div class="fld"><span>低軸壓輪廓指數 α</span><input id="alpha" type="number" step="0.05" value="1.0"></div>
+      <div class="text-[11.5px] mt-1" style="color:var(--dim)">
+        φ 過渡：φ = φ<sub>c</sub> + (φ<sub>t</sub>−φ<sub>c</sub>)(ε<sub>t</sub>−ε<sub>ty</sub>)/(0.005−ε<sub>ty</sub>)，ε<sub>ty</sub> = <b id="oEty" class="mono">—</b>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>⑥ 載重組合</h2>
+      <div class="text-[11.5px] mb-2" style="color:var(--dim)">
+        P<sub>u</sub>：壓為正、拉為負 (tf)；M (tf·m)；V (tf)；T (tf·m)
+      </div>
+      <table id="loadTbl">
+        <thead><tr><th class="l">組合</th><th>P<sub>u</sub></th><th>M<sub>ux</sub></th><th>M<sub>uy</sub></th><th>V<sub>ux</sub></th><th>V<sub>uy</sub></th><th>T<sub>u</sub></th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="flex gap-2 mt-2">
+        <button id="btnAddRow">+ 新增組合</button>
+        <button id="btnPaste">貼上 CSV</button>
+      </div>
+      <textarea id="csvBox" class="hidden w-full mt-2 text-[12px] p-2 rounded" rows="4"
+        style="background:#0d1526;border:1px solid var(--line);color:var(--txt)"
+        placeholder="名稱,Pu,Mux,Muy,Vux,Vuy,Tu  每行一組，貼上後按下方套用"></textarea>
+      <button id="btnCsvApply" class="hidden mt-2">套用 CSV</button>
+    </div>
+  </div>
+
+  <!-- ============ 右：視覺化與結果 ============ -->
+  <div>
+    <div class="card">
+      <div class="flex items-center justify-between mb-1">
+        <h2 class="!mb-0">斷面配筋圖（即時）</h2>
+        <div class="text-[11.5px]" style="color:var(--dim)">SVG 向量 · 主筋依號數按真實直徑比例繪製</div>
+      </div>
+      <div id="secWrap"></div>
+    </div>
+
+    <div class="card">
+      <div class="flex items-center justify-between mb-1">
+        <h2 class="!mb-0">P-M 互制曲線</h2>
+        <div class="flex gap-2">
+          <button id="axX" class="!py-1 !px-2">繞 X 軸 (M<sub>ux</sub>)</button>
+          <button id="axY" class="!py-1 !px-2">繞 Y 軸 (M<sub>uy</sub>)</button>
+        </div>
+      </div>
+      <div id="pmWrap"></div>
+    </div>
+
+    <div class="card"><h2>設計結果摘要</h2><div id="summary"></div></div>
+    <div class="card"><h2>工程查核與警示</h2><div id="alerts"></div></div>
+    <div class="card"><h2>內部一致性自測</h2><div id="testOut" class="text-[12.5px]" style="color:var(--dim)">按上方「內部自測」執行。</div></div>
+  </div>
+</div>
+
+<div id="report"></div>
+
+<script>
+"use strict";
+/* =========================================================================
+   RC 橋塔斷面設計工具
+   單位系統：kgf, cm（全程內部運算）；顯示 P=tf, M=tf·m, V=tf, T=tf·m
+   規範：混凝土結構設計規範(土木401) + 公路橋梁耐震設計規範
+   ========================================================================= */
+
+const TF = 1000;          // 1 tf = 1000 kgf
+const TFM = 100000;       // 1 tf·m = 1e5 kgf·cm
+
+const BAR = {
+  '#3':{d:0.953,A:0.7133}, '#4':{d:1.270,A:1.267}, '#5':{d:1.588,A:1.979},
+  '#6':{d:1.910,A:2.865},  '#7':{d:2.222,A:3.871}, '#8':{d:2.540,A:5.067},
+  '#9':{d:2.865,A:6.469},  '#10':{d:3.226,A:8.143},'#11':{d:3.581,A:10.07},
+  '#14':{d:4.300,A:14.52}, '#18':{d:5.733,A:25.79}
+};
+const MAIN_SIZES = ['#8','#9','#10','#11','#14','#18'];
+const TIE_SIZES  = ['#4','#5','#6','#7'];
+const PRACTICAL_S = [30,25,20,15,12.5,10,7.5];
+
+const num = (id,dflt=0)=>{const v=parseFloat(document.getElementById(id).value);return Number.isFinite(v)?v:dflt;};
+const pos = (id,dflt=1)=>{const v=num(id,dflt);return v>0?v:dflt;};
+const f = (x,n=2)=>(Number.isFinite(x)?x.toLocaleString('en-US',{minimumFractionDigits:n,maximumFractionDigits:n}):'—');
+const esc = s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+/* D/C 可能為 Infinity（射線與包絡線無交點＝載重點完全在外），需與一般數值分開顯示 */
+const fdc = x => Number.isFinite(x) ? f(x,3) : '∞';
+
+/* ---------- 基本力學 ---------- */
+const beta1 = fc => Math.max(0.65, Math.min(0.85, 0.85 - 0.05*(fc-280)/70));
+const Ecof  = fc => 15000*Math.sqrt(fc);
+
+/* ---------- 斷面幾何 ---------- */
+function grossArea(s){
+  return s.type==='box' ? s.B*s.H - Math.max(0,s.B-2*s.tw)*Math.max(0,s.H-2*s.tw) : s.B*s.H;
+}
+/* axis 'x' → 中性軸水平、深度沿 H；axis 'y' → 中性軸垂直、深度沿 B */
+function geoFor(s, axis){
+  const hollow = s.type==='box';
+  const iw = hollow ? Math.max(0,s.B-2*s.tw) : 0;
+  const ih = hollow ? Math.max(0,s.H-2*s.tw) : 0;
+  return axis==='x'
+    ? {D:s.H, W:s.B, Dv:ih, Wv:iw, hollow}
+    : {D:s.B, W:s.H, Dv:iw, Wv:ih, hollow};
+}
+/* 等效應力塊受壓區：面積與形心（形心以斷面幾何中心為原點，沿深度方向向受壓側為正）
+   → 自動處理箱型三段：a≤t / t<a<D−t / a≥D−t，無需分支判斷 */
+function compBlock(a, g){
+  a = Math.max(0, Math.min(a, g.D));
+  let A = g.W*a;
+  let S = A*(g.D/2 - a/2);
+  if(g.hollow && g.Dv>0 && g.Wv>0){
+    const vTop=g.Dv/2, vBot=-g.Dv/2;
+    const bTop=g.D/2,  bBot=g.D/2-a;
+    const oTop=Math.min(bTop,vTop), oBot=Math.max(bBot,vBot);
+    if(oTop>oBot){
+      const Av=g.Wv*(oTop-oBot);
+      A-=Av; S-=Av*(oTop+oBot)/2;
+    }
+  }
+  return {A, yc: A>1e-9 ? S/A : g.D/2, a};
+}
+
+/* ---------- 主筋產生 ---------- */
+function genBars(s, r){
+  const db=BAR[r.barSize].d, Ab=BAR[r.barSize].A, dt=BAR[r.tieSize].d;
+  const dOut=r.covO+dt+db/2, dIn=r.covI+dt+db/2;
+  const hxO=s.B/2-dOut, hyO=s.H/2-dOut;
+  const pB=2*hxO/(r.nB-1), pH=2*hyO/(r.nH-1);
+  const xsO=[], ysO=[];
+  for(let i=0;i<r.nB;i++) xsO.push(-hxO+pB*i);
+  for(let j=0;j<r.nH;j++) ysO.push(-hyO+pH*j);
+
+  const bars=[], rings=[];
+  const push=(x,y,layer)=>bars.push({x,y,A:Ab,db,layer});
+  const lay=(xs,ys,hx,hy,tag)=>{
+    for(const x of xs){ push(x,hy,tag); push(x,-hy,tag); }
+    for(const y of ys){ if(Math.abs(Math.abs(y)-hy)<1e-6) continue; push(hx,y,tag); push(-hx,y,tag); }
+  };
+  lay(xsO,ysO,hxO,hyO,'out');
+  rings.push({hx:hxO,hy:hyO,layer:'out',xs:xsO,ys:ysO});
+
+  let inner=null;
+  if(s.type==='box' && r.dbl){
+    const hxI=s.B/2-s.tw+dIn, hyI=s.H/2-s.tw+dIn;
+    if(hxI>0 && hyI>0 && hxI<hxO-db && hyI<hyO-db){
+      // 內層沿用外層座標網格 → 繫筋必為垂直壁面、且兩端皆勾到主筋；端點補角隅筋
+      const xsI=xsO.filter(x=>Math.abs(x)<hxI-1e-6); xsI.unshift(-hxI); xsI.push(hxI);
+      const ysI=ysO.filter(y=>Math.abs(y)<hyI-1e-6); ysI.unshift(-hyI); ysI.push(hyI);
+      lay(xsI,ysI,hxI,hyI,'in');
+      rings.push({hx:hxI,hy:hyI,layer:'in',xs:xsI,ys:ysI});
+      inner={hxI,hyI,xsI,ysI};
+    }
+  }
+  return {bars,rings,db,Ab,dt,dOut,dIn,hxO,hyO,pB,pH,xsO,ysO,inner};
+}
+
+/* ---------- P-M 互制（單軸） ---------- */
+function phiOf(eps_t, m){
+  if(eps_t<=m.ety) return m.phic;
+  if(eps_t>=0.005) return m.phit;
+  return m.phic + (m.phit-m.phic)*(eps_t-m.ety)/(0.005-m.ety);
+}
+function sectionAt(c, ctx){
+  const {g,bars,m,axis}=ctx;
+  const a = Math.min(m.b1*c, g.D);
+  const cb = compBlock(a,g);
+  const Cc = 0.85*m.fc*cb.A;
+  let Pn=Cc, Mn=Cc*cb.yc, dmax=-1e9, eps_t=0;
+  const detail=[];
+  for(const b of bars){
+    const u = axis==='x'? b.y : b.x;
+    const di = g.D/2 - u;
+    const eps = m.ecu*(c-di)/c;
+    let fs = Math.max(-m.fy, Math.min(m.fy, m.Es*eps));
+    const inBlk = di<=a;
+    if(inBlk) fs -= 0.85*m.fc;
+    const F = fs*b.A;
+    Pn += F; Mn += F*u;
+    if(di>dmax){ dmax=di; eps_t = m.ecu*(di-c)/c; }
+    detail.push({u,di,eps,fs,F,inBlk,A:b.A});
+  }
+  const phi = phiOf(eps_t,m);
+  return {c,a,Acomp:cb.A,yc:cb.yc,Cc,Pn,Mn:Math.abs(Mn),eps_t,phi,dmax,detail};
+}
+function pmCurve(ctx){
+  const {g,bars,m}=ctx;
+  const Ast=bars.reduce((s,b)=>s+b.A,0);
+  const Po = 0.85*m.fc*(m.Ag-Ast) + m.fy*Ast;
+  const PnMax = m.pmaxf*Po;
+  const Pnt = -m.fy*Ast;
+  const pts=[];
+  const N=220, c0=0.02*g.D, c1=5.0*g.D;
+  for(let i=0;i<N;i++){                      // 對數掃描：拉控端解析度足夠
+    const c = c0*Math.pow(c1/c0, i/(N-1));
+    pts.push(sectionAt(c,ctx));
+  }
+  pts.sort((p,q)=>p.Pn-q.Pn);
+  return {pts,Po,PnMax,Pnt,Ast};
+}
+/* 設計包絡多段線（M≥0 半平面），含 φPn,max 水平截斷與 M=0 閉合邊 */
+function designPoly(cv,m){
+  const cap = m.phic*cv.PnMax;
+  const seq = cv.pts.map(p=>({M:p.phi*p.Mn, P:p.phi*p.Pn}));
+  seq.unshift({M:0,P:m.phit*cv.Pnt});
+  const out=[]; let crossed=false;
+  for(let i=0;i<seq.length;i++){
+    const s=seq[i];
+    if(s.P<=cap){ out.push([s.M,s.P]); }
+    else{
+      if(!crossed && i>0){
+        const p=seq[i-1], t=(cap-p.P)/(s.P-p.P);
+        out.push([p.M+t*(s.M-p.M), cap]); crossed=true;
+      }
+    }
+  }
+  out.push([0,cap]);
+  return {poly:out, cap};
+}
+/* 定偏心射線法：射線 (t·M, t·P) 與包絡線首次交點 → D/C = 1/t */
+function radialDC(poly, Mu, Pu, cap, phitPnt){
+  if(Math.abs(Mu) < 1e-9){
+    if(Pu>0) return {dc: Pu/cap, capM:0, capP:cap};
+    if(Pu<0) return {dc: Pu/phitPnt, capM:0, capP:phitPnt};
+    return {dc:0, capM:0, capP:0};
+  }
+  let best=Infinity, hit=null;
+  for(let i=0;i<poly.length-1;i++){
+    const [x1,y1]=poly[i], [x2,y2]=poly[i+1];
+    const dx=x2-x1, dy=y2-y1;
+    const den = Mu*dy - Pu*dx;
+    if(Math.abs(den)<1e-12) continue;
+    const t = (x1*dy - y1*dx)/den;
+    if(t<=1e-9) continue;
+    let u = Math.abs(dx)>Math.abs(dy) ? (t*Mu-x1)/dx : (t*Pu-y1)/dy;
+    if(u<-1e-6||u>1+1e-6) continue;
+    if(t<best){ best=t; hit=[t*Mu,t*Pu]; }
+  }
+  if(!hit) return {dc:Infinity, capM:0, capP:0};
+  return {dc:1/best, capM:hit[0], capP:hit[1]};
+}
+/* 定軸力下的設計彎矩容量 φMn(at P) */
+function phiMnAtP(cv,m,P){
+  const cap=m.phic*cv.PnMax;
+  if(P> cap+1e-6) return 0;
+  const A=cv.pts.map(p=>({P:p.phi*p.Pn,M:p.phi*p.Mn})).sort((a,b)=>a.P-b.P);
+  if(P<=A[0].P||P>=A[A.length-1].P) return 0;
+  for(let i=0;i<A.length-1;i++){
+    if(P>=A[i].P && P<=A[i+1].P){
+      const t=(P-A[i].P)/((A[i+1].P-A[i].P)||1);
+      return A[i].M+t*(A[i+1].M-A[i].M);
+    }
+  }
+  return 0;
+}
+/* 標稱彎矩 Mn(at P)：容量設計剪力用 */
+function MnAtP(cv,P){
+  const A=cv.pts.map(p=>({P:p.Pn,M:p.Mn})).sort((a,b)=>a.P-b.P);
+  if(P<=A[0].P) return A[0].M;
+  if(P>=A[A.length-1].P) return A[A.length-1].M;
+  for(let i=0;i<A.length-1;i++)
+    if(P>=A[i].P&&P<=A[i+1].P){
+      const t=(P-A[i].P)/((A[i+1].P-A[i].P)||1);
+      return A[i].M+t*(A[i+1].M-A[i].M);
+    }
+  return 0;
+}
+
+/* ---------- 雙軸：Bresler / PCA 載重輪廓 ---------- */
+function biaxialDC(cvX,cvY,pX,pY,m,L){
+  const {Pu,Mux,Muy}=L;
+  const uniX = radialDC(pX.poly,Mux,Pu,pX.cap,m.phit*cvX.Pnt);
+  const uniY = radialDC(pY.poly,Muy,Pu,pY.cap,m.phit*cvY.Pnt);
+  if(Math.abs(Mux)<1e-9 && Math.abs(Muy)<1e-9) return {dc:Math.abs(uniX.dc),method:'純軸力',uniX,uniY};
+  if(Math.abs(Muy)<1e-9) return {dc:uniX.dc, method:'單軸（繞 X）',uniX,uniY};
+  if(Math.abs(Mux)<1e-9) return {dc:uniY.dc, method:'單軸（繞 Y）',uniX,uniY};
+
+  if(Pu >= 0.1*m.fc*m.Ag){
+    // Bresler 倒數式（偏心不變 → 尺度不變，可直接求）
+    const Pnx = uniX.capP, Pny = uniY.capP, Po = m.phic*cvX.PnMax;
+    const inv = 1/Pnx + 1/Pny - 1/Po;
+    const Pcap = inv>1e-12 ? 1/inv : Infinity;
+    return {dc: Pu/Pcap, method:'Bresler 倒數式', Pnx,Pny,Po,Pcap,uniX,uniY};
+  }
+  // PCA 載重輪廓法 + 定偏心射線（λ 二分求解）
+  const util = λ=>{
+    const Mx=phiMnAtP(cvX,m,λ*Pu), My=phiMnAtP(cvY,m,λ*Pu);
+    if(Mx<=0||My<=0) return 1e9;
+    return Math.pow(Math.abs(λ*Mux)/Mx,m.alpha)+Math.pow(Math.abs(λ*Muy)/My,m.alpha);
+  };
+  let lo=1e-4, hi=50;
+  if(util(lo)>1) return {dc:Infinity,method:'PCA 載重輪廓法',uniX,uniY};
+  for(let k=0;k<80;k++){ const mid=0.5*(lo+hi); if(util(mid)<=1) lo=mid; else hi=mid; }
+  const Mx0=phiMnAtP(cvX,m,Pu), My0=phiMnAtP(cvY,m,Pu);
+  return {dc:1/lo, method:'PCA 載重輪廓法', lam:lo, phiMnx:Mx0, phiMny:My0, uniX,uniY};
+}
+
+/* ---------- Mander 圍束混凝土 ---------- */
+function manderCore(fc,fl,rho_s,fyt,esu){
+  const fcc = fc*(-1.254 + 2.254*Math.sqrt(1+7.94*fl/fc) - 2*fl/fc);
+  const eco = 0.002, ecc = eco*(1+5*(fcc/fc-1));
+  const Ec = Ecof(fc), Esec = fcc/ecc, r = Ec/(Ec-Esec);
+  const ecu = 0.004 + 1.4*rho_s*fyt*esu/fcc;
+  return {fcc,ecc,Ec,Esec,r,ecu,fl};
+}
+const manderSig = (e,M)=> e<=0?0: (()=>{const x=e/M.ecc; return M.fcc*x*M.r/(M.r-1+Math.pow(x,M.r));})();
+
+/* 圍束核心 P-M：真纖維積分（非等效應力塊） */
+function pmCurveConfined(ctx, MD, coreGeo){
+  const {bars,m,axis}=ctx, g=coreGeo;
+  const NS=160, pts=[];
+  const c0=0.05*g.D, c1=4.0*g.D, N=110;
+  for(let i=0;i<N;i++){
+    const c = c0*Math.pow(c1/c0, i/(N-1));
+    let Pn=0, Mn=0, dmax=-1e9, eps_t=0;
+    for(let k=0;k<NS;k++){
+      const yTop=g.D/2 - g.D*k/NS, yBot=g.D/2 - g.D*(k+1)/NS, ym=(yTop+yBot)/2;
+      const d = g.D/2 - ym;
+      const eps = MD.ecu*(c-d)/c;
+      if(eps<=0) continue;
+      let w = g.W;
+      if(g.hollow && Math.abs(ym)<g.Dv/2) w = g.W - g.Wv;
+      const dA = w*(yTop-yBot);
+      const F = manderSig(eps,MD)*dA;
+      Pn+=F; Mn+=F*ym;
+    }
+    for(const b of bars){
+      const u = axis==='x'? b.y : b.x;
+      const d = g.D/2 - u;
+      if(Math.abs(u) > g.D/2) continue;
+      const eps = MD.ecu*(c-d)/c;
+      let fs = Math.max(-m.fy, Math.min(m.fy, m.Es*eps));
+      if(eps>0) fs -= manderSig(eps,MD);
+      Pn += fs*b.A; Mn += fs*b.A*u;
+      if(d>dmax){ dmax=d; eps_t=MD.ecu*(d-c)/c; }
+    }
+    pts.push({c,Pn,Mn:Math.abs(Mn),eps_t});
+  }
+  pts.sort((p,q)=>p.Pn-q.Pn);
+  return pts;
+}
+
+/* ---------- 繫筋 / 側向支撐排布 ---------- */
+function edgeTies(n,pitch,db){
+  n=Math.max(2,Math.round(n));
+  const clear = pitch-db;
+  const everyBar = clear > 15.0;      // 距被支撐筋淨距須 ≤ 15 cm → 每一根都要支撐
+  const idx=[];
+  for(let i=1;i<n-1;i++) if(everyBar || i%2===0) idx.push(i);
+  return {ties:idx.length, idx, clear, pitch, everyBar, hx: everyBar? pitch : 2*pitch, n};
+}
+
+/* ---------- 剪力 / 扭矩 / 圍束筋 ---------- */
+function VcCalc(m,bw,d,Nu,plastic){
+  const base = 0.53*Math.sqrt(m.fc)*bw*d;
+  let vc = Nu>=0 ? base*(1+Nu/(140*m.Ag)) : base*(1+Nu/(35*m.Ag));
+  vc = Math.max(0,vc);                                  // 軸拉時可能為負 → 夾到 0
+  const zeroed = plastic && Nu < 0.1*m.fc*m.Ag;
+  if(zeroed) vc = 0;
+  return {vc, base, zeroed};
+}
+
+/* =========================================================================
+   主計算
+   ========================================================================= */
+let LOADS = [
+  {name:'CASE-1 地震X 最大彎矩', Pu:2800, Mux:40000, Muy:7500, Vux:1450, Vuy:320, Tu:900},
+  {name:'CASE-2 地震Y 最大彎矩', Pu:2650, Mux:9000, Muy:30000, Vux:300, Vuy:1180, Tu:1100},
+  {name:'CASE-3 最大軸力',       Pu:4200, Mux:21000, Muy:8000,  Vux:600, Vuy:250, Tu:400},
+  {name:'CASE-4 最小軸力(拉)',   Pu:-350, Mux:33000, Muy:6000,  Vux:980, Vuy:200, Tu:300}
+];
+let AXIS = 'x';
+let MODEL = null;
+
+function compute(){
+  /* --- 讀入 --- */
+  const type = document.getElementById('secType').value;
+  const s = {type, B:pos('B',600), H:pos('H',800), tw:pos('tw',90)};
+  if(type==='box' && s.tw >= Math.min(s.B,s.H)/2) s.tw = Math.min(s.B,s.H)/2 - 1;
+
+  const r = {
+    barSize: document.getElementById('barSize').value,
+    tieSize: document.getElementById('tieSize').value,
+    nB: Math.max(2,Math.round(pos('nB',39))),
+    nH: Math.max(2,Math.round(pos('nH',53))),
+    dbl: document.getElementById('dbl').value==='1' && type==='box',
+    covO: Math.max(0,num('covO',7.5)), covI: Math.max(0,num('covI',5))
+  };
+  const R = genBars(s,r);
+  const Ast = R.bars.reduce((a,b)=>a+b.A,0);
+  const Ag = grossArea(s);
+
+  const m = {
+    fc: pos('fc',420), fy: parseFloat(document.getElementById('fy').value),
+    fyt: parseFloat(document.getElementById('fyt').value),
+    Es: pos('Es',2.04e6), ecu: pos('ecu',0.003), esu: pos('esu',0.09),
+    phic: pos('phic',0.65), phit: pos('phit',0.90), phiv: pos('phiv',0.75),
+    pmaxf: pos('pmaxf',0.80), alpha: pos('alpha',1.0),
+    Ag, Ast
+  };
+  m.b1 = beta1(m.fc); m.ety = m.fy/m.Es; m.Ec = Ecof(m.fc);
+  const opt = {
+    plastic: document.getElementById('ph').value==='1',
+    phio: pos('phio',1.25), Lv: pos('Lv',4000),
+    theta: pos('theta',45), dagg: Math.max(0.5,num('dagg',2.5))
+  };
+
+  /* --- P-M（兩軸） --- */
+  const ctxX = {g:geoFor(s,'x'), bars:R.bars, m, axis:'x'};
+  const ctxY = {g:geoFor(s,'y'), bars:R.bars, m, axis:'y'};
+  const cvX = pmCurve(ctxX), cvY = pmCurve(ctxY);
+  const pX = designPoly(cvX,m), pY = designPoly(cvY,m);
+
+  /* --- 圍束核心（Mander）：需先定出實際箍筋間距 s 才能算 f'_l，
+         故此處僅備妥幾何與 conf.finalize()，曲線於 render() 內以最終 s 產生 --- */
+  const conf = confinement(s,r,R,m,opt);
+  const coreGeoX = coreGeom(s,r,'x'), coreGeoY = coreGeom(s,r,'y');
+
+  /* --- 各組合 D/C --- */
+  const res = LOADS.map(L=>{
+    const Lk = {Pu:L.Pu*TF, Mux:Math.abs(L.Mux)*TFM, Muy:Math.abs(L.Muy)*TFM,
+                Vux:Math.abs(L.Vux)*TF, Vuy:Math.abs(L.Vuy)*TF, Tu:Math.abs(L.Tu)*TFM};
+    const bi = biaxialDC(cvX,cvY,pX,pY,m,Lk);
+    return {L,Lk,bi,dc:bi.dc};
+  });
+  const ctrlFlex = res.reduce((a,b)=> (b.dc>a.dc?b:a), res[0]);
+  const ctrlAxial = res.reduce((a,b)=> (b.Lk.Pu>a.Lk.Pu?b:a), res[0]);
+
+  /* --- 剪力 / 扭矩（兩向分別檢核，取控制者） --- */
+  const shX = shearDesign(s,r,R,m,opt,cvX,res,'x');
+  const shY = shearDesign(s,r,R,m,opt,cvY,res,'y');
+
+  /* --- 施工性 / 配筋查核 --- */
+  const chk = constructability(s,r,R,m,opt,conf);
+
+  MODEL = {s,r,R,m,opt,Ast,Ag,ctxX,ctxY,cvX,cvY,pX,pY,cvXc:null,cvYc:null,conf,
+           coreGeoX,coreGeoY,res,ctrlFlex,ctrlAxial,shX,shY,chk};
+  return MODEL;
+}
+
+/* ---------- 圍束核心幾何（保護層剝落後，量至箍筋外緣） ---------- */
+function coreGeom(s,r,axis){
+  const Bc = s.B-2*r.covO, Hc = s.H-2*r.covO;
+  if(s.type!=='box') return axis==='x'?{D:Hc,W:Bc,Dv:0,Wv:0,hollow:false}:{D:Bc,W:Hc,Dv:0,Wv:0,hollow:false};
+  const twc = Math.max(0.1, s.tw - r.covO - r.covI);
+  const vw = Math.max(0,Bc-2*twc), vh = Math.max(0,Hc-2*twc);
+  return axis==='x'?{D:Hc,W:Bc,Dv:vh,Wv:vw,hollow:true}:{D:Bc,W:Hc,Dv:vw,Wv:vh,hollow:true};
+}
+
+/* ---------- 圍束筋 Ash（四片獨立牆片） ---------- */
+function confinement(s,r,R,m,opt){
+  const At = BAR[r.tieSize].A, dt = BAR[r.tieSize].d, db = R.db;
+  const hxO=s.B/2-R.dOut, hyO=s.H/2-R.dOut;
+  const pitchB = 2*hxO/(r.nB-1), pitchH = 2*hyO/(r.nH-1);
+  const eB = edgeTies(r.nB,pitchB,db), eH = edgeTies(r.nH,pitchH,db);
+  // 繫筋實際可設位置：須有內層主筋可勾；角隅區（|x|≥h_xI）之主筋由交叉之另一向箍筋支撐
+  const lim = R.inner;
+  const tieX = eB.idx.map(i=>R.xsO[i]).filter(x=> !lim || Math.abs(x) < lim.hxI-1e-6);
+  const tieY = eH.idx.map(j=>R.ysO[j]).filter(y=> !lim || Math.abs(y) < lim.hyI-1e-6);
+
+  const walls=[];
+  const mk=(tag,L,nTies,e)=>{
+    // 牆片視為獨立矩形：厚 tw(或實心時全斷面)、長 L
+    const tw = s.type==='box'? s.tw : Math.min(s.B,s.H);
+    const bc_t = Math.max(1, tw - r.covO - r.covI);       // 厚度向核心尺寸
+    const bc_L = Math.max(1, L - 2*r.covO);               // 長度向核心尺寸
+    const Ag_w = tw*L, Ach_w = bc_t*bc_L;
+    // 提供量：貫穿厚度的繫筋（垂直壁面）／沿壁長的箍筋肢（內外面各一）
+    const Ash_t = nTies*At;       // 貫穿壁厚之繫筋，對應 bc = bc_L
+    const Ash_L = 2*At;           // 沿壁長之內外面箍筋肢，對應 bc = bc_t
+    const req = bc => Math.max(0.3*bc*(Ag_w/Ach_w-1)*m.fc/m.fyt, 0.09*bc*m.fc/m.fyt); // 每單位 s
+    const rq_t = req(bc_L), rq_L = req(bc_t);
+    const s_t = rq_t>1e-9 ? Ash_t/rq_t : 1e9;
+    const s_L = rq_L>1e-9 ? Ash_L/rq_L : 1e9;
+    walls.push({tag,L,tw,bc_t,bc_L,Ag_w,Ach_w,Ash_t,Ash_L,rq_t,rq_L,s_t,s_L,
+                sMax:Math.min(s_t,s_L), ties:nTies, e});
+  };
+  mk('頂/底壁 (長 B)', s.B, tieX.length, eB);
+  mk('左/右壁 (長 H)', s.H, tieY.length, eH);
+  const sAsh = Math.min(...walls.map(w=>w.sMax));
+
+  // ke 與 ρs（取控制牆片）
+  const wc = walls.reduce((a,b)=> b.sMax<a.sMax?b:a, walls[0]);
+  const nUnsup = wc.e.everyBar ? 0 : Math.max(0, wc.e.n-2-wc.e.ties);
+  const wi = wc.e.clear;
+  const sumW2 = (wc.e.n-1)*2*wi*wi;                      // 內外兩層沿壁長的淨距平方和（近似）
+  const rho_cc = Math.min(0.06, m.Ast/ (m.Ag||1));
+  return {walls, sAsh, wc, At, dt, eB, eH, tieX, tieY,
+          nTieB:tieX.length, nTieH:tieY.length, pitchB, pitchH, sumW2, rho_cc,
+          finalize(sUse){
+            const w=this.wc;
+            const sp = Math.max(0.1, sUse - this.dt);
+            let ke = (1 - this.sumW2/(6*w.bc_t*w.bc_L)) * (1-sp/(2*w.bc_t)) * (1-sp/(2*w.bc_L)) / (1-this.rho_cc);
+            ke = Math.max(0.25, Math.min(0.95, ke));
+            const rho_t = w.Ash_t/(sUse*w.bc_L), rho_L = w.Ash_L/(sUse*w.bc_t);
+            const rho_s = rho_t + rho_L;
+            const fl = ke*Math.min(rho_t,rho_L)*m.fyt;
+            const MD = fl>1e-6 ? manderCore(m.fc,fl,rho_s,m.fyt,m.esu) : null;
+            return {ke,rho_t,rho_L,rho_s,fl,MD};
+          }};
+}
+
+/* ---------- 剪力 + 扭矩設計 ---------- */
+function shearDesign(s,r,R,m,opt,cv,res,dir){
+  // dir 'x'：剪力沿 x → 腹板為 y=±H/2 之壁，bw 量於 y；有效深度沿 x
+  const bw = s.type==='box' ? 2*s.tw : (dir==='x'? s.H : s.B);
+  // d = 受壓緣至受拉鋼筋群形心
+  const coord = b => dir==='x'? b.x : b.y;
+  const D = dir==='x'? s.B : s.H;
+  const tens = R.bars.filter(b=>coord(b)<0);
+  const ubar = tens.length? tens.reduce((a,b)=>a+coord(b)*b.A,0)/tens.reduce((a,b)=>a+b.A,0) : -D/2*0.8;
+  const d = D/2 - ubar;
+
+  const Vukey = dir==='x'?'Vux':'Vuy';
+  // 控制：軸力最大組合 + 該向最大剪力組合，取較嚴
+  let ctrl = res[0], worst=-1;
+  for(const R2 of res){ if(R2.Lk[Vukey] > worst){ worst=R2.Lk[Vukey]; ctrl=R2; } }
+  const Nu = ctrl.Lk.Pu, Vu = ctrl.Lk[Vukey], Tu = ctrl.Lk.Tu;
+
+  // 容量設計剪力
+  const Mn = MnAtP(cv, Nu);
+  const Mo = opt.phio*Mn;
+  const Ve = Mo/opt.Lv;
+  const Vdes = opt.plastic ? Math.max(Ve,Vu) : Vu;
+
+  const V = VcCalc(m,bw,d,Nu,opt.plastic);
+  const VsReq = Math.max(0, Vdes/m.phiv - V.vc);
+  const VsMax = 2.12*Math.sqrt(m.fc)*bw*d;
+  const VsTight = 1.06*Math.sqrt(m.fc)*bw*d;
+  const sectionFail = VsReq > VsMax;
+
+  // 肢數：沿剪力方向之箍筋肢，量於腹板寬度方向
+  let nlegs;
+  if(s.type==='box') nlegs = r.dbl? 4 : 2;
+  else nlegs = 2 + (dir==='x' ? edgeTies(r.nH, 2*(s.H/2-R.dOut)/(r.nH-1), R.db).ties
+                              : edgeTies(r.nB, 2*(s.B/2-R.dOut)/(r.nB-1), R.db).ties);
+  const At1 = BAR[r.tieSize].A;
+  const Av = nlegs*At1;
+
+  // 扭矩（箱型：封閉薄壁）
+  const cHoop = r.covO + BAR[r.tieSize].d/2;
+  const Aoh = Math.max(1,(s.B-2*cHoop))*Math.max(1,(s.H-2*cHoop));
+  const ph  = 2*((s.B-2*cHoop)+(s.H-2*cHoop));
+  const cot = 1/Math.tan(opt.theta*Math.PI/180);
+  const Tthr = m.phiv*1.06*Math.sqrt(m.fc)*(m.Ag*m.Ag/Math.max(1,2*(s.B+s.H)));
+  const torsion = Tu > Tthr;
+  const Ao = 0.85*Aoh;
+  const AtS = torsion ? Tu/(2*m.phiv*Ao*m.fyt*cot) : 0;     // 單肢，每單位 s
+  const Al  = torsion ? AtS*ph*(m.fyt/m.fy)*cot*cot : 0;
+  // 斷面上限（中空斷面採直接相加）
+  const lhs = Vdes/(bw*d) + (torsion? Tu*ph/(1.7*Aoh*Aoh) : 0);
+  const rhs = m.phiv*(V.vc/(bw*d) + 2.12*Math.sqrt(m.fc));
+  const sectOver = lhs > rhs;
+
+  // 需求間距
+  const AvS_shear = VsReq>1e-9 ? VsReq/(m.fyt*d) : 0;       // Av/s
+  const AvS_tot = AvS_shear + 2*AtS;
+  const s_str = AvS_tot>1e-9 ? Av/AvS_tot : 1e9;
+  const s_min1 = Av*m.fyt/(0.2*Math.sqrt(m.fc)*bw);
+  const s_min2 = Av*m.fyt/(3.5*bw);
+  const s_minAv = Math.min(s_min1,s_min2);
+  const s_code = VsReq>VsTight ? Math.min(d/4,30) : Math.min(d/2,60);
+  const s_ph = opt.plastic ? Math.min(Math.min(s.B,s.H)/4, 6*R.db, 15) : 1e9;
+  const s_tors = torsion ? Math.min(ph/8, 30) : 1e9;
+
+  return {dir,bw,d,ctrl,Nu,Vu,Tu,Mn,Mo,Ve,Vdes,V,VsReq,VsMax,VsTight,sectionFail,
+          nlegs,Av,At1,Aoh,ph,Ao,cot,Tthr,torsion,AtS,Al,lhs,rhs,sectOver,
+          AvS_shear,AvS_tot,s_str,s_minAv,s_code,s_ph,s_tors};
+}
+
+/* ---------- 施工性與配筋查核 ---------- */
+function constructability(s,r,R,m,opt,conf){
+  const db=R.db, dt=R.dt;
+  const hxO=s.B/2-R.dOut, hyO=s.H/2-R.dOut;
+  const pB = 2*hxO/(r.nB-1), pH = 2*hyO/(r.nH-1);
+  const need = Math.max(4.0, 1.5*db, (4/3)*opt.dagg);       // 柱主筋淨距（4 cm，非梁的 2.5）
+  const clB = pB-db, clH = pH-db;
+  const rho = m.Ast/m.Ag*100;
+
+  // 雙層層距
+  let layerGap = null;
+  if(r.dbl && s.type==='box'){
+    const hxI = s.B/2-s.tw+R.dIn;
+    layerGap = (hxO-hxI) - db;
+  }
+  // 彎鉤
+  const hook135 = Math.max(6*dt, 7.5);
+  const hook90  = Math.max(6*dt, 7.5);
+  return {pB,pH,clB,clH,need,rho,layerGap,hook135,hook90,
+          hxMaxB:conf.eB.hx, hxMaxH:conf.eH.hx,
+          tiesB:conf.nTieB, tiesH:conf.nTieH,
+          everyB:conf.eB.everyBar, everyH:conf.eH.everyBar};
+}
+
+/* ---------- 最終箍筋間距（彙整所有上限，向下取實務值） ---------- */
+function finalSpacing(M){
+  const cands = [];
+  const push=(v,tag)=>{ if(Number.isFinite(v)&&v>0&&v<1e8) cands.push({v,tag}); };
+  for(const sh of [M.shX,M.shY]){
+    push(sh.s_str,  `剪力+扭矩強度需求 (${sh.dir.toUpperCase()} 向)`);
+    push(sh.s_minAv,`最小剪力鋼筋量 (${sh.dir.toUpperCase()} 向)`);
+    push(sh.s_code, `規範間距上限 (${sh.dir.toUpperCase()} 向)`);
+    push(sh.s_ph,   `塑鉸區間距上限 (${sh.dir.toUpperCase()} 向)`);
+    push(sh.s_tors, `扭矩間距上限 (${sh.dir.toUpperCase()} 向)`);
+  }
+  push(M.conf.sAsh, '圍束筋量 Ash');
+  const gov = cands.reduce((a,b)=> b.v<a.v?b:a, cands[0]);
+  const sUse = PRACTICAL_S.find(v=>v<=gov.v) || PRACTICAL_S[PRACTICAL_S.length-1];
+  return {cands,gov,sUse,tooTight: sUse > gov.v};
+}
+
+/* =========================================================================
+   SVG 繪圖
+   ========================================================================= */
+function svgSection(M,forPrint){
+  const {s,r,R,conf}=M;
+  const W=760, Hh=560, pad=78;
+  const k = Math.min((W-2*pad)/s.B, (Hh-2*pad)/s.H);
+  const X = x=>W/2 + x*k, Y = y=>Hh/2 - y*k;
+  const o=[];
+  const C = forPrint
+    ? {conc:'#dcdcdc',void:'#ffffff',line:'#000',bar:'#000',tie:'#000',ct:'#000',txt:'#000',bad:'#000',dim:'#333'}
+    : {conc:'#334155',void:'#0b1220',line:'#64748b',bar:'#f8fafc',tie:'#38bdf8',ct:'#f472b6',txt:'#e6edf7',bad:'#ef4444',dim:'#93a4c2'};
+
+  o.push(`<svg viewBox="0 0 ${W} ${Hh}" xmlns="http://www.w3.org/2000/svg" font-family="ui-sans-serif,system-ui,sans-serif">`);
+  o.push(`<rect width="${W}" height="${Hh}" fill="${forPrint?'#fff':'transparent'}"/>`);
+
+  // 混凝土
+  o.push(`<rect x="${X(-s.B/2)}" y="${Y(s.H/2)}" width="${s.B*k}" height="${s.H*k}" fill="${C.conc}" stroke="${C.line}" stroke-width="2"/>`);
+  if(s.type==='box'){
+    const iw=s.B-2*s.tw, ih=s.H-2*s.tw;
+    o.push(`<rect x="${X(-iw/2)}" y="${Y(ih/2)}" width="${iw*k}" height="${ih*k}" fill="${C.void}" stroke="${C.line}" stroke-width="2"/>`);
+    o.push(`<text x="${X(0)}" y="${Y(0)}" fill="${C.dim}" font-size="13" text-anchor="middle">中空</text>`);
+  }
+  // 箍筋（環）
+  for(const rg of R.rings){
+    o.push(`<rect x="${X(-rg.hx)-3}" y="${Y(rg.hy)-3}" width="${2*rg.hx*k+6}" height="${2*rg.hy*k+6}" rx="${4}"
+      fill="none" stroke="${C.tie}" stroke-width="${forPrint?2:2}" ${rg.layer==='in'?'stroke-dasharray="7 4"':''}/>`);
+  }
+  // 繫筋（貫穿壁厚，示意）
+  {
+    const drawCT=(x1,y1,x2,y2)=>o.push(`<line x1="${X(x1)}" y1="${Y(y1)}" x2="${X(x2)}" y2="${Y(y2)}" stroke="${C.ct}" stroke-width="${forPrint?1:1.8}" stroke-linecap="round"/>`);
+    const ro=R.rings[0], ri=R.rings[1];
+    if(ri){   // 箱型雙層：繫筋垂直穿過壁厚，兩端各勾一根主筋
+      for(const x of conf.tieX){ drawCT(x,ro.hy,x,ri.hy); drawCT(x,-ro.hy,x,-ri.hy); }
+      for(const y of conf.tieY){ drawCT(ro.hx,y,ri.hx,y); drawCT(-ro.hx,y,-ri.hx,y); }
+    }else{    // 實心／單層：繫筋貫穿全斷面
+      for(const x of conf.tieX) drawCT(x,ro.hy,x,-ro.hy);
+      for(const y of conf.tieY) drawCT(ro.hx,y,-ro.hx,y);
+    }
+  }
+  // 主筋（真實直徑比例）
+  const rad = Math.max(2.0, R.db/2*k);
+  for(const b of R.bars)
+    o.push(`<circle cx="${X(b.x)}" cy="${Y(b.y)}" r="${rad}" fill="${C.bar}" stroke="${forPrint?'#000':'#0b1220'}" stroke-width="0.7"/>`);
+
+  // 淨距標註 + 違規紅標
+  const bad = M.chk.clB < M.chk.need, badH = M.chk.clH < M.chk.need;
+  const ro=R.rings[0];
+  const annot=(x1,y1,x2,y2,txt,isBad)=>{
+    const col=isBad?C.bad:C.txt;
+    o.push(`<line x1="${X(x1)}" y1="${Y(y1)}" x2="${X(x2)}" y2="${Y(y2)}" stroke="${col}" stroke-width="${isBad?3:1.6}"/>`);
+    o.push(`<text x="${(X(x1)+X(x2))/2}" y="${(Y(y1)+Y(y2))/2-7}" fill="${col}" font-size="12" text-anchor="middle" font-weight="${isBad?700:400}">${txt}</text>`);
+  };
+  const x0=-ro.hx, x1a=-ro.hx+M.chk.pB;
+  annot(x0,ro.hy,x1a,ro.hy, `淨距 ${f(M.chk.clB,1)} cm`, bad);
+  const y0=ro.hy, y1a=ro.hy-M.chk.pH;
+  o.push(`<line x1="${X(ro.hx)}" y1="${Y(y0)}" x2="${X(ro.hx)}" y2="${Y(y1a)}" stroke="${badH?C.bad:C.txt}" stroke-width="${badH?3:1.6}"/>`);
+  o.push(`<text x="${X(ro.hx)+8}" y="${(Y(y0)+Y(y1a))/2}" fill="${badH?C.bad:C.txt}" font-size="12" font-weight="${badH?700:400}">淨距 ${f(M.chk.clH,1)} cm</text>`);
+
+  // 尺寸線
+  const dim=(x1,y1,x2,y2,txt,off,vert)=>{
+    const ax=vert?X(x1)+off:X(x1), ay=vert?Y(y1):Y(y1)+off;
+    const bx=vert?X(x2)+off:X(x2), by=vert?Y(y2):Y(y2)+off;
+    o.push(`<line x1="${ax}" y1="${ay}" x2="${bx}" y2="${by}" stroke="${C.dim}" stroke-width="1.2" marker-start="url(#ar)" marker-end="url(#ar)"/>`);
+    o.push(`<text x="${(ax+bx)/2}" y="${(ay+by)/2 + (vert?0:16)}" fill="${C.dim}" font-size="13" text-anchor="middle" ${vert?`transform="rotate(-90 ${(ax+bx)/2} ${(ay+by)/2})"`:''}>${txt}</text>`);
+  };
+  o.push(`<defs><marker id="ar" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto"><path d="M1,4 L7,1.6 L7,6.4 Z" fill="${C.dim}"/></marker></defs>`);
+  dim(-s.B/2,-s.H/2, s.B/2,-s.H/2, `B = ${f(s.B,0)} cm`, 34, false);
+  dim(-s.B/2, s.H/2,-s.B/2,-s.H/2, `H = ${f(s.H,0)} cm`, -34, true);
+  if(s.type==='box'){
+    o.push(`<line x1="${X(-s.B/2)}" y1="${Y(0)}" x2="${X(-s.B/2+s.tw)}" y2="${Y(0)}" stroke="${C.dim}" stroke-width="1.2" marker-start="url(#ar)" marker-end="url(#ar)"/>`);
+    o.push(`<text x="${X(-s.B/2+s.tw)+7}" y="${Y(0)+4}" fill="${C.dim}" font-size="12">t_w = ${f(s.tw,0)} cm</text>`);
+  }
+  // 圖例
+  // 圖例：列印時全為黑色，故以各自的真實線型（實心圓／實線／虛線／細線）區分
+  const lg=[
+    ['dot',  `主筋 ${M.r.barSize} ×${R.bars.length}`, C.bar],
+    ['solid',`外閉合箍筋 ${M.r.tieSize}（兩端 135° 耐震彎鉤）`, C.tie],
+    ...(R.rings[1]?[['dash',`內層閉合箍筋 ${M.r.tieSize}`, C.tie]]:[]),
+    ['thin', `繫筋 ${M.r.tieSize}（135°+90°，沿高度逐層錯開）`, C.ct]
+  ];
+  lg.forEach((L,i)=>{
+    const yy=16+i*17;
+    if(L[0]==='dot') o.push(`<circle cx="16" cy="${yy}" r="4.5" fill="${L[2]}"/>`);
+    else o.push(`<line x1="7" y1="${yy}" x2="26" y2="${yy}" stroke="${L[2]}"
+      stroke-width="${L[0]==='thin'?(forPrint?1.3:1.8):(forPrint?2:2.4)}"
+      ${L[0]==='dash'?'stroke-dasharray="6 3"':''}/>`);
+    o.push(`<text x="31" y="${yy+4}" fill="${C.txt}" font-size="11.5">${esc(L[1])}</text>`);
+  });
+  o.push(`</svg>`);
+  return o.join('');
+}
+
+function svgPM(M,axis,forPrint){
+  const cv = axis==='x'?M.cvX:M.cvY, pd = axis==='x'?M.pX:M.pY;
+  const cvc = axis==='x'?M.cvXc:M.cvYc;
+  const key = axis==='x'?'Mux':'Muy';
+  const W=760,Hh=520,L=76,Rr=22,T=22,Bm=52;
+  const C = forPrint
+    ? {ax:'#000',grid:'#ccc',n:'#888',d:'#000',mc:'#555',pt:'#666',ptc:'#000',txt:'#000',ok:'#000',bad:'#000'}
+    : {ax:'#94a3b8',grid:'#1e293b',n:'#64748b',d:'#38bdf8',mc:'#a78bfa',pt:'#94a3b8',ptc:'#ef4444',txt:'#e6edf7',ok:'#22c55e',bad:'#ef4444'};
+
+  // 軸距由「標稱 + 設計 + 載重」決定；圍束曲線僅裁切至圖框內，
+  // 否則其高軸壓分支（非設計相關）會把整張圖壓扁。
+  let mMax=0,pMax=0,pMin=0;
+  for(const p of cv.pts){ mMax=Math.max(mMax,p.Mn/TFM); pMax=Math.max(pMax,Math.min(p.Pn,cv.PnMax)/TF); pMin=Math.min(pMin,p.Pn/TF); }
+  for(const R2 of M.res){ mMax=Math.max(mMax,Math.abs(R2.L[key])); pMax=Math.max(pMax,R2.L.Pu); pMin=Math.min(pMin,R2.L.Pu); }
+  mMax*=1.12; pMax*=1.10; pMin=Math.min(pMin*1.18,-0.05*pMax);
+  const confAll  = cvc ? cvc.filter(p=>p.Pn<=cv.PnMax) : [];
+  const confPlot = confAll.filter(p=>p.Mn/TFM<=mMax && p.Pn/TF<=pMax && p.Pn/TF>=pMin);
+  const confClipped = confPlot.length < confAll.length;
+
+  const X=v=>L+(W-L-Rr)*(v/mMax), Y=v=>Hh-Bm-(Hh-Bm-T)*((v-pMin)/(pMax-pMin));
+  const o=[`<svg viewBox="0 0 ${W} ${Hh}" xmlns="http://www.w3.org/2000/svg" font-family="ui-sans-serif,system-ui,sans-serif">`];
+  o.push(`<rect width="${W}" height="${Hh}" fill="${forPrint?'#fff':'transparent'}"/>`);
+  // 格線
+  for(let i=0;i<=5;i++){
+    const mv=mMax*i/5, pv=pMin+(pMax-pMin)*i/5;
+    o.push(`<line x1="${X(mv)}" y1="${T}" x2="${X(mv)}" y2="${Hh-Bm}" stroke="${C.grid}" stroke-width="1"/>`);
+    o.push(`<line x1="${L}" y1="${Y(pv)}" x2="${W-Rr}" y2="${Y(pv)}" stroke="${C.grid}" stroke-width="1"/>`);
+    o.push(`<text x="${X(mv)}" y="${Hh-Bm+16}" fill="${C.txt}" font-size="11" text-anchor="middle">${f(mv,0)}</text>`);
+    o.push(`<text x="${L-7}" y="${Y(pv)+4}" fill="${C.txt}" font-size="11" text-anchor="end">${f(pv,0)}</text>`);
+  }
+  o.push(`<line x1="${L}" y1="${Y(0)}" x2="${W-Rr}" y2="${Y(0)}" stroke="${C.ax}" stroke-width="1.8"/>`);
+  o.push(`<line x1="${L}" y1="${T}" x2="${L}" y2="${Hh-Bm}" stroke="${C.ax}" stroke-width="1.8"/>`);
+  o.push(`<text x="${(L+W-Rr)/2}" y="${Hh-14}" fill="${C.txt}" font-size="12.5" text-anchor="middle">M${axis==='x'?'ₓ':'ᵧ'} (tf·m)</text>`);
+  o.push(`<text x="16" y="${(T+Hh-Bm)/2}" fill="${C.txt}" font-size="12.5" text-anchor="middle" transform="rotate(-90 16 ${(T+Hh-Bm)/2})">P (tf)  壓為正</text>`);
+
+  const path=(arr,col,w,dash)=>{
+    const d=arr.filter(p=>Number.isFinite(p[0])&&Number.isFinite(p[1]))
+                .map((p,i)=>`${i?'L':'M'}${X(p[0]).toFixed(1)},${Y(p[1]).toFixed(1)}`).join(' ');
+    o.push(`<path d="${d}" fill="none" stroke="${col}" stroke-width="${w}" ${dash?`stroke-dasharray="${dash}"`:''} stroke-linejoin="round"/>`);
+  };
+  // 標稱
+  path(cv.pts.filter(p=>p.Pn<=cv.PnMax).map(p=>[p.Mn/TFM,p.Pn/TF]).concat([[0,cv.PnMax/TF]]), C.n, 1.7);
+  // Mander 圍束核心
+  if(confPlot.length) path(confPlot.map(p=>[p.Mn/TFM,p.Pn/TF]), C.mc, 1.7, '8 4');
+  // 設計
+  path(pd.poly.map(p=>[p[0]/TFM,p[1]/TF]), C.d, 2.6);
+  // 截斷線
+  o.push(`<line x1="${L}" y1="${Y(pd.cap/TF)}" x2="${W-Rr}" y2="${Y(pd.cap/TF)}" stroke="${C.d}" stroke-width="1.2" stroke-dasharray="4 4"/>`);
+  o.push(`<text x="${W-Rr-4}" y="${Y(pd.cap/TF)-5}" fill="${C.d}" font-size="10.5" text-anchor="end">φP_n,max = ${f(pd.cap/TF,0)} tf</text>`);
+  // 平衡點
+  let bal=cv.pts[0],bd=1e9;
+  for(const p of cv.pts){ const dd=Math.abs(p.eps_t-M.m.ety); if(dd<bd){bd=dd;bal=p;} }
+  o.push(`<circle cx="${X(bal.phi*bal.Mn/TFM)}" cy="${Y(bal.phi*bal.Pn/TF)}" r="5" fill="none" stroke="${C.ok}" stroke-width="2.2"/>`);
+  o.push(`<text x="${X(bal.phi*bal.Mn/TFM)+9}" y="${Y(bal.phi*bal.Pn/TF)+4}" fill="${C.ok}" font-size="10.5">平衡點</text>`);
+  // 載重點 + 控制點射線
+  M.res.forEach((R2,i)=>{
+    const isC = R2===M.ctrlFlex;
+    const mx=Math.abs(R2.L[key]), py=R2.L.Pu;
+    if(isC && Number.isFinite(R2.dc) && R2.dc>1e-9){
+      const t=1/R2.dc;                        // 容量點 = 載重點 ÷ D/C
+      o.push(`<line x1="${X(0)}" y1="${Y(0)}" x2="${X(mx/t)}" y2="${Y(py/t)}" stroke="${C.ptc}" stroke-width="1.1" stroke-dasharray="3 3" opacity=".85"/>`);
+      o.push(`<circle cx="${X(mx/t)}" cy="${Y(py/t)}" r="3.4" fill="none" stroke="${C.ptc}" stroke-width="1.6"/>`);
+    }else if(isC){                            // 無交點：僅由原點朝載重點畫延伸線
+      o.push(`<line x1="${X(0)}" y1="${Y(0)}" x2="${X(mx)}" y2="${Y(py)}" stroke="${C.ptc}" stroke-width="1.1" stroke-dasharray="3 3" opacity=".5"/>`);
+    }
+    const R0=isC?8.5:7;
+    o.push(`<circle cx="${X(mx)}" cy="${Y(py)}" r="${R0}" fill="${isC?C.ptc:C.pt}" stroke="${forPrint?'#fff':'#0b1220'}" stroke-width="1.4"/>`);
+    o.push(`<text x="${X(mx)}" y="${Y(py)+3.6}" fill="${forPrint?'#fff':'#0b1220'}" font-size="10" font-weight="700" text-anchor="middle">${i+1}</text>`);
+  });
+  // 圖內對照表（取代逐點標籤，避免重疊）
+  const bx=L+8, by=T+8;
+  o.push(`<rect x="${bx}" y="${by}" width="248" height="${16+M.res.length*14}" rx="4"
+    fill="${forPrint?'#fff':'#0d1526'}" stroke="${forPrint?'#999':'#243352'}" stroke-width="1" opacity="${forPrint?1:0.94}"/>`);
+  o.push(`<text x="${bx+8}" y="${by+13}" fill="${C.txt}" font-size="10" font-weight="700">載重組合　（D/C，定偏心射線法）</text>`);
+  M.res.forEach((R2,i)=>{
+    const isC=R2===M.ctrlFlex, yy=by+13+ (i+1)*14;
+    o.push(`<circle cx="${bx+13}" cy="${yy-3.5}" r="6" fill="${isC?C.ptc:C.pt}"/>`);
+    o.push(`<text x="${bx+13}" y="${yy-0.6}" fill="${forPrint?'#fff':'#0b1220'}" font-size="8.5" font-weight="700" text-anchor="middle">${i+1}</text>`);
+    const nm=R2.L.name.length>22?R2.L.name.slice(0,21)+'…':R2.L.name;
+    o.push(`<text x="${bx+25}" y="${yy}" fill="${isC?C.ptc:C.txt}" font-size="10" font-weight="${isC?700:400}">${esc(nm)}</text>`);
+    o.push(`<text x="${bx+240}" y="${yy}" fill="${R2.dc>1?C.bad:(isC?C.ptc:C.txt)}" font-size="10" font-weight="${isC?700:400}" text-anchor="end">${fdc(R2.dc)}</text>`);
+  });
+  // 圖例
+  const lg=[['標稱 P_n–M_n',C.n,'1.7',''],['設計 φP_n–φM_n',C.d,'2.6',''],
+            ['Mander 圍束核心（保護層剝落）'+(confClipped?'（已裁切）':''),C.mc,'1.7','8 4']];
+  lg.forEach((g2,i)=>{
+    const yy=Hh-Bm-8-(lg.length-1-i)*15;
+    o.push(`<line x1="${W-Rr-286}" y1="${yy}" x2="${W-Rr-254}" y2="${yy}" stroke="${g2[1]}" stroke-width="${g2[2]}" ${g2[3]?`stroke-dasharray="${g2[3]}"`:''}/>`);
+    o.push(`<text x="${W-Rr-248}" y="${yy+4}" fill="${C.txt}" font-size="10.5">${esc(g2[0])}</text>`);
+  });
+  o.push(`</svg>`);
+  return o.join('');
+}
+
+/* =========================================================================
+   UI 渲染
+   ========================================================================= */
+function render(){
+  const M=compute();
+  const fin=finalSpacing(M);
+  M.fin=fin;
+  const cf=M.conf.finalize(fin.sUse);
+  M.cf=cf; M.MD=cf.MD;
+  // 用實際間距重算圍束曲線
+  if(cf.MD){
+    M.cvXc=pmCurveConfined(M.ctxX,cf.MD,M.coreGeoX);
+    M.cvYc=pmCurveConfined(M.ctxY,cf.MD,M.coreGeoY);
+  }else{ M.cvXc=M.cvYc=null; }
+
+  document.getElementById('oB1').textContent=f(M.m.b1,3);
+  document.getElementById('oEc').textContent=f(M.m.Ec,0);
+  document.getElementById('oMPa').textContent=f(M.m.fc*0.0980665,1);
+  document.getElementById('oEty').textContent=f(M.m.ety,5);
+  document.getElementById('oNbar').textContent=M.R.bars.length;
+  document.getElementById('oAst').textContent=f(M.Ast,1);
+  document.getElementById('oAg').textContent=f(M.Ag,0);
+  document.getElementById('oRho').textContent=f(M.chk.rho,3);
+  document.getElementById('rowTw').style.display = M.s.type==='box'?'':'none';
+  document.getElementById('rowDbl').style.display = M.s.type==='box'?'':'none';
+
+  document.getElementById('secWrap').innerHTML=svgSection(M,false);
+  document.getElementById('pmWrap').innerHTML=svgPM(M,AXIS,false);
+  document.getElementById('axX').style.outline = AXIS==='x'?'2px solid var(--acc)':'none';
+  document.getElementById('axY').style.outline = AXIS==='y'?'2px solid var(--acc)':'none';
+
+  renderSummary(M); renderAlerts(M);
+  if(document.getElementById('report').classList.contains('preview')) buildReport(M);
+  return M;
+}
+
+function renderSummary(M){
+  const F=M.fin, cf=M.cf, C=M.ctrlFlex;
+  const kv=(k,v,cls='')=>`<div class="kv"><span>${k}</span><b class="${cls}">${v}</b></div>`;
+  const dcCol = C.dc>1 ? 'style="color:var(--bad)"' : C.dc>0.9 ? 'style="color:var(--warn)"' : 'style="color:var(--ok)"';
+  let h = `<div class="grid gap-x-6" style="grid-template-columns:1fr 1fr">`;
+  h += `<div>`;
+  h += kv('控制載重組合（撓曲）', esc(C.L.name));
+  h += `<div class="kv"><span>D/C 應力比（定偏心射線法）</span><b ${dcCol}>${fdc(C.dc)}</b></div>`;
+  h += kv('雙軸判定方法', C.bi.method);
+  h += kv('鋼筋比 ρ_g', f(M.chk.rho,3)+' %');
+  h += kv('P_o（純壓）', f(M.cvX.Po/TF,0)+' tf');
+  h += kv('φP_n,max（截斷）', f(M.pX.cap/TF,0)+' tf');
+  h += kv('純拉 φP_nt', f(M.m.phit*M.cvX.Pnt/TF,0)+' tf');
+  h += `</div><div>`;
+  h += kv('採用箍筋間距 s', `${M.r.tieSize} @ ${f(F.sUse,1)} cm`, F.tooTight?'style="color:var(--bad)"':'style="color:var(--ok)"');
+  h += kv('控制項', F.gov.tag);
+  h += kv('需求上限 s_req', f(F.gov.v,2)+' cm');
+  h += kv('剪力肢數 n_legs (X / Y)', `${M.shX.nlegs} / ${M.shY.nlegs}`);
+  h += kv('繫筋根數（B 邊 / H 邊，每面）', `${M.chk.tiesB} / ${M.chk.tiesH}`);
+  h += kv('h_x (B 邊 / H 邊)', `${f(M.chk.hxMaxB,1)} / ${f(M.chk.hxMaxH,1)} cm`);
+  h += cf.MD ? kv("f'_cc（Mander 圍束）", f(cf.MD.fcc,0)+` kgf/cm² (×${f(cf.MD.fcc/M.m.fc,2)})`) : kv("f'_cc",'—');
+  h += cf.MD ? kv('ε_cu,c（圍束極限應變）', f(cf.MD.ecu,4)+` (×${f(cf.MD.ecu/M.m.ecu,1)})`) : '';
+  h += `</div></div>`;
+
+  h += `<div class="mt-3"><table><thead><tr><th class="l">組合</th><th>P_u (tf)</th><th>M_ux</th><th>M_uy</th><th>D/C</th><th class="l">方法</th></tr></thead><tbody>`;
+  for(const R2 of M.res){
+    const bad=R2.dc>1, ctr=R2===M.ctrlFlex;
+    h+=`<tr style="${ctr?'background:rgba(239,68,68,.10);font-weight:700':''}">
+      <td class="l">${esc(R2.L.name)}</td><td>${f(R2.L.Pu,0)}</td><td>${f(R2.L.Mux,0)}</td><td>${f(R2.L.Muy,0)}</td>
+      <td style="color:${bad?'var(--bad)':'var(--ok)'}">${fdc(R2.dc)}</td><td class="l">${R2.bi.method}</td></tr>`;
+  }
+  h+=`</tbody></table></div>`;
+
+  h += `<div class="mt-3"><table><thead><tr><th class="l">剪力／扭矩</th><th>X 向</th><th>Y 向</th></tr></thead><tbody>`;
+  const row=(k,fx,fy)=>`<tr><td class="l">${k}</td><td>${fx}</td><td>${fy}</td></tr>`;
+  const X=M.shX,Y=M.shY;
+  h+=row('b_w (cm)',f(X.bw,1),f(Y.bw,1));
+  h+=row('d (cm)',f(X.d,1),f(Y.d,1));
+  h+=row('V_u 分析值 (tf)',f(X.Vu/TF,1),f(Y.Vu/TF,1));
+  h+=row('M_n at P_u (tf·m)',f(X.Mn/TFM,0),f(Y.Mn/TFM,0));
+  h+=row('V_e = φ_o·M_n/L_v (tf)',f(X.Ve/TF,1),f(Y.Ve/TF,1));
+  h+=row('設計剪力 V_des (tf)',`<b>${f(X.Vdes/TF,1)}</b>`,`<b>${f(Y.Vdes/TF,1)}</b>`);
+  h+=row('V_c (tf)',f(X.V.vc/TF,1)+(X.V.zeroed?' <span style="color:var(--warn)">(塑鉸歸零)</span>':''),
+                    f(Y.V.vc/TF,1)+(Y.V.zeroed?' <span style="color:var(--warn)">(塑鉸歸零)</span>':''));
+  h+=row('V_s 需求 (tf)',f(X.VsReq/TF,1),f(Y.VsReq/TF,1));
+  h+=row('V_s 上限 (tf)',f(X.VsMax/TF,1),f(Y.VsMax/TF,1));
+  h+=row('扭矩 T_u (tf·m)',f(X.Tu/TFM,1)+(X.torsion?'':' <span style="color:var(--dim)">(可忽略)</span>'),
+                          f(Y.Tu/TFM,1)+(Y.torsion?'':' <span style="color:var(--dim)">(可忽略)</span>'));
+  h+=row('A_t/s 扭矩單肢 (cm²/cm)',f(X.AtS,4),f(Y.AtS,4));
+  h+=row('A_l 扭矩縱筋 (cm²)',f(X.Al,1),f(Y.Al,1));
+  h+=`</tbody></table></div>`;
+  document.getElementById('summary').innerHTML=h;
+}
+
+function renderAlerts(M){
+  const A=[];
+  const add=(lv,t)=>A.push(`<div class="alert a-${lv}">${t}</div>`);
+  const C=M.ctrlFlex, F=M.fin, chk=M.chk;
+
+  if(!Number.isFinite(C.dc))
+    add('bad',`<b>載重點完全落在包絡線外（D/C = ∞）</b>：由原點沿 (M_u, P_u) 射線找不到與 φ 包絡線之交點，`+
+              `代表斷面在此偏心下毫無容量（控制組合 ${esc(C.L.name)}）。請檢查斷面尺寸與配筋量。`);
+  else if(C.dc>1) add('bad',`<b>應力比超限：D/C = ${fdc(C.dc)} > 1.0</b>（控制組合 ${esc(C.L.name)}，${C.bi.method}）。設計內力點落在 φ 包絡線外，斷面或配筋不足。`);
+  else if(C.dc>0.90) add('warn',`應力比 D/C = ${fdc(C.dc)}，已逼近 1.0，餘裕不足 10%。`);
+  else add('ok',`撓曲 D/C = ${fdc(C.dc)} ≤ 1.0，通過（控制組合 ${esc(C.L.name)}）。`);
+
+  if(chk.rho<1.0) add('warn',`鋼筋比 ρ_g = ${f(chk.rho,3)}% < 1.0% 下限，不足。`);
+  else if(chk.rho>4.0) add('warn',`鋼筋比 ρ_g = ${f(chk.rho,3)}% > 4.0% 上限，續接與澆置將極度困難。`);
+  else add('ok',`鋼筋比 ρ_g = ${f(chk.rho,3)}%，落在 1.0% ~ 4.0% 之間。`);
+
+  const nd=chk.need;
+  if(chk.clB<nd||chk.clH<nd)
+    add('bad',`<b>主筋淨距不足</b>：B 邊 ${f(chk.clB,2)} cm、H 邊 ${f(chk.clH,2)} cm，需求 ≥ max(4.0, 1.5d_b=${f(1.5*M.R.db,2)}, 4/3·d_agg=${f(4/3*M.opt.dagg,2)}) = <b>${f(nd,2)} cm</b>。混凝土無法澆置密實（註：4 cm 為柱之規定，非梁的 2.5 cm）。`);
+  else add('ok',`主筋淨距 B 邊 ${f(chk.clB,2)} / H 邊 ${f(chk.clH,2)} cm ≥ 需求 ${f(nd,2)} cm。`);
+
+  if(chk.layerGap!==null && chk.layerGap<2.5)
+    add('bad',`<b>雙層層距不足</b>：內外層淨距 ${f(chk.layerGap,2)} cm < 2.5 cm。壁厚 t_w = ${f(M.s.tw,0)} cm 容不下雙層配筋。`);
+
+  add(chk.everyB||chk.everyH?'warn':'info',
+    `繫筋排布：B 邊每面 <b>${chk.tiesB}</b> 根、H 邊每面 <b>${chk.tiesH}</b> 根（規範：每隔一根縱筋須側向支撐，且距被支撐筋淨距 ≤ 15 cm）。`+
+    (chk.everyB?`<br>B 邊主筋淨距 ${f(chk.clB,1)} cm > 15 cm，<b>每一根</b>都須繫筋。`:'')+
+    (chk.everyH?`<br>H 邊主筋淨距 ${f(chk.clH,1)} cm > 15 cm，<b>每一根</b>都須繫筋。`:''));
+
+  if(chk.hxMaxB>35||chk.hxMaxH>35)
+    add('bad',`<b>耐震 h_x 超限</b>：被支撐筋中心距 B 邊 ${f(chk.hxMaxB,1)} / H 邊 ${f(chk.hxMaxH,1)} cm，超過 35 cm 上限，橫向圍束不足。`);
+
+  for(const sh of [M.shX,M.shY]){
+    const t=sh.dir.toUpperCase();
+    if(sh.sectionFail) add('bad',`<b>${t} 向斷面不足</b>：V_s 需求 ${f(sh.VsReq/TF,0)} tf > 上限 2.12√f'c·b_w·d = ${f(sh.VsMax/TF,0)} tf。<b>加箍筋無效，必須加大斷面或提高 f'c</b>。`);
+    if(sh.sectOver) add('bad',`<b>${t} 向剪力+扭矩斷面應力超限</b>：${f(sh.lhs,1)} > ${f(sh.rhs,1)} kgf/cm²（中空斷面採直接相加）。`);
+    if(sh.V.zeroed) add('warn',`${t} 向：塑鉸區且 N_u = ${f(sh.Nu/TF,0)} tf < 0.1f'c·A_g = ${f(0.1*M.m.fc*M.m.Ag/TF,0)} tf → <b>V_c 取 0</b>，全部剪力由箍筋承擔。`);
+    if(sh.Nu<0) add('warn',`${t} 向：控制組合為<b>軸拉</b>（N_u = ${f(sh.Nu/TF,0)} tf），V_c 改用分母 35 之公式並夾至 ≥ 0。`);
+    if(M.opt.plastic && sh.Ve>sh.Vu) add('info',`${t} 向：<b>容量設計控制</b>。V_e = φ_o·M_n/L_v = ${f(sh.Ve/TF,0)} tf > 分析值 V_u = ${f(sh.Vu/TF,0)} tf，設計剪力採 V_e。`);
+  }
+  if(M.fin.tooTight) add('bad',`<b>實務間距無解</b>：需求 s = ${f(M.fin.gov.v,2)} cm（${M.fin.gov.tag}）已小於最小實務間距 ${PRACTICAL_S[PRACTICAL_S.length-1]} cm。`);
+  else add('ok',`採用 ${M.r.tieSize} @ ${f(M.fin.sUse,1)} cm（控制項：${M.fin.gov.tag}，需求 ≤ ${f(M.fin.gov.v,2)} cm）。`);
+
+  if(M.conf.sAsh===M.fin.gov.v) add('info',`<b>圍束筋量 Ash 為控制項</b> —— 橋塔塑鉸區常見情形，箍筋間距由圍束需求而非剪力強度決定。`);
+  if(M.cf.MD) add('info',`Mander 圍束：f'_cc = ${f(M.cf.MD.fcc,0)} kgf/cm²（提升 ${f((M.cf.MD.fcc/M.m.fc-1)*100,1)}%）、ε_cu,c = ${f(M.cf.MD.ecu,4)}、k_e = ${f(M.cf.ke,3)}、ρ_s = ${f(M.cf.rho_s*100,3)}%。虛線即為保護層剝落後之圍束核心容量。`);
+  add('info',`<b>二次效應</b>：本工具不計算彎矩放大係數。輸入之 P_u、M_u 必須來自已含 P-Δ 之大變形幾何非線性分析；若餵入一階分析結果，撓曲容量將被高估。`);
+  document.getElementById('alerts').innerHTML=A.join('');
+}
+
+/* =========================================================================
+   報告（KaTeX + 逐步代入）
+   ========================================================================= */
+const K=t=>`\\(${t}\\)`;
+function buildReport(M){
+  const m=M.m, s=M.s, r=M.r, R=M.R, F=M.fin, cf=M.cf, C=M.ctrlFlex;
+  const o=[];
+  const eq=t=>`<div class="rp-eq">${K(t)}</div>`;
+  const note=t=>`<div class="rp-note">${t}</div>`;
+  const d=(x,n=2)=>f(x,n);
+
+  /* --- 第 1 頁：輸入與圖 --- */
+  o.push(`<div class="rp-page">`);
+  o.push(`<div class="rp-h1">RC 橋塔斷面設計檢核計算書</div>`);
+  o.push(`<div style="font-size:12px;color:#444;margin-bottom:10px">
+    依據：混凝土結構設計規範（土木401） + 公路橋梁耐震設計規範 ｜ 單位：kgf, cm（顯示 tf, tf·m）｜
+    產生時間：${new Date().toLocaleString('zh-TW')}</div>`);
+
+  o.push(`<div class="rp-h2">1. 斷面與材料</div>`);
+  o.push(`<table class="no-break"><tbody>
+    <tr><td class="l">斷面型式</td><td class="l">${s.type==='box'?'中空箱型':'實心矩形'}</td>
+        <td class="l">外寬 B</td><td>${d(s.B,0)} cm</td><td class="l">外高 H</td><td>${d(s.H,0)} cm</td></tr>
+    <tr><td class="l">壁厚 t_w</td><td>${s.type==='box'?d(s.tw,0)+' cm':'—'}</td>
+        <td class="l">外保護層</td><td>${d(r.covO,1)} cm</td><td class="l">內保護層</td><td>${d(r.covI,1)} cm</td></tr>
+    <tr><td class="l">f'_c</td><td>${d(m.fc,0)} kgf/cm²</td>
+        <td class="l">f_y</td><td>${d(m.fy,0)}</td><td class="l">f_yt</td><td>${d(m.fyt,0)}</td></tr>
+    <tr><td class="l">主筋</td><td class="l">${r.barSize} (d_b=${d(R.db,2)} cm)</td>
+        <td class="l">總根數</td><td>${R.bars.length}</td><td class="l">A_st</td><td>${d(M.Ast,1)} cm²</td></tr>
+    <tr><td class="l">箍筋/繫筋</td><td class="l">${r.tieSize} (d_t=${d(R.dt,2)} cm)</td>
+        <td class="l">骨材粒徑</td><td>${d(M.opt.dagg,1)} cm</td><td class="l">塑鉸區</td><td>${M.opt.plastic?'是':'否'}</td></tr>
+  </tbody></table>`);
+
+  o.push(`<div class="rp-h3">1.1 導出量</div>`);
+  o.push(eq(`\\beta_1=\\max\\!\\left(0.65,\\min\\!\\left(0.85,\\;0.85-0.05\\frac{f'_c-280}{70}\\right)\\right)
+    =\\max\\!\\left(0.65,\\min\\!\\left(0.85,\\;0.85-0.05\\frac{${d(m.fc,0)}-280}{70}\\right)\\right)=${d(m.b1,4)}`));
+  o.push(eq(`A_g=${s.type==='box'
+      ? `B\\,H-(B-2t_w)(H-2t_w)=${d(s.B,0)}\\times${d(s.H,0)}-${d(s.B-2*s.tw,0)}\\times${d(s.H-2*s.tw,0)}`
+      : `B\\,H=${d(s.B,0)}\\times${d(s.H,0)}`}=${d(M.Ag,0)}\\ \\text{cm}^2`));
+  o.push(eq(`\\rho_g=\\frac{A_{st}}{A_g}=\\frac{${d(M.Ast,1)}}{${d(M.Ag,0)}}=${d(M.chk.rho/100,5)}=${d(M.chk.rho,3)}\\%`));
+  o.push(eq(`\\varepsilon_{ty}=\\frac{f_y}{E_s}=\\frac{${d(m.fy,0)}}{${d(m.Es,0)}}=${d(m.ety,5)}
+    \\qquad E_c=15000\\sqrt{f'_c}=15000\\sqrt{${d(m.fc,0)}}=${d(m.Ec,0)}\\ \\text{kgf/cm}^2`));
+
+  o.push(`<div class="rp-h2">2. 斷面配筋圖</div>`);
+  o.push(`<div class="rp-fig">${svgSection(M,true)}</div>`);
+  o.push(`</div>`);
+
+  /* --- 第 2 頁：P-M 曲線圖 --- */
+  o.push(`<div class="rp-page">`);
+  o.push(`<div class="rp-h2">3. P-M 互制曲線</div>`);
+  o.push(`<div class="rp-h3">3.1 繞 X 軸（對應 M_ux）</div>`);
+  o.push(`<div class="rp-fig">${svgPM(M,'x',true)}</div>`);
+  o.push(`<div class="rp-h3">3.2 繞 Y 軸（對應 M_uy）</div>`);
+  o.push(`<div class="rp-fig">${svgPM(M,'y',true)}</div>`);
+  o.push(note(`實線細＝標稱 P_n–M_n；實線粗＝設計 φP_n–φM_n；虛線＝Mander 圍束核心（保護層剝落後，真纖維積分）；
+    水平虛線＝φP_n,max 截斷；紅點＝控制組合，紅色射線＝定偏心射線法之 D/C 求解路徑。`));
+  o.push(`</div>`);
+
+  /* --- 第 3 頁：P-M 計算過程 --- */
+  o.push(`<div class="rp-page">`);
+  o.push(`<div class="rp-h2">4. P-M 互制計算（繞 X 軸）</div>`);
+  o.push(`<div class="rp-h3">4.1 邊界點</div>`);
+  o.push(eq(`P_o=0.85f'_c(A_g-A_{st})+f_yA_{st}
+    =0.85\\times${d(m.fc,0)}\\times(${d(M.Ag,0)}-${d(M.Ast,1)})+${d(m.fy,0)}\\times${d(M.Ast,1)}
+    =${d(M.cvX.Po,0)}\\ \\text{kgf}=${d(M.cvX.Po/TF,0)}\\ \\text{tf}`));
+  o.push(eq(`\\phi P_{n,max}=\\phi_c\\cdot ${d(m.pmaxf,2)}\\,P_o
+    =${d(m.phic,2)}\\times${d(m.pmaxf,2)}\\times${d(M.cvX.Po/TF,0)}=${d(M.pX.cap/TF,0)}\\ \\text{tf}`));
+  o.push(eq(`\\phi P_{nt}=\\phi_t\\,(-f_yA_{st})=${d(m.phit,2)}\\times(-${d(m.fy,0)}\\times${d(M.Ast,1)})
+    =${d(m.phit*M.cvX.Pnt/TF,0)}\\ \\text{tf}`));
+  o.push(note(`純壓點以上式直接接上，<b>不由中性軸掃描外推</b>；掃描時等效應力塊深度一律夾制為
+    \\(a=\\min(\\beta_1 c,\\;D)\\)，避免 \\(c>D/\\beta_1\\) 時受壓面積虛增。`));
+
+  o.push(`<div class="rp-h3">4.2 逐點公式</div>`);
+  o.push(eq(`\\varepsilon_{si}=\\varepsilon_{cu}\\frac{c-d_i}{c},\\qquad
+    f_{si}=\\mathrm{clamp}(E_s\\varepsilon_{si},\\,-f_y,\\,+f_y),\\qquad
+    f_{si}\\leftarrow f_{si}-0.85f'_c\\ \\ (d_i\\le a)`));
+  o.push(eq(`C_c=0.85f'_c\\,A_{c,comp}(a),\\qquad
+    P_n=C_c+\\sum_i f_{si}A_{si},\\qquad
+    M_n=C_c\\,\\bar y_c+\\sum_i f_{si}A_{si}\\,u_i`));
+  o.push(eq(`\\varepsilon_t=\\varepsilon_{cu}\\frac{d_{max}-c}{c},\\qquad
+    \\phi=\\phi_c+(\\phi_t-\\phi_c)\\frac{\\varepsilon_t-\\varepsilon_{ty}}{0.005-\\varepsilon_{ty}}
+    \\ \\ (\\varepsilon_{ty}\\le\\varepsilon_t\\le0.005)`));
+  if(s.type==='box') o.push(note(`<b>中空箱型受壓面積分段積分</b>：受壓塊 \\(y\\in[D/2-a,\\;D/2]\\) 與中空區
+    \\(y\\in[-D_v/2,\\;D_v/2]\\) 取交集後扣除，自動涵蓋 \\(a\\le t_w\\)、\\(t_w\\lt a\\lt D-t_w\\)、\\(a\\ge D-t_w\\) 三種情形：
+    \\(A_{c,comp}=W\\,a-W_v\\cdot\\max(0,\\;\\min(D/2,D_v/2)-\\max(D/2-a,-D_v/2))\\)。
+    下表刻意納入 \\(a=t_w\\) 之幾何切換點供人工複核。`));
+
+  o.push(`<div class="rp-h3">4.3 關鍵斷點明細（繞 X 軸）</div>`);
+  o.push(breakpointTable(M,'x'));
+  o.push(`</div>`);
+
+  /* --- 第 4 頁：控制點展開 + 雙軸 --- */
+  o.push(`<div class="rp-page">`);
+  o.push(`<div class="rp-h2">5. 控制組合檢核</div>`);
+  const key = 'Mux';
+  o.push(`<table class="no-break"><thead><tr><th class="l">組合</th><th>P_u (tf)</th><th>M_ux (tf·m)</th><th>M_uy (tf·m)</th><th>D/C</th><th class="l">方法</th></tr></thead><tbody>`);
+  for(const R2 of M.res) o.push(`<tr${R2===C?' style="font-weight:700;background:#f0f0f0"':''}>
+    <td class="l">${esc(R2.L.name)}</td><td>${d(R2.L.Pu,0)}</td><td>${d(R2.L.Mux,0)}</td>
+    <td>${d(R2.L.Muy,0)}</td><td>${fdc(R2.dc)}</td><td class="l">${R2.bi.method}</td></tr>`);
+  o.push(`</tbody></table>`);
+
+  o.push(`<div class="rp-h3">5.1 D/C 定義（定偏心射線法）</div>`);
+  o.push(eq(`e=\\frac{M_u}{P_u}=\\text{const}\\;\\Rightarrow\\;
+    \\text{求 }t>0\\text{ 使 }(t\\,M_u,\\;t\\,P_u)\\in\\partial\\Omega_{\\phi},\\qquad D/C=\\frac{1}{t}`));
+  o.push(note(`\\(\\partial\\Omega_\\phi\\) 為設計包絡線（含 \\(\\phi P_{n,max}\\) 水平截斷與 \\(M=0\\) 閉合邊）。
+    物理意義：載重同比例放大 \\(1/(D/C)\\) 倍即達破壞。當 \\(M_u\\to0\\) 射線退化為垂直線，改以
+    \\(D/C=P_u/\\phi P_{n,max}\\) 特判。`));
+
+  o.push(`<div class="rp-h3">5.2 雙軸檢核 — ${C.bi.method}</div>`);
+  if(C.bi.method.startsWith('Bresler')){
+    o.push(eq(`P_u=${d(C.Lk.Pu/TF,0)}\\ \\text{tf}\\;\\ge\\;0.1f'_cA_g=0.1\\times${d(m.fc,0)}\\times${d(M.Ag,0)}
+      =${d(0.1*m.fc*M.Ag/TF,0)}\\ \\text{tf}\\;\\Rightarrow\\;\\text{適用 Bresler}`));
+    o.push(eq(`\\frac{1}{\\phi P_n}=\\frac{1}{\\phi P_{nx}}+\\frac{1}{\\phi P_{ny}}-\\frac{1}{\\phi P_o}
+      =\\frac{1}{${d(C.bi.Pnx/TF,0)}}+\\frac{1}{${d(C.bi.Pny/TF,0)}}-\\frac{1}{${d(C.bi.Po/TF,0)}}`));
+    o.push(eq(`\\phi P_n=${d(C.bi.Pcap/TF,0)}\\ \\text{tf}\\qquad
+      D/C=\\frac{P_u}{\\phi P_n}=\\frac{${d(C.Lk.Pu/TF,0)}}{${d(C.bi.Pcap/TF,0)}}=${d(C.dc,3)}`));
+  }else if(C.bi.method.startsWith('PCA')){
+    o.push(eq(`P_u=${d(C.Lk.Pu/TF,0)}\\lt 0.1f'_cA_g=${d(0.1*m.fc*M.Ag/TF,0)}\\ \\text{tf}
+      \\;\\Rightarrow\\;\\text{改用載重輪廓法}`));
+    o.push(eq(`\\left(\\frac{M_{ux}}{\\phi M_{nx}}\\right)^{\\alpha}+\\left(\\frac{M_{uy}}{\\phi M_{ny}}\\right)^{\\alpha}\\le1,
+      \\quad \\alpha=${d(m.alpha,2)},\\ \\phi M_{nx}=${d((C.bi.phiMnx||0)/TFM,0)},\\ \\phi M_{ny}=${d((C.bi.phiMny||0)/TFM,0)}\\ \\text{tf}\\cdot\\text{m}`));
+    o.push(eq(`D/C=1/\\lambda^{*}=${d(C.dc,3)}\\quad(\\lambda^{*}\\text{ 由定偏心射線二分求解})`));
+  }else{
+    o.push(eq(`D/C=${d(C.dc,3)}\\quad(\\text{單軸，直接射線交點})`));
+  }
+  o.push(`<div class="rp-h3">5.3 判定</div>`);
+  o.push(`<div style="font-size:14px;font-weight:800;padding:8px;border:2px solid ${C.dc>1?'#c00':'#060'};display:inline-block">
+    D/C = ${fdc(C.dc)} ${C.dc>1?'> 1.0 　✗ 不合格':'≤ 1.0 　✓ 合格'}</div>`);
+  o.push(`</div>`);
+
+  /* --- 第 5 頁：剪力扭矩 --- */
+  o.push(`<div class="rp-page">`);
+  o.push(`<div class="rp-h2">6. 剪力與扭矩設計</div>`);
+  for(const sh of [M.shX,M.shY]) o.push(shearReport(M,sh));
+  o.push(`</div>`);
+
+  /* --- 第 6 頁：圍束筋 + 繫筋 + 施工性 --- */
+  o.push(`<div class="rp-page">`);
+  o.push(`<div class="rp-h2">7. 耐震圍束筋量 A_sh（四片獨立牆片）</div>`);
+  o.push(eq(`\\frac{A_{sh}}{s\\,b_c}\\ \\ge\\ \\max\\left\\{0.3\\left(\\frac{A_g}{A_{ch}}-1\\right)\\frac{f'_c}{f_{yt}},
+    \\ \\ 0.09\\frac{f'_c}{f_{yt}}\\right\\}`));
+  o.push(note(`規範原文係針對實心柱。中空箱型依第二輪決議<b>拆為四片獨立牆片</b>逐片檢核：
+    每片視為厚 \\(t_w\\)、長 \\(L\\) 之矩形，\\(b_{c,t}=t_w-c_o-c_i\\)（厚度向）、\\(b_{c,L}=L-2c_o\\)（長度向）。
+    貫穿壁厚之繫筋對應 \\(b_c=b_{c,L}\\)；沿壁長之內外面箍筋肢對應 \\(b_c=b_{c,t}\\)。`));
+  o.push(`<table class="no-break"><thead><tr><th class="l">牆片</th><th>t_w</th><th>L</th><th>b_c,t</th><th>b_c,L</th>
+    <th>A_g/A_ch</th><th>A_sh 提供(厚向)</th><th>A_sh 提供(長向)</th><th>s 上限</th></tr></thead><tbody>`);
+  for(const w of M.conf.walls) o.push(`<tr><td class="l">${w.tag}</td><td>${d(w.tw,0)}</td><td>${d(w.L,0)}</td>
+    <td>${d(w.bc_t,1)}</td><td>${d(w.bc_L,1)}</td><td>${d(w.Ag_w/w.Ach_w,4)}</td>
+    <td>${d(w.Ash_t,2)} cm²</td><td>${d(w.Ash_L,2)} cm²</td><td><b>${d(w.sMax,2)} cm</b></td></tr>`);
+  o.push(`</tbody></table>`);
+  const wc=M.conf.wc;
+  o.push(`<div class="rp-h3">7.1 控制牆片逐步代入（${wc.tag}）</div>`);
+  o.push(eq(`\\frac{A_g}{A_{ch}}=\\frac{${d(wc.tw,0)}\\times${d(wc.L,0)}}{${d(wc.bc_t,1)}\\times${d(wc.bc_L,1)}}
+    =\\frac{${d(wc.Ag_w,0)}}{${d(wc.Ach_w,0)}}=${d(wc.Ag_w/wc.Ach_w,4)}`));
+  o.push(eq(`\\left(\\frac{A_{sh}}{s}\\right)_{req,t}=\\max\\left\\{0.3\\,b_{c,L}\\left(\\frac{A_g}{A_{ch}}-1\\right)\\frac{f'_c}{f_{yt}},
+    \\ 0.09\\,b_{c,L}\\frac{f'_c}{f_{yt}}\\right\\}=${d(wc.rq_t,4)}\\ \\text{cm}^2/\\text{cm}`));
+  o.push(eq(`s\\le\\frac{A_{sh,prov,t}}{(A_{sh}/s)_{req,t}}=\\frac{${d(wc.Ash_t,2)}}{${d(wc.rq_t,4)}}=${d(wc.s_t,2)}\\ \\text{cm}
+    \\qquad s\\le\\frac{${d(wc.Ash_L,2)}}{${d(wc.rq_L,4)}}=${d(wc.s_L,2)}\\ \\text{cm}`));
+
+  o.push(`<div class="rp-h2">8. 繫筋排布與彎鉤</div>`);
+  o.push(note(`規範（土木401 / ACI 25.7.2.3）：<b>每隔一根</b>縱筋須由箍角或繫筋提供側向支撐，
+    且任一主筋距被支撐主筋之淨距<b>不得大於 15 cm</b>。若實際淨距已超過 15 cm，則<b>每一根</b>皆須支撐。`));
+  o.push(`<table class="no-break"><thead><tr><th class="l">項目</th><th>B 邊</th><th>H 邊</th></tr></thead><tbody>
+    <tr><td class="l">每面主筋根數 n（含角隅）</td><td>${r.nB}</td><td>${r.nH}</td></tr>
+    <tr><td class="l">中心距 (cm)</td><td>${d(M.chk.pB,2)}</td><td>${d(M.chk.pH,2)}</td></tr>
+    <tr><td class="l">淨距 = 中心距 − d_b (cm)</td><td>${d(M.chk.clB,2)}</td><td>${d(M.chk.clH,2)}</td></tr>
+    <tr><td class="l">淨距需求 max(4.0, 1.5d_b, 4/3·d_agg)</td><td>${d(M.chk.need,2)}</td><td>${d(M.chk.need,2)}</td></tr>
+    <tr><td class="l">須每根支撐？</td><td>${M.chk.everyB?'是':'否（每隔一根）'}</td><td>${M.chk.everyH?'是':'否（每隔一根）'}</td></tr>
+    <tr><td class="l">繫筋根數（每面）</td><td><b>${M.chk.tiesB}</b></td><td><b>${M.chk.tiesH}</b></td></tr>
+    <tr><td class="l">h_x 被支撐筋中心距 (≤35 cm)</td><td>${d(M.chk.hxMaxB,2)}</td><td>${d(M.chk.hxMaxH,2)}</td></tr>
+  </tbody></table>`);
+  o.push(eq(`\\text{135}^\\circ\\text{ 彎鉤延伸長度}\\ \\ge\\max(6d_b,\\;7.5)=\\max(6\\times${d(R.dt,2)},\\;7.5)=${d(M.chk.hook135,2)}\\ \\text{cm}`));
+  o.push(note(`外閉合箍筋兩端均為 135° 耐震彎鉤；內部繫筋一端 135°、另一端 90°，且<b>沿構材高度逐層交替錯開</b>
+    （2D 斷面圖無法表現此錯開，僅以圖例標註）。`));
+
+  o.push(`<div class="rp-h2">9. 箍筋間距彙整</div>`);
+  o.push(`<table class="no-break"><thead><tr><th class="l">控制項</th><th>容許 s (cm)</th></tr></thead><tbody>`);
+  for(const c2 of F.cands.slice().sort((a,b)=>a.v-b.v))
+    o.push(`<tr${c2===F.gov?' style="font-weight:800;background:#f0f0f0"':''}><td class="l">${esc(c2.tag)}</td><td>${d(c2.v,2)}</td></tr>`);
+  o.push(`</tbody></table>`);
+  o.push(`<div style="font-size:14px;font-weight:800;padding:8px;border:2px solid #060;display:inline-block;margin-top:8px">
+    採用 ${r.tieSize} @ ${d(F.sUse,1)} cm　（控制：${esc(F.gov.tag)}，需求 ≤ ${d(F.gov.v,2)} cm）</div>`);
+
+  if(cf.MD){
+    o.push(`<div class="rp-h2">10. Mander 圍束混凝土</div>`);
+    o.push(eq(`k_e=\\frac{\\left[1-\\dfrac{\\sum w_i^2}{6b_{c,t}b_{c,L}}\\right]\\left[1-\\dfrac{s'}{2b_{c,t}}\\right]
+      \\left[1-\\dfrac{s'}{2b_{c,L}}\\right]}{1-\\rho_{cc}}=${d(cf.ke,4)}`));
+    o.push(eq(`f'_l=k_e\\,\\rho_{s,min}\\,f_{yt}=${d(cf.ke,4)}\\times${d(Math.min(cf.rho_t,cf.rho_L),5)}\\times${d(m.fyt,0)}
+      =${d(cf.MD.fl,2)}\\ \\text{kgf/cm}^2`));
+    o.push(eq(`f'_{cc}=f'_c\\left(-1.254+2.254\\sqrt{1+\\frac{7.94f'_l}{f'_c}}-\\frac{2f'_l}{f'_c}\\right)
+      =${d(m.fc,0)}\\left(-1.254+2.254\\sqrt{1+\\frac{7.94\\times${d(cf.MD.fl,2)}}{${d(m.fc,0)}}}-\\frac{2\\times${d(cf.MD.fl,2)}}{${d(m.fc,0)}}\\right)=${d(cf.MD.fcc,1)}`));
+    o.push(eq(`\\varepsilon_{cc}=0.002\\left[1+5\\left(\\frac{f'_{cc}}{f'_c}-1\\right)\\right]=${d(cf.MD.ecc,5)},\\qquad
+      \\varepsilon_{cu,c}=0.004+\\frac{1.4\\rho_s f_{yt}\\varepsilon_{su}}{f'_{cc}}=${d(cf.MD.ecu,5)}`));
+    o.push(note(`圍束核心曲線採<b>真纖維積分</b>（Mander 應力-應變 \\(f_c=\\dfrac{f'_{cc}\\,x\\,r}{r-1+x^r}\\)，
+      \\(x=\\varepsilon/\\varepsilon_{cc}\\)，\\(r=E_c/(E_c-E_{sec})\\)），非等效應力塊，且已扣除保護層。`));
+  }
+  o.push(`<div class="rp-h2">附註</div>`);
+  o.push(note(`1. 本工具<b>不計算</b>細長效應／彎矩放大係數。輸入之 \\(P_u,M_u\\) 須為已含 P-Δ 之大變形幾何非線性分析結果。<br>
+    2. 塑性形心僅對<b>對稱配筋</b>成立；非對稱配筋之結果不適用。<br>
+    3. \\(\\phi_v=${d(m.phiv,2)}\\) 係搭配 ACI 型 \\(V_c=0.53\\sqrt{f'_c}b_wd\\)，勿與 AASHTO 之 \\(\\phi_v=0.90\\)（搭配 MCFT）混用。<br>
+    4. 中空斷面之剪力+扭矩斷面上限採<b>直接相加</b>（非平方根合成）。`));
+  o.push(`</div>`);
+
+  const el=document.getElementById('report');
+  el.innerHTML=o.join('');
+  if(window.renderMathInElement) renderMathInElement(el,{delimiters:[{left:'\\(',right:'\\)',display:false}],throwOnError:false});
+}
+
+function breakpointTable(M,axis){
+  const ctx = axis==='x'?M.ctxX:M.ctxY, cv=axis==='x'?M.cvX:M.cvY, m=M.m, g=ctx.g;
+  const dmax = Math.max(...ctx.bars.map(b=>g.D/2-(axis==='x'?b.y:b.x)));
+  const rows=[];
+  const add=(tag,c)=>{ if(c>0&&Number.isFinite(c)) rows.push({tag,p:sectionAt(c,ctx)}); };
+  add('ε_t = 0.005（拉控起點）', m.ecu*dmax/(m.ecu+0.005));
+  add('平衡點 ε_t = ε_ty', m.ecu*dmax/(m.ecu+m.ety));
+  if(M.s.type==='box') add('<b>a = t_w（箱型分段切換）</b>', M.s.tw/m.b1);
+  add('a = D（受壓塊填滿斷面）', g.D/m.b1);
+  // 控制組合對應點
+  const key = axis==='x'?'Mux':'Muy';
+  // 帶號偏心：控制組合為軸拉時，對應點必須落在受拉分支，不可只找 P_n>0
+  const Pu0=M.ctrlFlex.Lk.Pu, Mu0=Math.abs(M.ctrlFlex.Lk[key]);
+  const sgn=Math.sign(Pu0)||1;
+  const eSigned = Mu0/(Math.abs(Pu0)<1e-6 ? 1e-6*sgn : Pu0);
+  // 掃描點在 P≈0 附近偏心變化極快、解析度不足 → 先取最近點，再以二分法收斂到精確偏心
+  const side = cv.pts.filter(p=>Math.sign(p.Pn)===sgn && Math.abs(p.Pn)>1e-6).sort((a,b)=>a.c-b.c);
+  const resid = p => p.Mn/p.Pn - eSigned;
+  let best=null,bd=1e18;
+  for(const p of side){ const dd=Math.abs(resid(p)); if(dd<bd){bd=dd;best=p;} }
+  for(let i=0;i<side.length-1;i++){
+    const r1=resid(side[i]), r2=resid(side[i+1]);
+    if(r1===0){ best=side[i]; break; }
+    if(r1*r2<0){
+      let lo=side[i].c, hi=side[i+1].c, flo=r1;
+      for(let k=0;k<60;k++){
+        const mid=0.5*(lo+hi), pm=sectionAt(mid,ctx), rm=resid(pm);
+        if(rm===0){ lo=hi=mid; break; }
+        if(flo*rm<0) hi=mid; else { lo=mid; flo=rm; }
+      }
+      best=sectionAt(0.5*(lo+hi),ctx);
+      break;
+    }
+  }
+  if(best) rows.push({tag:'<b>控制組合對應點</b>',p:best,
+    chk:`e=M_n/P_n=${f(best.Mn/best.Pn/100,1)} m（目標 ${f(eSigned/100,1)} m）`});
+  rows.sort((a,b)=>a.p.c-b.p.c);
+
+  let h=`<table class="no-break"><thead><tr><th class="l">斷點</th><th>c (cm)</th><th>a (cm)</th>
+    <th>A_c,comp (cm²)</th><th>ȳ_c (cm)</th><th>C_c (tf)</th><th>ε_t</th><th>φ</th>
+    <th>P_n (tf)</th><th>M_n (tf·m)</th><th>φP_n</th><th>φM_n</th><th class="l">核對</th></tr></thead><tbody>`;
+  h+=`<tr><td class="l">純壓 P_o</td><td>∞</td><td>${f(g.D,1)}</td><td>${f(M.Ag,0)}</td><td>0.0</td>
+      <td>${f(0.85*m.fc*(M.Ag-M.Ast)/TF,0)}</td><td>—</td><td>${f(m.phic,2)}</td>
+      <td>${f(cv.Po/TF,0)}</td><td>0.0</td><td>${f(m.phic*cv.PnMax/TF,0)}</td><td>0.0</td><td class="l">—</td></tr>`;
+  for(const r of rows){ const p=r.p;
+    h+=`<tr><td class="l">${r.tag}</td><td>${f(p.c,2)}</td><td>${f(p.a,2)}</td><td>${f(p.Acomp,0)}</td>
+        <td>${f(p.yc,2)}</td><td>${f(p.Cc/TF,0)}</td><td>${f(p.eps_t,5)}</td><td>${f(p.phi,3)}</td>
+        <td>${f(p.Pn/TF,0)}</td><td>${f(p.Mn/TFM,0)}</td><td>${f(p.phi*p.Pn/TF,0)}</td><td>${f(p.phi*p.Mn/TFM,0)}</td>
+        <td class="l" style="font-size:10.5px">${r.chk||''}</td></tr>`;
+  }
+  h+=`<tr><td class="l">純拉 P_nt</td><td>0</td><td>0.0</td><td>0</td><td>—</td><td>0</td>
+      <td>—</td><td>${f(m.phit,2)}</td><td>${f(cv.Pnt/TF,0)}</td><td>0.0</td>
+      <td>${f(m.phit*cv.Pnt/TF,0)}</td><td>0.0</td><td class="l">—</td></tr>`;
+  h+=`</tbody></table>`;
+  return h;
+}
+
+function shearReport(M,sh){
+  const m=M.m,d=(x,n=2)=>f(x,n),t=sh.dir.toUpperCase();
+  const eq=x=>`<div class="rp-eq">${K(x)}</div>`;
+  const o=[`<div class="rp-h3">6.${sh.dir==='x'?'1':'2'} ${t} 向（控制組合：${esc(sh.ctrl.L.name)}）</div>`];
+  o.push(eq(`b_w=${M.s.type==='box'?`2t_w=2\\times${d(M.s.tw,0)}`:`${d(sh.bw,0)}`}=${d(sh.bw,1)}\\ \\text{cm},\\qquad
+    d=${d(sh.d,2)}\\ \\text{cm}\\ \\ (\\text{受壓緣至受拉鋼筋群形心})`));
+  if(M.opt.plastic){
+    o.push(eq(`M_n(P_u=${d(sh.Nu/TF,0)}\\text{tf})=${d(sh.Mn/TFM,0)}\\ \\text{tf}\\cdot\\text{m}\\quad\\Rightarrow\\quad
+      M_o=\\phi_o M_n=${d(M.opt.phio,2)}\\times${d(sh.Mn/TFM,0)}=${d(sh.Mo/TFM,0)}\\ \\text{tf}\\cdot\\text{m}`));
+    o.push(eq(`V_e=\\frac{M_o}{L_v}=\\frac{${d(sh.Mo/TFM,0)}\\times100}{${d(M.opt.Lv,0)}}=${d(sh.Ve/TF,1)}\\ \\text{tf}
+      \\qquad V_{des}=\\max(V_e,\\;V_u)=\\max(${d(sh.Ve/TF,1)},\\;${d(sh.Vu/TF,1)})=${d(sh.Vdes/TF,1)}\\ \\text{tf}`));
+  } else o.push(eq(`V_{des}=V_u=${d(sh.Vdes/TF,1)}\\ \\text{tf}\\quad(\\text{非塑鉸區，不作容量設計})`));
+
+  if(sh.V.zeroed){
+    o.push(eq(`N_u=${d(sh.Nu/TF,0)}\\ \\text{tf}\\lt 0.1f'_cA_g=${d(0.1*m.fc*M.Ag/TF,0)}\\ \\text{tf}
+      \\ \\Rightarrow\\ \\boxed{V_c=0}\\quad(\\text{塑鉸區折減})`));
+  }else if(sh.Nu>=0){
+    o.push(eq(`V_c=0.53\\left(1+\\frac{N_u}{140A_g}\\right)\\sqrt{f'_c}\\,b_wd
+      =0.53\\left(1+\\frac{${d(sh.Nu,0)}}{140\\times${d(M.Ag,0)}}\\right)\\sqrt{${d(m.fc,0)}}\\times${d(sh.bw,1)}\\times${d(sh.d,2)}`));
+    o.push(eq(`=0.53\\times${d(1+sh.Nu/(140*M.Ag),4)}\\times${d(Math.sqrt(m.fc),3)}\\times${d(sh.bw,1)}\\times${d(sh.d,2)}
+      =${d(sh.V.vc,0)}\\ \\text{kgf}=${d(sh.V.vc/TF,1)}\\ \\text{tf}`));
+  }else{
+    o.push(eq(`N_u=${d(sh.Nu/TF,0)}\\text{ tf}\\lt 0\\ (\\text{軸拉})\\Rightarrow
+      V_c=0.53\\left(1+\\frac{N_u}{35A_g}\\right)\\sqrt{f'_c}\\,b_wd
+      =${d(sh.V.vc,0)}\\ \\text{kgf}\\ \\ (\\text{夾至}\\ge0)`));
+  }
+  o.push(eq(`V_s=\\frac{V_{des}}{\\phi_v}-V_c=\\frac{${d(sh.Vdes/TF,1)}}{${d(m.phiv,2)}}-${d(sh.V.vc/TF,1)}
+    =${d(sh.VsReq/TF,1)}\\ \\text{tf}
+    \\qquad V_{s,max}=2.12\\sqrt{f'_c}\\,b_wd=${d(sh.VsMax/TF,0)}\\ \\text{tf}`));
+  if(sh.sectionFail) o.push(`<div style="color:#c00;font-weight:800;margin-left:14px">✗ V_s 需求超過上限 → 斷面不足，加箍筋無效</div>`);
+  o.push(eq(`n_{legs}=${sh.nlegs},\\qquad A_v=n_{legs}A_{t}=${sh.nlegs}\\times${d(sh.At1,3)}=${d(sh.Av,3)}\\ \\text{cm}^2`));
+  if(sh.torsion){
+    o.push(eq(`A_{oh}=${d(sh.Aoh,0)}\\ \\text{cm}^2,\\quad A_o=0.85A_{oh}=${d(sh.Ao,0)},\\quad p_h=${d(sh.ph,1)}\\ \\text{cm}`));
+    o.push(eq(`\\frac{A_t}{s}=\\frac{T_u}{2\\phi_vA_of_{yt}\\cot\\theta}
+      =\\frac{${d(sh.Tu,0)}}{2\\times${d(m.phiv,2)}\\times${d(sh.Ao,0)}\\times${d(m.fyt,0)}\\times${d(sh.cot,3)}}
+      =${d(sh.AtS,5)}\\ \\text{cm}^2/\\text{cm}`));
+    o.push(eq(`A_l=\\frac{A_t}{s}p_h\\frac{f_{yt}}{f_y}\\cot^2\\theta=${d(sh.Al,1)}\\ \\text{cm}^2\\ \\ (\\text{追加扭矩縱筋})`));
+    o.push(eq(`\\frac{V_{des}}{b_wd}+\\frac{T_up_h}{1.7A_{oh}^2}=${d(sh.lhs,2)}\\ \\le\\
+      \\phi_v\\left(\\frac{V_c}{b_wd}+2.12\\sqrt{f'_c}\\right)=${d(sh.rhs,2)}\\ \\text{kgf/cm}^2
+      \\ \\ ${sh.sectOver?'\\;\\textbf{✗}':'\\;\\checkmark'}`));
+  }else o.push(`<div class="rp-note">T_u = ${d(sh.Tu/TFM,1)} tf·m ≤ 門檻 ${d(sh.Tthr/TFM,1)} tf·m，扭矩可忽略。</div>`);
+  o.push(eq(`\\frac{A_v}{s}\\bigg|_{tot}=\\frac{V_s}{f_{yt}d}+2\\frac{A_t}{s}=${d(sh.AvS_shear,5)}+${d(2*sh.AtS,5)}
+    =${d(sh.AvS_tot,5)}\\ \\Rightarrow\\ s\\le\\frac{A_v}{(A_v/s)_{tot}}=${d(sh.s_str,2)}\\ \\text{cm}`));
+  o.push(`<table class="no-break"><thead><tr><th class="l">${t} 向間距上限</th><th>值 (cm)</th></tr></thead><tbody>
+    <tr><td class="l">強度需求（剪力+扭矩）</td><td>${d(sh.s_str,2)}</td></tr>
+    <tr><td class="l">最小剪力鋼筋量 A_v,min</td><td>${d(sh.s_minAv,2)}</td></tr>
+    <tr><td class="l">規範上限 ${sh.VsReq>sh.VsTight?'d/4, 30':'d/2, 60'}</td><td>${d(sh.s_code,2)}</td></tr>
+    <tr><td class="l">塑鉸區 min(b/4, 6d_b, 15)</td><td>${Number.isFinite(sh.s_ph)&&sh.s_ph<1e8?d(sh.s_ph,2):'—'}</td></tr>
+    <tr><td class="l">扭矩 min(p_h/8, 30)</td><td>${Number.isFinite(sh.s_tors)&&sh.s_tors<1e8?d(sh.s_tors,2):'—'}</td></tr>
+  </tbody></table>`);
+  return o.join('');
+}
+
+/* =========================================================================
+   內部一致性自測
+   ========================================================================= */
+function selfTest(){
+  const M=MODEL||render(), out=[];
+  const T=(name,ok,msg)=>out.push({name,ok,msg});
+  const ctx=M.ctxX, cv=M.cvX, m=M.m, g=ctx.g;
+
+  // 1) c→大：Pn 應收斂至 Po
+  const big = sectionAt(50*g.D, ctx);
+  const e1 = Math.abs(big.Pn-cv.Po)/cv.Po;
+  T('c→∞ 時 P_n 收斂至 P_o', e1<0.02, `P_n=${f(big.Pn/TF,0)} tf vs P_o=${f(cv.Po/TF,0)} tf，誤差 ${f(e1*100,3)}%`);
+
+  // 2) c→0：Pn 應收斂至純拉
+  const tiny = sectionAt(1e-4*g.D, ctx);
+  const e2 = Math.abs(tiny.Pn-cv.Pnt)/Math.abs(cv.Pnt);
+  T('c→0 時 P_n 收斂至 −f_y·A_st', e2<0.02, `P_n=${f(tiny.Pn/TF,0)} tf vs P_nt=${f(cv.Pnt/TF,0)} tf，誤差 ${f(e2*100,3)}%`);
+
+  // 3) a 夾制：c 很大時 a 不得超過 D
+  T('a = min(β₁c, D) 夾制生效', Math.abs(big.a-g.D)<1e-6, `a=${f(big.a,3)} cm，D=${f(g.D,3)} cm`);
+
+  // 4) 平衡點 εt = εty
+  let bal=cv.pts[0],bd=1e9;
+  for(const p of cv.pts){const dd=Math.abs(p.eps_t-m.ety); if(dd<bd){bd=dd;bal=p;}}
+  const cbal = m.ecu*bal.dmax/(m.ecu+m.ety);
+  T('平衡點 c 與解析解一致', Math.abs(bal.c-cbal)/cbal<0.05,
+    `掃描 c=${f(bal.c,2)}，解析 c=ε_cu·d_max/(ε_cu+ε_ty)=${f(cbal,2)} cm`);
+
+  // 5) 受壓面積在 a=t_w 前後連續（箱型分段積分）
+  if(M.s.type==='box'){
+    const tw=M.s.tw, eps=0.01;
+    const h=1e-6;
+    const A1=compBlock(tw-h,g).A, A2=compBlock(tw+h,g).A;
+    const slope1=(compBlock(tw-eps,g).A-compBlock(tw-3*eps,g).A)/(2*eps);
+    const slope2=(compBlock(tw+3*eps,g).A-compBlock(tw+eps,g).A)/(2*eps);
+    T('箱型 a=t_w 處受壓面積連續（無跳躍）', Math.abs(A2-A1)<1e-2,
+      `A(t_w⁻)=${A1.toFixed(6)}、A(t_w⁺)=${A2.toFixed(6)} cm²（h=1e-6），跳躍 ${Math.abs(A2-A1).toExponential(2)} cm²`);
+    T('箱型 a=t_w 處斜率正確轉折（W→W−W_v）', Math.abs(slope1-g.W)<1 && Math.abs(slope2-(g.W-g.Wv))<1,
+      `dA/da：${f(slope1,1)} → ${f(slope2,1)}（應為 W=${f(g.W,0)} → W−W_v=${f(g.W-g.Wv,0)}）`);
+    const Afull=compBlock(g.D,g).A;
+    T('a=D 時受壓面積 = A_g', Math.abs(Afull-M.Ag)<1.0, `A=${f(Afull,1)} vs A_g=${f(M.Ag,1)} cm²`);
+  }else{
+    T('實心 a=D 時受壓面積 = A_g', Math.abs(compBlock(g.D,g).A-M.Ag)<1.0, `A=${f(compBlock(g.D,g).A,1)} cm²`);
+  }
+
+  // 6) 設計曲線 M 非負且 φ 落在 [φc, φt]
+  const phiBad = cv.pts.filter(p=>p.phi<m.phic-1e-9||p.phi>m.phit+1e-9).length;
+  T('所有點 φ ∈ [φ_c, φ_t]', phiBad===0, `${cv.pts.length} 點中 ${phiBad} 點越界`);
+
+  // 7) 對稱性：對稱配筋時純彎(P=0)兩側應相同 → M(c) 曲線在 Pn=0 附近唯一
+  const z=cv.pts.filter(p=>Math.abs(p.Pn)<0.02*cv.Po);
+  T('純彎附近 M_n 穩定（對稱配筋）', z.length>0, z.length? `P_n≈0 處 M_n=${f(z[0].Mn/TFM,0)} tf·m`:'無取樣點');
+
+  // 8) D/C 自洽：把控制點依 1/DC 縮放後 D/C 應 = 1
+  const C=M.ctrlFlex, k=1/Math.max(C.dc,1e-9);
+  const scaled=biaxialDC(M.cvX,M.cvY,M.pX,M.pY,m,{Pu:C.Lk.Pu*k,Mux:C.Lk.Mux*k,Muy:C.Lk.Muy*k});
+  T('D/C 定偏心自洽（縮放後應=1.000）', Math.abs(scaled.dc-1)<0.02, `縮放後 D/C=${f(scaled.dc,4)}`);
+
+  // 9) φ 過渡凹口：包絡線在過渡區會有 re-entrant notch（真實現象，非錯誤）。
+  //    D/C 必須取「最內側」交點才保守 —— 逐射線驗證 radialDC 確實回傳最小 t。
+  const poly=M.pX.poly, cap=M.pX.cap, ptnt=m.phit*cv.Pnt;
+  let notch=0, allInner=true, multi=0;
+  const Ms=Math.max(...poly.map(q=>Math.abs(q[0])))||1;   // M、P 量綱差約 1e5，
+  const Ps=Math.max(...poly.map(q=>Math.abs(q[1])))||1;   // 射線必須依各自尺度取樣才掃得到整條包絡線
+  for(let k=1;k<=120;k++){
+    const th=Math.PI*(k/121)-Math.PI/2;                 // −90°..+90°
+    const Mu=Math.cos(th)*Ms, Pu=Math.sin(th)*Ps;
+    const ts=[];
+    for(let i=0;i<poly.length-1;i++){
+      const [x1,y1]=poly[i],[x2,y2]=poly[i+1],dx=x2-x1,dy=y2-y1;
+      const den=Mu*dy-Pu*dx; if(Math.abs(den)<1e-12) continue;
+      const t=(x1*dy-y1*dx)/den; if(t<=1e-9) continue;
+      const u=Math.abs(dx)>Math.abs(dy)?(t*Mu-x1)/dx:(t*Pu-y1)/dy;
+      if(u>=-1e-6&&u<=1+1e-6) ts.push(t);
+    }
+    if(ts.length>1){ multi++; notch=Math.max(notch,(Math.max(...ts)-Math.min(...ts))/Math.min(...ts)); }
+    if(ts.length){
+      const got=radialDC(poly,Mu,Pu,cap,ptnt).dc;
+      if(Math.abs(got-1/Math.min(...ts))>1e-6*got) allInner=false;
+    }
+  }
+  T('φ 過渡凹口下 D/C 仍取最內側交點（保守）', allInner,
+    `120 條射線中 ${multi} 條有多重交點（φ 過渡區之 re-entrant notch，為 ACI 型 φ 曲線之真實特徵），`+
+    `最大凹口深度 ${f(notch*100,2)}%；radialDC 全數回傳最小 t`);
+
+  // 10) 純壓 φ 應為 φc
+  T('純壓端 φ = φ_c', Math.abs(big.phi-m.phic)<1e-9, `φ=${f(big.phi,3)}`);
+
+  const pass=out.filter(o=>o.ok).length;
+  document.getElementById('testOut').innerHTML =
+    `<div class="mb-2" style="font-weight:700;color:${pass===out.length?'var(--ok)':'var(--bad)'}">
+      ${pass} / ${out.length} 項通過</div>` +
+    out.map(o=>`<div style="padding:3px 0;border-bottom:1px dashed var(--line)">
+      <span style="color:${o.ok?'var(--ok)':'var(--bad)'};font-weight:700">${o.ok?'✓':'✗'}</span>
+      <b>${esc(o.name)}</b><br><span class="mono" style="font-size:11.5px;margin-left:18px">${o.msg}</span></div>`).join('');
+}
+
+/* =========================================================================
+   載重表 UI
+   ========================================================================= */
+function drawLoads(){
+  const tb=document.querySelector('#loadTbl tbody'); tb.innerHTML='';
+  LOADS.forEach((L,i)=>{
+    const tr=document.createElement('tr');
+    const cell=(k,w)=>`<td><input data-i="${i}" data-k="${k}" value="${L[k]}" style="width:${w}px;text-align:right"></td>`;
+    tr.innerHTML=`<td class="l"><input data-i="${i}" data-k="name" value="${esc(L.name)}" style="width:130px"></td>`
+      +cell('Pu',62)+cell('Mux',68)+cell('Muy',68)+cell('Vux',58)+cell('Vuy',58)+cell('Tu',58)
+      +`<td><button data-del="${i}" style="padding:2px 7px">✕</button></td>`;
+    tb.appendChild(tr);
+  });
+  tb.querySelectorAll('input').forEach(inp=>inp.addEventListener('input',e=>{
+    const i=+e.target.dataset.i,k=e.target.dataset.k;
+    LOADS[i][k] = k==='name'? e.target.value : (parseFloat(e.target.value)||0);
+    render();
+  }));
+  tb.querySelectorAll('button[data-del]').forEach(b=>b.addEventListener('click',e=>{
+    if(LOADS.length<=1) return;
+    LOADS.splice(+e.target.dataset.del,1); drawLoads(); render();
+  }));
+}
+
+/* =========================================================================
+   啟動
+   ========================================================================= */
+(function init(){
+  const bs=document.getElementById('barSize'), ts=document.getElementById('tieSize');
+  MAIN_SIZES.forEach(k=>bs.insertAdjacentHTML('beforeend',`<option value="${k}"${k==='#11'?' selected':''}>${k} (D${Math.round(BAR[k].d*10)})</option>`));
+  TIE_SIZES.forEach(k=>ts.insertAdjacentHTML('beforeend',`<option value="${k}"${k==='#6'?' selected':''}>${k} (D${Math.round(BAR[k].d*10)})</option>`));
+
+  document.querySelectorAll('#app input,#app select').forEach(el=>{
+    el.addEventListener('input',()=>{ if(!el.closest('#loadTbl')) render(); });
+    el.addEventListener('change',()=>{ if(!el.closest('#loadTbl')) render(); });
+  });
+  document.getElementById('axX').onclick=()=>{AXIS='x';render();};
+  document.getElementById('axY').onclick=()=>{AXIS='y';render();};
+  document.getElementById('btnTest').onclick=selfTest;
+  document.getElementById('btnAddRow').onclick=()=>{
+    LOADS.push({name:'CASE-'+(LOADS.length+1),Pu:1000,Mux:10000,Muy:2000,Vux:300,Vuy:100,Tu:0});
+    drawLoads(); render();
+  };
+  document.getElementById('btnPaste').onclick=()=>{
+    document.getElementById('csvBox').classList.toggle('hidden');
+    document.getElementById('btnCsvApply').classList.toggle('hidden');
+  };
+  document.getElementById('btnCsvApply').onclick=()=>{
+    const txt=document.getElementById('csvBox').value.trim();
+    if(!txt) return;
+    const rows=txt.split(/\r?\n/).map(l=>l.split(/[,\t]/)).filter(a=>a.length>=7);
+    if(!rows.length){ alert('格式需為：名稱,Pu,Mux,Muy,Vux,Vuy,Tu'); return; }
+    LOADS=rows.map(a=>({name:a[0].trim()||'CASE',Pu:+a[1]||0,Mux:+a[2]||0,Muy:+a[3]||0,
+                        Vux:+a[4]||0,Vuy:+a[5]||0,Tu:+a[6]||0}));
+    drawLoads(); render();
+  };
+  document.getElementById('btnPreview').onclick=()=>{
+    const el=document.getElementById('report');
+    el.classList.toggle('preview');
+    if(el.classList.contains('preview')){ buildReport(MODEL||render()); el.scrollIntoView({behavior:'smooth'}); }
+  };
+  document.getElementById('btnPrint').onclick=()=>{ buildReport(MODEL||render()); setTimeout(()=>window.print(),260); };
+
+  // Tailwind 未載入 → 注入最小可用樣式（版面降級但不塌）
+  setTimeout(()=>{
+    if(!document.querySelector('style[data-tw]') && !window.tailwind){
+      document.body.insertAdjacentHTML('beforeend',
+        `<style>.grid{display:grid}.flex{display:flex}.hidden{display:none}.grow{flex-grow:1}
+         .gap-2{gap:8px}.mt-2{margin-top:8px}.mt-3{margin-top:12px}.mb-1{margin-bottom:4px}.mb-2{margin-bottom:8px}
+         .items-center{align-items:center}.justify-between{justify-content:space-between}</style>`);
+    }
+  },1200);
+
+  drawLoads(); render();
+})();
+</script>
+</body>
+</html>
