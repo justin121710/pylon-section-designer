@@ -396,7 +396,9 @@ function pmCurve(ctx){
     const c = c0*Math.pow(c1/c0, i/(N-1));
     pts.push(sectionAt(c,ctx));
   }
-  pts.sort((p,q)=>p.Pn-q.Pn);
+  // P-M 是以中性軸深度 c 為參數的曲線，排序鍵必須是 c；
+  // 依 Pn 排序在 Pn 非單調於 c 時會打亂曲線順序，畫出跨接的鋸齒
+  pts.sort((p,q)=>p.c-q.c);
   return {pts,Po,PnMax,Pnt,Ast};
 }
 /* 設計包絡多段線（M≥0 半平面），含 φPn,max 水平截斷與 M=0 閉合邊 */
@@ -510,7 +512,7 @@ const manderSig = (e,M)=> e<=0?0: (()=>{const x=e/M.ecc; return M.fcc*x*M.r/(M.r
 function pmCurveConfined(ctx, MD, coreGeo){
   const {bars,m,axis}=ctx, g=coreGeo;
   const NS=160, pts=[];
-  const c0=0.05*g.D, c1=4.0*g.D, N=110;
+  const c0=0.05*g.D, c1=4.0*g.D, N=260;   // 尾段 M 陡降，110 點會拉出可見的直線弦
   for(let i=0;i<N;i++){
     const c = c0*Math.pow(c1/c0, i/(N-1));
     let Pn=0, Mn=0, dmax=-1e9, eps_t=0;
@@ -535,9 +537,13 @@ function pmCurveConfined(ctx, MD, coreGeo){
       Pn += fs*b.A; Mn += fs*b.A*u;
       if(d>dmax){ dmax=d; eps_t=MD.ecu*(d-c)/c; }
     }
-    pts.push({c,Pn,Mn:Math.abs(Mn),eps_t});
+    // 保留 M_n 正負號：圍束混凝土過 ε_cc 後軟化，最大應變的頂纖維應力反而較低，
+    // 合力位置可下移穿過形心使 M_n 變號。取絕對值會把它折回正值，畫出假的 V 形轉折。
+    pts.push({c,Pn,Mn,eps_t});
   }
-  pts.sort((p,q)=>p.Pn-q.Pn);
+  // 圍束曲線的 Pn 明確非單調於 c（Mander 應力過 ε_cc 後軟化），
+  // 實測 110 點中有 27~31 點會被依 Pn 排序打亂 —— 一律維持 c 的遞增順序
+  pts.sort((p,q)=>p.c-q.c);
   return pts;
 }
 
@@ -1005,6 +1011,28 @@ function svgSection(M,forPrint){
   return o.join('');
 }
 
+/* 座標軸刻度取整：步距限定為 1／2／2.5／5 × 10^k，
+   使格線落在 5,000、12,000 這類整數上，而非把值域等分成醜數字。
+   軸界一併外推到步距的整數倍，讓首末格線恰好貼齊圖框，且 P=0 必為刻度。 */
+function niceStep(range, n){
+  if(!(range>0)) return 1;
+  const raw = range/Math.max(1,n);
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const u = raw/mag;
+  return (u<=1?1 : u<=2?2 : u<=2.5?2.5 : u<=5?5 : 10) * mag;
+}
+function niceTicks(lo, hi, n){
+  const st = niceStep(hi-lo, n);
+  const a = Math.floor(lo/st + 1e-9)*st, b = Math.ceil(hi/st - 1e-9)*st;
+  const ticks=[];
+  for(let i=0; i<=Math.round((b-a)/st); i++){
+    const v = a + i*st;
+    ticks.push(Math.abs(v) < st*1e-9 ? 0 : v);
+  }
+  const dp = st<1 ? Math.min(4, Math.max(0, -Math.floor(Math.log10(st)))) : 0;
+  return {ticks, lo:a, hi:b, step:st, dp};
+}
+
 function svgPM(M,axis,forPrint){
   const cv = axis==='x'?M.cvX:M.cvY, pd = axis==='x'?M.pX:M.pY;
   const cvc = axis==='x'?M.cvXc:M.cvYc;
@@ -1019,21 +1047,34 @@ function svgPM(M,axis,forPrint){
   let mMax=0,pMax=0,pMin=0;
   for(const p of cv.pts){ mMax=Math.max(mMax,p.Mn/TFM); pMax=Math.max(pMax,Math.min(p.Pn,cv.PnMax)/TF); pMin=Math.min(pMin,p.Pn/TF); }
   for(const R2 of M.res){ mMax=Math.max(mMax,Math.abs(R2.L[key])); pMax=Math.max(pMax,R2.L.Pu); pMin=Math.min(pMin,R2.L.Pu); }
-  mMax*=1.12; pMax*=1.10; pMin=Math.min(pMin*1.18,-0.05*pMax);
-  const confAll  = cvc ? cvc.filter(p=>p.Pn<=cv.PnMax) : [];
-  const confPlot = confAll.filter(p=>p.Mn/TFM<=mMax && p.Pn/TF<=pMax && p.Pn/TF>=pMin);
-  const confClipped = confPlot.length < confAll.length;
+  mMax*=1.06; pMax*=1.05; pMin=Math.min(pMin*1.12,-0.04*pMax);
+  const TX = niceTicks(0, mMax, 6), TY = niceTicks(pMin, pMax, 6);
+  mMax = TX.hi; pMin = TY.lo; pMax = TY.hi;      // 軸界貼齊整數刻度
+  // 圍束曲線超出圖框的部分需「分段」繪製：若只過濾點再連線，折線會跨接被濾掉的區段，
+  // 憑空畫出一條不存在的線段（實測曾在 P 相差 37,431 tf 的兩點間偽造出近垂直線）。
+  const confAll = cvc ? cvc.filter(p=>p.Pn<=cv.PnMax) : [];
+  const confRuns=[]; let confKept=0;
+  { let run=[];
+    for(const q of confAll){
+      const inBox = q.Mn>=0 && q.Mn/TFM<=mMax && q.Pn/TF<=pMax && q.Pn/TF>=pMin;
+      if(inBox){ run.push([q.Mn/TFM, q.Pn/TF]); confKept++; }
+      else { if(run.length>1) confRuns.push(run); run=[]; }
+    }
+    if(run.length>1) confRuns.push(run);
+  }
+  const confClipped = confKept < confAll.length;
 
   const X=v=>L+(W-L-Rr)*(v/mMax), Y=v=>Hh-Bm-(Hh-Bm-T)*((v-pMin)/(pMax-pMin));
   const o=[`<svg viewBox="0 0 ${W} ${Hh}" xmlns="http://www.w3.org/2000/svg" font-family="ui-sans-serif,system-ui,sans-serif">`];
   o.push(`<rect width="${W}" height="${Hh}" fill="${forPrint?'#fff':'transparent'}"/>`);
   // 格線
-  for(let i=0;i<=5;i++){
-    const mv=mMax*i/5, pv=pMin+(pMax-pMin)*i/5;
+  for(const mv of TX.ticks){
     o.push(`<line x1="${X(mv)}" y1="${T}" x2="${X(mv)}" y2="${Hh-Bm}" stroke="${C.grid}" stroke-width="1"/>`);
+    o.push(`<text x="${X(mv)}" y="${Hh-Bm+16}" fill="${C.txt}" font-size="11" text-anchor="middle">${f(mv,TX.dp)}</text>`);
+  }
+  for(const pv of TY.ticks){
     o.push(`<line x1="${L}" y1="${Y(pv)}" x2="${W-Rr}" y2="${Y(pv)}" stroke="${C.grid}" stroke-width="1"/>`);
-    o.push(`<text x="${X(mv)}" y="${Hh-Bm+16}" fill="${C.txt}" font-size="11" text-anchor="middle">${f(mv,0)}</text>`);
-    o.push(`<text x="${L-7}" y="${Y(pv)+4}" fill="${C.txt}" font-size="11" text-anchor="end">${f(pv,0)}</text>`);
+    o.push(`<text x="${L-7}" y="${Y(pv)+4}" fill="${C.txt}" font-size="11" text-anchor="end">${f(pv,TY.dp)}</text>`);
   }
   o.push(`<line x1="${L}" y1="${Y(0)}" x2="${W-Rr}" y2="${Y(0)}" stroke="${C.ax}" stroke-width="1.8"/>`);
   o.push(`<line x1="${L}" y1="${T}" x2="${L}" y2="${Hh-Bm}" stroke="${C.ax}" stroke-width="1.8"/>`);
@@ -1048,7 +1089,7 @@ function svgPM(M,axis,forPrint){
   // 標稱
   path(cv.pts.filter(p=>p.Pn<=cv.PnMax).map(p=>[p.Mn/TFM,p.Pn/TF]).concat([[0,cv.PnMax/TF]]), C.n, 1.7);
   // Mander 圍束核心
-  if(confPlot.length) path(confPlot.map(p=>[p.Mn/TFM,p.Pn/TF]), C.mc, 1.7, '8 4');
+  for(const run of confRuns) path(run, C.mc, 1.7, '8 4');
   // 設計
   path(pd.poly.map(p=>[p[0]/TFM,p[1]/TF]), C.d, 2.6);
   // 截斷線
