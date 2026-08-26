@@ -70,7 +70,10 @@ svg{display:block;width:100%;height:auto}
 .rp-h1{font-size:20px;font-weight:800;margin:0 0 4px}
 .rp-h2{font-size:15px;font-weight:800;margin:18px 0 7px;border-bottom:2px solid #333;padding-bottom:3px}
 .rp-h3{font-size:13.5px;font-weight:700;margin:12px 0 5px}
-.rp-eq{margin:7px 0 7px 14px;font-size:13px;line-height:2.0}
+.rp-eq{margin:2px 0 2px 12px;font-size:13.5px}
+.rp-eq .katex{font-size:1em}
+.rp-eq .katex-display{margin:.5em 0;text-align:left}
+.rp-eq .katex-display>.katex{text-align:left;white-space:normal}
 .rp-note{font-size:11.5px;color:#444;margin:4px 0 4px 14px;line-height:1.6}
 .rp-fig{border:1px solid #999;padding:6px;margin:8px 0;background:#fff}
 </style>
@@ -262,7 +265,7 @@ function _sbOne(t){
     .replace(/([A-Za-zÀ-ɏͰ-Ͽ'’)\]])\^([A-Za-z0-9]+)/g, '$1<sup>$2</sup>');
 }
 /* 以 \( … \) 為界切開，偶數段（一般 HTML）才做轉換，奇數段（數學式）原樣保留 */
-const SB = html => String(html).split(/(\\\([\s\S]*?\\\))/)
+const SB = html => String(html).split(/(\\\([\s\S]*?\\\)|\\\[[\s\S]*?\\\])/)
   .map((seg,i)=> i%2 ? seg : _sbOne(seg)).join('');
 
 function svgTxt(t, fs){
@@ -923,7 +926,7 @@ function svgSection(M,forPrint){
         LN(a1,dy,b1,dy);
         q.push(`<path d="M${a1},${dy} L${a1+arw},${dy-hh} L${a1+arw},${dy+hh} Z" fill="${color}"/>`);
         q.push(`<path d="M${b1},${dy} L${b1-arw},${dy-hh} L${b1-arw},${dy+hh} Z" fill="${color}"/>`);
-        q.push(`<text x="${(a1+b1)/2}" y="${dy-ext-4}" fill="${color}" font-size="${fs}" text-anchor="middle" font-weight="${fw}">${svgTxt(label,fs)}</text>`);
+        q.push(`<text x="${(a1+b1)/2}" y="${dy-ext-fs*0.95}" fill="${color}" font-size="${fs}" text-anchor="middle" font-weight="${fw}">${svgTxt(label,fs)}</text>`);
       }else{                                            // 箭頭外置 + 引線
         const land=b1+2.6*arw+14;
         LN(a1-2.6*arw, dy, land, dy);
@@ -941,7 +944,7 @@ function svgSection(M,forPrint){
         q.push(`<path d="M${dx},${a1} L${dx-hh},${a1+arw} L${dx+hh},${a1+arw} Z" fill="${color}"/>`);
         q.push(`<path d="M${dx},${b1} L${dx-hh},${b1-arw} L${dx+hh},${b1-arw} Z" fill="${color}"/>`);
         const my=(a1+b1)/2;
-        q.push(`<text x="${dx-6}" y="${my}" fill="${color}" font-size="${fs}" text-anchor="middle" font-weight="${fw}" transform="rotate(-90 ${dx-6} ${my})">${svgTxt(label,fs)}</text>`);
+        q.push(`<text x="${dx-ext*0.5-6}" y="${my}" fill="${color}" font-size="${fs}" text-anchor="middle" font-weight="${fw}" transform="rotate(-90 ${dx-ext*0.5-6} ${my})">${svgTxt(label,fs)}</text>`);
       }else{
         const land=b1+2.6*arw+12;
         LN(dx,a1-2.6*arw,dx,land);
@@ -1238,11 +1241,12 @@ function renderAlerts(M){
 /* =========================================================================
    報告（KaTeX + 逐步代入）
    ========================================================================= */
-const K=t=>`\\(${t}\\)`;
+const K=t=>`\\(${t}\\)`;                       /* 行內 */
+const KD=t=>`\\[${t}\\]`;   /* 區塊：display 模式，分式維持全尺寸 */
 function buildReport(M){
   const m=M.m, s=M.s, r=M.r, R=M.R, F=M.fin, cf=M.cf, C=M.ctrlFlex;
   const o=[];
-  const eq=t=>`<div class="rp-eq">${K(t)}</div>`;
+  const eq=t=>`<div class="rp-eq">${KD(t)}</div>`;
   const note=t=>`<div class="rp-note">${t}</div>`;
   const d=(x,n=2)=>f(x,n);
 
@@ -1277,6 +1281,7 @@ function buildReport(M){
   o.push(eq(`\\varepsilon_{ty}=\\frac{f_y}{E_s}=\\frac{${d(m.fy,0)}}{${d(m.Es,0)}}=${d(m.ety,5)}
     \\qquad E_c=15000\\sqrt{f'_c}=15000\\sqrt{${d(m.fc,0)}}=${d(m.Ec,0)}\\ \\text{kgf/cm}^2`));
 
+  o.push(`</div><div class="rp-page">`);
   o.push(`<div class="rp-h2">2. 斷面配筋圖</div>`);
   o.push(`<div class="rp-fig">${svgSection(M,true)}</div>`);
   o.push(`</div>`);
@@ -1286,6 +1291,7 @@ function buildReport(M){
   o.push(`<div class="rp-h2">3. P-M 互制曲線</div>`);
   o.push(`<div class="rp-h3">3.1 繞 X 軸（對應 M_ux）</div>`);
   o.push(`<div class="rp-fig">${svgPM(M,'x',true)}</div>`);
+  o.push(`</div><div class="rp-page">`);
   o.push(`<div class="rp-h3">3.2 繞 Y 軸（對應 M_uy）</div>`);
   o.push(`<div class="rp-fig">${svgPM(M,'y',true)}</div>`);
   o.push(note(`實線細＝標稱 P_n–M_n；實線粗＝設計 φP_n–φM_n；虛線＝Mander 圍束核心（保護層剝落後，真纖維積分）；
@@ -1422,6 +1428,7 @@ function buildReport(M){
   o.push(note(`外閉合箍筋兩端均為 135° 耐震彎鉤；內部繫筋一端 135°、另一端 90°，且<b>沿構材高度逐層交替錯開</b>
     （2D 斷面圖無法表現此錯開，僅以圖例標註）。`));
 
+  o.push(`</div><div class="rp-page">`);
   o.push(`<div class="rp-h2">9. 箍筋間距彙整</div>`);
   o.push(`<table class="no-break"><thead><tr><th class="l">控制項</th><th>容許 s (cm)</th></tr></thead><tbody>`);
   for(const c2 of F.cands.slice().sort((a,b)=>a.v-b.v))
@@ -1452,7 +1459,9 @@ function buildReport(M){
 
   const el=document.getElementById('report');
   el.innerHTML=SB(o.join(''));
-  if(window.renderMathInElement) renderMathInElement(el,{delimiters:[{left:'\\(',right:'\\)',display:false}],throwOnError:false});
+  if(window.renderMathInElement) renderMathInElement(el,{
+    delimiters:[{left:'\\[',right:'\\]',display:true},{left:'\\(',right:'\\)',display:false}],
+    fleqn:true, throwOnError:false});
 }
 
 function breakpointTable(M,axis){
@@ -1514,7 +1523,7 @@ function breakpointTable(M,axis){
 
 function shearReport(M,sh){
   const m=M.m,d=(x,n=2)=>f(x,n),t=sh.dir.toUpperCase();
-  const eq=x=>`<div class="rp-eq">${K(x)}</div>`;
+  const eq=x=>`<div class="rp-eq">${KD(x)}</div>`;   /* 同樣走 display 模式 */
   const o=[`<div class="rp-h3">6.${sh.dir==='x'?'1':'2'} ${t} 向（控制組合：${esc(sh.ctrl.L.name)}）</div>`];
   o.push(eq(`b_w=${M.s.type==='box'?`2t_w=2\\times${d(M.s.tw,0)}`:`${d(sh.bw,0)}`}=${d(sh.bw,1)}\\ \\text{cm},\\qquad
     d=${d(sh.d,2)}\\ \\text{cm}\\ \\ (\\text{受壓緣至受拉鋼筋群形心})`));
