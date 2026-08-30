@@ -12,23 +12,29 @@
 
 <style>
 /* ---- Tailwind 載入失敗時的保底版面（降級但可用） ---- */
+/* 案 C「檢核導向」：冷灰底 + 白卡 + 深青強調色。
+   語意色（ok/warn/bad）與強調色刻意分開，狀態才不會跟裝飾混在一起。 */
 :root{
-  --bg:#0b1220; --panel:#111a2e; --line:#243352; --txt:#e6edf7; --dim:#93a4c2;
-  --acc:#38bdf8; --ok:#22c55e; --warn:#f59e0b; --bad:#ef4444;
-  --conc:#334155; --void:#0b1220; --bar:#f8fafc; --tie:#38bdf8; --ct:#f472b6;
-  --curveN:#64748b; --curveD:#38bdf8; --curveM:#a78bfa; --pt:#94a3b8; --ptc:#ef4444;
+  --bg:#EDF0F3; --panel:#FFFFFF; --line:#D8DEE5; --txt:#151C24; --dim:#5E6B7A;
+  --acc:#0F5F6B; --ok:#1E7A44; --warn:#B4711A; --bad:#B03A2E;
+  --sel:#E6EEF0; --sub:#F5F7F9; --shadow:0 1px 2px rgba(21,28,36,.07);
+  --conc:#DCE2E8; --void:#FFFFFF; --bar:#151C24; --tie:#0F5F6B; --ct:#B0407A;
+  --curveN:#8A97A5; --curveD:#0F5F6B; --curveM:#6B4FA8; --pt:#6B7887; --ptc:#B03A2E;
 }
 html,body{background:var(--bg);color:var(--txt);font-family:ui-sans-serif,"Noto Sans TC",system-ui,sans-serif;margin:0}
 .fallback-grid{display:grid;grid-template-columns:150px 430px 1fr;gap:12px;padding:14px}
 @media(max-width:1320px){.fallback-grid{grid-template-columns:1fr}.pin-detail{max-height:none}}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:12px}
-input,select{background:#0d1526;color:var(--txt);border:1px solid var(--line);border-radius:6px;padding:4px 7px;width:100%;font-size:13px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:13px;
+  margin-bottom:11px;box-shadow:var(--shadow)}
+input,select{background:var(--panel);color:var(--txt);border:1px solid var(--line);border-radius:5px;
+  padding:5px 8px;width:100%;font-size:13.5px}
 input:focus,select:focus{outline:2px solid var(--acc);outline-offset:-1px}
-button{cursor:pointer;border-radius:6px;border:1px solid var(--line);background:#16213a;color:var(--txt);padding:6px 12px;font-size:13px}
-button:hover{background:#1d2b48}
+button{cursor:pointer;border-radius:5px;border:1px solid var(--line);background:var(--panel);
+  color:var(--txt);padding:7px 13px;font-size:13px;box-shadow:var(--shadow)}
+button:hover{background:var(--sel)}
 table{border-collapse:collapse;width:100%;font-size:12.5px}
-th,td{border:1px solid var(--line);padding:3px 6px;text-align:right}
-th{background:#16213a;text-align:center;font-weight:600}
+th,td{border:1px solid var(--line);padding:4px 7px;text-align:right}
+th{background:var(--sub);text-align:center;font-weight:600}
 td.l,th.l{text-align:left}
 .fld{display:grid;grid-template-columns:1fr 96px;align-items:center;gap:6px;margin:5px 0;font-size:13px}
 .fld span{color:var(--dim)}
@@ -51,59 +57,92 @@ body{overflow:hidden;display:flex;flex-direction:column}
 #topbar{flex-shrink:0}
 #app,#appBeam{flex-grow:1;min-height:0}
 #app>div:last-of-type,#appBeam>div:last-of-type{overflow-y:auto;min-height:0}
-body.rp-open{overflow:auto;display:block}          /* 預覽報告時恢復整頁捲動 */
+/* 預覽計算書時整頁變成白底黑字，跟列印出來的一模一樣 */
+body.rp-open{overflow:auto;display:block;background:#fff;color:#111}
+body.rp-open #topbar{background:#fff;color:#111;border-bottom:1px solid #999}
+body.rp-open #impBanner{display:none!important}
 body.rp-open #app,body.rp-open #appBeam{display:none!important}
 @media(max-width:1320px){
   body{overflow:auto;display:block}
   #app,#appBeam{height:auto}
   #app>div:last-of-type,#appBeam>div:last-of-type{overflow:visible}
   .pin-sheet{max-height:520px}
+  /* 堆疊版面下各區塊自然流動，拖曳分隔線沒有意義 */
+  .pin-mid{display:flex;flex-direction:column;gap:10px}
+  .pin-detail{max-height:none}
+  .hsplit{display:none}
+  .stats{grid-template-columns:1fr}
 }
 
 .pin-rail{display:flex;flex-direction:column;gap:2px;min-height:0}
 .pin-all,.pin-g{cursor:pointer;border-radius:8px;border:1px solid transparent}
 .pin-all{padding:7px 9px;font-size:12.5px;font-weight:700;background:var(--panel);border-color:var(--line);color:var(--dim)}
-.pin-all.on{background:#0369a1;border-color:#0284c7;color:#fff}
-.pin-g{display:flex;align-items:flex-start;gap:8px;padding:7px 9px}
-.pin-g.on{background:#16213a;border-color:var(--acc)}
-.pin-g:hover{background:#16213a}
-.pin-gl{font-size:12.5px;line-height:1.3}
-.pin-gs{font-size:10.5px;color:#5b6b8a;margin-top:1px}
+.pin-all.on{background:var(--acc);border-color:var(--acc);color:#fff}
+.pin-g{display:flex;align-items:flex-start;gap:8px;padding:8px 10px}
+.pin-g.on{background:var(--panel);border-color:var(--line);font-weight:600;box-shadow:var(--shadow)}
+.pin-g:hover{background:var(--sel)}
+.pin-gl{font-size:12.5px;line-height:1.35}
+.pin-gs{font-size:10.5px;color:var(--dim);margin-top:1px}
 .pin-mk{width:19px;height:19px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;
   justify-content:center;font-size:10.5px;font-weight:700;margin-top:1px}
 .pin-mk.ok{background:rgba(34,197,94,.14);color:var(--ok);border:1px solid rgba(34,197,94,.5)}
 .pin-mk.warn{background:rgba(245,158,11,.16);color:var(--warn);border:1px solid var(--warn)}
 .pin-mk.bad{background:rgba(239,68,68,.16);color:var(--bad);border:1px solid var(--bad)}
 
-.pin-mid{display:flex;flex-direction:column;gap:10px;min-height:0}
-.pin-sheet{background:var(--panel);border:1px solid var(--line);border-radius:10px;
-  display:flex;flex-direction:column;min-height:0;overflow:hidden;flex-grow:1}
-.pin-head{display:grid;grid-template-columns:64px 1fr 108px 58px 52px;background:#16213a;
-  border-bottom:1px solid var(--line);font-size:11.5px;font-weight:600}
-.pin-head>div{padding:6px 9px}
+/* 中欄：參數表與說明卡之間夾一條可拖曳的分隔線（取代原本 pin-detail 的固定高度） */
+.pin-mid{display:grid;
+  grid-template-rows:minmax(120px,1fr) auto 8px minmax(90px,var(--detailH,286px));
+  gap:0;min-height:0}
+.pin-mid>#derivedP,.pin-mid>#derivedB{margin:10px 0 0}
+.pin-sheet{background:var(--panel);border:1px solid var(--line);border-radius:8px;
+  display:flex;flex-direction:column;min-height:0;overflow:hidden;box-shadow:var(--shadow)}
+.pin-head{display:grid;grid-template-columns:58px 1fr 138px 60px 48px;background:var(--sub);
+  border-bottom:1px solid var(--line);font-size:11.5px;font-weight:600;color:var(--dim)}
+.pin-head>div{padding:7px 10px}
 .pin-body{overflow-y:auto;flex-grow:1}
-.pin-sec{padding:9px 10px 5px;font-size:11px;font-weight:700;letter-spacing:.05em;color:#5b6b8a;
-  background:rgba(13,21,38,.5);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:1}
-.pin-row{display:grid;grid-template-columns:64px 1fr 108px 58px 52px;align-items:center;
-  min-height:33px;cursor:pointer;border-bottom:1px solid rgba(36,51,82,.5)}
-.pin-row:hover{background:rgba(56,189,248,.05)}
-.pin-row.on{background:rgba(56,189,248,.10);box-shadow:inset 3px 0 0 var(--acc)}
-.pin-c{padding:0 9px;font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums}
-.pin-n{padding:0 9px;font-size:12.5px}
-.pin-v{padding:0 5px}
-.pin-u{padding:0 9px;font-size:12px;color:var(--dim)}
+.pin-sec{padding:10px 10px 6px;font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--dim);
+  background:var(--sub);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:1}
+.pin-row{display:grid;grid-template-columns:58px 1fr 138px 60px 48px;align-items:center;
+  min-height:36px;cursor:pointer;border-bottom:1px solid var(--line)}
+.pin-row:hover{background:var(--sub)}
+.pin-row.on{background:var(--sel);box-shadow:inset 3px 0 0 var(--acc)}
+.pin-c{padding:0 10px;font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums}
+.pin-n{padding:0 10px;font-size:13px}
+.pin-v{padding:0 6px}
+.pin-u{padding:0 10px;font-size:12px;color:var(--dim)}
 .pin-s{padding:0 4px;text-align:center}
-.pin-chip{display:inline-block;padding:1px 6px;border-radius:10px;font-size:10.5px}
-.pin-chip.ok{background:rgba(34,197,94,.16);color:var(--ok)}
-.pin-chip.warn{background:rgba(245,158,11,.16);color:var(--warn)}
-.pin-chip.bad{background:rgba(239,68,68,.16);color:var(--bad)}
+.pin-chip{display:inline-block;padding:2px 7px;border-radius:10px;font-size:10.5px}
+.pin-chip.ok{background:rgba(30,122,68,.12);color:var(--ok)}
+.pin-chip.warn{background:rgba(180,113,26,.13);color:var(--warn)}
+.pin-chip.bad{background:rgba(176,58,46,.12);color:var(--bad)}
 
-.pin-detail{background:var(--panel);border:1px solid var(--acc);border-radius:10px;
-  padding:12px 13px;flex-shrink:0;max-height:296px;overflow-y:auto}
-.pin-dt{font-size:11px;color:var(--acc);letter-spacing:.06em;margin-bottom:6px}
-.pin-dl{font-size:11px;color:var(--dim);letter-spacing:.05em;margin-bottom:4px}
-.pin-rule{font-size:12.5px;line-height:1.65;background:#0d1526;border:1px solid var(--line);
-  border-radius:7px;padding:8px 10px;font-variant-numeric:tabular-nums}
+.pin-detail{background:var(--panel);border:1px solid var(--line);border-radius:8px;
+  padding:13px 14px;overflow-y:auto;min-height:0;box-shadow:var(--shadow)}
+.pin-dt{font-size:11px;color:var(--acc);letter-spacing:.09em;margin-bottom:7px;font-weight:600}
+.pin-dl{font-size:11px;color:var(--dim);letter-spacing:.07em;margin-bottom:5px}
+.pin-rule{font-size:12.5px;line-height:1.7;background:var(--sub);border:1px solid var(--line);
+  border-radius:6px;padding:9px 11px;font-variant-numeric:tabular-nums}
+
+/* 分隔線：拖曳調整區塊範圍；Tab 選到後可用方向鍵 */
+.hsplit{cursor:row-resize;border:0;padding:0;background:transparent;touch-action:none;
+  position:relative;border-radius:3px}
+.hsplit::before{content:"";position:absolute;left:0;right:0;top:3px;bottom:3px;
+  background:var(--dim);opacity:.22;border-radius:3px;transition:opacity .12s}
+.hsplit:hover::before,.hsplit:focus-visible::before{opacity:.7}
+.hsplit:focus-visible{outline:2px solid var(--acc);outline-offset:-1px}
+@media(prefers-reduced-motion:reduce){.hsplit::before{transition:none}}
+
+/* 案 C 的招牌元件：D/C 直接用大字＋比例條讀出來 */
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:8px;
+  padding:11px 13px 12px;box-shadow:var(--shadow)}
+.stat .lb{font-size:10.5px;letter-spacing:.1em;color:var(--dim);font-weight:600;
+  text-transform:uppercase}
+.stat .big{font-size:30px;font-weight:700;line-height:1.15;letter-spacing:-.02em;
+  font-variant-numeric:tabular-nums;margin-top:2px}
+.stat .cap{font-size:11.5px;color:var(--dim);line-height:1.5}
+.stat .meter{height:5px;border-radius:3px;background:var(--sel);margin-top:8px;overflow:hidden}
+.stat .meter i{display:block;height:100%;border-radius:3px}
 
 /* ---- 列印 / PDF ---- */
 @media print{
@@ -156,7 +195,7 @@ body.rp-open #app,body.rp-open #appBeam{display:none!important}
   gap:11px;margin:11px 0;font-size:13.5px}
 .imp-row>span:first-child{color:var(--dim)}
 .imp-sec{border:1px solid var(--line);border-radius:9px;padding:14px 15px;
-  margin-bottom:14px;background:#0d1526}
+  margin-bottom:14px;background:var(--sub)}
 .imp-sec h3{margin:0 0 10px;font-size:14.5px;font-weight:700}
 .imp-tbl{font-size:13px}
 .imp-tbl td,.imp-tbl th{padding:6px 9px;vertical-align:middle}
@@ -188,17 +227,20 @@ input.src-miss,select.src-miss{border-color:var(--warn);border-style:dashed;
 <body>
 
 <div id="topbar" class="flex flex-wrap items-center gap-2 px-4 py-3 border-b" style="border-color:var(--line);background:var(--panel)">
-  <div class="font-extrabold text-[17px] tracking-wide">RC 橋塔斷面設計 · P-M 互制 · 耐震剪力配筋</div>
-  <div class="text-[11.5px]" style="color:var(--dim)">土木401 + 公路橋梁耐震設計規範 ｜ kgf-cm 制</div>
+  <div class="font-extrabold text-[16.5px] tracking-wide">RC 斷面設計</div>
+  <!-- 斷面切換：只有在匯入到 2 個以上斷面時才出現（見 secPicker） -->
+  <select id="secPick" style="display:none;width:auto;min-width:170px;font-weight:600"></select>
+  <div id="secName" class="text-[13px]" style="color:var(--dim)"></div>
   <div class="grow"></div>
-  <div class="flex gap-1" style="background:#0d1526;border:1px solid var(--line);border-radius:8px;padding:3px">
-    <button id="tabPylon" class="!py-1 !px-3 !border-0" style="background:#1d4ed8">橋塔／柱斷面</button>
-    <button id="tabBeam"  class="!py-1 !px-3 !border-0" style="background:transparent">梁斷面</button>
+  <div class="text-[11.5px]" style="color:var(--dim)">土木401 + 公路橋梁耐震規範 ｜ kgf-cm</div>
+  <div class="flex gap-1" style="background:var(--sub);border:1px solid var(--line);border-radius:7px;padding:3px">
+    <button id="tabPylon" class="!py-1 !px-3 !border-0" style="background:var(--acc);color:#fff;box-shadow:none">橋塔／柱斷面</button>
+    <button id="tabBeam"  class="!py-1 !px-3 !border-0" style="background:transparent;box-shadow:none">梁斷面</button>
   </div>
-  <button id="btnImport" style="background:#065f46;border-color:#059669">從圖說匯入</button>
+  <button id="btnImport" style="background:var(--acc);border-color:var(--acc);color:#fff">從圖說匯入</button>
   <button id="btnTest">內部自測</button>
   <button id="btnPreview">預覽報告</button>
-  <button id="btnPrint" style="background:#0369a1;border-color:#0284c7">列印 / 存成 PDF</button>
+  <button id="btnPrint">列印 / 存成 PDF</button>
 </div>
 
 <div id="impBanner" style="display:none"></div>
@@ -209,6 +251,7 @@ input.src-miss,select.src-miss{border-color:var(--warn);border-style:dashed;
   <div class="pin-mid">
     <div class="pin-sheet" id="sheetP"></div>
     <div id="derivedP" class="card" style="flex-shrink:0;margin:0;padding:8px 11px"></div>
+    <button class="hsplit" data-detail="P" aria-label="拖曳調整說明卡高度"></button>
     <div class="pin-detail" id="detailP"></div>
   </div>
 
@@ -332,7 +375,7 @@ input.src-miss,select.src-miss{border-color:var(--warn);border-style:dashed;
         <button id="btnPaste">貼上 CSV</button>
       </div>
       <textarea id="csvBox" class="hidden w-full mt-2 text-[12px] p-2 rounded" rows="4"
-        style="background:#0d1526;border:1px solid var(--line);color:var(--txt)"
+        style="background:var(--panel);border:1px solid var(--line);color:var(--txt)"
         placeholder="名稱,Pu,Mux,Muy,Vux,Vuy,Tu　每行一組，貼上後按下方套用"></textarea>
       <button id="btnCsvApply" class="hidden mt-2">套用 CSV</button>
     </div>
@@ -348,6 +391,7 @@ input.src-miss,select.src-miss{border-color:var(--warn);border-style:dashed;
   <div class="pin-mid">
     <div class="pin-sheet" id="sheetB"></div>
     <div id="derivedB" class="card" style="flex-shrink:0;margin:0;padding:8px 11px"></div>
+    <button class="hsplit" data-detail="B" aria-label="拖曳調整說明卡高度"></button>
     <div class="pin-detail" id="detailB"></div>
   </div>
   <div id="stashB" style="display:none">
@@ -1116,7 +1160,7 @@ function svgSection(M,forPrint){
   const o=[];
   const C = forPrint
     ? {conc:'#dcdcdc',void:'#ffffff',line:'#000',bar:'#000',tie:'#000',ct:'#000',txt:'#000',bad:'#000',dim:'#333',ann:'#000',annBad:'#000'}
-    : {conc:'#334155',void:'#0b1220',line:'#64748b',bar:'#f8fafc',tie:'#38bdf8',ct:'#f472b6',txt:'#e6edf7',bad:'#ef4444',dim:'#93a4c2',ann:'#fbbf24',annBad:'#ef4444'};
+    : {conc:'#DCE2E8',void:'#FFFFFF',line:'#8A97A5',bar:'#151C24',tie:'#0F5F6B',ct:'#B0407A',txt:'#151C24',bad:'#B03A2E',dim:'#5E6B7A',ann:'#8A5A12',annBad:'#B03A2E'};
 
   o.push(`<svg viewBox="0 0 ${W} ${Hh}" xmlns="http://www.w3.org/2000/svg" font-family="ui-sans-serif,system-ui,sans-serif">`);
   o.push(`<rect width="${W}" height="${Hh}" fill="${forPrint?'#fff':'transparent'}"/>`);
@@ -1148,7 +1192,7 @@ function svgSection(M,forPrint){
   // 主筋（真實直徑比例）
   const rad = Math.max(2.0, R.db/2*k);
   for(const b of R.bars)
-    o.push(`<circle cx="${X(b.x)}" cy="${Y(b.y)}" r="${rad}" fill="${C.bar}" stroke="${forPrint?'#000':'#0b1220'}" stroke-width="0.7"/>`);
+    o.push(`<circle cx="${X(b.x)}" cy="${Y(b.y)}" r="${rad}" fill="${C.bar}" stroke="${forPrint?'#000':'#FFFFFF'}" stroke-width="0.7"/>`);
 
   /* ---------- CAD 式線性標註 ----------
      尺寸界線（起點留間隙、末端超出尺寸線）→ 尺寸線 → 實心箭頭 → 文字。
@@ -1349,18 +1393,18 @@ function svgPM(M,axis,forPrint){
       o.push(`<line x1="${X(0)}" y1="${Y(0)}" x2="${X(mx)}" y2="${Y(py)}" stroke="${C.ptc}" stroke-width="1.1" stroke-dasharray="3 3" opacity=".5"/>`);
     }
     const R0=isC?8.5:7;
-    o.push(`<circle cx="${X(mx)}" cy="${Y(py)}" r="${R0}" fill="${isC?C.ptc:C.pt}" stroke="${forPrint?'#fff':'#0b1220'}" stroke-width="1.4"/>`);
-    o.push(`<text x="${X(mx)}" y="${Y(py)+3.6}" fill="${forPrint?'#fff':'#0b1220'}" font-size="10" font-weight="700" text-anchor="middle">${i+1}</text>`);
+    o.push(`<circle cx="${X(mx)}" cy="${Y(py)}" r="${R0}" fill="${isC?C.ptc:C.pt}" stroke="${forPrint?'#fff':'#FFFFFF'}" stroke-width="1.4"/>`);
+    o.push(`<text x="${X(mx)}" y="${Y(py)+3.6}" fill="${forPrint?'#fff':'#FFFFFF'}" font-size="10" font-weight="700" text-anchor="middle">${i+1}</text>`);
   });
   // 圖內對照表（取代逐點標籤，避免重疊）
   const bx=L+8, by=T+8;
   o.push(`<rect x="${bx}" y="${by}" width="248" height="${16+M.res.length*14}" rx="4"
-    fill="${forPrint?'#fff':'#0d1526'}" stroke="${forPrint?'#999':'#243352'}" stroke-width="1" opacity="${forPrint?1:0.94}"/>`);
+    fill="${forPrint?'#fff':'#FFFFFF'}" stroke="${forPrint?'#999':'#D8DEE5'}" stroke-width="1" opacity="${forPrint?1:0.94}"/>`);
   o.push(`<text x="${bx+8}" y="${by+13}" fill="${C.txt}" font-size="10" font-weight="700">載重組合　（D/C，定偏心射線法）</text>`);
   M.res.forEach((R2,i)=>{
     const isC=R2===M.ctrlFlex, yy=by+13+ (i+1)*14;
     o.push(`<circle cx="${bx+13}" cy="${yy-3.5}" r="6" fill="${isC?C.ptc:C.pt}"/>`);
-    o.push(`<text x="${bx+13}" y="${yy-0.6}" fill="${forPrint?'#fff':'#0b1220'}" font-size="8.5" font-weight="700" text-anchor="middle">${i+1}</text>`);
+    o.push(`<text x="${bx+13}" y="${yy-0.6}" fill="${forPrint?'#fff':'#FFFFFF'}" font-size="8.5" font-weight="700" text-anchor="middle">${i+1}</text>`);
     const nm=R2.L.name.length>22?R2.L.name.slice(0,21)+'…':R2.L.name;
     o.push(`<text x="${bx+25}" y="${yy}" fill="${isC?C.ptc:C.txt}" font-size="10" font-weight="${isC?700:400}">${esc(nm)}</text>`);
     o.push(`<text x="${bx+240}" y="${yy}" fill="${R2.dc>1?C.bad:(isC?C.ptc:C.txt)}" font-size="10" font-weight="${isC?700:400}" text-anchor="end">${fdc(R2.dc)}</text>`);
@@ -1419,7 +1463,23 @@ function renderSummary(M){
   const F=M.fin, cf=M.cf, C=M.ctrlFlex;
   const kv=(k,v,cls='')=>`<div class="kv"><span>${k}</span><b class="${cls}">${v}</b></div>`;
   const dcCol = C.dc>1 ? 'style="color:var(--bad)"' : C.dc>0.9 ? 'style="color:var(--warn)"' : 'style="color:var(--ok)"';
-  let h = `<div class="grid gap-x-6" style="grid-template-columns:1fr 1fr">`;
+
+  /* 檢核導向：先講結論。撓曲 D/C 與箍筋間距比各一張大字卡，顏色即判定。 */
+  const tone = r => r>1 ? 'var(--bad)' : r>0.9 ? 'var(--warn)' : 'var(--ok)';
+  const sRatio = F.gov.v>0 ? F.sUse/F.gov.v : 0;
+  const tile = (lb,val,cap,r) =>
+    `<div class="stat"><div class="lb">${lb}</div>`
+    + `<div class="big" style="color:${tone(r)}">${val}</div>`
+    + `<div class="cap">${cap}</div>`
+    + `<div class="meter"><i style="width:${Math.min(100,r*100).toFixed(0)}%;background:${tone(r)}"></i></div></div>`;
+  let h = `<div class="stats">`
+    + tile('撓曲 D/C', fdc(C.dc),
+           (C.dc>1?'不通過':'通過') + ' ｜ 控制組合 ' + esc(C.L.name), C.dc)
+    + tile('箍筋間距 採用/需求', f(sRatio,2),
+           `${M.r.tieSize} @ ${f(F.sUse,1)} cm ｜ 上限 ${f(F.gov.v,2)} cm（${esc(F.gov.tag)}）`,
+           sRatio)
+    + `</div>`;
+  h += `<div class="grid gap-x-6" style="grid-template-columns:1fr 1fr">`;
   h += `<div>`;
   h += kv('控制載重組合（撓曲）', esc(C.L.name));
   h += `<div class="kv"><span>D/C 應力比（定偏心射線法）</span><b ${dcCol}>${fdc(C.dc)}</b></div>`;
@@ -2416,7 +2476,7 @@ function svgBeam(B, forPrint){
     const x0=-S.bw/2+cc+dt+db/2, x1=S.bw/2-cc-dt-db/2;
     for(let i=0;i<n;i++){
       const x = n===1?0:(x0+(x1-x0)*i/(n-1));
-      o.push(`<circle cx="${X(x)}" cy="${Y(y)}" r="${Math.max(2.2,db/2*k)}" fill="${C.bar}" stroke="${forPrint?'#000':'#0b1220'}" stroke-width="0.7"/>`);
+      o.push(`<circle cx="${X(x)}" cy="${Y(y)}" r="${Math.max(2.2,db/2*k)}" fill="${C.bar}" stroke="${forPrint?'#000':'#FFFFFF'}" stroke-width="0.7"/>`);
     }
   };
   for(const L of R.layers) drawRow(L.n, L.y, L.db);
@@ -3299,8 +3359,11 @@ function pinStatus(mod, map){
     TAB=t;
     document.getElementById('app').style.display     = t==='pylon'?'':'none';
     document.getElementById('appBeam').style.display = t==='beam'?'':'none';
-    document.getElementById('tabPylon').style.background = t==='pylon'?'#1d4ed8':'transparent';
-    document.getElementById('tabBeam').style.background  = t==='beam' ?'#1d4ed8':'transparent';
+    const tp=document.getElementById('tabPylon'), tb=document.getElementById('tabBeam');
+    tp.style.background = t==='pylon'?'var(--acc)':'transparent';
+    tp.style.color      = t==='pylon'?'#fff':'var(--txt)';
+    tb.style.background = t==='beam' ?'var(--acc)':'transparent';
+    tb.style.color      = t==='beam' ?'#fff':'var(--txt)';
     document.getElementById('report').classList.remove('preview');
     document.body.classList.remove('rp-open');
     if(t==='beam') renderBeam(); else render();
@@ -3380,7 +3443,7 @@ function pinStatus(mod, map){
       <button id="impPrev" style="display:none">回到上次判讀結果</button>
       <button id="impBack" style="display:none">重選圖說</button>
       <button id="impGo" style="background:#065f46;border-color:#059669">開始判讀</button>
-      <button id="impApply" style="display:none;background:#1d4ed8;border-color:#2563eb">套用勾選的欄位</button>
+      <button id="impApply" style="display:none;background:var(--acc);border-color:var(--acc);color:#fff">套用勾選的欄位</button>
     </div>
   </div>
 </div>
@@ -3720,8 +3783,19 @@ function pinStatus(mod, map){
     let nP = 0, nB = 0, drawTotal = null;
     const filled = [], missing = [];
 
+    /* 一個模組一次只能持有一個斷面。多個斷面指向同一個模組時（例如 P1/P2/P3 都是柱），
+       只載入標題列選單選中的那一個，其餘留在記憶體裡等切換，
+       否則後面的會默默蓋掉前面的。 */
+    const sel = window.__curSec || 0;
+    const chosen = {pylon:-1, beam:-1};
+    if(TARGETS[sel]) chosen[TARGETS[sel]] = sel;
+    ['pylon','beam'].forEach(m=>{
+      if(chosen[m] < 0) chosen[m] = TARGETS.indexOf(m);
+    });
+
     boxes.forEach(b=>{
       const i = +b.dataset.sec, sec = SECTIONS[i], isBeam = TARGETS[i] === 'beam';
+      if(chosen[isBeam ? 'beam' : 'pylon'] !== i) return;
       const ed = $(b.dataset.ed), el = $(b.dataset.id);
       if(!ed || !el) return;
       const v = String(ed.value).trim();
@@ -3753,6 +3827,7 @@ function pinStatus(mod, map){
     if(nP && typeof render === 'function') render();
     if(nB && typeof renderBeam === 'function') renderBeam();
     banner(nP, nB, missing);
+    secPicker();
     if(nP) $('tabPylon').click(); else if(nB) $('tabBeam').click();
     close();
   }
@@ -3856,6 +3931,57 @@ function pinStatus(mod, map){
       $('impGo').disabled = false;
     }
   }
+
+  /* ---- 分隔線：拖曳調整說明卡高度（取代原本的固定 max-height）---- */
+  document.querySelectorAll('.hsplit').forEach(function(sp){
+    sp.setAttribute('role','separator');
+    sp.setAttribute('tabindex','0');
+    sp.setAttribute('aria-orientation','horizontal');
+    const mid = sp.parentElement, detail = sp.nextElementSibling;
+    function nudge(d){
+      const cur = detail.getBoundingClientRect().height;
+      const max = mid.getBoundingClientRect().height - 150;
+      mid.style.setProperty('--detailH',
+        Math.max(90, Math.min(max, cur - d)) + 'px');
+    }
+    let last = 0, drag = false;
+    sp.addEventListener('pointerdown', e=>{
+      drag = true; last = e.clientY; sp.setPointerCapture(e.pointerId); e.preventDefault();
+    });
+    sp.addEventListener('pointermove', e=>{
+      if(!drag) return; nudge(e.clientY - last); last = e.clientY;
+    });
+    const stop = e=>{ if(!drag) return; drag=false;
+      try{ sp.releasePointerCapture(e.pointerId); }catch(_){} };
+    sp.addEventListener('pointerup', stop);
+    sp.addEventListener('pointercancel', stop);
+    sp.addEventListener('keydown', e=>{
+      const step = e.shiftKey ? 48 : 16;
+      if(e.key === 'ArrowUp'){ nudge(-step); e.preventDefault(); }
+      if(e.key === 'ArrowDown'){ nudge(step); e.preventDefault(); }
+    });
+  });
+
+  /* ---- 斷面切換：多斷面時才出現在標題列 ---- */
+  function secPicker(){
+    const sel = $('secPick'), nm = $('secName');
+    if(SECTIONS.length > 1){
+      sel.innerHTML = SECTIONS.map((s,i)=>
+        '<option value="'+i+'">'+(s.name || '斷面 '+(i+1))+'</option>').join('');
+      sel.value = String(window.__curSec || 0);
+      sel.style.display = '';
+      nm.textContent = '共 ' + SECTIONS.length + ' 個斷面';
+    }else{
+      sel.style.display = 'none';
+      nm.textContent = SECTIONS.length === 1 ? (SECTIONS[0].name || '') : '';
+    }
+  }
+  $('secPick').onchange = function(){
+    // 換斷面＝重新套用那一筆，不重新呼叫 API（判讀結果留在記憶體）
+    window.__curSec = +this.value;
+    renderResult(null);   // 重建勾選狀態（預設全勾有值的欄位）
+    applyChecked();       // applyChecked 會依 __curSec 決定各模組載哪一筆
+  };
 
   $('btnImport').onclick = open;
   $('impClose').onclick  = close;
