@@ -27,14 +27,18 @@ html,body{background:var(--bg);color:var(--txt);font-family:ui-sans-serif,"Noto 
 @media(max-width:1150px){.fallback-grid{grid-template-columns:1fr}.pin-detail{max-height:none}}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:13px;
   margin-bottom:11px;box-shadow:var(--shadow)}
-input,select{background:var(--panel);color:var(--txt);border:1px solid var(--line);border-radius:5px;
-  padding:5px 8px;width:100%;font-size:13.5px}
-input:focus,select:focus{outline:2px solid var(--acc);outline-offset:-1px}
-button{cursor:pointer;border-radius:5px;border:1px solid var(--line);background:var(--panel);
-  color:var(--txt);padding:7px 13px;font-size:13px;box-shadow:var(--shadow)}
-button:hover{background:var(--sel)}
-table{border-collapse:collapse;width:100%;font-size:12.5px}
-th,td{border:1px solid var(--line);padding:4px 7px;text-align:right}
+/* 一律加 body 前綴提高權重。Tailwind 的 preflight 會把 button/input/select 的
+   padding 歸零、font-size 改成 100%（＝16px），而且它是執行期注入、排在這段之後，
+   同分時後者勝——不加前綴的話按鈕會變成 0 padding + 16px 字，擠成一團。 */
+body input,body select{background:var(--panel);color:var(--txt);border:1px solid var(--line);
+  border-radius:5px;padding:6px 9px;width:100%;font-size:13.5px;line-height:1.35}
+body input:focus,body select:focus{outline:2px solid var(--acc);outline-offset:-1px}
+body button{cursor:pointer;border-radius:6px;border:1px solid var(--line);background:var(--panel);
+  color:var(--txt);padding:8px 14px;font-size:13.5px;line-height:1.25;box-shadow:var(--shadow)}
+body button:hover{background:var(--sel)}
+body #tabPylon,body #tabBeam{padding:6px 15px;border-radius:5px}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{border:1px solid var(--line);padding:5px 9px;text-align:right}
 th{background:var(--sub);text-align:center;font-weight:600}
 td.l,th.l{text-align:left}
 .fld{display:grid;grid-template-columns:1fr 96px;align-items:center;gap:6px;margin:5px 0;font-size:13px}
@@ -45,9 +49,13 @@ h2{font-size:14px;font-weight:700;margin:0 0 8px;letter-spacing:.03em}
 .a-warn{background:rgba(245,158,11,.13);border-color:var(--warn)}
 .a-ok{background:rgba(34,197,94,.13);border-color:var(--ok)}
 .a-info{background:rgba(56,189,248,.11);border-color:var(--acc)}
-.kv{display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:3px 0;border-bottom:1px dashed var(--line)}
+.kv{display:flex;justify-content:space-between;gap:12px;font-size:13.5px;padding:4px 0;border-bottom:1px dashed var(--line)}
 .kv b{font-variant-numeric:tabular-nums}
 svg{display:block;width:100%;height:auto}
+/* 標誌要固定尺寸：上一行的全域規則會蓋掉 width/height 屬性，
+   只用屬性會讓標誌撐成滿版蓋住整個畫面。 */
+svg.logo{width:26px;height:26px;flex-shrink:0;display:inline-block;color:var(--acc)}
+svg.rp-logo{width:24px;height:24px;vertical-align:-4px;margin-right:9px;color:#111}
 .mono{font-family:ui-monospace,"Cascadia Code",Consolas,monospace;font-variant-numeric:tabular-nums}
 #report{display:none}
 
@@ -82,7 +90,7 @@ body.rp-open #app,body.rp-open #appBeam{display:none!important}
 .pin-g{display:flex;align-items:flex-start;gap:8px;padding:8px 10px}
 .pin-g.on{background:var(--panel);border-color:var(--line);font-weight:600;box-shadow:var(--shadow)}
 .pin-g:hover{background:var(--sel)}
-.pin-gl{font-size:12.5px;line-height:1.35}
+.pin-gl{font-size:13px;line-height:1.4}
 .pin-gs{font-size:10.5px;color:var(--dim);margin-top:1px}
 .pin-mk{width:19px;height:19px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;
   justify-content:center;font-size:10.5px;font-weight:700;margin-top:1px}
@@ -97,20 +105,20 @@ body.rp-open #app,body.rp-open #appBeam{display:none!important}
 .pin-mid>#derivedP,.pin-mid>#derivedB{margin:10px 0 0}
 .pin-sheet{background:var(--panel);border:1px solid var(--line);border-radius:8px;
   display:flex;flex-direction:column;min-height:0;overflow:hidden;box-shadow:var(--shadow)}
-.pin-head{display:grid;grid-template-columns:58px 1fr 138px 60px 48px;background:var(--sub);
-  border-bottom:1px solid var(--line);font-size:11.5px;font-weight:600;color:var(--dim)}
+.pin-head{display:grid;grid-template-columns:58px 1fr 142px 62px 48px;background:var(--sub);
+  border-bottom:1px solid var(--line);font-size:12px;font-weight:600;color:var(--dim)}
 .pin-head>div{padding:7px 10px}
 .pin-body{overflow-y:auto;flex-grow:1}
-.pin-sec{padding:10px 10px 6px;font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--dim);
+.pin-sec{padding:11px 10px 7px;font-size:11.5px;font-weight:700;letter-spacing:.08em;color:var(--dim);
   background:var(--sub);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:1}
-.pin-row{display:grid;grid-template-columns:58px 1fr 138px 60px 48px;align-items:center;
-  min-height:36px;cursor:pointer;border-bottom:1px solid var(--line)}
+.pin-row{display:grid;grid-template-columns:58px 1fr 142px 62px 48px;align-items:center;
+  min-height:39px;cursor:pointer;border-bottom:1px solid var(--line)}
 .pin-row:hover{background:var(--sub)}
 .pin-row.on{background:var(--sel);box-shadow:inset 3px 0 0 var(--acc)}
-.pin-c{padding:0 10px;font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums}
-.pin-n{padding:0 10px;font-size:13px}
+.pin-c{padding:0 10px;font-size:12.5px;color:var(--dim);font-variant-numeric:tabular-nums}
+.pin-n{padding:0 10px;font-size:13.5px}
 .pin-v{padding:0 6px}
-.pin-u{padding:0 10px;font-size:12px;color:var(--dim)}
+.pin-u{padding:0 10px;font-size:12.5px;color:var(--dim)}
 .pin-s{padding:0 4px;text-align:center}
 .pin-chip{display:inline-block;padding:2px 7px;border-radius:10px;font-size:10.5px}
 .pin-chip.ok{background:rgba(30,122,68,.12);color:var(--ok)}
@@ -139,7 +147,7 @@ body.rp-open #app,body.rp-open #appBeam{display:none!important}
   padding:11px 13px 12px;box-shadow:var(--shadow)}
 .stat .lb{font-size:10.5px;letter-spacing:.1em;color:var(--dim);font-weight:600;
   text-transform:uppercase}
-.stat .big{font-size:30px;font-weight:700;line-height:1.15;letter-spacing:-.02em;
+.stat .big{font-size:32px;font-weight:700;line-height:1.15;letter-spacing:-.02em;
   font-variant-numeric:tabular-nums;margin-top:2px}
 .stat .cap{font-size:11.5px;color:var(--dim);line-height:1.5}
 .stat .meter{height:5px;border-radius:3px;background:var(--sel);margin-top:8px;overflow:hidden}
@@ -232,7 +240,10 @@ input.src-miss,select.src-miss{border-color:var(--warn);border-style:dashed;
 
 <!-- 標誌（案 1 斷面配筋）：外框＝斷面輪廓，八點＝主筋。
      用 currentColor，所以螢幕上是青色、計算書列印時自動變黑，只維護這一份幾何。 -->
-<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<!-- 尺寸必須寫在 style 裡：全域規則 svg{width:100%;height:auto} 會蓋掉
+     width/height 屬性（CSS 規則優先於 presentation attribute），
+     那會讓這個只放定義的容器被撐成滿版、蓋住整個畫面。 -->
+<svg style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true"><defs>
   <symbol id="logoMark" viewBox="0 0 32 32">
     <rect x="4.2" y="4.2" width="23.6" height="23.6" fill="none"
           stroke="currentColor" stroke-width="2"/>
@@ -244,10 +255,9 @@ input.src-miss,select.src-miss{border-color:var(--warn);border-style:dashed;
   </symbol>
 </defs></svg>
 
-<div id="topbar" class="flex flex-wrap items-center gap-2 px-4 py-3 border-b" style="border-color:var(--line);background:var(--panel)">
-  <svg viewBox="0 0 32 32" width="26" height="26" style="color:var(--acc);flex-shrink:0"
-       role="img" aria-label="RC 斷面設計"><use href="#logoMark"/></svg>
-  <div class="font-extrabold text-[16.5px] tracking-wide">RC 斷面設計</div>
+<div id="topbar" class="flex flex-wrap items-center px-4 py-3 border-b" style="gap:10px;row-gap:8px;border-color:var(--line);background:var(--panel)">
+  <svg class="logo" viewBox="0 0 32 32" role="img" aria-label="RC 斷面設計"><use href="#logoMark"/></svg>
+  <div class="font-extrabold text-[17px] tracking-wide">RC 斷面設計</div>
   <!-- 斷面切換：只有在匯入到 2 個以上斷面時才出現（見 secPicker） -->
   <select id="secPick" style="display:none;width:auto;min-width:170px;font-weight:600"></select>
   <div id="secName" class="text-[13px]" style="color:var(--dim)"></div>
@@ -255,8 +265,8 @@ input.src-miss,select.src-miss{border-color:var(--warn);border-style:dashed;
   <div class="grow"></div>
   <div class="text-[11.5px]" style="color:var(--dim)">土木401 + 公路橋梁耐震規範 ｜ kgf-cm</div>
   <div class="flex gap-1" style="background:var(--sub);border:1px solid var(--line);border-radius:7px;padding:3px">
-    <button id="tabPylon" class="!py-1 !px-3 !border-0" style="background:var(--acc);color:#fff;box-shadow:none">橋塔／柱斷面</button>
-    <button id="tabBeam"  class="!py-1 !px-3 !border-0" style="background:transparent;box-shadow:none">梁斷面</button>
+    <button id="tabPylon" class="!border-0" style="background:var(--acc);color:#fff;box-shadow:none">橋塔／柱斷面</button>
+    <button id="tabBeam"  class="!border-0" style="background:transparent;box-shadow:none">梁斷面</button>
   </div>
   <button id="btnImport" style="background:var(--acc);border-color:var(--acc);color:#fff">從圖說匯入</button>
   <button id="btnTest">內部自測</button>
@@ -1652,7 +1662,7 @@ function buildReport(M){
 
   /* --- 第 1 頁：輸入與圖 --- */
   o.push(`<div class="rp-page">`);
-  o.push(`<div class="rp-h1"><svg viewBox="0 0 32 32" width="26" height="26" style="vertical-align:-5px;margin-right:9px;color:#111"><use href="#logoMark"/></svg>RC 橋塔斷面設計檢核計算書</div>`);
+  o.push(`<div class="rp-h1"><svg class="logo rp-logo" viewBox="0 0 32 32"><use href="#logoMark"/></svg>RC 橋塔斷面設計檢核計算書</div>`);
   o.push(`<div style="font-size:12px;color:#444;margin-bottom:10px">
     依據：混凝土結構設計規範（土木401） + 公路橋梁耐震設計規範 ｜ 單位：kgf, cm（顯示 tf, tf·m）｜
     產生時間：${new Date().toLocaleString('zh-TW')}</div>`);
@@ -2840,7 +2850,7 @@ function buildBeamReport(B){
 
   /* 第 1 頁：斷面與材料 */
   o.push(`<div class="rp-page">`);
-  o.push(`<div class="rp-h1"><svg viewBox="0 0 32 32" width="26" height="26" style="vertical-align:-5px;margin-right:9px;color:#111"><use href="#logoMark"/></svg>RC 梁斷面設計檢核計算書</div>`);
+  o.push(`<div class="rp-h1"><svg class="logo rp-logo" viewBox="0 0 32 32"><use href="#logoMark"/></svg>RC 梁斷面設計檢核計算書</div>`);
   o.push(`<div style="font-size:12px;color:#444;margin-bottom:10px">
     依據：混凝土結構設計規範（土木401）${S.seismic?' + 耐震特殊抗彎構材規定':''}
     ｜ 單位：kgf, cm（顯示 tf, tf·m）｜ 檢核斷面：<b>${pos?'跨中正彎矩（翼緣受壓）':'支承負彎矩（翼緣受拉）'}</b>
