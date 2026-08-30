@@ -1360,7 +1360,7 @@ function svgPM(M,axis,forPrint){
   const L = forPrint ? 100 : 76, Bm = forPrint ? 64 : 52;
   const C = forPrint
     ? {ax:'#000',grid:'#ccc',n:'#888',d:'#000',mc:'#555',pt:'#666',ptc:'#000',txt:'#000',ok:'#000',bad:'#000'}
-    : {ax:'#94a3b8',grid:'#1e293b',n:'#64748b',d:'#38bdf8',mc:'#a78bfa',pt:'#94a3b8',ptc:'#ef4444',txt:'#e6edf7',ok:'#22c55e',bad:'#ef4444'};
+    : {ax:'#3A4652',grid:'#E2E7EC',n:'#8A97A5',d:'#0F5F6B',mc:'#6B4FA8',pt:'#6B7887',ptc:'#B03A2E',txt:'#151C24',ok:'#1E7A44',bad:'#B03A2E'};
 
   // 軸距由「標稱 + 設計 + 載重」決定；圍束曲線僅裁切至圖框內，
   // 否則其高軸壓分支（非設計相關）會把整張圖壓扁。
@@ -1433,7 +1433,7 @@ function svgPM(M,axis,forPrint){
     }else if(isC){                            // 無交點：僅由原點朝載重點畫延伸線
       o.push(`<line x1="${X(0)}" y1="${Y(0)}" x2="${X(mx)}" y2="${Y(py)}" stroke="${C.ptc}" stroke-width="1.1" stroke-dasharray="3 3" opacity=".5"/>`);
     }
-    const R0 = forPrint ? (isC?6.4:5.4) : (isC?8.5:7);
+    const R0 = forPrint ? (isC?11.5:10) : (isC?9.5:8);
     const cx=X(mx), cy=Y(py);
     o.push(`<circle cx="${cx}" cy="${cy}" r="${R0}" fill="${isC?C.ptc:C.pt}" stroke="${forPrint?'#fff':'#FFFFFF'}" stroke-width="1.4"/>`);
     /* 載重點擠在一起時（例如各組合的 M 都很小、只有一組很大），
@@ -1447,11 +1447,11 @@ function svgPM(M,axis,forPrint){
       o.push(`<line x1="${cx+dir[0]*R0}" y1="${cy+dir[1]*R0}" x2="${lx}" y2="${ly}"
         stroke="${isC?C.ptc:C.pt}" stroke-width="1"/>`);
       o.push(`<text x="${lx+dir[0]*2}" y="${ly+3.6*FS}" fill="${isC?C.ptc:C.txt}"
-        font-size="${(10*FS).toFixed(1)}" font-weight="700"
+        font-size="${(11.5*FS).toFixed(1)}" font-weight="700"
         text-anchor="${dir[0]>0?'start':'end'}"
         stroke="${forPrint?'#fff':'#FFFFFF'}" stroke-width="3" paint-order="stroke">${i+1}</text>`);
     }else{
-      o.push(`<text x="${cx}" y="${cy+3.6*FS}" fill="${forPrint?'#fff':'#FFFFFF'}" font-size="${(10*FS).toFixed(1)}" font-weight="700" text-anchor="middle">${i+1}</text>`);
+      o.push(`<text x="${cx}" y="${cy+3.6*FS}" fill="${forPrint?'#fff':'#FFFFFF'}" font-size="${(11.5*FS).toFixed(1)}" font-weight="700" text-anchor="middle">${i+1}</text>`);
     }
   });
   // 圖內對照表（取代逐點標籤，避免重疊）
@@ -2530,7 +2530,7 @@ function svgBeam(B, forPrint){
   const X = x=>W/2 + x*k, Y = y=>cy + (S.h/2 - y)*k;   // y 自底面
   const C = forPrint
     ? {conc:'#dcdcdc',line:'#000',bar:'#000',tie:'#000',txt:'#000',dim:'#333',ann:'#000',annBad:'#000',comp:'#bbb'}
-    : {conc:'#334155',line:'#64748b',bar:'#f8fafc',tie:'#38bdf8',txt:'#e6edf7',dim:'#93a4c2',ann:'#fbbf24',annBad:'#ef4444',comp:'#1e3a5f'};
+    : {conc:'#DCE2E8',line:'#8A97A5',bar:'#151C24',tie:'#0F5F6B',txt:'#151C24',dim:'#5E6B7A',ann:'#8A5A12',annBad:'#B03A2E',comp:'#D6E4EA'};
   const o=[`<svg viewBox="0 0 ${W} ${Hh}" xmlns="http://www.w3.org/2000/svg" font-family="ui-sans-serif,system-ui,sans-serif">`];
   o.push(`<rect width="${W}" height="${Hh}" fill="${forPrint?'#fff':'transparent'}"/>`);
 
@@ -3251,10 +3251,15 @@ function pinRender(mod){
          <div class="pin-s"><span class="pin-chip ${s.state||'ok'}">${esc(s.chip || (s.state==='warn'?'⚠':s.state==='bad'?'✗':'✓'))}</span></div>`);
       if(!show) row.style.display = 'none';
       row.querySelector('.pin-v').appendChild(rec.el);      // 搬移，不重建
-      row.onclick = e => {
-        if(e.target.tagName==='INPUT' || e.target.tagName==='SELECT'){ st.sel = p[0]; pinDetail(mod); pinMarkSel(mod); return; }
+      /* 說明卡改成「游標掃過就顯示」，不必先點選。
+         點選與鍵盤 focus 也保留：觸控裝置沒有 hover。 */
+      const pick = () => {
+        if(st.sel === p[0]) return;          // 同一列就不重畫，避免掃過時閃爍
         st.sel = p[0]; pinDetail(mod); pinMarkSel(mod);
       };
+      row.onmouseenter = pick;
+      row.onclick = pick;
+      row.addEventListener('focusin', pick);
       body.appendChild(row);
     });
   });
@@ -3278,7 +3283,7 @@ function pinDetail(mod){
     : el.value;
   const s = S[r.id] || {};
   const vc = s.state==='bad' ? 'color:var(--bad)' : s.state==='warn' ? 'color:var(--warn)' : '';
-  let h = `<div class="pin-dt">選取的參數</div>
+  let h = `<div class="pin-dt">參數說明（游標指到哪一列就顯示哪一列）</div>
     <div style="display:flex;align-items:baseline;gap:9px">
       <div style="font-size:16px;font-weight:700">${esc(r.name)}</div>
       <div style="font-size:12.5px;color:var(--dim)">${r.code==='—'?'':esc(r.code)}</div>
