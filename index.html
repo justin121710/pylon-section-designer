@@ -152,23 +152,37 @@ body.rp-open #app,body.rp-open #appBeam{display:none!important}
 .imp-foot{display:flex;align-items:center;gap:8px;padding:11px 16px;
   border-top:1px solid var(--line);flex-shrink:0}
 .imp-grow{flex-grow:1}
-.imp-row{display:grid;grid-template-columns:132px 1fr;align-items:center;
-  gap:9px;margin:8px 0;font-size:13px}
+.imp-row{display:grid;grid-template-columns:148px 1fr;align-items:center;
+  gap:11px;margin:11px 0;font-size:13.5px}
 .imp-row>span:first-child{color:var(--dim)}
-.imp-sec{border:1px solid var(--line);border-radius:9px;padding:11px 12px;
-  margin-bottom:11px;background:#0d1526}
-.imp-sec h3{margin:0 0 8px;font-size:13.5px;font-weight:700}
-.imp-tbl{font-size:12.5px}
-.imp-tbl td,.imp-tbl th{padding:3px 7px}
-.imp-note{font-size:12px;line-height:1.7;color:var(--dim)}
-.imp-tag{display:inline-block;font-size:11px;padding:1px 7px;border-radius:999px;
+.imp-sec{border:1px solid var(--line);border-radius:9px;padding:14px 15px;
+  margin-bottom:14px;background:#0d1526}
+.imp-sec h3{margin:0 0 10px;font-size:14.5px;font-weight:700}
+.imp-tbl{font-size:13px}
+.imp-tbl td,.imp-tbl th{padding:6px 9px;vertical-align:middle}
+.imp-note{font-size:12.5px;line-height:1.8;color:var(--dim)}
+.imp-tag{display:inline-block;font-size:11.5px;padding:2px 8px;border-radius:999px;
   border:1px solid var(--line);margin-left:6px;vertical-align:middle}
 .imp-tag.ok{background:rgba(34,197,94,.15);border-color:var(--ok);color:#86efac}
 .imp-tag.warn{background:rgba(245,158,11,.15);border-color:var(--warn);color:#fcd34d}
 .imp-tag.bad{background:rgba(239,68,68,.15);border-color:var(--bad);color:#fca5a5}
 .imp-chk{width:auto;margin:0}
-#impOv input[type=file]{padding:6px}
+#impOv input[type=file]{padding:7px}
 #oNbarChk{margin-left:7px}
+.imp-ed{font-size:13px;padding:4px 7px}
+.imp-miss .imp-ed{border-color:var(--warn);border-style:dashed}
+
+/* 匯入後的來源標記：直接標在主介面的輸入框上 */
+#impBanner{flex-shrink:0;padding:8px 16px;font-size:12.5px;line-height:1.7;
+  background:rgba(56,189,248,.10);border-bottom:1px solid var(--line)}
+.src-key{display:inline-block;width:13px;height:13px;border-radius:3px;
+  vertical-align:-2px;margin-right:4px}
+.src-draw-k{border:2px solid var(--ok);background:rgba(34,197,94,.16)}
+.src-miss-k{border:2px dashed var(--warn);background:rgba(245,158,11,.14)}
+input.src-draw,select.src-draw{border-color:var(--ok);
+  box-shadow:inset 3px 0 0 var(--ok);background:rgba(34,197,94,.07)}
+input.src-miss,select.src-miss{border-color:var(--warn);border-style:dashed;
+  box-shadow:inset 3px 0 0 var(--warn);background:rgba(245,158,11,.07)}
 </style>
 </head>
 <body>
@@ -186,6 +200,8 @@ body.rp-open #app,body.rp-open #appBeam{display:none!important}
   <button id="btnPreview">預覽報告</button>
   <button id="btnPrint" style="background:#0369a1;border-color:#0284c7">列印 / 存成 PDF</button>
 </div>
+
+<div id="impBanner" style="display:none"></div>
 
 <div id="app" class="fallback-grid">
 
@@ -3361,6 +3377,7 @@ function pinStatus(mod, map){
     <div class="imp-foot">
       <span class="imp-note" id="impMsg"></span>
       <div class="imp-grow"></div>
+      <button id="impPrev" style="display:none">回到上次判讀結果</button>
       <button id="impBack" style="display:none">重選圖說</button>
       <button id="impGo" style="background:#065f46;border-color:#059669">開始判讀</button>
       <button id="impApply" style="display:none;background:#1d4ed8;border-color:#2563eb">套用勾選的欄位</button>
@@ -3552,14 +3569,18 @@ function pinStatus(mod, map){
     $('impSetup').style.display=''; $('impResult').style.display='none';
     $('impGo').style.display=''; $('impApply').style.display='none';
     $('impBack').style.display='none';
+    // 判讀結果留在記憶體裡：一張圖有多個斷面時，可以載入其中一個、再回來載另一個，
+    // 不必重新上傳、也不會再花一次額度。
+    $('impPrev').style.display = SECTIONS.length ? '' : 'none';
+    $('impPrev').textContent = '回到上次判讀結果（' + SECTIONS.length + ' 個斷面，不重新呼叫 API）';
     $('impStep').textContent='步驟 1／2：選圖說與金鑰';
     setMsg('');
   }
   function showResult(){
     $('impSetup').style.display='none'; $('impResult').style.display='';
     $('impGo').style.display='none'; $('impApply').style.display='';
-    $('impBack').style.display='';
-    $('impStep').textContent='步驟 2／2：逐欄確認後套用';
+    $('impBack').style.display=''; $('impPrev').style.display='none';
+    $('impStep').textContent='步驟 2／2：逐欄確認後套用（判讀值可直接改）';
   }
 
   function fmt(k, v){
@@ -3588,22 +3609,38 @@ function pinStatus(mod, map){
     const val = k => k === 'barSize' ? bar.v : (k === 'tieSize' ? tie.v : sec[k]);
 
     let rows = '';
-    map.forEach((f, j) => {
+    map.forEach(f => {
       const v = val(f.k);
-      const shown = fmt(f.k, v);
-      const ok = shown !== null && (!$(f.id) || $(f.id).tagName !== 'SELECT' || optExists(f.id, v));
+      const edId = 'ed_'+idx+'_'+f.id;
+      const has = v !== null && v !== undefined && v !== '';
+      const supported = !has || !$(f.id) || $(f.id).tagName !== 'SELECT' || optExists(f.id, v);
+      // 判讀值一律做成可編輯欄位：圖上沒寫的可以自己補，判讀錯的可以當場改
+      let ed;
+      const el = $(f.id);
+      if(el && el.tagName === 'SELECT'){
+        let o = '<option value="">（未填）</option>';
+        Array.from(el.options).forEach(op=>{
+          o += '<option value="'+op.value+'"'
+             + (supported && String(op.value) === String(v) ? ' selected' : '')
+             + '>'+op.textContent+'</option>';
+        });
+        ed = '<select class="imp-ed" id="'+edId+'">'+o+'</select>';
+      }else{
+        ed = '<input class="imp-ed" id="'+edId+'" type="number" step="any" '
+           + 'value="'+(has ? v : '')+'" placeholder="圖上沒寫，可自行填">';
+      }
       let note = '';
       if(f.k === 'barSize') note = sec.barSize_as_drawn ? '圖上寫 '+sec.barSize_as_drawn+'（'+bar.why+'）' : '';
       else if(f.k === 'tieSize') note = sec.tieSize_as_drawn ? '圖上寫 '+sec.tieSize_as_drawn+'（'+tie.why+'）' : '';
-      else if(lc.has(f.k)) note = '<span class="imp-tag warn">低信心</span>';
-      if(shown !== null && !ok) note += '<span class="imp-tag bad">工具不支援此值</span>';
-      rows += '<tr>'
+      if(!has) note += '<span class="imp-tag warn">圖說沒寫</span>';
+      else if(lc.has(f.k)) note += '<span class="imp-tag warn">低信心</span>';
+      if(has && !supported) note += '<span class="imp-tag bad">工具不支援此值，已清空</span>';
+      rows += '<tr'+(has ? '' : ' class="imp-miss"')+'>'
         + '<td style="text-align:center"><input type="checkbox" class="imp-chk imp-f" '
-        +   'data-sec="'+idx+'" data-id="'+f.id+'" data-k="'+f.k+'"'
-        +   (ok ? ' checked' : ' disabled') + '></td>'
-        + '<td class="l">'+f.label+'</td>'
-        + '<td class="l">'+(shown === null ? '<span style="color:var(--dim)">（圖上沒有）</span>'
-                                           : shown+(f.u ? ' '+f.u : ''))+'</td>'
+        +   'data-sec="'+idx+'" data-id="'+f.id+'" data-ed="'+edId+'"'
+        +   (has && supported ? ' checked' : '') + '></td>'
+        + '<td class="l">'+f.label+(f.u ? ' <span style="color:var(--dim)">('+f.u+')</span>' : '')+'</td>'
+        + '<td class="l">'+ed+'</td>'
         + '<td class="l" style="color:var(--dim)">'+curOf(f.id)+'</td>'
         + '<td class="l imp-note">'+note+'</td></tr>';
     });
@@ -3661,6 +3698,18 @@ function pinStatus(mod, map){
     $('impResult').querySelectorAll('.imp-target').forEach(t=>{
       t.onchange = function(){ TARGETS[+this.dataset.sec] = this.value; renderResult(null); };
     });
+    // 使用者一動判讀值就自動勾選那一列（含圖說沒寫、自己補上的欄位）
+    $('impResult').querySelectorAll('.imp-f').forEach(b=>{
+      const ed = $(b.dataset.ed);
+      if(!ed) return;
+      const sync = ()=>{
+        const v = String(ed.value).trim();
+        b.checked = v !== '';
+        ed.closest('tr').classList.toggle('imp-miss', v === '');
+      };
+      ed.addEventListener('input', sync);
+      ed.addEventListener('change', sync);
+    });
     showResult();
   }
 
@@ -3669,25 +3718,79 @@ function pinStatus(mod, map){
     const boxes = Array.from(document.querySelectorAll('.imp-f:checked'));
     if(!boxes.length){ setMsg('沒有勾選任何欄位','warn'); return; }
     let nP = 0, nB = 0, drawTotal = null;
+    const filled = [], missing = [];
 
     boxes.forEach(b=>{
       const i = +b.dataset.sec, sec = SECTIONS[i], isBeam = TARGETS[i] === 'beam';
-      let v;
-      if(b.dataset.k === 'barSize')      v = normBar(sec.barSize_as_drawn, b.dataset.id).v;
-      else if(b.dataset.k === 'tieSize') v = normBar(sec.tieSize_as_drawn, b.dataset.id).v;
-      else                               v = sec[b.dataset.k];
-      if(v === null || v === undefined) return;
-      const el = $(b.dataset.id);
-      if(!el) return;
+      const ed = $(b.dataset.ed), el = $(b.dataset.id);
+      if(!ed || !el) return;
+      const v = String(ed.value).trim();
+      if(v === '') return;
       if(el.tagName === 'SELECT' && !optExists(b.dataset.id, v)) return;
-      el.value = String(v);
+      el.value = v;
+      filled.push(el);
       if(isBeam) nB++; else { nP++; if(sec.n_bars_total) drawTotal = sec.n_bars_total; }
     });
 
+    // 沒帶進來的欄位在主介面標出來，讓人一眼看到「這格不是圖說給的」
+    document.querySelectorAll('.imp-f').forEach(b=>{
+      const ed = $(b.dataset.ed), el = $(b.dataset.id);
+      if(!ed || !el || filled.indexOf(el) >= 0) return;
+      if(String(ed.value).trim() !== '') return;
+      mark(el, 'miss'); missing.push(el);
+    });
+
     window.__drawNbars = drawTotal;
-    if(nP && typeof render === 'function'){ $('tabPylon').click(); }
-    else if(nB && typeof renderBeam === 'function'){ $('tabBeam').click(); }
+    // 這個 app 的更新是綁在 input/change 上的，直接寫 .value 不會觸發；
+    // 而且兩個模組各自有自己的 render，只切一個分頁會讓另一個停在舊結果。
+    filled.forEach(el=>{
+      el.dispatchEvent(new Event('input', {bubbles:true}));
+      el.dispatchEvent(new Event('change', {bubbles:true}));
+    });
+    // 標記要在派發事件之後：mark() 綁的清除器就是掛在 input/change 上，
+    // 先標記會被自己派發的事件立刻清掉。
+    filled.forEach(el=>mark(el, 'from'));
+    if(nP && typeof render === 'function') render();
+    if(nB && typeof renderBeam === 'function') renderBeam();
+    banner(nP, nB, missing);
+    if(nP) $('tabPylon').click(); else if(nB) $('tabBeam').click();
     close();
+  }
+
+  /* ---- 主介面上的來源標記 ---- */
+  function mark(el, how){
+    el.classList.remove('src-draw','src-miss');
+    el.classList.add(how === 'from' ? 'src-draw' : 'src-miss');
+    if(!el.dataset.srcBound){
+      el.dataset.srcBound = '1';
+      const clear = ()=>{ el.classList.remove('src-draw','src-miss'); };
+      el.addEventListener('input', clear);   // 使用者一動就不再是「圖說來的」
+      el.addEventListener('change', clear);
+    }
+  }
+  function labelOf(id){
+    for(const f of MAP_P) if(f.id === id) return '柱／'+f.label;
+    for(const f of MAP_B) if(f.id === id) return '梁／'+f.label;
+    return id;
+  }
+  function banner(nP, nB, missing){
+    const el = $('impBanner');
+    if(!el) return;
+    if(!nP && !nB){ el.style.display='none'; return; }
+    const names = missing.map(m=>labelOf(m.id));
+    el.style.display = '';
+    el.innerHTML =
+      '<b>本次由圖說帶入 '+(nP+nB)+' 欄</b>'
+      + (nP&&nB ? '（柱模組 '+nP+'、梁模組 '+nB+'）' : '')
+      + '　<span class="src-key src-draw-k"></span>綠框＝圖說帶入'
+      + '　<span class="src-key src-miss-k"></span>黃框＝<b>圖說未提供，須自行確認</b>'
+      + (names.length ? '：'+names.join('、') : '')
+      + '　<button id="impBannerX" style="padding:2px 9px;font-size:12px">知道了</button>';
+    $('impBannerX').onclick = ()=>{
+      el.style.display='none';
+      document.querySelectorAll('.src-draw,.src-miss')
+              .forEach(x=>x.classList.remove('src-draw','src-miss'));
+    };
   }
 
   /* ---- 總支數比對徽章（render() 每次會呼叫）---- */
@@ -3757,6 +3860,7 @@ function pinStatus(mod, map){
   $('btnImport').onclick = open;
   $('impClose').onclick  = close;
   $('impBack').onclick   = showSetup;
+  $('impPrev').onclick   = function(){ if(SECTIONS.length) renderResult(null); };
   $('impGo').onclick     = go;
   $('impApply').onclick  = applyChecked;
   $('impForget').onclick = function(){
