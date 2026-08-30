@@ -137,6 +137,38 @@ body.rp-open #app,body.rp-open #appBeam{display:none!important}
 .rp-eq .katex-display>.katex{text-align:left;white-space:normal}
 .rp-note{font-size:11.5px;color:#444;margin:4px 0 4px 14px;line-height:1.6}
 .rp-fig{border:1px solid #999;padding:6px;margin:8px 0;background:#fff}
+
+/* ---- 從圖說匯入（自帶規則，不依賴 Tailwind，斷網也不會垮）---- */
+#impOv{position:fixed;inset:0;background:rgba(3,7,18,.74);z-index:60;
+  display:none;align-items:center;justify-content:center;padding:20px}
+#impOv.open{display:flex}
+.imp-dlg{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+  width:min(1000px,100%);max-height:90vh;display:flex;flex-direction:column;
+  box-shadow:0 18px 60px rgba(0,0,0,.55)}
+.imp-head{display:flex;align-items:center;gap:10px;padding:12px 16px;
+  border-bottom:1px solid var(--line);flex-shrink:0}
+.imp-head b{font-size:15px}
+.imp-body{padding:14px 16px;overflow-y:auto;min-height:0;flex-grow:1}
+.imp-foot{display:flex;align-items:center;gap:8px;padding:11px 16px;
+  border-top:1px solid var(--line);flex-shrink:0}
+.imp-grow{flex-grow:1}
+.imp-row{display:grid;grid-template-columns:132px 1fr;align-items:center;
+  gap:9px;margin:8px 0;font-size:13px}
+.imp-row>span:first-child{color:var(--dim)}
+.imp-sec{border:1px solid var(--line);border-radius:9px;padding:11px 12px;
+  margin-bottom:11px;background:#0d1526}
+.imp-sec h3{margin:0 0 8px;font-size:13.5px;font-weight:700}
+.imp-tbl{font-size:12.5px}
+.imp-tbl td,.imp-tbl th{padding:3px 7px}
+.imp-note{font-size:12px;line-height:1.7;color:var(--dim)}
+.imp-tag{display:inline-block;font-size:11px;padding:1px 7px;border-radius:999px;
+  border:1px solid var(--line);margin-left:6px;vertical-align:middle}
+.imp-tag.ok{background:rgba(34,197,94,.15);border-color:var(--ok);color:#86efac}
+.imp-tag.warn{background:rgba(245,158,11,.15);border-color:var(--warn);color:#fcd34d}
+.imp-tag.bad{background:rgba(239,68,68,.15);border-color:var(--bad);color:#fca5a5}
+.imp-chk{width:auto;margin:0}
+#impOv input[type=file]{padding:6px}
+#oNbarChk{margin-left:7px}
 </style>
 </head>
 <body>
@@ -149,6 +181,7 @@ body.rp-open #app,body.rp-open #appBeam{display:none!important}
     <button id="tabPylon" class="!py-1 !px-3 !border-0" style="background:#1d4ed8">橋塔／柱斷面</button>
     <button id="tabBeam"  class="!py-1 !px-3 !border-0" style="background:transparent">梁斷面</button>
   </div>
+  <button id="btnImport" style="background:#065f46;border-color:#059669">從圖說匯入</button>
   <button id="btnTest">內部自測</button>
   <button id="btnPreview">預覽報告</button>
   <button id="btnPrint" style="background:#0369a1;border-color:#0284c7">列印 / 存成 PDF</button>
@@ -203,7 +236,7 @@ body.rp-open #app,body.rp-open #appBeam{display:none!important}
       <div class="fld" id="rowDbl"><span>內層同配置</span>
         <select id="dbl"><option value="1">是（雙層）</option><option value="0">否（單層）</option></select></div>
       <div class="text-[11.5px] mt-1" style="color:var(--dim)">
-        總根數 <b id="oNbar" class="mono">—</b> ｜ A<sub>st</sub> = <b id="oAst" class="mono">—</b> cm²
+        總根數 <b id="oNbar" class="mono">—</b><span id="oNbarChk"></span> ｜ A<sub>st</sub> = <b id="oAst" class="mono">—</b> cm²
         ｜ A<sub>g</sub> = <b id="oAg" class="mono">—</b> cm² ｜ ρ<sub>g</sub> = <b id="oRho" class="mono">—</b> %
       </div>
     </div>
@@ -1348,6 +1381,7 @@ function render(){
   document.getElementById('oMPa').textContent=f(M.m.fc*0.0980665,1);
   document.getElementById('oEty').textContent=f(M.m.ety,5);
   document.getElementById('oNbar').textContent=M.R.bars.length;
+  if(window.updateNbarChk) window.updateNbarChk(M.R.bars.length);   // 圖說匯入的總支數比對
   document.getElementById('oAst').textContent=f(M.Ast,1);
   document.getElementById('oAg').textContent=f(M.Ag,0);
   document.getElementById('oRho').textContent=f(M.chk.rho,3);
@@ -3276,6 +3310,463 @@ function pinStatus(mod, map){
 
   applyBPreset('deckT');
   setTab('pylon');
+})();
+</script>
+
+<!-- ===================== 從圖說匯入 ===================== -->
+<div id="impOv">
+  <div class="imp-dlg">
+    <div class="imp-head">
+      <b>從圖說匯入</b>
+      <span class="imp-note" id="impStep">步驟 1／2：選圖說與金鑰</span>
+      <div class="imp-grow"></div>
+      <button id="impClose">關閉</button>
+    </div>
+
+    <div class="imp-body">
+      <div id="impSetup">
+        <div class="imp-row">
+          <span>圖說檔案</span>
+          <input type="file" id="impFile" accept="image/png,image/jpeg,image/webp,application/pdf">
+        </div>
+        <div class="imp-row">
+          <span>Gemini API 金鑰</span>
+          <input type="password" id="impKey" placeholder="貼上你的 API key" autocomplete="off">
+        </div>
+        <div class="imp-row">
+          <span>模型</span>
+          <select id="impModel">
+            <option value="gemini-3.1-pro-preview">gemini-3.1-pro-preview（判讀圖說用這個）</option>
+            <option value="gemini-2.5-pro">gemini-2.5-pro</option>
+            <option value="gemini-3.7-flash">gemini-3.7-flash（快，但沒驗證過）</option>
+          </select>
+        </div>
+        <div class="imp-row"><span></span>
+          <label class="imp-note"><input type="checkbox" id="impRemember" class="imp-chk" checked>
+            把金鑰記在這台瀏覽器（localStorage）　<button id="impForget" style="padding:2px 8px;font-size:11.5px">清除已存金鑰</button></label>
+        </div>
+        <div class="alert a-info imp-note" style="margin-top:12px">
+          <b>這個功能會做什麼：</b>把圖檔上傳到 Google Gemini API，讀出斷面尺寸、保護層、
+          鋼筋號數與<b>主筋總支數</b>，讓你逐欄勾選後填進參數表。<br>
+          <b>不會做什麼：</b>不碰計算。所有數值都要你自己過目再套用；
+          <b>單面根數 n<sub>B</sub> / n<sub>H</sub> 一律不自動填</b>——實測顯示模型會從總支數
+          反推一個對稱解並宣稱「我數過了」，17 次只對 7 次。套用後工具會在「總根數」
+          旁顯示與圖說的比對，你自己調到相符為止。
+        </div>
+      </div>
+
+      <div id="impResult" style="display:none"></div>
+    </div>
+
+    <div class="imp-foot">
+      <span class="imp-note" id="impMsg"></span>
+      <div class="imp-grow"></div>
+      <button id="impBack" style="display:none">重選圖說</button>
+      <button id="impGo" style="background:#065f46;border-color:#059669">開始判讀</button>
+      <button id="impApply" style="display:none;background:#1d4ed8;border-color:#2563eb">套用勾選的欄位</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =========================================================================
+   從圖說匯入：圖檔 -> Gemini -> 參數表
+   設計依據（spike 實測，見 spike-section-ocr/README.md）：
+   - 圖上「有寫」的東西（尺寸、保護層、D 號、總支數）判讀 100%、幻覺 0%。
+   - 需要用眼睛「數」的 nB/nH 只有 41% 正確，且會反推後宣稱數過 -> 一律不匯入。
+   - 號數換算不交給模型：模型只照抄圖上原文，D 號 -> 井字號在這裡查表。
+   ========================================================================= */
+(function(){
+  const $ = id => document.getElementById(id);
+  const D2H = {10:'#3',13:'#4',16:'#5',19:'#6',22:'#7',25:'#8',
+               29:'#9',32:'#10',36:'#11',43:'#14',57:'#18'};
+  const KEYLS = 'pylon_gemini_key';
+  let SECTIONS = [], TARGETS = [], SHEET = {};
+
+  /* ---- 號數換算（與 spike.py 的 norm_bar 同一套規則）---- */
+  function normBar(raw, selId){
+    if(!raw) return {v:null, why:'圖上沒寫'};
+    const s = String(raw).trim().toUpperCase().replace(/[Φφ]/g,'D');
+    let m = s.match(/#\s*(\d+)/);
+    if(m){
+      const h = '#'+m[1];
+      return optExists(selId,h) ? {v:h, why:'原文已是井字號'}
+                                : {v:null, why:'井字號 '+h+' 不在工具支援清單'};
+    }
+    m = s.match(/D\s*(\d+)/) || s.match(/(\d+)\s*MM/);
+    if(m){
+      const d = parseInt(m[1],10), h = D2H[d];
+      if(!h){
+        let near = null;
+        Object.keys(D2H).forEach(k=>{ if(near===null||Math.abs(k-d)<Math.abs(near-d)) near=+k; });
+        return {v:null, why:'D'+d+' 不是 CNS 560 標稱直徑（最接近 D'+near+'='+D2H[near]+'）'};
+      }
+      return optExists(selId,h) ? {v:h, why:'D'+d+' → '+h}
+                                : {v:null, why:'D'+d+' → '+h+'，但不在工具支援清單'};
+    }
+    return {v:null, why:'看不懂的號數寫法：'+raw};
+  }
+  function optExists(selId, val){
+    const el = $(selId);
+    if(!el || !el.options) return false;
+    return Array.from(el.options).some(o => o.value === String(val));
+  }
+
+  /* ---- 欄位對照：抽取欄位 -> 工具的 input id ---- */
+  const MAP_P = [
+    {k:'secType', id:'secType', label:'斷面型式'},
+    {k:'B',  id:'B',  label:'外寬 B',  u:'cm'},
+    {k:'H',  id:'H',  label:'外高 H',  u:'cm'},
+    {k:'tw', id:'tw', label:'壁厚 t_w', u:'cm'},
+    {k:'covO', id:'covO', label:'外側保護層', u:'cm'},
+    {k:'covI', id:'covI', label:'內側保護層', u:'cm'},
+    {k:'fc',  id:'fc',  label:"混凝土 f'c", u:'kgf/cm²'},
+    {k:'fy',  id:'fy',  label:'主筋 f_y',   u:'kgf/cm²'},
+    {k:'fyt', id:'fyt', label:'橫向筋 f_yt', u:'kgf/cm²'},
+    {k:'barSize', id:'barSize', label:'主筋號數'},
+    {k:'dbl', id:'dbl', label:'內層同配置'},
+    {k:'tieSize', id:'tieSize', label:'箍筋號數'}
+  ];
+  const MAP_B = [
+    {k:'B', id:'bw', label:'腹板寬 b_w', u:'cm'},
+    {k:'H', id:'bh', label:'全深 h', u:'cm'},
+    {k:'covO', id:'bCover', label:'保護層', u:'cm'},
+    {k:'fc',  id:'bfc',  label:"混凝土 f'c", u:'kgf/cm²'},
+    {k:'fy',  id:'bfy',  label:'主筋 f_y', u:'kgf/cm²'},
+    {k:'fyt', id:'bfyt', label:'箍筋 f_yt', u:'kgf/cm²'},
+    {k:'barSize', id:'bBotSize', label:'下層主筋號數'},
+    {k:'barSize', id:'bTopSize', label:'上層主筋號數'},
+    {k:'tieSize', id:'bTieSize', label:'箍筋號數'}
+  ];
+
+  const SCHEMA_SEC = {
+    type:'OBJECT',
+    properties:{
+      name:{type:'STRING',nullable:true},
+      member_type:{type:'STRING',enum:['column','pier','pylon','beam','wall','other'],nullable:true},
+      secType:{type:'STRING',enum:['box','solid'],nullable:true},
+      B:{type:'NUMBER',nullable:true}, H:{type:'NUMBER',nullable:true},
+      tw:{type:'NUMBER',nullable:true},
+      covO:{type:'NUMBER',nullable:true}, covI:{type:'NUMBER',nullable:true},
+      fc:{type:'NUMBER',nullable:true}, fy:{type:'NUMBER',nullable:true},
+      fyt:{type:'NUMBER',nullable:true},
+      barSize_as_drawn:{type:'STRING',nullable:true},
+      bars_note_as_drawn:{type:'STRING',nullable:true},
+      n_bars_total:{type:'INTEGER',nullable:true},
+      n_bars_source:{type:'STRING',enum:['圖上標註','自行點數','無法判定'],nullable:true},
+      dbl:{type:'STRING',enum:['1','0'],nullable:true},
+      tieSize_as_drawn:{type:'STRING',nullable:true},
+      tie_spacing_cm:{type:'NUMBER',nullable:true},
+      low_confidence:{type:'ARRAY',items:{type:'STRING'}},
+      evidence:{type:'STRING',nullable:true}
+    },
+    required:['name','member_type','secType','B','H','tw','covO','covI','fc','fy','fyt',
+              'barSize_as_drawn','bars_note_as_drawn','n_bars_total','n_bars_source',
+              'dbl','tieSize_as_drawn','low_confidence','evidence']
+  };
+  const SCHEMA = {type:'OBJECT',
+    properties:{sections:{type:'ARRAY',items:SCHEMA_SEC},
+                sheet_note:{type:'STRING',nullable:true},
+                unit_note:{type:'STRING',nullable:true}},
+    required:['sections','sheet_note','unit_note']};
+
+  const PROMPT = `你是結構工程師，正在判讀一張鋼筋混凝土（RC）結構圖說，
+目的是把圖上的斷面資訊填進一支 P-M 互制設計工具的輸入欄位。
+
+## 一張圖可能有多個斷面
+這種圖說常常同時畫了好幾個斷面（例如「橋柱斷面」和「繫梁斷面」），
+旁邊可能還有立面圖、鋼筋計算表、鋼筋彎紮表。
+請為「每一個有明確標題的斷面」各輸出一筆 sections 元素，name 填圖上的中文標題原文。
+立面圖、平面圖、配置圖、鋼筋計算表本身不是斷面，不要當成一筆。
+
+最重要的一條：不同斷面的資料絕對不可以互相混用。
+「橋柱斷面」的主筋不可以填成「繫梁斷面」的主筋。每一筆只看它自己那張小圖
+和它自己的引線標註（圓圈編號 -> 該斷面旁邊的文字）。
+
+## 單位
+長度一律換算成 cm，強度一律換算成 kgf/cm2。
+圖上若標 mm 則除以 10；材料強度若標 MPa 則乘 10.197（例：f'c 28 MPa -> 285）。
+在 unit_note 說明原圖用什麼單位、你做了什麼換算。
+
+## 鋼筋號數：照抄，不要自己換算
+- barSize_as_drawn: 主筋在圖上寫的原文，例如 "D32"、"#10"、"φ32"、"32mm"。照抄就好。
+- tieSize_as_drawn: 箍筋／橫向筋在圖上寫的原文，例如 "D13@20cm" 就填 "D13"。
+- 台灣圖說最常見的是 D 號（D13 / D19 / D22 / D25 / D29 / D32 / D36）。
+- 引線標註常寫成「⑤D32-24支」= 編號⑤、D32、共 24 支。
+  這時 barSize_as_drawn = "D32"，bars_note_as_drawn = "⑤D32-24支"，n_bars_total = 24。
+- 「⑥D13@20cm」= 箍筋 D13、間距 20 cm。
+  這時 tieSize_as_drawn = "D13"，tie_spacing_cm = 20。
+
+## 欄位定義
+- name: 該斷面在圖上的標題原文（如「橋柱斷面」）。沒有標題就描述位置。
+- member_type: 柱/墩柱=column 或 pier，橋塔=pylon，梁（含繫梁、橫梁）=beam，牆=wall，其他=other。
+- secType: "box" = 中空箱型（斷面中間有空心區）；"solid" = 實心矩形。
+- B: 斷面外寬（水平方向，cm）。H: 斷面外高（垂直方向，cm）。
+- tw: 中空箱型的壁厚（cm）。實心斷面填 null。
+- covO: 外側保護層（cm）。圖上常寫在斷面標題下方的備註，例如「備註：保護層7.5公分」。
+- covI: 內側（中空面）保護層。實心斷面填 null。
+- fc: 混凝土抗壓強度 f'c。fy: 主筋降伏強度。fyt: 橫向筋降伏強度。
+- bars_note_as_drawn: 主筋那條引線標註的完整原文，例如 "⑤D32-24支"。沒有就填 null。
+- n_bars_total: 主筋總根數。
+  優先順序：圖上有寫就照抄（「D32-24支」就是 24），這是最可靠的來源。
+  圖上完全沒寫，才自己逐一點數斷面圖上的鋼筋點。
+- n_bars_source: 上面那個數字怎麼來的。照抄圖上文字 -> "圖上標註"；
+  自己數的 -> "自行點數"；數不出來 -> "無法判定"。這一欄必須誠實。
+- dbl: 是否有內層主筋（雙層配筋）。有填 "1"，只有單層填 "0"。
+- tie_spacing_cm: 箍筋間距（cm）。圖上沒寫就填 null。
+
+## 絕對規則
+1. 看不到、圖上沒有的資訊一律填 null，並把欄位名放進 low_confidence。
+   嚴禁猜測，嚴禁套用「常見值」或「工程慣例值」。
+   這是結構設計的輸入，猜錯會導致錯誤的設計。
+   特別注意：圖上沒標混凝土強度就是 null，不可以因為「橋梁常用 280」就填 280。
+2. 有看到但不確定（字跡模糊、鋼筋重疊數不清）：填最佳判讀值，
+   同時把欄位名放進 low_confidence。
+3. 嚴禁反推。不可以用對稱性、平均間距或任何算式去「推算」一個
+   你沒有真正讀到或數到的數字，也不可以把推算出來的結果描述成「我數過了」。
+   數不出來就是 n_bars_source = "無法判定"、n_bars_total = null。
+   寧可回答不知道，也不要給一個看起來合理的錯數字。
+4. evidence 用中文簡述這一筆的關鍵數字各是從圖上哪裡讀到的。
+
+只輸出 JSON。`;
+
+  /* ---------------- UI ---------------- */
+  function setMsg(t, cls){
+    const m = $('impMsg');
+    m.innerHTML = t ? (cls ? '<span class="imp-tag '+cls+'">'+t+'</span>' : t) : '';
+  }
+  /* localStorage 在無痕模式／瀏覽器封鎖站台儲存時會直接丟例外，
+     不包起來會讓整個對話框開到一半就死掉（看起來像「按了沒反應」）。 */
+  function lsGet(){ try{ return localStorage.getItem(KEYLS); }catch(e){ return null; } }
+  function lsSet(v){ try{ localStorage.setItem(KEYLS, v); return true; }catch(e){ return false; } }
+  function lsDel(){ try{ localStorage.removeItem(KEYLS); return true; }catch(e){ return false; } }
+
+  function open(){
+    $('impOv').classList.add('open');
+    const k = lsGet();
+    if(k) $('impKey').value = k;
+    showSetup();
+  }
+  function close(){ $('impOv').classList.remove('open'); }
+  function showSetup(){
+    $('impSetup').style.display=''; $('impResult').style.display='none';
+    $('impGo').style.display=''; $('impApply').style.display='none';
+    $('impBack').style.display='none';
+    $('impStep').textContent='步驟 1／2：選圖說與金鑰';
+    setMsg('');
+  }
+  function showResult(){
+    $('impSetup').style.display='none'; $('impResult').style.display='';
+    $('impGo').style.display='none'; $('impApply').style.display='';
+    $('impBack').style.display='';
+    $('impStep').textContent='步驟 2／2：逐欄確認後套用';
+  }
+
+  function fmt(k, v){
+    if(v === null || v === undefined || v === '') return null;
+    if(k === 'secType') return v === 'box' ? '中空箱型' : '實心矩形';
+    if(k === 'dbl')     return v === '1' ? '是（雙層）' : '否（單層）';
+    return String(v);
+  }
+  function curOf(id){
+    const el = $(id);
+    if(!el) return '—';
+    if(el.tagName === 'SELECT'){
+      const o = el.options[el.selectedIndex];
+      return o ? o.textContent : el.value;
+    }
+    return el.value;
+  }
+
+  /* ---- 把一個斷面畫成可勾選的比對表 ---- */
+  function secCard(sec, idx){
+    const isBeam = TARGETS[idx] === 'beam';
+    const map = isBeam ? MAP_B : MAP_P;
+    const lc = new Set(sec.low_confidence || []);
+    const bar = normBar(sec.barSize_as_drawn, isBeam ? 'bBotSize' : 'barSize');
+    const tie = normBar(sec.tieSize_as_drawn, isBeam ? 'bTieSize' : 'tieSize');
+    const val = k => k === 'barSize' ? bar.v : (k === 'tieSize' ? tie.v : sec[k]);
+
+    let rows = '';
+    map.forEach((f, j) => {
+      const v = val(f.k);
+      const shown = fmt(f.k, v);
+      const ok = shown !== null && (!$(f.id) || $(f.id).tagName !== 'SELECT' || optExists(f.id, v));
+      let note = '';
+      if(f.k === 'barSize') note = sec.barSize_as_drawn ? '圖上寫 '+sec.barSize_as_drawn+'（'+bar.why+'）' : '';
+      else if(f.k === 'tieSize') note = sec.tieSize_as_drawn ? '圖上寫 '+sec.tieSize_as_drawn+'（'+tie.why+'）' : '';
+      else if(lc.has(f.k)) note = '<span class="imp-tag warn">低信心</span>';
+      if(shown !== null && !ok) note += '<span class="imp-tag bad">工具不支援此值</span>';
+      rows += '<tr>'
+        + '<td style="text-align:center"><input type="checkbox" class="imp-chk imp-f" '
+        +   'data-sec="'+idx+'" data-id="'+f.id+'" data-k="'+f.k+'"'
+        +   (ok ? ' checked' : ' disabled') + '></td>'
+        + '<td class="l">'+f.label+'</td>'
+        + '<td class="l">'+(shown === null ? '<span style="color:var(--dim)">（圖上沒有）</span>'
+                                           : shown+(f.u ? ' '+f.u : ''))+'</td>'
+        + '<td class="l" style="color:var(--dim)">'+curOf(f.id)+'</td>'
+        + '<td class="l imp-note">'+note+'</td></tr>';
+    });
+
+    const n = sec.n_bars_total;
+    const srcOk = sec.n_bars_source === '圖上標註';
+    let barsBlock = '<div class="imp-note" style="margin-top:9px">'
+      + '<b>主筋總支數：</b>'
+      + (n ? n+' 支 <span class="imp-tag '+(srcOk?'ok':'warn')+'">來源：'+(sec.n_bars_source||'?')+'</span>'
+           : '<span class="imp-tag bad">判讀不出來</span>')
+      + (sec.bars_note_as_drawn ? '　圖上原文：'+sec.bars_note_as_drawn : '')
+      + (n && !srcOk ? '<br>這個數字不是照抄圖上文字，是模型自己數的，<b>務必自己再數一次</b>。' : '')
+      + (n ? '<br>單面根數 n<sub>B</sub> / n<sub>H</sub> <b>不會自動填</b>，'
+            + '套用後請自行輸入，需滿足 2×(n<sub>B</sub>+n<sub>H</sub>)−4 = '+n
+            + '，工具會在「總根數」旁即時比對。'
+            + '<br><b>但總數相符不等於配置正確</b>——同一個總數有多組解'
+            + '（例如 24 支可以是 7/7 也可以是 8/6），'
+            + '請對照圖面數一次上下面與左右面各幾根。' : '')
+      + '</div>';
+
+    const tgt = '<div class="imp-row" style="margin-top:9px"><span>套用到</span>'
+      + '<select class="imp-target" data-sec="'+idx+'">'
+      + '<option value="pylon"'+(isBeam?'':' selected')+'>橋塔／柱斷面模組</option>'
+      + '<option value="beam"'+(isBeam?' selected':'')+'>梁斷面模組</option>'
+      + '</select></div>'
+      + '<div class="imp-note">圖上判定為 <b>'+(sec.member_type||'?')
+      + '</b>；改這個下拉會換成該模組的欄位對照。</div>';
+
+    return '<div class="imp-sec">'
+      + '<h3>'+(sec.name||'（未命名斷面）')
+      + '<span class="imp-tag">'+(sec.member_type||'?')+'</span></h3>'
+      + '<table class="imp-tbl"><thead><tr>'
+      + '<th style="width:34px">套用</th><th class="l">參數</th>'
+      + '<th class="l">圖說判讀值</th><th class="l">目前值</th><th class="l">說明</th>'
+      + '</tr></thead><tbody>'+rows+'</tbody></table>'
+      + barsBlock + tgt
+      + '<div class="imp-note" style="margin-top:8px"><b>判讀依據：</b>'
+      + (sec.evidence||'')+'</div>'
+      + '</div>';
+  }
+
+  function renderResult(res){
+    if(res){
+      SECTIONS = res.sections || [];
+      SHEET = res;
+      TARGETS = SECTIONS.map(s => s.member_type === 'beam' ? 'beam' : 'pylon');
+    }
+    let h = '';
+    if(SHEET.sheet_note) h += '<div class="imp-note" style="margin-bottom:9px"><b>整張圖：</b>'+SHEET.sheet_note+'</div>';
+    if(SHEET.unit_note)  h += '<div class="imp-note" style="margin-bottom:11px"><b>單位：</b>'+SHEET.unit_note+'</div>';
+    if(!SECTIONS.length) h += '<div class="alert a-warn">這張圖判讀不出任何斷面。</div>';
+    SECTIONS.forEach((s,i)=>{ h += secCard(s,i); });
+    $('impResult').innerHTML = h;
+    // 切換「套用到」要換成該模組的欄位對照，所以重畫整張結果
+    $('impResult').querySelectorAll('.imp-target').forEach(t=>{
+      t.onchange = function(){ TARGETS[+this.dataset.sec] = this.value; renderResult(null); };
+    });
+    showResult();
+  }
+
+  /* ---- 套用 ---- */
+  function applyChecked(){
+    const boxes = Array.from(document.querySelectorAll('.imp-f:checked'));
+    if(!boxes.length){ setMsg('沒有勾選任何欄位','warn'); return; }
+    let nP = 0, nB = 0, drawTotal = null;
+
+    boxes.forEach(b=>{
+      const i = +b.dataset.sec, sec = SECTIONS[i], isBeam = TARGETS[i] === 'beam';
+      let v;
+      if(b.dataset.k === 'barSize')      v = normBar(sec.barSize_as_drawn, b.dataset.id).v;
+      else if(b.dataset.k === 'tieSize') v = normBar(sec.tieSize_as_drawn, b.dataset.id).v;
+      else                               v = sec[b.dataset.k];
+      if(v === null || v === undefined) return;
+      const el = $(b.dataset.id);
+      if(!el) return;
+      if(el.tagName === 'SELECT' && !optExists(b.dataset.id, v)) return;
+      el.value = String(v);
+      if(isBeam) nB++; else { nP++; if(sec.n_bars_total) drawTotal = sec.n_bars_total; }
+    });
+
+    window.__drawNbars = drawTotal;
+    if(nP && typeof render === 'function'){ $('tabPylon').click(); }
+    else if(nB && typeof renderBeam === 'function'){ $('tabBeam').click(); }
+    close();
+  }
+
+  /* ---- 總支數比對徽章（render() 每次會呼叫）---- */
+  window.updateNbarChk = function(actual){
+    const el = $('oNbarChk'); if(!el) return;
+    const t = window.__drawNbars;
+    if(!t){ el.innerHTML=''; return; }
+    const d = actual - t;
+    // 注意：總數相符不代表配置正確——2(nB+nH)−4 有多組解（7/7 與 8/6 同為 24），
+    // 這正是判讀模型被騙的地方。徽章只能查總數，配置仍須對照圖面。
+    el.innerHTML = d === 0
+      ? '<span class="imp-tag ok" title="總數相符。但同一個總數有多組 nB/nH 解，配置仍須對照圖面確認">'
+        + '圖說 '+t+' 支 ✓ 總數相符</span>'
+      : '<span class="imp-tag bad">圖說 '+t+' 支（目前差 '+(d>0?'+':'')+d+'）</span>';
+  };
+
+  /* ---- 呼叫 API ---- */
+  function toB64(file){
+    return new Promise((res,rej)=>{
+      const r = new FileReader();
+      r.onload = ()=>res(String(r.result).split(',')[1]);
+      r.onerror = ()=>rej(new Error('讀檔失敗'));
+      r.readAsDataURL(file);
+    });
+  }
+
+  async function go(){
+    const f = $('impFile').files[0];
+    const key = $('impKey').value.trim();
+    if(!f){ setMsg('請先選一個圖檔','warn'); return; }
+    if(!key){ setMsg('請填 API 金鑰','warn'); return; }
+    if(f.size > 18*1024*1024){ setMsg('檔案超過 18 MB，請先壓縮','bad'); return; }
+    if($('impRemember').checked && !lsSet(key))
+      setMsg('（這個瀏覽器不允許儲存，金鑰只在本次有效）', 'warn');
+
+    $('impGo').disabled = true;
+    setMsg('判讀中…（大張圖說約 20～60 秒）');
+    try{
+      const b64 = await toB64(f);
+      const mime = f.type || (/\.pdf$/i.test(f.name) ? 'application/pdf' : 'image/png');
+      const model = $('impModel').value;
+      const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/'
+                            + model + ':generateContent',
+        {method:'POST',
+         headers:{'Content-Type':'application/json','x-goog-api-key':key},
+         body: JSON.stringify({
+           contents:[{parts:[{inline_data:{mime_type:mime,data:b64}},{text:PROMPT}]}],
+           generationConfig:{responseMimeType:'application/json',
+                             responseSchema:SCHEMA, temperature:0}
+         })});
+      if(!r.ok){
+        const t = await r.text();
+        throw new Error('API ' + r.status + '：' + t.slice(0,300));
+      }
+      const j = await r.json();
+      const txt = j.candidates[0].content.parts[0].text;
+      renderResult(JSON.parse(txt));
+      const u = j.usageMetadata || {};
+      setMsg('判讀完成　輸入 '+(u.promptTokenCount||'?')+' / 輸出 '+(u.candidatesTokenCount||'?')+' tokens');
+    }catch(e){
+      setMsg(String(e.message || e), 'bad');
+    }finally{
+      $('impGo').disabled = false;
+    }
+  }
+
+  $('btnImport').onclick = open;
+  $('impClose').onclick  = close;
+  $('impBack').onclick   = showSetup;
+  $('impGo').onclick     = go;
+  $('impApply').onclick  = applyChecked;
+  $('impForget').onclick = function(){
+    const ok = lsDel(); $('impKey').value='';
+    setMsg(ok ? '已清除本機儲存的金鑰' : '這個瀏覽器本來就不允許儲存', ok?'ok':'warn');
+  };
+  $('impOv').addEventListener('click', e=>{ if(e.target === $('impOv')) close(); });
+  document.addEventListener('keydown', e=>{
+    if(e.key === 'Escape' && $('impOv').classList.contains('open')) close();
+  });
 })();
 </script>
 </body>
