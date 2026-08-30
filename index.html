@@ -224,6 +224,9 @@ body.rp-open #app,body.rp-open #appBeam{display:none!important}
 .imp-miss .imp-ed{border-color:var(--warn);border-style:dashed}
 
 /* 匯入後的來源標記：直接標在主介面的輸入框上 */
+#errBar{flex-shrink:0;padding:9px 16px;font-size:13px;line-height:1.6;
+  background:rgba(176,58,46,.12);border-bottom:2px solid var(--bad);color:var(--bad)}
+#errBar b{font-weight:700}
 #impBanner{flex-shrink:0;padding:8px 16px;font-size:12.5px;line-height:1.7;
   background:rgba(56,189,248,.10);border-bottom:1px solid var(--line)}
 .src-key{display:inline-block;width:13px;height:13px;border-radius:3px;
@@ -274,6 +277,7 @@ input.src-miss,select.src-miss{border-color:var(--warn);border-style:dashed;
   <button id="btnPrint">列印 / 存成 PDF</button>
 </div>
 
+<div id="errBar" style="display:none"></div>
 <div id="impBanner" style="display:none"></div>
 
 <div id="app" class="fallback-grid">
@@ -1483,8 +1487,19 @@ function svgPM(M,axis,forPrint){
 /* 重算指示器：使用者回報「看起來沒更新」時，這個數字是唯一能直接判斷的依據。
    每次重算 +1 並蓋上時間；數字不動就代表事件真的沒觸發。 */
 let CALC_N = 0;
+/* 重算若拋例外，畫面會停在舊結果、看起來像「改了沒反應」。
+   攔下來顯示紅條，讓它壞得看得見；下一次成功重算再自動清掉。 */
+window.addEventListener('error', ev => {
+  const el = document.getElementById('errBar');
+  if(!el) return;
+  el.style.display = '';
+  el.innerHTML = '<b>計算中斷：</b>' + String(ev.message || ev.error || '未知錯誤')
+    + '　—— 畫面上的數據可能不是最新的，請把這行訊息回報。';
+});
 function stampCalc(){
   CALC_N++;
+  const eb = document.getElementById('errBar');
+  if(eb) eb.style.display = 'none';
   const el = document.getElementById('calcStamp');
   if(!el) return;
   const t = new Date();
@@ -3213,8 +3228,12 @@ function pinRender(mod){
      <div class="pin-body"></div>`);
   const body = st.sheet.querySelector('.pin-body');
 
+  /* 非當前群組的列一定要「留在 DOM 裡但隱藏」，不能不建立。
+     compute() 是用 document.getElementById(id) 逐一讀參數的，
+     元素一旦被移出 DOM 就讀成 null，整個 render() 會拋例外而靜靜死掉——
+     症狀就是「改了主筋數量，右邊圖面與數據完全不動」。 */
   meta.forEach((g,gi) => {
-    if(!all && gi !== st.group) return;
+    const show = all || gi === st.group;
     if(all){
       const h = document.createElement('div');
       h.className = 'pin-sec'; h.innerHTML = SB(esc(g[0]));
@@ -3230,6 +3249,7 @@ function pinRender(mod){
         `<div class="pin-c">${esc(p[1])}</div><div class="pin-n">${esc(p[2])}</div>
          <div class="pin-v"></div><div class="pin-u">${esc(p[3])}</div>
          <div class="pin-s"><span class="pin-chip ${s.state||'ok'}">${esc(s.chip || (s.state==='warn'?'⚠':s.state==='bad'?'✗':'✓'))}</span></div>`);
+      if(!show) row.style.display = 'none';
       row.querySelector('.pin-v').appendChild(rec.el);      // 搬移，不重建
       row.onclick = e => {
         if(e.target.tagName==='INPUT' || e.target.tagName==='SELECT'){ st.sel = p[0]; pinDetail(mod); pinMarkSel(mod); return; }
