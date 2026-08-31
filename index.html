@@ -120,6 +120,7 @@ body.rp-open #app,body.rp-open #appBeam{display:none!important}
 .pin-v{padding:0 6px}
 .pin-u{padding:0 10px;font-size:12.5px;color:var(--dim)}
 .pin-s{padding:0 4px;text-align:center}
+.pin-row.pin-hidden,.pin-row.pin-na{display:none}
 .pin-chip{display:inline-block;padding:2px 7px;border-radius:10px;font-size:10.5px}
 .pin-chip.ok{background:rgba(30,122,68,.12);color:var(--ok)}
 .pin-chip.warn{background:rgba(180,113,26,.13);color:var(--warn)}
@@ -131,6 +132,20 @@ body.rp-open #app,body.rp-open #appBeam{display:none!important}
 .pin-dl{font-size:11px;color:var(--dim);letter-spacing:.07em;margin-bottom:5px}
 .pin-rule{font-size:12.5px;line-height:1.7;background:var(--sub);border:1px solid var(--line);
   border-radius:6px;padding:9px 11px;font-variant-numeric:tabular-nums}
+
+/* 左欄：群組導軌 + 載重組合入口 */
+.pin-col{display:flex;flex-direction:column;gap:9px;min-height:0}
+.pin-col>.pin-rail{flex-grow:1;overflow-y:auto;min-height:0}
+.loads-btn{flex-shrink:0;width:100%;text-align:left;font-size:12.5px;padding:9px 10px}
+.loads-btn b{font-variant-numeric:tabular-nums}
+
+/* 斷面圖與 P-M 圖並排，各占一半，留空間給下方數據 */
+.figs{display:grid;grid-template-columns:1fr 1fr;gap:11px;align-items:start}
+@media(max-width:1150px){.figs{grid-template-columns:1fr}}
+
+.ov-shell{position:fixed;inset:0;background:rgba(3,7,18,.55);z-index:60;
+  display:none;align-items:center;justify-content:center;padding:20px}
+.ov-shell.open{display:flex}
 
 /* 分隔線：拖曳調整區塊範圍；Tab 選到後可用方向鍵 */
 .hsplit{cursor:row-resize;border:0;padding:0;background:transparent;touch-action:none;
@@ -280,9 +295,21 @@ input.src-miss,select.src-miss{border-color:var(--warn);border-style:dashed;
 <div id="errBar" style="display:none"></div>
 <div id="impBanner" style="display:none"></div>
 
+<div id="loadOv" class="ov-shell">
+  <div class="imp-dlg">
+    <div class="imp-head"><b>⑥ 載重組合</b>
+      <span class="imp-note">P<sub>u</sub> 壓為正、拉為負</span>
+      <div class="imp-grow"></div><button id="loadClose">關閉</button></div>
+    <div class="imp-body" id="loadHost"></div>
+  </div>
+</div>
+
 <div id="app" class="fallback-grid">
 
-  <div class="pin-rail" id="railP"></div>
+  <div class="pin-col">
+    <div class="pin-rail" id="railP"></div>
+    <button id="btnLoads" class="loads-btn">⑥ 載重組合　<b id="loadsN">—</b></button>
+  </div>
   <div class="pin-mid">
     <div class="pin-sheet" id="sheetP"></div>
     <div id="derivedP" class="card" style="flex-shrink:0;margin:0;padding:8px 11px"></div>
@@ -375,6 +402,7 @@ input.src-miss,select.src-miss{border-color:var(--warn);border-style:dashed;
 
   <!-- ============ 右：視覺化與結果 ============ -->
   <div>
+    <div class="figs">
     <div class="card">
       <div class="flex items-center justify-between mb-1">
         <h2 class="!mb-0">斷面配筋圖（即時）</h2>
@@ -392,6 +420,7 @@ input.src-miss,select.src-miss{border-color:var(--warn);border-style:dashed;
         </div>
       </div>
       <div id="pmWrap"></div>
+    </div>
     </div>
 
     <div class="card">
@@ -1188,7 +1217,7 @@ function finalSpacing(M){
    ========================================================================= */
 function svgSection(M,forPrint){
   const {s,r,R,conf}=M;
-  const W=760, Hh=628, pad=78, band=76;   // band：頂部保留給圖例，避免與淨距標註重疊
+  const W=760, Hh=600, pad=98, band=72;   // band：頂部保留給圖例，避免與淨距標註重疊
   const k = Math.min((W-2*pad)/s.B, (Hh-band-2*pad)/s.H);
   const cy = band + (Hh-band)/2;
   const X = x=>W/2 + x*k, Y = y=>cy - y*k;
@@ -1207,25 +1236,51 @@ function svgSection(M,forPrint){
     o.push(`<rect x="${X(-iw/2)}" y="${Y(ih/2)}" width="${iw*k}" height="${ih*k}" fill="${C.void}" stroke="${C.line}" stroke-width="2"/>`);
     o.push(`<text x="${X(0)}" y="${Y(0)}" fill="${C.dim}" font-size="13" text-anchor="middle">中空</text>`);
   }
+  /* 橫向鋼筋畫法（擬真）：
+     - 箍筋是「包在主筋外側」的，所以矩形要沿主筋中心再往外推
+       (主筋半徑 + 箍筋半徑)，而不是固定 3px —— 否則會從主筋身上削過去。
+     - 繫筋兩端是「勾住」主筋，不是插進去，所以線段收在主筋外緣，
+       再各補一個彎鉤（一端 135°、一端 90°，與圖例一致）。 */
+  const rad  = Math.max(2.0, R.db/2*k);                 // 主筋半徑（畫面）
+  const dbt  = (typeof BAR!=='undefined' && BAR[r.tieSize]) ? BAR[r.tieSize].d : 1.27;
+  const radT = Math.max(1.2, dbt/2*k);                  // 箍筋半徑（畫面）
+  const off  = rad + radT;                              // 箍筋中心線離主筋中心的距離
+
   // 箍筋（環）
   for(const rg of R.rings){
-    o.push(`<rect x="${X(-rg.hx)-3}" y="${Y(rg.hy)-3}" width="${2*rg.hx*k+6}" height="${2*rg.hy*k+6}" rx="${4}"
-      fill="none" stroke="${C.tie}" stroke-width="${forPrint?2:2}" ${rg.layer==='in'?'stroke-dasharray="7 4"':''}/>`);
+    o.push(`<rect x="${X(-rg.hx)-off}" y="${Y(rg.hy)-off}" width="${2*rg.hx*k+2*off}" height="${2*rg.hy*k+2*off}"
+      rx="${Math.max(3,off*1.6)}"
+      fill="none" stroke="${C.tie}" stroke-width="${Math.max(1.4,radT*2)}" stroke-linejoin="round"
+      ${rg.layer==='in'?'stroke-dasharray="7 4"':''}/>`);
   }
-  // 繫筋（貫穿壁厚，示意）
+
+  // 繫筋：收在主筋外緣 + 兩端彎鉤
   {
-    const drawCT=(x1,y1,x2,y2)=>o.push(`<line x1="${X(x1)}" y1="${Y(y1)}" x2="${X(x2)}" y2="${Y(y2)}" stroke="${C.ct}" stroke-width="${forPrint?1:1.8}" stroke-linecap="round"/>`);
+    const swT = Math.max(1.2, radT*1.7);
+    const seg = (ax,ay,bx,by) => {                      // ax..by 為畫面座標
+      const dx=bx-ax, dy=by-ay, L=Math.hypot(dx,dy) || 1;
+      const ux=dx/L, uy=dy/L, cut=rad+swT*0.5;          // 兩端各讓開一個主筋半徑
+      const x1=ax+ux*cut, y1=ay+uy*cut, x2=bx-ux*cut, y2=by-uy*cut;
+      if(Math.hypot(x2-x1,y2-y1) < 2) return;
+      o.push(`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}"
+        stroke="${C.ct}" stroke-width="${swT}" stroke-linecap="round"/>`);
+      // 彎鉤：起點 135°（斜勾回去）、終點 90°（垂直勾）
+      const hk = Math.max(3, rad*1.15), px=-uy, py=ux;
+      o.push(`<path d="M${x1.toFixed(1)},${y1.toFixed(1)} l${(px*hk-ux*hk*0.7).toFixed(1)},${(py*hk-uy*hk*0.7).toFixed(1)}"
+        fill="none" stroke="${C.ct}" stroke-width="${swT}" stroke-linecap="round"/>`);
+      o.push(`<path d="M${x2.toFixed(1)},${y2.toFixed(1)} l${(px*hk).toFixed(1)},${(py*hk).toFixed(1)}"
+        fill="none" stroke="${C.ct}" stroke-width="${swT}" stroke-linecap="round"/>`);
+    };
     const ro=R.rings[0], ri=R.rings[1];
     if(ri){   // 箱型雙層：繫筋垂直穿過壁厚，兩端各勾一根主筋
-      for(const x of conf.tieX){ drawCT(x,ro.hy,x,ri.hy); drawCT(x,-ro.hy,x,-ri.hy); }
-      for(const y of conf.tieY){ drawCT(ro.hx,y,ri.hx,y); drawCT(-ro.hx,y,-ri.hx,y); }
+      for(const x of conf.tieX){ seg(X(x),Y(ro.hy),X(x),Y(ri.hy)); seg(X(x),Y(-ro.hy),X(x),Y(-ri.hy)); }
+      for(const y of conf.tieY){ seg(X(ro.hx),Y(y),X(ri.hx),Y(y)); seg(X(-ro.hx),Y(y),X(-ri.hx),Y(y)); }
     }else{    // 實心／單層：繫筋貫穿全斷面
-      for(const x of conf.tieX) drawCT(x,ro.hy,x,-ro.hy);
-      for(const y of conf.tieY) drawCT(ro.hx,y,-ro.hx,y);
+      for(const x of conf.tieX) seg(X(x),Y(ro.hy),X(x),Y(-ro.hy));
+      for(const y of conf.tieY) seg(X(ro.hx),Y(y),X(-ro.hx),Y(y));
     }
   }
-  // 主筋（真實直徑比例）
-  const rad = Math.max(2.0, R.db/2*k);
+  // 主筋（真實直徑比例）——最後畫，壓在橫向鋼筋之上
   for(const b of R.bars)
     o.push(`<circle cx="${X(b.x)}" cy="${Y(b.y)}" r="${rad}" fill="${C.bar}" stroke="${forPrint?'#000':'#FFFFFF'}" stroke-width="0.7"/>`);
 
@@ -1284,7 +1339,7 @@ function svgSection(M,forPrint){
   const badB = M.chk.clB < M.chk.need, badH = M.chk.clH < M.chk.need;
   const lblClr = (v,bad)=> bad ? `淨距 ${f(v,1)} ＜ 需求 ${f(M.chk.need,1)} cm ✗`
                                : `主筋淨距 ${f(v,1)} cm`;
-  const topDim = Y(s.H/2)-30, rightDim = X(s.B/2)+30;
+  const topDim = Y(s.H/2)-34, rightDim = X(s.B/2)+44;
   {   // 取頂緣中央相鄰兩根，尺寸界線量至鋼筋外緣
     const i=Math.max(0,Math.floor((R.xsO.length-1)/2)-1);
     const xa=R.xsO[i]+R.db/2, xb=R.xsO[i+1]-R.db/2, yb=Y(ro.hy);
@@ -1347,6 +1402,22 @@ function niceTicks(lo, hi, n){
   }
   const dp = st<1 ? Math.min(4, Math.max(0, -Math.floor(Math.log10(st)))) : 0;
   return {ticks, lo:a, hi:b, step:st, dp};
+}
+
+
+/* 載重組合的標記：用形狀區分，不再在小圈裡塞數字（縮圖列印時數字必糊）。
+   圖內對照表用同一個形狀，所以不需要編號也對得起來。 */
+function ptShape(i, cx, cy, r, fill){
+  const w = 1.4, st = `stroke="#FFFFFF" stroke-width="${w}"`;
+  switch(i % 6){
+    case 0: return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${fill}" ${st}/>`;
+    case 1: return `<rect x="${cx-r*0.88}" y="${cy-r*0.88}" width="${r*1.76}" height="${r*1.76}" fill="${fill}" ${st}/>`;
+    case 2: return `<path d="M${cx},${cy-r*1.1} L${cx+r},${cy+r*0.75} L${cx-r},${cy+r*0.75} Z" fill="${fill}" ${st}/>`;
+    case 3: return `<path d="M${cx},${cy-r*1.15} L${cx+r*1.15},${cy} L${cx},${cy+r*1.15} L${cx-r*1.15},${cy} Z" fill="${fill}" ${st}/>`;
+    case 4: return `<path d="M${cx},${cy+r*1.1} L${cx+r},${cy-r*0.75} L${cx-r},${cy-r*0.75} Z" fill="${fill}" ${st}/>`;
+    default: return `<path d="M${cx-r},${cy-r} L${cx+r},${cy+r} M${cx+r},${cy-r} L${cx-r},${cy+r}"
+      fill="none" stroke="${fill}" stroke-width="${r*0.85}" stroke-linecap="round"/>`;
+  }
 }
 
 function svgPM(M,axis,forPrint){
@@ -1433,26 +1504,13 @@ function svgPM(M,axis,forPrint){
     }else if(isC){                            // 無交點：僅由原點朝載重點畫延伸線
       o.push(`<line x1="${X(0)}" y1="${Y(0)}" x2="${X(mx)}" y2="${Y(py)}" stroke="${C.ptc}" stroke-width="1.1" stroke-dasharray="3 3" opacity=".5"/>`);
     }
-    const R0 = forPrint ? (isC?11.5:10) : (isC?9.5:8);
+    const R0 = forPrint ? (isC?12:10.5) : (isC?11:9.5);
     const cx=X(mx), cy=Y(py);
-    o.push(`<circle cx="${cx}" cy="${cy}" r="${R0}" fill="${isC?C.ptc:C.pt}" stroke="${forPrint?'#fff':'#FFFFFF'}" stroke-width="1.4"/>`);
+    o.push(ptShape(i, cx, cy, R0, isC?C.ptc:C.pt));
     /* 載重點擠在一起時（例如各組合的 M 都很小、只有一組很大），
        編號會疊在一起。與已畫的點太近就把編號拉到圈外並補一條引線；
        這種叢集靠調整軸比例救不了，因為另一組點需要用到整個軸長。 */
-    const tooNear = placedPts.some(q => Math.hypot(q.x-cx, q.y-cy) < R0*2 + 7*FS);
     placedPts.push({x:cx, y:cy});
-    if(tooNear){
-      const dir=[[1,-1],[1,1],[-1,1],[-1,-1]][i%4], off=R0+12*FS;
-      const lx=cx+dir[0]*off, ly=cy+dir[1]*off;
-      o.push(`<line x1="${cx+dir[0]*R0}" y1="${cy+dir[1]*R0}" x2="${lx}" y2="${ly}"
-        stroke="${isC?C.ptc:C.pt}" stroke-width="1"/>`);
-      o.push(`<text x="${lx+dir[0]*2}" y="${ly+3.6*FS}" fill="${isC?C.ptc:C.txt}"
-        font-size="${(11.5*FS).toFixed(1)}" font-weight="700"
-        text-anchor="${dir[0]>0?'start':'end'}"
-        stroke="${forPrint?'#fff':'#FFFFFF'}" stroke-width="3" paint-order="stroke">${i+1}</text>`);
-    }else{
-      o.push(`<text x="${cx}" y="${cy+3.6*FS}" fill="${forPrint?'#fff':'#FFFFFF'}" font-size="${(11.5*FS).toFixed(1)}" font-weight="700" text-anchor="middle">${i+1}</text>`);
-    }
   });
   // 圖內對照表（取代逐點標籤，避免重疊）
   const bx=L+8, by=T+8;
@@ -1462,8 +1520,7 @@ function svgPM(M,axis,forPrint){
   o.push(`<text x="${bx+8*FS}" y="${by+13*FS}" fill="${C.txt}" font-size="${(10*FS).toFixed(1)}" font-weight="700">載重組合　（D/C，定偏心射線法）</text>`);
   M.res.forEach((R2,i)=>{
     const isC=R2===M.ctrlFlex, yy=by+13*FS+(i+1)*RH;
-    o.push(`<circle cx="${bx+13*FS}" cy="${yy-3.5*FS}" r="${CR}" fill="${isC?C.ptc:C.pt}"/>`);
-    o.push(`<text x="${bx+13*FS}" y="${yy-0.6*FS}" fill="${forPrint?'#fff':'#FFFFFF'}" font-size="${(8.5*FS).toFixed(1)}" font-weight="700" text-anchor="middle">${i+1}</text>`);
+    o.push(ptShape(i, bx+13*FS, yy-3.5*FS, CR, isC?C.ptc:C.pt));
     const nm=R2.L.name.length>22?R2.L.name.slice(0,21)+'…':R2.L.name;
     o.push(`<text x="${bx+27*FS}" y="${yy}" fill="${isC?C.ptc:C.txt}" font-size="${(10*FS).toFixed(1)}" font-weight="${isC?700:400}">${esc(nm)}</text>`);
     o.push(`<text x="${bx+BW-8*FS}" y="${yy}" fill="${R2.dc>1?C.bad:(isC?C.ptc:C.txt)}" font-size="${(10*FS).toFixed(1)}" font-weight="${isC?700:400}" text-anchor="end">${fdc(R2.dc)}</text>`);
@@ -1498,6 +1555,8 @@ window.addEventListener('error', ev => {
 });
 function stampCalc(){
   CALC_N++;
+  const ln = document.getElementById('loadsN');
+  if(ln && typeof LOADS !== 'undefined') ln.textContent = LOADS.length + ' 組';
   const eb = document.getElementById('errBar');
   if(eb) eb.style.display = 'none';
   const el = document.getElementById('calcStamp');
@@ -1530,6 +1589,7 @@ function render(){
   document.getElementById('oAst').textContent=f(M.Ast,1);
   document.getElementById('oAg').textContent=f(M.Ag,0);
   document.getElementById('oRho').textContent=f(M.chk.rho,3);
+  pinNA('pylon', ['tw','covI','dbl'], M.s.type!=='box');
   document.getElementById('rowTw').style.display = M.s.type==='box'?'':'none';
   document.getElementById('rowDbl').style.display = M.s.type==='box'?'':'none';
 
@@ -2669,6 +2729,7 @@ function drawBLoads(){
 function renderBeam(){
   const B=computeBeam(); if(!B) return null;
   const {S,m,R}=B;
+  pinNA('beam', ['bhf','bSpacing','bEdge'], S.type!=='T');
   document.getElementById('rowHf').style.display = S.type==='T'?'':'none';
   document.getElementById('rowFl').style.display = S.type==='T'?'':'none';
   document.getElementById('rowEdge').style.display = S.type==='T'?'':'none';
@@ -3249,7 +3310,8 @@ function pinRender(mod){
         `<div class="pin-c">${esc(p[1])}</div><div class="pin-n">${esc(p[2])}</div>
          <div class="pin-v"></div><div class="pin-u">${esc(p[3])}</div>
          <div class="pin-s"><span class="pin-chip ${s.state||'ok'}">${esc(s.chip || (s.state==='warn'?'⚠':s.state==='bad'?'✗':'✓'))}</span></div>`);
-      if(!show) row.style.display = 'none';
+      row.dataset.pid = p[0];
+      if(!show) row.classList.add('pin-hidden');
       row.querySelector('.pin-v').appendChild(rec.el);      // 搬移，不重建
       /* 說明卡改成「游標掃過就顯示」，不必先點選。
          點選與鍵盤 focus 也保留：觸控裝置沒有 hover。 */
@@ -3264,6 +3326,18 @@ function pinRender(mod){
     });
   });
   pinDetail(mod);
+}
+
+
+/* 防呆：不適用於目前斷面型式的參數列直接不顯示（例如實心柱沒有壁厚、內側保護層）。
+   一律用 class 隱藏、元素留在 DOM —— 移出 DOM 會讓 compute() 讀到 null 而整個重算掛掉。 */
+function pinNA(mod, ids, hide){
+  const st = PIN[mod];
+  if(!st || !st.sheet) return;
+  ids.forEach(id=>{
+    const row = st.sheet.querySelector(`.pin-row[data-pid="${id}"]`);
+    if(row) row.classList.toggle('pin-na', !!hide);
+  });
 }
 
 function pinMarkSel(mod){
@@ -3478,6 +3552,24 @@ function pinStatus(mod, map){
       seen.add(box); box.style.margin='0'; target.appendChild(box);
     });
   };
+  /* 載重組合是「輸入」，搬到左欄的入口裡。用 appendChild 搬移而非重建，
+     原有的 id、事件監聽與 LOADS 綁定全部原封不動。 */
+  (function(){
+    const card = document.getElementById('loadTbl').closest('.card');
+    const host = document.getElementById('loadHost');
+    if(card && host){
+      card.style.margin = '0'; card.style.boxShadow = 'none'; card.style.border = '0';
+      host.appendChild(card);
+    }
+    const ov = document.getElementById('loadOv');
+    document.getElementById('btnLoads').onclick = ()=>ov.classList.add('open');
+    document.getElementById('loadClose').onclick = ()=>ov.classList.remove('open');
+    ov.addEventListener('click', e=>{ if(e.target===ov) ov.classList.remove('open'); });
+    document.addEventListener('keydown', e=>{
+      if(e.key==='Escape' && ov.classList.contains('open')) ov.classList.remove('open');
+    });
+  })();
+
   pinBuild('pylon', document.getElementById('railP'), document.getElementById('sheetP'), document.getElementById('detailP'));
   moveDerived(['oB1','oNbar','oEty'], document.getElementById('derivedP'));
   pinBuild('beam', document.getElementById('railB'), document.getElementById('sheetB'), document.getElementById('detailB'));
