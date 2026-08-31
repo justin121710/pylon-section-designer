@@ -1287,18 +1287,23 @@ function svgSection(M,forPrint){
       const a0 = Math.atan2(ny, nx);
       // 旋向：使 a0 處的切線方向等於本體行進方向
       const sgn = ((-Math.sin(a0))*ux + (Math.cos(a0))*uy) > 0 ? 1 : -1;
+      /* 延伸段有左右兩種折法。優先取「弧較短」的那一側 —— 從側邊切點起繞，
+         若挑錯側會繞將近 270°，鉤子看起來像一個閉合的圈而不是彎鉤。
+         兩側弧長接近時再看哪一側折回核心。 */
       let best = null;
       for(const side of [1,-1]){
         const th = side * deg * Math.PI/180;
         const tx = ux*Math.cos(th) - uy*Math.sin(th);      // 延伸段方向
         const ty = ux*Math.sin(th) + uy*Math.cos(th);
         const a1 = Math.atan2(sgn*ty, sgn*tx) - Math.PI/2;
+        const sw = sgn > 0 ? norm(a1-a0) : norm(a0-a1);
         const gx = cx0-bcx, gy = cy0-bcy, gl = Math.hypot(gx,gy)||1;
-        const d = -(tx*gx + ty*gy)/gl;                     // 越小＝延伸段越朝核心
-        if(!best || d < best.d) best = {a1,tx,ty,d};
+        const inward = -(tx*gx + ty*gy)/gl;                // 越小＝越朝核心
+        const score = sw + inward*0.35;                    // 弧長為主，朝向為輔
+        if(!best || score < best.score) best = {a1,tx,ty,sw,score};
       }
       const {a1,tx,ty} = best;
-      const sweep = sgn > 0 ? norm(a1-a0) : norm(a0-a1);
+      const sweep = best.sw;
       const p0=[bcx+Math.cos(a0)*rc, bcy+Math.sin(a0)*rc];
       const p1=[bcx+Math.cos(a1)*rc, bcy+Math.sin(a1)*rc];
       put(`M${p0[0].toFixed(1)},${p0[1].toFixed(1)} `
