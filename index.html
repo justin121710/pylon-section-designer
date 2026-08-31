@@ -135,7 +135,8 @@ body.rp-open #app,body.rp-open #appBeam{display:none!important}
 
 /* 左欄：群組導軌 + 載重組合入口 */
 .pin-col{display:flex;flex-direction:column;gap:9px;min-height:0}
-.pin-col>.pin-rail{flex-grow:1;overflow-y:auto;min-height:0}
+.pin-col>.pin-rail{flex:0 1 auto;overflow-y:auto;min-height:0}
+.pin-col{justify-content:flex-start}
 .loads-g{flex-shrink:0;border:1px solid var(--line);background:var(--panel)}
 .loads-g:hover{background:var(--sel)}
 .loads-g .pin-gs{font-variant-numeric:tabular-nums}
@@ -1267,55 +1268,61 @@ function svgSection(M,forPrint){
       ${rg.layer==='in'?'stroke-dasharray="7 4"':''}/>`);
   }
 
-  /* 繫筋：兩端必須「勾住」主筋，不是停在旁邊。
-     依規範一端 135°、另一端 90° 彎鉤，延伸長度 6d_b。
-     畫法：直段畫到兩端主筋的接觸點，接著沿主筋外緣畫一段圓弧（繞過鋼筋），
-     再接一段切線方向的直尾（延伸段）。被箍筋蓋到是正常的。 */
+  /* 繫筋：兩端繞過主筋後，尾端折回核心內。
+     依規範一端 135°、另一端 90°，延伸段 6d_b。
+     「135°」指的是延伸段與繫筋本體的夾角 —— 也就是繞過鋼筋後折回斜向 45°，
+     不是沿切線甩出去。主筋最後畫，會蓋住直段與鋼筋重疊的部分（正常表示法）。 */
   {
     const swT = Math.max(1.2, radT*1.7);
-    const rc  = rad + swT*0.5;                 // 繫筋中心線貼著主筋外緣
-    const ext = Math.max(4, dbt*6*k*0.5);      // 6d_b 延伸段（畫面長度）
+    const rc  = rad + swT*0.5;                    // 繫筋中心線貼著主筋外緣
+    const ext = Math.max(5, dbt*6*k*0.5);         // 6d_b 延伸段
+    const cx0 = X(0), cy0 = Y(0);
     const put = d => o.push(`<path d="${d}" fill="none" stroke="${C.ct}" stroke-width="${swT}"
       stroke-linecap="round" stroke-linejoin="round"/>`);
+    const norm = a => { while(a<0) a+=2*Math.PI; while(a>=2*Math.PI) a-=2*Math.PI; return a; };
 
-    // 繞著主筋中心 (bx,by) 彎鉤：ux,uy 為「直段指向該主筋」的單位向量
-    const cx0 = X(0), cy0 = Y(0);
-    const hook = (bx, by, ux, uy, deg, swHint) => {
-      const a0 = Math.atan2(-uy, -ux);                       // 直段進入點（近側）
-      // 兩個旋向都試，取「延伸段末端離斷面中心較近」的那個，彎鉤才會朝內而不是翹出斷面
-      let sw = swHint, best = Infinity;
-      for(const cand of [1,-1]){
-        const aa = a0 + cand*deg*Math.PI/180;
-        const ex = bx + Math.cos(aa)*rc + (-Math.sin(aa)*cand)*ext;
-        const ey = by + Math.sin(aa)*rc + ( Math.cos(aa)*cand)*ext;
-        const d = Math.hypot(ex-cx0, ey-cy0);
-        if(d < best){ best = d; sw = cand; }
+    /* 繞著主筋 (bx,by) 彎鉤。u=(ux,uy) 是繫筋本體指向該主筋的方向；
+       deg 為彎鉤角度（135 或 90）＝延伸段相對本體前進方向轉過的角度，取折回核心的那一側。 */
+    const hook = (bx, by, ux, uy, deg) => {
+      let best = null;
+      for(const sign of [1,-1]){
+        // 彎鉤角度＝延伸段相對「本體前進方向」轉過的角度（135° 就是轉 135°，
+        //  折回核心那一側）。先前誤寫成補角 45°，尾端會往斷面外翻。
+        const th = sign * deg * Math.PI/180;
+        const tx = ux*Math.cos(th) - uy*Math.sin(th);
+        const ty = ux*Math.sin(th) + uy*Math.cos(th);
+        // 弧的終點角度：切線方向 = 延伸段方向
+        const a1 = Math.atan2(ty, tx) - sign*Math.PI/2;
+        const a0 = Math.atan2(-uy, -ux);                    // 本體與鋼筋的接觸點
+        const sweep = sign > 0 ? norm(a1-a0) : norm(a0-a1);
+        // 延伸段必須折「回核心」：取方向與「主筋 → 斷面中心」夾角最小的那個旋向
+        const gx = cx0-bx, gy = cy0-by, gl = Math.hypot(gx,gy) || 1;
+        const d  = -(tx*gx + ty*gy)/gl;                     // 越小＝越朝核心
+        if(!best || d < best.d) best = {sign,a0,a1,sweep,tx,ty,d};
       }
-      const a1 = a0 + sw * deg * Math.PI / 180;
-      const p0 = [bx + Math.cos(a0)*rc, by + Math.sin(a0)*rc];
-      const p1 = [bx + Math.cos(a1)*rc, by + Math.sin(a1)*rc];
-      const large = deg > 180 ? 1 : 0, sweepFlag = sw > 0 ? 1 : 0;
-      const tx = -Math.sin(a1)*sw, ty = Math.cos(a1)*sw;      // 弧末端的切線
+      const {sign,a0,a1,sweep,tx,ty} = best;
+      const p0=[bx+Math.cos(a0)*rc, by+Math.sin(a0)*rc];
+      const p1=[bx+Math.cos(a1)*rc, by+Math.sin(a1)*rc];
       put(`M${p0[0].toFixed(1)},${p0[1].toFixed(1)} `
-        + `A${rc.toFixed(1)},${rc.toFixed(1)} 0 ${large} ${sweepFlag} ${p1[0].toFixed(1)},${p1[1].toFixed(1)} `
+        + `A${rc.toFixed(1)},${rc.toFixed(1)} 0 ${sweep>Math.PI?1:0} ${sign>0?1:0} `
+        + `${p1[0].toFixed(1)},${p1[1].toFixed(1)} `
         + `l${(tx*ext).toFixed(1)},${(ty*ext).toFixed(1)}`);
-      return p0;
     };
 
-    const seg = (ax,ay,bx,by) => {             // 兩端皆為主筋中心（畫面座標）
+    const seg = (ax,ay,bx,by) => {                 // 兩端皆為主筋中心（畫面座標）
       const dx=bx-ax, dy=by-ay, L=Math.hypot(dx,dy) || 1;
+      if(L < rc*2.2) return;
       const ux=dx/L, uy=dy/L;
-      if(L < rc*2.2) return;                   // 太短畫不出彎鉤就略過
-      const e1 = hook(bx, by, ux, uy, 135, +1);      // 一端 135°
-      const e2 = hook(ax, ay, -ux, -uy, 90, -1);     // 另一端 90°
-      put(`M${e2[0].toFixed(1)},${e2[1].toFixed(1)} L${e1[0].toFixed(1)},${e1[1].toFixed(1)}`);
+      put(`M${ax.toFixed(1)},${ay.toFixed(1)} L${bx.toFixed(1)},${by.toFixed(1)}`);  // 本體直段
+      hook(bx, by,  ux,  uy, 135);                 // 一端 135°
+      hook(ax, ay, -ux, -uy,  90);                 // 另一端 90°
     };
 
     const ro=R.rings[0], ri=R.rings[1];
-    if(ri){   // 箱型雙層：繫筋垂直穿過壁厚，兩端各勾一根主筋
+    if(ri){
       for(const x of conf.tieX){ seg(X(x),Y(ro.hy),X(x),Y(ri.hy)); seg(X(x),Y(-ro.hy),X(x),Y(-ri.hy)); }
       for(const y of conf.tieY){ seg(X(ro.hx),Y(y),X(ri.hx),Y(y)); seg(X(-ro.hx),Y(y),X(-ri.hx),Y(y)); }
-    }else{    // 實心／單層：繫筋貫穿全斷面，兩端各勾對邊主筋
+    }else{
       for(const x of conf.tieX) seg(X(x),Y(ro.hy),X(x),Y(-ro.hy));
       for(const y of conf.tieY) seg(X(ro.hx),Y(y),X(-ro.hx),Y(y));
     }
