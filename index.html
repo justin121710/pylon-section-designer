@@ -136,12 +136,18 @@ body.rp-open #app,body.rp-open #appBeam{display:none!important}
 /* 左欄：群組導軌 + 載重組合入口 */
 .pin-col{display:flex;flex-direction:column;gap:9px;min-height:0}
 .pin-col>.pin-rail{flex-grow:1;overflow-y:auto;min-height:0}
-.loads-btn{flex-shrink:0;width:100%;text-align:left;font-size:12.5px;padding:9px 10px}
-.loads-btn b{font-variant-numeric:tabular-nums}
+.loads-g{flex-shrink:0;border:1px solid var(--line);background:var(--panel)}
+.loads-g:hover{background:var(--sel)}
+.loads-g .pin-gs{font-variant-numeric:tabular-nums}
 
 /* 斷面圖與 P-M 圖並排，各占一半，留空間給下方數據 */
-.figs{display:grid;grid-template-columns:1fr 1fr;gap:11px;align-items:start}
-@media(max-width:1150px){.figs{grid-template-columns:1fr}}
+.figs{display:block}   /* 兩張圖各自全寬，圖例移到圖外，圖形本身不必撐滿卡片 */
+.fig-legend{display:flex;flex-wrap:wrap;gap:14px;align-items:center;
+  font-size:12px;color:var(--dim);padding:8px 2px 2px;line-height:1.6}
+.fig-legend .it{display:flex;align-items:center;gap:6px}
+.fig-legend svg{width:auto;height:14px;display:block;flex-shrink:0}
+.fig-legend .nm{color:var(--txt)}
+.pm-box{max-width:760px;margin:0 auto}
 
 .ov-shell{position:fixed;inset:0;background:rgba(3,7,18,.55);z-index:60;
   display:none;align-items:center;justify-content:center;padding:20px}
@@ -308,7 +314,13 @@ input.src-miss,select.src-miss{border-color:var(--warn);border-style:dashed;
 
   <div class="pin-col">
     <div class="pin-rail" id="railP"></div>
-    <button id="btnLoads" class="loads-btn">⑥ 載重組合　<b id="loadsN">—</b></button>
+    <div id="btnLoads" class="pin-g loads-g" role="button" tabindex="0">
+      <div class="pin-mk ok" id="loadsMk">✓</div>
+      <div style="flex-grow:1;min-width:0">
+        <div class="pin-gl">載重組合</div>
+        <div class="pin-gs"><span id="loadsN">—</span>　點開編輯</div>
+      </div>
+    </div>
   </div>
   <div class="pin-mid">
     <div class="pin-sheet" id="sheetP"></div>
@@ -408,7 +420,7 @@ input.src-miss,select.src-miss{border-color:var(--warn);border-style:dashed;
         <h2 class="!mb-0">斷面配筋圖（即時）</h2>
         <div class="text-[11.5px]" style="color:var(--dim)">SVG 向量 · 主筋依號數按真實直徑比例繪製</div>
       </div>
-      <div id="secWrap"></div>
+      <div id="secWrap" class="pm-box"></div>
     </div>
 
     <div class="card">
@@ -419,7 +431,8 @@ input.src-miss,select.src-miss{border-color:var(--warn);border-style:dashed;
           <button id="axY" class="!py-1 !px-2">繞 Y 軸 (M<sub>uy</sub>)</button>
         </div>
       </div>
-      <div id="pmWrap"></div>
+      <div id="pmWrap" class="pm-box"></div>
+      <div id="pmLegend" class="fig-legend"></div>
     </div>
     </div>
 
@@ -1254,28 +1267,55 @@ function svgSection(M,forPrint){
       ${rg.layer==='in'?'stroke-dasharray="7 4"':''}/>`);
   }
 
-  // 繫筋：收在主筋外緣 + 兩端彎鉤
+  /* 繫筋：兩端必須「勾住」主筋，不是停在旁邊。
+     依規範一端 135°、另一端 90° 彎鉤，延伸長度 6d_b。
+     畫法：直段畫到兩端主筋的接觸點，接著沿主筋外緣畫一段圓弧（繞過鋼筋），
+     再接一段切線方向的直尾（延伸段）。被箍筋蓋到是正常的。 */
   {
     const swT = Math.max(1.2, radT*1.7);
-    const seg = (ax,ay,bx,by) => {                      // ax..by 為畫面座標
-      const dx=bx-ax, dy=by-ay, L=Math.hypot(dx,dy) || 1;
-      const ux=dx/L, uy=dy/L, cut=rad+swT*0.5;          // 兩端各讓開一個主筋半徑
-      const x1=ax+ux*cut, y1=ay+uy*cut, x2=bx-ux*cut, y2=by-uy*cut;
-      if(Math.hypot(x2-x1,y2-y1) < 2) return;
-      o.push(`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}"
-        stroke="${C.ct}" stroke-width="${swT}" stroke-linecap="round"/>`);
-      // 彎鉤：起點 135°（斜勾回去）、終點 90°（垂直勾）
-      const hk = Math.max(3, rad*1.15), px=-uy, py=ux;
-      o.push(`<path d="M${x1.toFixed(1)},${y1.toFixed(1)} l${(px*hk-ux*hk*0.7).toFixed(1)},${(py*hk-uy*hk*0.7).toFixed(1)}"
-        fill="none" stroke="${C.ct}" stroke-width="${swT}" stroke-linecap="round"/>`);
-      o.push(`<path d="M${x2.toFixed(1)},${y2.toFixed(1)} l${(px*hk).toFixed(1)},${(py*hk).toFixed(1)}"
-        fill="none" stroke="${C.ct}" stroke-width="${swT}" stroke-linecap="round"/>`);
+    const rc  = rad + swT*0.5;                 // 繫筋中心線貼著主筋外緣
+    const ext = Math.max(4, dbt*6*k*0.5);      // 6d_b 延伸段（畫面長度）
+    const put = d => o.push(`<path d="${d}" fill="none" stroke="${C.ct}" stroke-width="${swT}"
+      stroke-linecap="round" stroke-linejoin="round"/>`);
+
+    // 繞著主筋中心 (bx,by) 彎鉤：ux,uy 為「直段指向該主筋」的單位向量
+    const cx0 = X(0), cy0 = Y(0);
+    const hook = (bx, by, ux, uy, deg, swHint) => {
+      const a0 = Math.atan2(-uy, -ux);                       // 直段進入點（近側）
+      // 兩個旋向都試，取「延伸段末端離斷面中心較近」的那個，彎鉤才會朝內而不是翹出斷面
+      let sw = swHint, best = Infinity;
+      for(const cand of [1,-1]){
+        const aa = a0 + cand*deg*Math.PI/180;
+        const ex = bx + Math.cos(aa)*rc + (-Math.sin(aa)*cand)*ext;
+        const ey = by + Math.sin(aa)*rc + ( Math.cos(aa)*cand)*ext;
+        const d = Math.hypot(ex-cx0, ey-cy0);
+        if(d < best){ best = d; sw = cand; }
+      }
+      const a1 = a0 + sw * deg * Math.PI / 180;
+      const p0 = [bx + Math.cos(a0)*rc, by + Math.sin(a0)*rc];
+      const p1 = [bx + Math.cos(a1)*rc, by + Math.sin(a1)*rc];
+      const large = deg > 180 ? 1 : 0, sweepFlag = sw > 0 ? 1 : 0;
+      const tx = -Math.sin(a1)*sw, ty = Math.cos(a1)*sw;      // 弧末端的切線
+      put(`M${p0[0].toFixed(1)},${p0[1].toFixed(1)} `
+        + `A${rc.toFixed(1)},${rc.toFixed(1)} 0 ${large} ${sweepFlag} ${p1[0].toFixed(1)},${p1[1].toFixed(1)} `
+        + `l${(tx*ext).toFixed(1)},${(ty*ext).toFixed(1)}`);
+      return p0;
     };
+
+    const seg = (ax,ay,bx,by) => {             // 兩端皆為主筋中心（畫面座標）
+      const dx=bx-ax, dy=by-ay, L=Math.hypot(dx,dy) || 1;
+      const ux=dx/L, uy=dy/L;
+      if(L < rc*2.2) return;                   // 太短畫不出彎鉤就略過
+      const e1 = hook(bx, by, ux, uy, 135, +1);      // 一端 135°
+      const e2 = hook(ax, ay, -ux, -uy, 90, -1);     // 另一端 90°
+      put(`M${e2[0].toFixed(1)},${e2[1].toFixed(1)} L${e1[0].toFixed(1)},${e1[1].toFixed(1)}`);
+    };
+
     const ro=R.rings[0], ri=R.rings[1];
     if(ri){   // 箱型雙層：繫筋垂直穿過壁厚，兩端各勾一根主筋
       for(const x of conf.tieX){ seg(X(x),Y(ro.hy),X(x),Y(ri.hy)); seg(X(x),Y(-ro.hy),X(x),Y(-ri.hy)); }
       for(const y of conf.tieY){ seg(X(ro.hx),Y(y),X(ri.hx),Y(y)); seg(X(-ro.hx),Y(y),X(-ri.hx),Y(y)); }
-    }else{    // 實心／單層：繫筋貫穿全斷面
+    }else{    // 實心／單層：繫筋貫穿全斷面，兩端各勾對邊主筋
       for(const x of conf.tieX) seg(X(x),Y(ro.hy),X(x),Y(-ro.hy));
       for(const y of conf.tieY) seg(X(ro.hx),Y(y),X(-ro.hx),Y(y));
     }
@@ -1321,7 +1361,8 @@ function svgSection(M,forPrint){
         q.push(`<path d="M${dx},${a1} L${dx-hh},${a1+arw} L${dx+hh},${a1+arw} Z" fill="${color}"/>`);
         q.push(`<path d="M${dx},${b1} L${dx-hh},${b1-arw} L${dx+hh},${b1-arw} Z" fill="${color}"/>`);
         const my=(a1+b1)/2;
-        q.push(`<text x="${dx-ext*0.5-6}" y="${my}" fill="${color}" font-size="${fs}" text-anchor="middle" font-weight="${fw}" transform="rotate(-90 ${dx-ext*0.5-6} ${my})">${svgTxt(label,fs)}</text>`);
+        const lx = dx + sg*(ext+16);         // 放尺寸線外側並留足間距，否則會壓到尺寸界線
+        q.push(`<text x="${lx}" y="${my}" fill="${color}" font-size="${fs}" text-anchor="middle" font-weight="${fw}" transform="rotate(-90 ${lx} ${my})">${svgTxt(label,fs)}</text>`);
       }else{
         const land=b1+2.6*arw+12;
         LN(dx,a1-2.6*arw,dx,land);
@@ -1408,7 +1449,11 @@ function niceTicks(lo, hi, n){
 /* 載重組合的標記：用形狀區分，不再在小圈裡塞數字（縮圖列印時數字必糊）。
    圖內對照表用同一個形狀，所以不需要編號也對得起來。 */
 function ptShape(i, cx, cy, r, fill){
-  const w = 1.4, st = `stroke="#FFFFFF" stroke-width="${w}"`;
+  const hollow = i >= 6;                       // 第 7 組起改空心，形狀總數 12
+  const w = 1.4;
+  const st = hollow ? `stroke="${fill}" stroke-width="${Math.max(1.8,r*0.34)}"`
+                    : `stroke="#FFFFFF" stroke-width="${w}"`;
+  if(hollow) fill = "none";
   switch(i % 6){
     case 0: return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${fill}" ${st}/>`;
     case 1: return `<rect x="${cx-r*0.88}" y="${cy-r*0.88}" width="${r*1.76}" height="${r*1.76}" fill="${fill}" ${st}/>`;
@@ -1507,6 +1552,10 @@ function svgPM(M,axis,forPrint){
     const R0 = forPrint ? (isC?12:10.5) : (isC?11:9.5);
     const cx=X(mx), cy=Y(py);
     o.push(ptShape(i, cx, cy, R0, isC?C.ptc:C.pt));
+    if(i >= 12)   // 形狀用完（6 形 × 實心/空心）才補編號
+      o.push(`<text x="${cx+R0+2}" y="${cy-R0*0.5}" fill="${isC?C.ptc:C.txt}"
+        font-size="${(9.5*FS).toFixed(1)}" font-weight="700"
+        stroke="#FFFFFF" stroke-width="2.6" paint-order="stroke">${i+1}</text>`);
     /* 載重點擠在一起時（例如各組合的 M 都很小、只有一組很大），
        編號會疊在一起。與已畫的點太近就把編號拉到圈外並補一條引線；
        這種叢集靠調整軸比例救不了，因為另一組點需要用到整個軸長。 */
@@ -1525,6 +1574,8 @@ function svgPM(M,axis,forPrint){
     o.push(`<text x="${bx+27*FS}" y="${yy}" fill="${isC?C.ptc:C.txt}" font-size="${(10*FS).toFixed(1)}" font-weight="${isC?700:400}">${esc(nm)}</text>`);
     o.push(`<text x="${bx+BW-8*FS}" y="${yy}" fill="${R2.dc>1?C.bad:(isC?C.ptc:C.txt)}" font-size="${(10*FS).toFixed(1)}" font-weight="${isC?700:400}" text-anchor="end">${fdc(R2.dc)}</text>`);
   });
+  // 圖例（螢幕版移到圖外的 HTML，見 render()；列印版仍畫在圖內）
+  if(forPrint){
   // 圖例
   const lg=[['標稱 P_n – M_n',C.n,'1.7',''],['設計 φP_n – φM_n',C.d,'2.6',''],
             ['Mander 圍束核心（保護層剝落）'+(confClipped?'（已裁切）':''),C.mc,'1.7','8 4']];
@@ -1533,6 +1584,7 @@ function svgPM(M,axis,forPrint){
     o.push(`<line x1="${W-Rr-286*FS}" y1="${yy}" x2="${W-Rr-254*FS}" y2="${yy}" stroke="${g2[1]}" stroke-width="${g2[2]}" ${g2[3]?`stroke-dasharray="${g2[3]}"`:''}/>`);
     o.push(`<text x="${W-Rr-248*FS}" y="${yy+4*FS}" fill="${C.txt}" font-size="${(10.5*FS).toFixed(1)}">${svgTxt(g2[0],10.5*FS)}</text>`);
   });
+  }
   o.push(`</svg>`);
   return o.join('');
 }
@@ -1595,6 +1647,15 @@ function render(){
 
   document.getElementById('secWrap').innerHTML=svgSection(M,false);
   document.getElementById('pmWrap').innerHTML=svgPM(M,AXIS,false);
+  {   // 圖例移到圖外：圖面就不必為了容納它而放大
+    const L=[['標稱 P_n – M_n','#8A97A5','1.7',''],
+             ['設計 φP_n – φM_n','#0F5F6B','2.6',''],
+             ['Mander 圍束核心（保護層剝落）','#6B4FA8','1.7','8 4']];
+    document.getElementById('pmLegend').innerHTML = SB(L.map(g=>
+      `<span class="it"><svg viewBox="0 0 34 8"><line x1="1" y1="4" x2="33" y2="4"
+        stroke="${g[1]}" stroke-width="${g[2]}" ${g[3]?`stroke-dasharray="${g[3]}"`:''}/></svg>
+        <span class="nm">${g[0]}</span></span>`).join(''));
+  }
   document.getElementById('axX').style.outline = AXIS==='x'?'2px solid var(--acc)':'none';
   document.getElementById('axY').style.outline = AXIS==='y'?'2px solid var(--acc)':'none';
 
@@ -3357,7 +3418,7 @@ function pinDetail(mod){
     : el.value;
   const s = S[r.id] || {};
   const vc = s.state==='bad' ? 'color:var(--bad)' : s.state==='warn' ? 'color:var(--warn)' : '';
-  let h = `<div class="pin-dt">參數說明（游標指到哪一列就顯示哪一列）</div>
+  let h = `<div class="pin-dt">參數說明</div>
     <div style="display:flex;align-items:baseline;gap:9px">
       <div style="font-size:16px;font-weight:700">${esc(r.name)}</div>
       <div style="font-size:12.5px;color:var(--dim)">${r.code==='—'?'':esc(r.code)}</div>
@@ -3366,6 +3427,8 @@ function pinDetail(mod){
       <div style="font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;${vc}">${esc(val)}</div>
       <div style="font-size:12.5px;color:var(--dim)">${esc(r.unit)}</div>
     </div>
+    ${s.msg ? `<div class="alert ${s.state==='bad'?'a-bad':'a-warn'}" style="margin:10px 0 2px">
+        <b>${s.state==='bad'?'不符規定':'需要注意'}</b>：${esc(s.msg)}</div>` : ''}
     <div style="height:1px;background:var(--line);margin:11px 0"></div>
     <div class="pin-dl">影響什麼</div>
     <div style="font-size:12.5px;line-height:1.65">${esc(r.affects)}</div>`;
@@ -3379,21 +3442,37 @@ function pinDetail(mod){
 function pinMapPylon(M){
   const c = M.chk, s = {}, OK = {state:'ok',chip:'✓'};
   const spacingBad = c.clB < c.need || c.clH < c.need;
-  s.nB = c.clB < c.need ? {state:'bad',chip:'淨距'} : OK;
-  s.nH = c.clH < c.need ? {state:'bad',chip:'淨距'} : OK;
-  s.dagg = spacingBad ? {state:'warn',chip:'⚠'} : OK;
-  s.barSize = spacingBad ? {state:'warn',chip:'⚠'}
-            : (c.rho<1||c.rho>4) ? {state:'warn',chip:'ρ'} : {state:'ok',chip:f(c.rho,2)+'%'};
-  s.tieLayout = (c.hxMaxB>35||c.hxMaxH>35) ? {state:'bad',chip:'h_x'}
-              : (M.fin.gov.tag.indexOf('A_sh')>=0 ? {state:'warn',chip:'控制'} : OK);
-  s.ashPair = {state:'warn',chip:'歧義'};
-  s.ph = M.opt.plastic ? {state:'warn',chip:'塑鉸'} : OK;
-  s.phiv = {state:'warn',chip:'配對'};
+  const clrMsg = v => `目前淨距 ${f(v,2)} cm ＜ 需求 ${f(c.need,2)} cm。`
+    + `需求取 max(4.0, 1.5d_b, 4/3·d_agg)，不足時混凝土無法澆置密實 —— 減少根數或改小號數。`;
+  s.nB = c.clB < c.need ? {state:'bad',chip:'淨距',msg:'B 邊'+clrMsg(c.clB)} : OK;
+  s.nH = c.clH < c.need ? {state:'bad',chip:'淨距',msg:'H 邊'+clrMsg(c.clH)} : OK;
+  s.dagg = spacingBad ? {state:'warn',chip:'⚠',
+    msg:'目前淨距不足，而骨材粒徑會抬高淨距需求（需求含 4/3·d_agg 這一項）。'} : OK;
+  s.barSize = spacingBad ? {state:'warn',chip:'⚠',
+      msg:'目前主筋淨距不足，改小號數是最直接的解法。'}
+            : (c.rho<1||c.rho>4) ? {state:'warn',chip:'ρ',
+      msg:`鋼筋比 ρ_g = ${f(c.rho,2)}%，超出常用範圍 1%~4%。`}
+            : {state:'ok',chip:f(c.rho,2)+'%'};
+  s.tieLayout = (c.hxMaxB>35||c.hxMaxH>35) ? {state:'bad',chip:'h_x',
+      msg:`h_x = ${f(Math.max(c.hxMaxB,c.hxMaxH),1)} cm ＞ 35 cm。耐震規定側向支撐間距上限 35 cm，`
+        + `請把繫筋改為「每一根主筋皆設」。`}
+              : (M.fin.gov.tag.indexOf('A_sh')>=0 ? {state:'warn',chip:'控制',
+      msg:'目前箍筋間距由 A_sh（圍束筋需求）控制，改變繫筋配置會直接改變 A_sh 提供量。'} : OK);
+  s.ashPair = {state:'warn',chip:'歧義',
+    msg:'規範條文對 b_c 方向的敘述有歧義，箱型牆片兩種讀法可差 7 倍以上，直接決定箍筋間距。請對照條文自行確認後再選。'};
+  s.ph = M.opt.plastic ? {state:'warn',chip:'塑鉸',
+    msg:"塑鉸區已開啟：V_c 依軸壓折減、箍筋間距受 min(b/4, 6d_b, 15cm) 限制，並啟動容量設計剪力。"
+      + "N_u < 0.1f'_c·A_g 時 V_c 取 0，全部剪力由箍筋承擔。"} : OK;
+  s.phiv = {state:'warn',chip:'配對',
+    msg:"φ_v = 0.75 係搭配 ACI 型 V_c = 0.53√f'_c·b_w·d。AASHTO 的 0.90 是為 MCFT 校準的，套在此處會偷掉約 20% 剪力裕度。"};
   s.fc = {state:'ok',chip:'β₁'};
   s.tieSize = {state:'ok',chip:'@'+f(M.fin.sUse,1)};
-  s.dbl = M.R.inner ? {state:'ok',chip:'雙層'} : {state:'warn',chip:'單層'};
+  s.dbl = M.R.inner ? {state:'ok',chip:'雙層'}
+        : {state:'warn',chip:'單層',
+           msg:'目前為單層配筋：剪力肢數較少，且箱型壁厚較大時內側無主筋。'};
   s.tw = (M.s.type==='box' && M.chk.layerGap!==null && M.chk.layerGap<2.5)
-       ? {state:'bad',chip:'層距'} : OK;
+       ? {state:'bad',chip:'層距',
+          msg:`內外層主筋淨距僅 ${f(M.chk.layerGap,2)} cm，壁厚不足以容納 外保護層 + 箍筋 + 雙層主筋。`} : OK;
   return s;
 }
 function pinMapBeam(B){
@@ -3562,7 +3641,10 @@ function pinStatus(mod, map){
       host.appendChild(card);
     }
     const ov = document.getElementById('loadOv');
-    document.getElementById('btnLoads').onclick = ()=>ov.classList.add('open');
+    const openLoads = ()=>ov.classList.add('open');
+    const bl = document.getElementById('btnLoads');
+    bl.onclick = openLoads;
+    bl.onkeydown = e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); openLoads(); } };
     document.getElementById('loadClose').onclick = ()=>ov.classList.remove('open');
     ov.addEventListener('click', e=>{ if(e.target===ov) ov.classList.remove('open'); });
     document.addEventListener('keydown', e=>{
