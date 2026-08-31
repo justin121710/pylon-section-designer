@@ -1268,54 +1268,58 @@ function svgSection(M,forPrint){
       ${rg.layer==='in'?'stroke-dasharray="7 4"':''}/>`);
   }
 
-  /* 繫筋：兩端繞過主筋後，尾端折回核心內。
-     依規範一端 135°、另一端 90°，延伸段 6d_b。
-     「135°」指的是延伸段與繫筋本體的夾角 —— 也就是繞過鋼筋後折回斜向 45°，
-     不是沿切線甩出去。主筋最後畫，會蓋住直段與鋼筋重疊的部分（正常表示法）。 */
+  /* 繫筋：本體是一條「貼著兩端主筋側邊」通過的直線（與鋼筋相切），
+     到了端點才從切點繞過鋼筋、再折出延伸段。
+     不是對準鋼筋中心衝過去再繞 —— 那樣本體會壓在鋼筋上。
+     依規範一端 135°、另一端 90°，延伸段 6d_b，折回核心那一側。 */
   {
     const swT = Math.max(1.2, radT*1.7);
-    const rc  = rad + swT*0.5;                    // 繫筋中心線貼著主筋外緣
+    const rc  = rad + swT*0.5;                    // 繫筋中心線與主筋中心的距離（相切）
     const ext = Math.max(5, dbt*6*k*0.5);         // 6d_b 延伸段
     const cx0 = X(0), cy0 = Y(0);
     const put = d => o.push(`<path d="${d}" fill="none" stroke="${C.ct}" stroke-width="${swT}"
       stroke-linecap="round" stroke-linejoin="round"/>`);
     const norm = a => { while(a<0) a+=2*Math.PI; while(a>=2*Math.PI) a-=2*Math.PI; return a; };
 
-    /* 繞著主筋 (bx,by) 彎鉤。u=(ux,uy) 是繫筋本體指向該主筋的方向；
-       deg 為彎鉤角度（135 或 90）＝延伸段相對本體前進方向轉過的角度，取折回核心的那一側。 */
-    const hook = (bx, by, ux, uy, deg) => {
+    /* 從切點繞過主筋。bc=鋼筋中心，nx,ny=由鋼筋中心指向切點的單位向量，
+       ux,uy=本體行進方向（在切點與圓相切），deg=彎鉤角度。 */
+    const hookAt = (bcx, bcy, nx, ny, ux, uy, deg) => {
+      const a0 = Math.atan2(ny, nx);
+      // 旋向：使 a0 處的切線方向等於本體行進方向
+      const sgn = ((-Math.sin(a0))*ux + (Math.cos(a0))*uy) > 0 ? 1 : -1;
       let best = null;
-      for(const sign of [1,-1]){
-        // 彎鉤角度＝延伸段相對「本體前進方向」轉過的角度（135° 就是轉 135°，
-        //  折回核心那一側）。先前誤寫成補角 45°，尾端會往斷面外翻。
-        const th = sign * deg * Math.PI/180;
-        const tx = ux*Math.cos(th) - uy*Math.sin(th);
+      for(const side of [1,-1]){
+        const th = side * deg * Math.PI/180;
+        const tx = ux*Math.cos(th) - uy*Math.sin(th);      // 延伸段方向
         const ty = ux*Math.sin(th) + uy*Math.cos(th);
-        // 弧的終點角度：切線方向 = 延伸段方向
-        const a1 = Math.atan2(ty, tx) - sign*Math.PI/2;
-        const a0 = Math.atan2(-uy, -ux);                    // 本體與鋼筋的接觸點
-        const sweep = sign > 0 ? norm(a1-a0) : norm(a0-a1);
-        // 延伸段必須折「回核心」：取方向與「主筋 → 斷面中心」夾角最小的那個旋向
-        const gx = cx0-bx, gy = cy0-by, gl = Math.hypot(gx,gy) || 1;
-        const d  = -(tx*gx + ty*gy)/gl;                     // 越小＝越朝核心
-        if(!best || d < best.d) best = {sign,a0,a1,sweep,tx,ty,d};
+        const a1 = Math.atan2(sgn*ty, sgn*tx) - Math.PI/2;
+        const gx = cx0-bcx, gy = cy0-bcy, gl = Math.hypot(gx,gy)||1;
+        const d = -(tx*gx + ty*gy)/gl;                     // 越小＝延伸段越朝核心
+        if(!best || d < best.d) best = {a1,tx,ty,d};
       }
-      const {sign,a0,a1,sweep,tx,ty} = best;
-      const p0=[bx+Math.cos(a0)*rc, by+Math.sin(a0)*rc];
-      const p1=[bx+Math.cos(a1)*rc, by+Math.sin(a1)*rc];
+      const {a1,tx,ty} = best;
+      const sweep = sgn > 0 ? norm(a1-a0) : norm(a0-a1);
+      const p0=[bcx+Math.cos(a0)*rc, bcy+Math.sin(a0)*rc];
+      const p1=[bcx+Math.cos(a1)*rc, bcy+Math.sin(a1)*rc];
       put(`M${p0[0].toFixed(1)},${p0[1].toFixed(1)} `
-        + `A${rc.toFixed(1)},${rc.toFixed(1)} 0 ${sweep>Math.PI?1:0} ${sign>0?1:0} `
+        + `A${rc.toFixed(1)},${rc.toFixed(1)} 0 ${sweep>Math.PI?1:0} ${sgn>0?1:0} `
         + `${p1[0].toFixed(1)},${p1[1].toFixed(1)} `
         + `l${(tx*ext).toFixed(1)},${(ty*ext).toFixed(1)}`);
     };
 
     const seg = (ax,ay,bx,by) => {                 // 兩端皆為主筋中心（畫面座標）
       const dx=bx-ax, dy=by-ay, L=Math.hypot(dx,dy) || 1;
-      if(L < rc*2.2) return;
+      if(L < rc*2.5) return;
       const ux=dx/L, uy=dy/L;
-      put(`M${ax.toFixed(1)},${ay.toFixed(1)} L${bx.toFixed(1)},${by.toFixed(1)}`);  // 本體直段
-      hook(bx, by,  ux,  uy, 135);                 // 一端 135°
-      hook(ax, ay, -ux, -uy,  90);                 // 另一端 90°
+      // 本體偏移到主筋側邊（相切）。兩側都算，取偏向核心的那一側。
+      let nx=-uy, ny=ux;
+      if(((ax+nx*rc)-cx0)**2 + ((ay+ny*rc)-cy0)**2 > ((ax-nx*rc)-cx0)**2 + ((ay-ny*rc)-cy0)**2){
+        nx=-nx; ny=-ny;
+      }
+      const A=[ax+nx*rc, ay+ny*rc], B=[bx+nx*rc, by+ny*rc];
+      put(`M${A[0].toFixed(1)},${A[1].toFixed(1)} L${B[0].toFixed(1)},${B[1].toFixed(1)}`);
+      hookAt(bx, by, nx, ny,  ux,  uy, 135);       // 一端 135°
+      hookAt(ax, ay, nx, ny, -ux, -uy,  90);       // 另一端 90°
     };
 
     const ro=R.rings[0], ri=R.rings[1];
