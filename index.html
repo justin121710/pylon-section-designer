@@ -70,6 +70,24 @@ body{overflow:hidden;display:flex;flex-direction:column}
 body.rp-open{overflow:auto;display:block;background:#fff;color:#111}
 body.rp-open #topbar{background:#fff;color:#111;border-bottom:1px solid #999}
 body.rp-open #impBanner{display:none!important}
+body.rp-open #verdict{display:none!important}
+/* 判定列：一眼看結論，點擊跳到對應卡片 */
+#verdict{flex-shrink:0;display:flex;flex-wrap:wrap;gap:6px;padding:7px 16px;background:var(--panel);
+  border-bottom:1px solid var(--line)}
+#verdict:empty{display:none}
+body #verdict .vd{display:inline-flex;align-items:center;gap:7px;padding:4px 11px 4px 9px;border-radius:999px;
+  font-size:12.5px;line-height:1.3;box-shadow:none;background:var(--sub);border:1px solid var(--line);
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+body #verdict .vd:hover{background:var(--sel)}
+#verdict .vd i{font-style:normal;width:16px;height:16px;border-radius:50%;display:inline-flex;align-items:center;
+  justify-content:center;font-size:10px;font-weight:800;color:#fff;flex-shrink:0}
+#verdict .vd.ok i{background:var(--ok)} #verdict .vd.warn i{background:var(--warn)}
+#verdict .vd.bad i{background:var(--bad)} #verdict .vd.bad{border-color:var(--bad);background:rgba(176,58,46,.07)}
+#verdict .vd.warn{border-color:rgba(180,113,26,.55)}
+#verdict .vd em{font-style:normal;color:var(--dim)}
+/* 堆疊版面（整頁捲動）時判定列黏在頂端；跳轉目標留出它的高度 */
+@media(max-width:1150px){#verdict{position:sticky;top:0;z-index:5;box-shadow:0 2px 6px rgba(21,28,36,.08)}
+  .card{scroll-margin-top:var(--vdH,56px)}}
 body.rp-open #app,body.rp-open #appBeam{display:none!important}
 @media(max-width:1150px){
   body{overflow:auto;display:block}
@@ -97,6 +115,7 @@ body.rp-open #app,body.rp-open #appBeam{display:none!important}
 .pin-mk.ok{background:rgba(34,197,94,.14);color:var(--ok);border:1px solid rgba(34,197,94,.5)}
 .pin-mk.warn{background:rgba(245,158,11,.16);color:var(--warn);border:1px solid var(--warn)}
 .pin-mk.bad{background:rgba(239,68,68,.16);color:var(--bad);border:1px solid var(--bad)}
+.pin-mk.note{background:rgba(15,95,107,.10);color:var(--acc);border:1px solid rgba(15,95,107,.45);font-style:italic;font-family:Georgia,serif}
 
 /* 中欄：參數表與說明卡之間夾一條可拖曳的分隔線（取代原本 pin-detail 的固定高度） */
 .pin-mid{display:grid;
@@ -125,6 +144,7 @@ body.rp-open #app,body.rp-open #appBeam{display:none!important}
 .pin-chip.ok{background:rgba(30,122,68,.12);color:var(--ok)}
 .pin-chip.warn{background:rgba(180,113,26,.13);color:var(--warn)}
 .pin-chip.bad{background:rgba(176,58,46,.12);color:var(--bad)}
+.pin-chip.note{background:rgba(15,95,107,.10);color:var(--acc)}
 
 .pin-detail{background:var(--panel);border:1px solid var(--line);border-radius:8px;
   padding:13px 14px;overflow-y:auto;min-height:0;box-shadow:var(--shadow)}
@@ -184,7 +204,7 @@ body.rp-open #app,body.rp-open #appBeam{display:none!important}
     --conc:#d9d9d9;--void:#fff;--bar:#000;--tie:#000;--ct:#000;
     --curveN:#888;--curveD:#000;--curveM:#555;--pt:#777;--ptc:#000;
   }
-  #app,#appBeam,#topbar{display:none!important}
+  #app,#appBeam,#topbar,#verdict{display:none!important}
   #report{display:block!important}
   .rp-page{page-break-after:always}
   .rp-page:last-child{page-break-after:auto}
@@ -299,6 +319,7 @@ input.src-miss,select.src-miss{border-color:var(--warn);border-style:dashed;
   <button id="btnPrint">列印 / 存成 PDF</button>
 </div>
 
+<div id="verdict" aria-label="檢核結論"></div>
 <div id="errBar" style="display:none"></div>
 <div id="impBanner" style="display:none"></div>
 
@@ -1646,6 +1667,41 @@ function stampCalc(){
     + pad(t.getHours()) + ':' + pad(t.getMinutes()) + ':' + pad(t.getSeconds());
 }
 
+/* ---------- 判定列：每項 [狀態, 標題, 值, 補充, 跳轉目標 id] ---------- */
+function renderVerdict(items, alertsId){
+  const box=document.getElementById(alertsId);
+  const nBad = box ? box.querySelectorAll('.a-bad').length : 0;
+  const nWarn= box ? box.querySelectorAll('.a-warn').length : 0;
+  items = items.concat([[nBad?'bad':nWarn?'warn':'ok','警示',
+    nBad||nWarn ? `${nBad?nBad+' 項不合格':''}${nBad&&nWarn?'、':''}${nWarn?nWarn+' 項注意':''}` : '無', '', alertsId]]);
+  const ic={ok:'✓',warn:'!',bad:'✗'};
+  document.getElementById('verdict').innerHTML = items.map(([st,k,v,sub,go])=>
+    `<button type="button" class="vd ${st}" data-go="${go}"><i>${ic[st]}</i><span>${SB(esc(k))} <b>${SB(esc(v))}</b>${sub?` <em>${SB(esc(sub))}</em>`:''}</span></button>`).join('');
+}
+document.addEventListener('click',e=>{
+  const b=e.target.closest && e.target.closest('#verdict .vd'); if(!b) return;
+  document.documentElement.style.setProperty('--vdH', (document.getElementById('verdict').offsetHeight+10)+'px');
+  const el=document.getElementById(b.dataset.go); if(!el) return;
+  const card=el.closest('.card')||el;
+  card.scrollIntoView({behavior:'smooth',block:'start'});
+  card.animate([{boxShadow:'0 0 0 3px var(--acc)'},{boxShadow:'0 0 0 0 transparent'}],{duration:1200});
+});
+function verdictPylon(M){
+  const C=M.ctrlFlex, F=M.fin, c=M.chk;
+  const dcSt = !Number.isFinite(C.dc)||C.dc>1 ? 'bad' : C.dc>0.9 ? 'warn' : 'ok';
+  const shs=[M.shX,M.shY];
+  const shBad=shs.some(s=>s.sectionFail||s.sectOver);
+  const shW=shs.reduce((a,b)=> b.VsReq/b.VsMax > a.VsReq/a.VsMax ? b : a);
+  const clrBad = c.clB<c.need || c.clH<c.need, hxBad = c.hxMaxB>35 || c.hxMaxH>35;
+  renderVerdict([
+    [dcSt,'撓曲 D/C',fdc(C.dc),C.L.name,'summary'],
+    [shBad?'bad':'ok','剪力 V_s/V_s,max',f(shW.VsReq/shW.VsMax,2),`${shW.dir.toUpperCase()} 向 · ${shW.ctrl.L.name}`,'summary'],
+    [F.tooTight?'bad':'ok','箍筋',`${M.r.tieSize} @ ${f(F.sUse,1)} cm`,`需 ≤ ${f(F.gov.v,2)}（${F.gov.tag.replace(/ \(.*\)$/,'')}）`,'summary'],
+    [(c.rho<1||c.rho>4)?'warn':'ok','ρ_g',f(c.rho,2)+'%','','summary'],
+    [clrBad||hxBad?'bad':'ok','主筋淨距',f(Math.min(c.clB,c.clH),1)+' cm',`需 ≥ ${f(c.need,1)}${hxBad?' · h_x 超限':''}`,'alerts'],
+  ],'alerts');
+}
+
 function render(){
   const M=compute();
   const fin=finalSpacing(M);
@@ -1686,7 +1742,7 @@ function render(){
   document.getElementById('axX').style.outline = AXIS==='x'?'2px solid var(--acc)':'none';
   document.getElementById('axY').style.outline = AXIS==='y'?'2px solid var(--acc)':'none';
 
-  renderSummary(M); renderAlerts(M);
+  renderSummary(M); renderAlerts(M); verdictPylon(M);
   pinStatus('pylon', pinMapPylon(M));
   if(document.getElementById('report').classList.contains('preview')) buildReport(M);
   return M;
@@ -2910,6 +2966,16 @@ function renderBeam(){
   }
   document.getElementById('bSummary').innerHTML=SB(h);
   renderBeamAlerts(B);
+  {
+    const sh=B.sh, dcSt = !C ? 'ok' : (!Number.isFinite(C.dc)||C.dc>1) ? 'bad' : C.dc>0.9 ? 'warn' : 'ok';
+    renderVerdict([
+      [dcSt,'撓曲 D/C',C?fdc(C.dc):'—',C?C.L.name:'','bSummary'],
+      [sh.fail||sh.over?'bad':'ok','剪力 V_s/V_s,max',f(sh.VsReq/sh.VsMax,2),'','bSummary'],
+      [F.tooTight?'bad':'ok','箍筋',`${S.tieSize} ${S.nLegs} 肢 @ ${f(F.sUse,1)} cm`,`需 ≤ ${f(F.gov.v,2)}`,'bSummary'],
+      [B.crack.ok?'ok':'bad','裂縫',`${f(B.crack.sAct,1)} / ${f(B.crack.sLim,1)} cm`,'','bSummary'],
+      [B.defl.okL&&B.defl.okT?'ok':'warn','撓度',`Δ_LT ${f(B.defl.dLT,2)} / ${f(B.defl.limT,2)} cm`,'','bSummary'],
+    ],'bAlerts');
+  }
   stampCalc();
   pinStatus('beam', pinMapBeam(B));
   if(document.getElementById('report').classList.contains('preview')) buildBeamReport(B);
@@ -3486,8 +3552,8 @@ function pinDetail(mod){
       <div style="font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;${vc}">${esc(val)}</div>
       <div style="font-size:12.5px;color:var(--dim)">${esc(r.unit)}</div>
     </div>
-    ${s.msg ? `<div class="alert ${s.state==='bad'?'a-bad':'a-warn'}" style="margin:10px 0 2px">
-        <b>${s.state==='bad'?'不符規定':'需要注意'}</b>：${esc(s.msg)}</div>` : ''}
+    ${s.msg ? `<div class="alert ${s.state==='bad'?'a-bad':s.state==='note'?'a-info':'a-warn'}" style="margin:10px 0 2px">
+        <b>${s.state==='bad'?'不符規定':s.state==='note'?'請確認':'需要注意'}</b>：${esc(s.msg)}</div>` : ''}
     <div style="height:1px;background:var(--line);margin:11px 0"></div>
     <div class="pin-dl">影響什麼</div>
     <div style="font-size:12.5px;line-height:1.65">${esc(r.affects)}</div>`;
@@ -3515,14 +3581,14 @@ function pinMapPylon(M){
   s.tieLayout = (c.hxMaxB>35||c.hxMaxH>35) ? {state:'bad',chip:'h_x',
       msg:`h_x = ${f(Math.max(c.hxMaxB,c.hxMaxH),1)} cm ＞ 35 cm。耐震規定側向支撐間距上限 35 cm，`
         + `請把繫筋改為「每一根主筋皆設」。`}
-              : (M.fin.gov.tag.indexOf('A_sh')>=0 ? {state:'warn',chip:'控制',
+              : (M.fin.gov.tag.indexOf('A_sh')>=0 ? {state:'note',chip:'控制',
       msg:'目前箍筋間距由 A_sh（圍束筋需求）控制，改變繫筋配置會直接改變 A_sh 提供量。'} : OK);
-  s.ashPair = {state:'warn',chip:'歧義',
+  s.ashPair = {state:'note',chip:'歧義',
     msg:'規範條文對 b_c 方向的敘述有歧義，箱型牆片兩種讀法可差 7 倍以上，直接決定箍筋間距。請對照條文自行確認後再選。'};
-  s.ph = M.opt.plastic ? {state:'warn',chip:'塑鉸',
+  s.ph = M.opt.plastic ? {state:'note',chip:'塑鉸',
     msg:"塑鉸區已開啟：V_c 依軸壓折減、箍筋間距受 min(b/4, 6d_b, 15cm) 限制，並啟動容量設計剪力。"
       + "N_u < 0.1f'_c·A_g 時 V_c 取 0，全部剪力由箍筋承擔。"} : OK;
-  s.phiv = {state:'warn',chip:'配對',
+  s.phiv = {state:'note',chip:'配對',
     msg:"φ_v = 0.75 係搭配 ACI 型 V_c = 0.53√f'_c·b_w·d。AASHTO 的 0.90 是為 MCFT 校準的，套在此處會偷掉約 20% 剪力裕度。"};
   s.fc = {state:'ok',chip:'β₁'};
   s.tieSize = {state:'ok',chip:'@'+f(M.fin.sUse,1)};
@@ -3543,15 +3609,15 @@ function pinMapBeam(B){
   s.bBotSize = B.sol.eps_t < 0.004 ? {state:'bad',chip:'ε_t'} : {state:'ok',chip:f(B.rho*100,2)+'%'};
   s.bTopSize = OK;
   s.bTieSize = {state:'ok',chip:'@'+f(B.fin.sUse,1)};
-  s.bSeismic = B.S.seismic ? {state:'warn',chip:'耐震'} : OK;
+  s.bSeismic = B.S.seismic ? {state:'note',chip:'耐震'} : OK;
   s.bw = (B.S.seismic && B.S.bw < Math.max(0.3*B.S.h,25)) ? {state:'bad',chip:'b_w'} : OK;
   s.bLn = (B.S.seismic && B.S.ln < 4*B.d) ? {state:'bad',chip:'l_n'} : OK;
-  s.bType = (B.S.type==='T' && B.S.sign==='neg') ? {state:'warn',chip:'退化'} : OK;
+  s.bType = (B.S.type==='T' && B.S.sign==='neg') ? {state:'note',chip:'退化'} : OK;
   s.bCover = B.crack.ok ? OK : {state:'bad',chip:'裂縫'};
   s.bML = B.defl.okL ? OK : {state:'bad',chip:'Δ_L'};
   s.bMD = B.defl.okT ? OK : {state:'bad',chip:'Δ_LT'};
   s.bDeflCase = {state:'ok',chip:'K'};
-  s.bphiv = {state:'warn',chip:'配對'};
+  s.bphiv = {state:'note',chip:'配對'};
   return s;
 }
 
@@ -3568,18 +3634,24 @@ function pinStatus(mod, map){
     if(!chip) return;
     const s = S[r.id] || {};
     chip.className = 'pin-chip ' + (s.state || 'ok');
-    chip.innerHTML = SB(esc(s.chip || (s.state==='warn'?'⚠':s.state==='bad'?'✗':'✓')));
+    chip.innerHTML = SB(esc(s.chip || (s.state==='warn'?'⚠':s.state==='bad'?'✗':s.state==='note'?'i':'✓')));
   });
   // 導軌狀態點
   PIN_META[mod].forEach((g,i) => {
     const d = st.rail.querySelector('[data-g="'+i+'"] .pin-mk');
     if(!d) return;
+    // 嚴重度：bad > warn（真的有問題）> note（需要你判斷／提醒）> ok
+    const RANK = {ok:0, note:1, warn:2, bad:3};
     const worst = g[1].map(p=>p[0]).reduce((a,id)=>{
-      const s2 = (S[id]||{}).state;
-      return s2==='bad' ? 'bad' : (s2==='warn' && a!=='bad') ? 'warn' : a;
+      // 不適用（pin-na，例如實心斷面的內層配筋）的參數不計入群組狀態
+      const el = document.getElementById(id), row = el && el.closest ? el.closest('.pin-row') : null;
+      if(row && row.classList.contains('pin-na')) return a;
+      const s2 = (S[id]||{}).state || 'ok';
+      return RANK[s2] > RANK[a] ? s2 : a;
     },'ok');
     d.className = 'pin-mk ' + worst;
-    d.textContent = worst==='ok' ? '✓' : worst==='warn' ? '!' : '✗';
+    d.textContent = {ok:'✓', note:'i', warn:'!', bad:'✗'}[worst];
+    d.title = {ok:'通過', note:'有需要你確認的選項（非錯誤）', warn:'需要注意', bad:'不符規定'}[worst];
   });
   pinDetail(mod);
 }
