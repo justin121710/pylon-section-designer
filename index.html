@@ -195,6 +195,51 @@ body.rp-open #app,body.rp-open #appBeam{display:none!important}
 .stat .meter{height:5px;border-radius:3px;background:var(--sel);margin-top:8px;overflow:hidden}
 .stat .meter i{display:block;height:100%;border-radius:3px}
 
+/* ---- 參數表對齊：表頭與表身保留相同捲軸寬，欄位才會對齊；數值靠右、等寬數字 ---- */
+.pin-head{overflow:hidden;scrollbar-gutter:stable;flex-shrink:0}   /* overflow:hidden 會讓 flex 子項可縮到 0 */
+.pin-body{scrollbar-gutter:stable}
+.pin-head>div:nth-child(3){padding-right:16px}
+body .pin-v input{text-align:right;font-variant-numeric:tabular-nums}
+
+/* ---- 堆疊版面（≤1150px）：須放在 .pin-mid 的 grid 定義之後，否則會被蓋回 grid，
+        說明卡掉進 8px 的分隔線軌道、下方留下一整塊空白 ---- */
+@media(max-width:1150px){
+  .pin-mid{display:flex;flex-direction:column;gap:10px}
+  .pin-mid>#derivedP,.pin-mid>#derivedB{margin:0}
+  .pin-detail{flex-shrink:0;max-height:none;overflow:visible}
+  /* 導軌改為一排可換行的膠囊，不再佔用一整欄高度 */
+  .pin-col{gap:6px}
+  .pin-rail{flex-direction:row;flex-wrap:wrap;gap:6px}
+  .pin-all,.pin-g{padding:6px 10px}
+  .pin-g{border-color:var(--line);background:var(--panel);align-items:center}
+  .pin-gs{display:none}
+  .loads-g .pin-gs{display:block}
+}
+
+/* ---- 手機（≤640px）：參數列改成兩行卡片，名稱不再被擠成直排 ---- */
+@media(max-width:640px){
+  #topbar{padding:8px 12px!important}
+  body #topbar button{padding:6px 10px;font-size:12.5px}
+  #verdict{flex-wrap:nowrap;overflow-x:auto;padding:6px 12px;scrollbar-width:none}
+  .fallback-grid{padding:10px;gap:10px}
+  .pin-head{display:none}
+  .pin-row{grid-template-columns:42px minmax(0,1fr) auto;
+    grid-template-areas:"c n s" "c v u";row-gap:5px;padding:8px 0}
+  .pin-c{grid-area:c;align-self:start;padding-top:2px}
+  .pin-n{grid-area:n}
+  .pin-v{grid-area:v;padding:0 0 0 10px}
+  .pin-u{grid-area:u;min-width:58px}
+  .pin-s{grid-area:s;text-align:right;padding-right:10px}
+  .pin-sheet{max-height:none}
+  .pin-body{overflow:visible}
+  .pin-sec{position:static}
+  .card{padding:11px}
+  table{font-size:12px}
+  th,td{padding:4px 6px}
+  #summary,#bSummary{overflow-x:auto}
+  .stats{grid-template-columns:1fr}
+}
+
 /* ---- 列印 / PDF ---- */
 @media print{
   @page{size:A4 portrait;margin:14mm 12mm}
