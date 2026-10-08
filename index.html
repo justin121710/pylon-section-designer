@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>RC 橋塔斷面設計工具</title>
+<title>RC 斷面設計工具（橋塔／柱・梁）</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2032%2032%22%3E%3Crect%20x%3D%224%22%20y%3D%224%22%20width%3D%2224%22%20height%3D%2224%22%20fill%3D%22none%22%20stroke%3D%22%230F5F6B%22%20stroke-width%3D%222.8%22%2F%3E%3Cg%20fill%3D%22%230F5F6B%22%3E%3Ccircle%20cx%3D%2210.5%22%20cy%3D%2210.5%22%20r%3D%222.5%22%2F%3E%3Ccircle%20cx%3D%2221.5%22%20cy%3D%2210.5%22%20r%3D%222.5%22%2F%3E%3Ccircle%20cx%3D%2210.5%22%20cy%3D%2221.5%22%20r%3D%222.5%22%2F%3E%3Ccircle%20cx%3D%2221.5%22%20cy%3D%2221.5%22%20r%3D%222.5%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
 
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" crossorigin="anonymous">
@@ -486,7 +486,7 @@ img,video{max-width:100%;height:auto}
       <div class="fld" id="rowDbl"><span>內層同配置</span>
         <select id="dbl"><option value="1">是（雙層）</option><option value="0">否（單層）</option></select></div>
       <div class="text-[11.5px] mt-1" style="color:var(--dim)">
-        總根數 <b id="oNbar" class="mono">—</b><span id="oNbarChk"></span> ｜ A<sub>st</sub> = <b id="oAst" class="mono">—</b> cm²
+        總根數 <b id="oNbar" class="mono">—</b> 根<span id="oNbarChk"></span> ｜ A<sub>st</sub> = <b id="oAst" class="mono">—</b> cm²
         ｜ A<sub>g</sub> = <b id="oAg" class="mono">—</b> cm² ｜ ρ<sub>g</sub> = <b id="oRho" class="mono">—</b> %
       </div>
     </div>
@@ -560,7 +560,7 @@ img,video{max-width:100%;height:auto}
       </div>
       <div style="overflow-x:auto">
         <table id="loadTbl" style="min-width:620px">
-          <thead><tr><th class="l">組合</th><th>P<sub>u</sub></th><th>M<sub>ux</sub></th><th>M<sub>uy</sub></th><th>V<sub>ux</sub></th><th>V<sub>uy</sub></th><th>T<sub>u</sub></th><th></th></tr></thead>
+          <thead><tr><th class="l">組合</th><th>P<sub>u</sub><br><span style="font-weight:400;font-size:11px;color:var(--dim)">tf</span></th><th>M<sub>ux</sub><br><span style="font-weight:400;font-size:11px;color:var(--dim)">tf·m</span></th><th>M<sub>uy</sub><br><span style="font-weight:400;font-size:11px;color:var(--dim)">tf·m</span></th><th>V<sub>ux</sub><br><span style="font-weight:400;font-size:11px;color:var(--dim)">tf</span></th><th>V<sub>uy</sub><br><span style="font-weight:400;font-size:11px;color:var(--dim)">tf</span></th><th>T<sub>u</sub><br><span style="font-weight:400;font-size:11px;color:var(--dim)">tf·m</span></th><th></th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
@@ -683,7 +683,7 @@ img,video{max-width:100%;height:auto}
       <div class="text-[11.5px] mb-2" style="color:var(--dim)">M<sub>u</sub><sup>+</sup> 跨中正彎矩、M<sub>u</sub><sup>−</sup> 支承負彎矩（皆填絕對值，tf·m）｜ V (tf) ｜ T (tf·m)　—　依上方切換鈕取用對應欄</div>
       <div style="overflow-x:auto">
         <table id="bLoadTbl" style="min-width:520px">
-          <thead><tr><th class="l">組合</th><th>M<sub>u</sub><sup>+</sup></th><th>M<sub>u</sub><sup>−</sup></th><th>V<sub>u</sub></th><th>T<sub>u</sub></th><th></th></tr></thead>
+          <thead><tr><th class="l">組合</th><th>M<sub>u</sub><sup>+</sup><br><span style="font-weight:400;font-size:11px;color:var(--dim)">tf·m</span></th><th>M<sub>u</sub><sup>−</sup><br><span style="font-weight:400;font-size:11px;color:var(--dim)">tf·m</span></th><th>V<sub>u</sub><br><span style="font-weight:400;font-size:11px;color:var(--dim)">tf</span></th><th>T<sub>u</sub><br><span style="font-weight:400;font-size:11px;color:var(--dim)">tf·m</span></th><th></th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
@@ -1393,6 +1393,24 @@ function svgSection(M,forPrint){
       rx="${Math.max(3,off*1.6)}"
       fill="none" stroke="${C.tie}" stroke-width="${Math.max(1.4,radT*2)}" stroke-linejoin="round"
       ${rg.layer==='in'?'stroke-dasharray="7 4"':''}/>`);
+    /* 閉合箍筋的 135° 耐震彎鉤：兩端在同一角隅搭接，各自繞過角隅主筋後
+       以 45° 斜向伸入核心（延伸 ≥ max(6d_b, 7.5 cm)）。圖示於左上角；
+       沿構材高度，相鄰層的搭接角隅須輪流錯開。 */
+    {
+      const sx = -1, sy = 1;                                  // 左上角（斷面座標）
+      const inv = rg.layer==='in' ? -1 : 1;                   // 內層箍筋的「核心」在牆體側（朝外）
+      const bx = X(sx*rg.hx), by = Y(sy*rg.hy);
+      const dx = -sx*inv/Math.SQRT2, dy = sy*inv/Math.SQRT2;  // 畫面座標：朝核心的 45° 方向
+      const len = Math.max(8, Math.max(6*dbt, 7.5)*k);
+      const rr = off;                                         // 沿箍筋中心線
+      const sw = Math.max(1.4,radT*2);
+      for(const sgn of [1,-1]){
+        // 起點：角隅主筋兩側、箍筋中心線上，彼此沿垂直於斜向的方向錯開
+        const px = bx + (-dy)*sgn*rr*0.75 - dx*rr*0.2, py = by + dx*sgn*rr*0.75 - dy*rr*0.2;
+        o.push(`<line x1="${px.toFixed(1)}" y1="${py.toFixed(1)}" x2="${(px+dx*len).toFixed(1)}" y2="${(py+dy*len).toFixed(1)}"
+          stroke="${C.tie}" stroke-width="${sw}" stroke-linecap="round" ${rg.layer==='in'?'stroke-dasharray="5 3"':''}/>`);
+      }
+    }
   }
 
   /* 繫筋：本體是一條「貼著兩端主筋側邊」通過的直線（與鋼筋相切），
@@ -1403,14 +1421,13 @@ function svgSection(M,forPrint){
     const swT = Math.max(1.2, radT*1.7);
     const rc  = rad + swT*0.5;                    // 繫筋中心線與主筋中心的距離（相切）
     const ext = Math.max(5, dbt*6*k*0.5);         // 6d_b 延伸段
-    const cx0 = X(0), cy0 = Y(0);
     const put = d => o.push(`<path d="${d}" fill="none" stroke="${C.ct}" stroke-width="${swT}"
       stroke-linecap="round" stroke-linejoin="round"/>`);
     const norm = a => { while(a<0) a+=2*Math.PI; while(a>=2*Math.PI) a-=2*Math.PI; return a; };
 
     /* 從切點繞過主筋。bc=鋼筋中心，nx,ny=由鋼筋中心指向切點的單位向量，
        ux,uy=本體行進方向（在切點與圓相切），deg=彎鉤角度。 */
-    const hookAt = (bcx, bcy, nx, ny, ux, uy, deg) => {
+    const hookAt = (bcx, bcy, nx, ny, ux, uy, deg, cx0, cy0) => {
       const a0 = Math.atan2(ny, nx);
       // 旋向：使 a0 處的切線方向等於本體行進方向
       const sgn = ((-Math.sin(a0))*ux + (Math.cos(a0))*uy) > 0 ? 1 : -1;
@@ -1439,28 +1456,35 @@ function svgSection(M,forPrint){
         + `l${(tx*ext).toFixed(1)},${(ty*ext).toFixed(1)}`);
     };
 
-    const seg = (ax,ay,bx,by) => {                 // 兩端皆為主筋中心（畫面座標）
+    /* flip：交換 135°／90° 端。規範要求相鄰繫筋沿高度與「沿斷面周邊」皆須端對端交替
+       （ACI 18.7.5.2(c)），故同一層相鄰兩支也左右輪流。 */
+    const seg = (ax,ay,bx,by,flip) => {            // 兩端皆為主筋中心（畫面座標）
+      if(flip){ [ax,bx]=[bx,ax]; [ay,by]=[by,ay]; }
       const dx=bx-ax, dy=by-ay, L=Math.hypot(dx,dy) || 1;
       if(L < rc*2.5) return;
       const ux=dx/L, uy=dy/L;
-      // 本體偏移到主筋側邊（相切）。兩側都算，取偏向核心的那一側。
-      let nx=-uy, ny=ux;
-      if(((ax+nx*rc)-cx0)**2 + ((ay+ny*rc)-cy0)**2 > ((ax-nx*rc)-cx0)**2 + ((ay-ny*rc)-cy0)**2){
-        nx=-nx; ny=-ny;
-      }
+      /* 本體偏移到主筋側邊（相切）。同一方向的繫筋一律貼同一側
+         （水平繫筋貼主筋下緣、垂直繫筋貼主筋右緣），彎鉤才會全部同向 ——
+         工地上同一層的繫筋是同一種加工形狀、同一方向綁紮。
+         舊做法「偏向斷面中心那側」會讓上下半部鏡射，彎鉤一支朝上一支朝下。 */
+      const nx = Math.abs(ux) >= Math.abs(uy) ? 0 : 1;
+      const ny = Math.abs(ux) >= Math.abs(uy) ? 1 : 0;
       const A=[ax+nx*rc, ay+ny*rc], B=[bx+nx*rc, by+ny*rc];
       put(`M${A[0].toFixed(1)},${A[1].toFixed(1)} L${B[0].toFixed(1)},${B[1].toFixed(1)}`);
-      hookAt(bx, by, nx, ny,  ux,  uy, 135);       // 一端 135°
-      hookAt(ax, ay, nx, ny, -ux, -uy,  90);       // 另一端 90°
+      /* 「核心」取繫筋本身的中點：箱型牆的核心在內外兩層鋼筋之間，
+         若用斷面中心判斷，內層端的尾段會伸進中空區。 */
+      const mx = (ax+bx)/2, my = (ay+by)/2;
+      hookAt(bx, by, nx, ny,  ux,  uy, 135, mx, my);   // 一端 135°
+      hookAt(ax, ay, nx, ny, -ux, -uy,  90, mx, my);   // 另一端 90°
     };
 
     const ro=R.rings[0], ri=R.rings[1];
     if(ri){
-      for(const x of conf.tieX){ seg(X(x),Y(ro.hy),X(x),Y(ri.hy)); seg(X(x),Y(-ro.hy),X(x),Y(-ri.hy)); }
-      for(const y of conf.tieY){ seg(X(ro.hx),Y(y),X(ri.hx),Y(y)); seg(X(-ro.hx),Y(y),X(-ri.hx),Y(y)); }
+      conf.tieX.forEach((x,i)=>{ seg(X(x),Y(ro.hy),X(x),Y(ri.hy),i%2); seg(X(x),Y(-ro.hy),X(x),Y(-ri.hy),i%2); });
+      conf.tieY.forEach((y,i)=>{ seg(X(ro.hx),Y(y),X(ri.hx),Y(y),i%2); seg(X(-ro.hx),Y(y),X(-ri.hx),Y(y),i%2); });
     }else{
-      for(const x of conf.tieX) seg(X(x),Y(ro.hy),X(x),Y(-ro.hy));
-      for(const y of conf.tieY) seg(X(ro.hx),Y(y),X(-ro.hx),Y(y));
+      conf.tieX.forEach((x,i)=>seg(X(x),Y(ro.hy),X(x),Y(-ro.hy),i%2));
+      conf.tieY.forEach((y,i)=>seg(X(ro.hx),Y(y),X(-ro.hx),Y(y),i%2));
     }
   }
   // 主筋（真實直徑比例）——最後畫，壓在橫向鋼筋之上
@@ -1550,9 +1574,9 @@ function svgSection(M,forPrint){
   // 圖例：列印時全為黑色，故以各自的真實線型（實心圓／實線／虛線／細線）區分
   const lg=[
     ['dot',  `主筋 ${M.r.barSize} ×${R.bars.length}`, C.bar],
-    ['solid',`外閉合箍筋 ${M.r.tieSize}（兩端 135° 耐震彎鉤）`, C.tie],
+    ['solid',`外閉合箍筋 ${M.r.tieSize}（兩端 135° 耐震彎鉤，搭接角隅逐層輪替）`, C.tie],
     ...(R.rings[1]?[['dash',`內層閉合箍筋 ${M.r.tieSize}`, C.tie]]:[]),
-    ['thin', `繫筋 ${M.r.tieSize}（135°+90°，沿高度逐層錯開）`, C.ct]
+    ['thin', `繫筋 ${M.r.tieSize}（一端 135°、一端 90°；相鄰繫筋端對端交替）`, C.ct]
   ];
   lg.forEach((L,i)=>{
     const yy=16+i*17;
@@ -1936,14 +1960,14 @@ function renderSummary(M){
   h += kv('採用箍筋間距 s', `${M.r.tieSize} @ ${f(F.sUse,1)} cm`, F.tooTight?'style="color:var(--bad)"':'style="color:var(--ok)"');
   h += kv('控制項', F.gov.tag);
   h += kv('需求上限 s_req', f(F.gov.v,2)+' cm');
-  h += kv('剪力肢數 n_legs (X / Y)', `${M.shX.nlegs} / ${M.shY.nlegs}`);
-  h += kv('繫筋根數（B 邊 / H 邊，每面）', `${M.chk.tiesB} / ${M.chk.tiesH}`);
+  h += kv('剪力肢數 n_legs (X / Y)', `${M.shX.nlegs} / ${M.shY.nlegs} 肢`);
+  h += kv('繫筋根數（B 邊 / H 邊，每面）', `${M.chk.tiesB} / ${M.chk.tiesH} 根`);
   h += kv('h_x (B 邊 / H 邊)', `${f(M.chk.hxMaxB,1)} / ${f(M.chk.hxMaxH,1)} cm`);
   h += cf.MD ? kv("f'_cc（Mander 圍束）", f(cf.MD.fcc,0)+` kgf/cm² (×${f(cf.MD.fcc/M.m.fc,2)})`) : kv("f'_cc",'—');
   h += cf.MD ? kv('ε_cu,c（圍束極限應變）', f(cf.MD.ecu,4)+` (×${f(cf.MD.ecu/M.m.ecu,1)})`) : '';
   h += `</div></div>`;
 
-  h += `<div class="mt-3"><table><thead><tr><th class="l">組合</th><th>P_u (tf)</th><th>M_ux</th><th>M_uy</th><th>D/C</th><th class="l">方法</th></tr></thead><tbody>`;
+  h += `<div class="mt-3"><table><thead><tr><th class="l">組合</th><th>P_u (tf)</th><th>M_ux (tf·m)</th><th>M_uy (tf·m)</th><th>D/C</th><th class="l">方法</th></tr></thead><tbody>`;
   for(const R2 of M.res){
     const bad=R2.dc>1, ctr=R2===M.ctrlFlex;
     h+=`<tr style="${ctr?'background:rgba(239,68,68,.10);font-weight:700':''}">
@@ -2039,7 +2063,10 @@ function buildReport(M){
 
   /* --- 第 1 頁：輸入與圖 --- */
   o.push(`<div class="rp-page">`);
-  o.push(`<div class="rp-h1"><svg class="logo rp-logo" viewBox="0 0 32 32"><use href="#logoMark"/></svg>RC 橋塔斷面設計檢核計算書</div>`);
+  o.push(`<div class="rp-h1"><svg class="logo rp-logo" viewBox="0 0 32 32"><use href="#logoMark"/></svg>RC 橋塔／柱斷面設計檢核計算書</div>`);
+  o.push(`<div style="font-size:13px;margin-bottom:4px">構材類別：<b>橋塔／柱（受壓構材，雙軸 P-M 互制）</b>
+    ｜ 斷面：<b>${s.type==='box'?`中空箱型 B × H = ${d(s.B,0)} × ${d(s.H,0)} cm，t_{w} = ${d(s.tw,0)} cm`:`實心矩形 B × H = ${d(s.B,0)} × ${d(s.H,0)} cm`}</b>
+    ｜ ${M.opt.plastic?'塑鉸區斷面':'一般斷面（非塑鉸區）'}</div>`);
   o.push(`<div style="font-size:12px;color:#444;margin-bottom:10px">
     依據：混凝土結構設計規範（土木401） + 公路橋梁耐震設計規範 ｜ 單位：kgf, cm（顯示 tf, tf·m）｜
     產生時間：${new Date().toLocaleString('zh-TW')}</div>`);
@@ -2053,7 +2080,7 @@ function buildReport(M){
     <tr><td class="l">f'_c</td><td>${d(m.fc,0)} kgf/cm²</td>
         <td class="l">f_y</td><td>${d(m.fy,0)}</td><td class="l">f_yt</td><td>${d(m.fyt,0)}</td></tr>
     <tr><td class="l">主筋</td><td class="l">${r.barSize} (d_b=${d(R.db,2)} cm)</td>
-        <td class="l">總根數</td><td>${R.bars.length}</td><td class="l">A_st</td><td>${d(M.Ast,1)} cm²</td></tr>
+        <td class="l">總根數</td><td>${R.bars.length} 根</td><td class="l">A_st</td><td>${d(M.Ast,1)} cm²</td></tr>
     <tr><td class="l">箍筋/繫筋</td><td class="l">${r.tieSize} (d_t=${d(R.dt,2)} cm)</td>
         <td class="l">骨材粒徑</td><td>${d(M.opt.dagg,1)} cm</td><td class="l">塑鉸區</td><td>${M.opt.plastic?'是':'否'}</td></tr>
   </tbody></table>`);
@@ -2176,14 +2203,14 @@ function buildReport(M){
     規範條文對此敘述有歧義，兩種讀法對箱型牆片可差 7 倍以上，請自行對照條文複核。
     （k_e、ρ_s、f'_l 之計算一律採物理配對，不受此切換影響。）`));
 
-  o.push(`<table class="no-break"><thead><tr><th class="l">部位</th><th>方向</th><th>A_sh 提供</th>
-    <th>b_c (cm)</th><th>A_g/A_ch</th><th>(A_sh/s)_req</th><th>s 上限 (cm)</th></tr></thead><tbody>`);
+  o.push(`<table class="no-break"><thead><tr><th class="l">部位</th><th>方向</th><th>A_sh 提供 (cm²)</th>
+    <th>b_c (cm)</th><th>A_g/A_ch</th><th>(A_sh/s)_req (cm²/cm)</th><th>s 上限 (cm)</th></tr></thead><tbody>`);
   for(const w of M.conf.walls){
     o.push(`<tr><td class="l" rowspan="2">${esc(w.tag)}<br><span style="font-size:10.5px;color:#555">
       A_g=${d(w.Ag_w,0)}、A_ch=${d(w.Ach_w,0)} cm²</span></td>
-      <td class="l">${esc(w.lab1)}</td><td>${d(w.Ash1,2)} cm²</td><td>${d(w.bc1,1)}</td>
+      <td class="l">${esc(w.lab1)}</td><td>${d(w.Ash1,2)}</td><td>${d(w.bc1,1)}</td>
       <td rowspan="2">${d(w.Ag_w/w.Ach_w,4)}</td><td>${d(w.rq1,4)}</td><td>${d(w.s1,2)}</td></tr>`);
-    o.push(`<tr><td class="l">${esc(w.lab2)}</td><td>${d(w.Ash2,2)} cm²</td><td>${d(w.bc2,1)}</td>
+    o.push(`<tr><td class="l">${esc(w.lab2)}</td><td>${d(w.Ash2,2)}</td><td>${d(w.bc2,1)}</td>
       <td>${d(w.rq2,4)}</td><td>${d(w.s2,2)}</td></tr>`);
   }
   o.push(`</tbody></table>`);
@@ -2203,17 +2230,21 @@ function buildReport(M){
   o.push(note(`規範（土木401 / ACI 25.7.2.3）：<b>每隔一根</b>縱筋須由箍角或繫筋提供側向支撐，
     且任一主筋距被支撐主筋之淨距<b>不得大於 15 cm</b>。若實際淨距已超過 15 cm，則<b>每一根</b>皆須支撐。`));
   o.push(`<table class="no-break"><thead><tr><th class="l">項目</th><th>B 邊</th><th>H 邊</th></tr></thead><tbody>
-    <tr><td class="l">每面主筋根數 n（含角隅）</td><td>${r.nB}</td><td>${r.nH}</td></tr>
+    <tr><td class="l">每面主筋根數 n（含角隅）(根)</td><td>${r.nB}</td><td>${r.nH}</td></tr>
     <tr><td class="l">中心距 (cm)</td><td>${d(M.chk.pB,2)}</td><td>${d(M.chk.pH,2)}</td></tr>
     <tr><td class="l">淨距 = 中心距 − d_b (cm)</td><td>${d(M.chk.clB,2)}</td><td>${d(M.chk.clH,2)}</td></tr>
-    <tr><td class="l">淨距需求 max(4.0, 1.5d_b, 4/3·d_agg)</td><td>${d(M.chk.need,2)}</td><td>${d(M.chk.need,2)}</td></tr>
+    <tr><td class="l">淨距需求 max(4.0, 1.5d_b, 4/3·d_agg) (cm)</td><td>${d(M.chk.need,2)}</td><td>${d(M.chk.need,2)}</td></tr>
     <tr><td class="l">須每根支撐？</td><td>${M.chk.everyB?'是':'否（每隔一根）'}</td><td>${M.chk.everyH?'是':'否（每隔一根）'}</td></tr>
-    <tr><td class="l">繫筋根數（每面）</td><td><b>${M.chk.tiesB}</b></td><td><b>${M.chk.tiesH}</b></td></tr>
-    <tr><td class="l">h_x 被支撐筋中心距 (≤35 cm)</td><td>${d(M.chk.hxMaxB,2)}</td><td>${d(M.chk.hxMaxH,2)}</td></tr>
+    <tr><td class="l">繫筋根數（每面）(根)</td><td><b>${M.chk.tiesB}</b></td><td><b>${M.chk.tiesH}</b></td></tr>
+    <tr><td class="l">h_x 被支撐筋中心距 (cm，≤ 35)</td><td>${d(M.chk.hxMaxB,2)}</td><td>${d(M.chk.hxMaxH,2)}</td></tr>
   </tbody></table>`);
   o.push(eq(`\\text{135}^\\circ\\text{ 彎鉤延伸長度}\\ \\ge\\max(6d_b,\\;7.5)=\\max(6\\times${d(R.dt,2)},\\;7.5)=${d(M.chk.hook135,2)}\\ \\text{cm}`));
-  o.push(note(`外閉合箍筋兩端均為 135° 耐震彎鉤；內部繫筋一端 135°、另一端 90°，且<b>沿構材高度逐層交替錯開</b>
-    （2D 斷面圖無法表現此錯開，僅以圖例標註）。`));
+  o.push(note(`<b>綁紮方式</b>：外閉合箍筋兩端均為 135° 耐震彎鉤，於角隅搭接並以 45° 伸入核心；
+    相鄰層箍筋的搭接角隅須沿構材高度<b>輪流錯開</b>（圖示為左上角）。
+    繫筋一端 135°、另一端 90°，所有繫筋貼主筋同一側、彎鉤繞向一致（同一種加工形狀）；
+    相鄰繫筋須<b>端對端交替</b>：同一層沿斷面周邊左右輪流（圖示即此排法），
+    且勾住同一根主筋的上下相鄰兩層，其 <b>90° 端位於相反側</b>（土木401 / ACI 18.7.5.2(c)）。
+    2D 斷面圖僅能表示其中一層，下一層 135°／90° 端全部互換。`));
 
   o.push(`</div><div class="rp-page">`);
   o.push(`<div class="rp-h2">9. 箍筋間距彙整</div>`);
@@ -2291,7 +2322,7 @@ function breakpointTable(M,axis){
 
   let h=`<table class="no-break"><thead><tr><th class="l">斷點</th><th>c (cm)</th><th>a (cm)</th>
     <th>A_c,comp (cm²)</th><th>ȳ_c (cm)</th><th>C_c (tf)</th><th>ε_t</th><th>φ</th>
-    <th>P_n (tf)</th><th>M_n (tf·m)</th><th>φP_n</th><th>φM_n</th><th class="l">核對</th></tr></thead><tbody>`;
+    <th>P_n (tf)</th><th>M_n (tf·m)</th><th>φP_n (tf)</th><th>φM_n (tf·m)</th><th class="l">核對</th></tr></thead><tbody>`;
   h+=`<tr><td class="l">純壓 P_o</td><td>∞</td><td>${f(g.D,1)}</td><td>${f(M.Ag,0)}</td><td>0.0</td>
       <td>${f(0.85*m.fc*(M.Ag-M.Ast)/TF,0)}</td><td>—</td><td>${f(m.phic,2)}</td>
       <td>${f(cv.Po/TF,0)}</td><td>0.0</td><td>${f(m.phic*cv.PnMax/TF,0)}</td><td>0.0</td><td class="l">—</td></tr>`;
@@ -3269,6 +3300,8 @@ function buildBeamReport(B){
   /* 第 1 頁：斷面與材料 */
   o.push(`<div class="rp-page">`);
   o.push(`<div class="rp-h1"><svg class="logo rp-logo" viewBox="0 0 32 32"><use href="#logoMark"/></svg>RC 梁斷面設計檢核計算書</div>`);
+  o.push(`<div style="font-size:13px;margin-bottom:4px">構材類別：<b>梁（受撓構材${S.seismic?'，耐震特殊抗彎構材':''}）</b>
+    ｜ 斷面：<b>${S.type==='T'?'T 型':'矩形'} b_{w} × h = ${d(S.bw,0)} × ${d(S.h,0)} cm${S.type==='T'?`，h_{f} = ${d(S.hf,0)} cm`:''}</b></div>`);
   o.push(`<div style="font-size:12px;color:#444;margin-bottom:10px">
     依據：混凝土結構設計規範（土木401）${S.seismic?' + 耐震特殊抗彎構材規定':''}
     ｜ 單位：kgf, cm（顯示 tf, tf·m）｜ 檢核斷面：<b>${pos?'跨中正彎矩（翼緣受壓）':'支承負彎矩（翼緣受拉）'}</b>
@@ -3437,8 +3470,8 @@ function buildBeamReport(B){
     o.push(`<div class="rp-h2">7. 耐震特殊抗彎構材附加規定</div>`);
     const r = B.phiNeg>0 ? B.phiPos/B.phiNeg : 0;
     o.push(`<table class="no-break"><thead><tr><th class="l">項目</th><th class="l">規定</th><th>實際</th><th>判定</th></tr></thead><tbody>
-      <tr><td class="l">腹板寬</td><td class="l">b_w ≥ max(0.3h, 25 cm)</td><td>${d(S.bw,0)} / ${d(Math.max(0.3*S.h,25),1)}</td><td>${S.bw>=Math.max(0.3*S.h,25)?'✓':'✗'}</td></tr>
-      <tr><td class="l">淨跨</td><td class="l">l_n ≥ 4d</td><td>${d(S.ln,0)} / ${d(4*B.d,0)}</td><td>${S.ln>=4*B.d?'✓':'✗'}</td></tr>
+      <tr><td class="l">腹板寬</td><td class="l">b_w ≥ max(0.3h, 25 cm)</td><td>${d(S.bw,0)} / ${d(Math.max(0.3*S.h,25),1)} cm</td><td>${S.bw>=Math.max(0.3*S.h,25)?'✓':'✗'}</td></tr>
+      <tr><td class="l">淨跨</td><td class="l">l_n ≥ 4d</td><td>${d(S.ln,0)} / ${d(4*B.d,0)} cm</td><td>${S.ln>=4*B.d?'✓':'✗'}</td></tr>
       <tr><td class="l">鋼筋比</td><td class="l">ρ ≤ 0.025</td><td>${d(B.rho,5)}</td><td>${B.rho<=0.025?'✓':'✗'}</td></tr>
       <tr><td class="l">接頭面正彎矩</td><td class="l">φM_n⁺ ≥ 0.50 φM_n⁻</td><td>${d(r,3)}</td><td>${r>=0.5?'✓':'✗'}</td></tr>
       <tr><td class="l">加密區長度</td><td class="l">自柱面 2h</td><td>${d(sh.confLen,0)} cm</td><td>—</td></tr>
@@ -3650,7 +3683,7 @@ function pinRender(mod){
       row.className = 'pin-row' + (st.sel===p[0] ? ' on' : '');
       row.innerHTML = SB(
         `<div class="pin-c">${esc(p[1])}</div><div class="pin-n">${esc(p[2])}</div>
-         <div class="pin-v"></div><div class="pin-u">${esc(p[3])}</div>
+         <div class="pin-v"></div><div class="pin-u"${!p[3]&&rec.el.type==='number'?' title="無因次（無單位）"':''}>${esc(p[3] || (rec.el.type==='number' ? '無因次' : ''))}</div>
          <div class="pin-s"><span class="pin-chip ${s.state||'ok'}">${esc(s.chip || (s.state==='warn'?'⚠':s.state==='bad'?'✗':'✓'))}</span></div>`);
       row.dataset.pid = p[0];
       if(!show) row.classList.add('pin-hidden');
@@ -3853,7 +3886,15 @@ function pinStatus(mod, map){
     document.body.classList.toggle('rp-open', on);
     if(on){ buildActive(); el.scrollIntoView({behavior:'smooth'}); }
   };
-  document.getElementById('btnPrint').onclick=()=>{ buildActive(); setTimeout(()=>window.print(),260); };
+  document.getElementById('btnPrint').onclick=()=>{
+    buildActive();
+    // 存成 PDF 時預設檔名取自 document.title，暫時換成計算書名稱
+    const t0 = document.title, d = new Date(), p = n=>String(n).padStart(2,'0');
+    document.title = (TAB==='beam' ? 'RC梁斷面設計檢核計算書' : 'RC橋塔柱斷面設計檢核計算書')
+      + `_${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}`;
+    window.addEventListener('afterprint', ()=>{ document.title = t0; }, {once:true});
+    setTimeout(()=>window.print(),260);
+  };
 
 
   const ps=document.getElementById('preset');
