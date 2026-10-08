@@ -6,13 +6,12 @@
 <title>RC 橋塔斷面設計工具</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2032%2032%22%3E%3Crect%20x%3D%224%22%20y%3D%224%22%20width%3D%2224%22%20height%3D%2224%22%20fill%3D%22none%22%20stroke%3D%22%230F5F6B%22%20stroke-width%3D%222.8%22%2F%3E%3Cg%20fill%3D%22%230F5F6B%22%3E%3Ccircle%20cx%3D%2210.5%22%20cy%3D%2210.5%22%20r%3D%222.5%22%2F%3E%3Ccircle%20cx%3D%2221.5%22%20cy%3D%2210.5%22%20r%3D%222.5%22%2F%3E%3Ccircle%20cx%3D%2210.5%22%20cy%3D%2221.5%22%20r%3D%222.5%22%2F%3E%3Ccircle%20cx%3D%2221.5%22%20cy%3D%2221.5%22%20r%3D%222.5%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
 
-<script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" crossorigin="anonymous">
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js" crossorigin="anonymous"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" crossorigin="anonymous"></script>
 
 <style>
-/* ---- Tailwind 載入失敗時的保底版面（降級但可用） ---- */
+/* ---- 主樣式（Tailwind 工具類別與 preflight 另見下方 style[data-tw]） ---- */
 /* 案 C「檢核導向」：冷灰底 + 白卡 + 深青強調色。
    語意色（ok/warn/bad）與強調色刻意分開，狀態才不會跟裝飾混在一起。 */
 :root{
@@ -324,6 +323,54 @@ input.src-draw,select.src-draw{border-color:var(--ok);
   box-shadow:inset 3px 0 0 var(--ok);background:rgba(34,197,94,.07)}
 input.src-miss,select.src-miss{border-color:var(--warn);border-style:dashed;
   box-shadow:inset 3px 0 0 var(--warn);background:rgba(245,158,11,.07)}
+</style>
+<!-- 原本用 cdn.tailwindcss.com 於執行期編譯；全檔只用到約 30 個工具類別，改為內嵌靜態 CSS：
+     斷網也不降級、無正式環境警告、不受 CDN 版本漂移影響。
+     放在主樣式之後，與當初執行期注入的順序相同（preflight 與工具類別同權重時勝出），外觀不變。
+     新增 Tailwind 類別時，須在下方補上對應規則。 -->
+<style data-tw>
+/* Tailwind v3 preflight（精簡） */
+*,::before,::after{box-sizing:border-box;border-width:0;border-style:solid;border-color:#e5e7eb}
+html{line-height:1.5;-webkit-text-size-adjust:100%;tab-size:4;-webkit-tap-highlight-color:transparent}
+body{margin:0;line-height:inherit}
+hr{height:0;color:inherit;border-top-width:1px}
+h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit}
+a{color:inherit;text-decoration:inherit}
+b,strong{font-weight:bolder}
+code,kbd,samp,pre{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:1em}
+small{font-size:80%}
+sub,sup{font-size:75%;line-height:0;position:relative;vertical-align:baseline}
+sub{bottom:-.25em}sup{top:-.5em}
+table{text-indent:0;border-color:inherit;border-collapse:collapse}
+button,input,optgroup,select,textarea{font-family:inherit;font-feature-settings:inherit;font-variation-settings:inherit;
+  font-size:100%;font-weight:inherit;line-height:inherit;letter-spacing:inherit;color:inherit;margin:0;padding:0}
+button,select{text-transform:none}
+button,input:where([type=button]),input:where([type=reset]),input:where([type=submit]){-webkit-appearance:button;background-color:transparent;background-image:none}
+::-webkit-inner-spin-button,::-webkit-outer-spin-button{height:auto}
+summary{display:list-item}
+blockquote,dl,dd,h1,h2,h3,h4,h5,h6,hr,figure,p,pre{margin:0}
+fieldset{margin:0;padding:0}legend{padding:0}
+ol,ul,menu{list-style:none;margin:0;padding:0}
+textarea{resize:vertical}
+input::placeholder,textarea::placeholder{opacity:1;color:#9ca3af}
+button,[role=button]{cursor:pointer}
+:disabled{cursor:default}
+img,svg,video,canvas,audio,iframe,embed,object{display:block;vertical-align:middle}
+img,video{max-width:100%;height:auto}
+[hidden]{display:none}
+/* 用到的工具類別 */
+.flex{display:flex}.grid{display:grid}.hidden{display:none}
+.flex-wrap{flex-wrap:wrap}.grow{flex-grow:1}
+.items-center{align-items:center}.justify-between{justify-content:space-between}
+.gap-1{gap:.25rem}.gap-2{gap:.5rem}.gap-x-6{column-gap:1.5rem}
+.mt-1{margin-top:.25rem}.mt-2{margin-top:.5rem}.mt-3{margin-top:.75rem}.mb-1{margin-bottom:.25rem}.mb-2{margin-bottom:.5rem}
+.p-2{padding:.5rem}.px-4{padding-left:1rem;padding-right:1rem}.py-3{padding-top:.75rem;padding-bottom:.75rem}
+.w-full{width:100%}.rounded{border-radius:.25rem}.border-b{border-bottom-width:1px}
+.font-extrabold{font-weight:800}.tracking-wide{letter-spacing:.025em}
+.text-\[11px\]{font-size:11px}.text-\[11\.5px\]{font-size:11.5px}.text-\[12px\]{font-size:12px}
+.text-\[12\.5px\]{font-size:12.5px}.text-\[13px\]{font-size:13px}.text-\[17px\]{font-size:17px}
+.\!border-0{border-width:0!important}.\!mb-0{margin-bottom:0!important}
+.\!px-2{padding-left:.5rem!important;padding-right:.5rem!important}.\!py-1{padding-top:.25rem!important;padding-bottom:.25rem!important}
 </style>
 </head>
 <body>
@@ -3808,15 +3855,6 @@ function pinStatus(mod, map){
   };
   document.getElementById('btnPrint').onclick=()=>{ buildActive(); setTimeout(()=>window.print(),260); };
 
-  // Tailwind 未載入 → 注入最小可用樣式（版面降級但不塌）
-  setTimeout(()=>{
-    if(!document.querySelector('style[data-tw]') && !window.tailwind){
-      document.body.insertAdjacentHTML('beforeend',
-        `<style>.grid{display:grid}.flex{display:flex}.hidden{display:none}.grow{flex-grow:1}
-         .gap-1{gap:4px}.gap-2{gap:8px}.mt-2{margin-top:8px}.mt-3{margin-top:12px}.mb-1{margin-bottom:4px}.mb-2{margin-bottom:8px}
-         .items-center{align-items:center}.justify-between{justify-content:space-between}</style>`);
-    }
-  },1200);
 
   const ps=document.getElementById('preset');
   Object.entries(PRESETS).forEach(([k,P])=>ps.insertAdjacentHTML('beforeend',`<option value="${k}">${P.label}</option>`));
