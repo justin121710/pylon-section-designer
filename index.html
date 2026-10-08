@@ -1127,24 +1127,16 @@ function shearDesign(s,r,R,m,opt,cv,res,dir){
   const tens = R.bars.filter(b=>coord(b)<0);
   const ubar = tens.length? tens.reduce((a,b)=>a+coord(b)*b.A,0)/tens.reduce((a,b)=>a+b.A,0) : -D/2*0.8;
   const d = D/2 - ubar;
-
   const Vukey = dir==='x'?'Vux':'Vuy';
-  // 控制：軸力最大組合 + 該向最大剪力組合，取較嚴
-  let ctrl = res[0], worst=-1;
-  for(const R2 of res){ if(R2.Lk[Vukey] > worst){ worst=R2.Lk[Vukey]; ctrl=R2; } }
-  const Nu = ctrl.Lk.Pu, Vu = ctrl.Lk[Vukey], Tu = ctrl.Lk.Tu;
 
-  // 容量設計剪力
-  const Mn = MnAtP(cv, Nu);
+  // 容量設計剪力：超強彎矩取各組合軸力下 M_n 之最大者（塑鉸可能發展的最大彎矩），
+  // 而非單一控制組合的 P_u —— 否則 V_e 會隨挑到的組合偏低
+  let Mn = 0, PMn = res.length? res[0].Lk.Pu : 0;
+  for(const R2 of res){ const v = MnAtP(cv, R2.Lk.Pu); if(v > Mn){ Mn = v; PMn = R2.Lk.Pu; } }
   const Mo = opt.phio*Mn;
   const Ve = Mo/opt.Lv;
-  const Vdes = opt.plastic ? Math.max(Ve,Vu) : Vu;
-
-  const V = VcCalc(m,bw,d,Nu,opt.plastic);
-  const VsReq = Math.max(0, Vdes/m.phiv - V.vc);
   const VsMax = 2.12*Math.sqrt(m.fc)*bw*d;
   const VsTight = 1.06*Math.sqrt(m.fc)*bw*d;
-  const sectionFail = VsReq > VsMax;
 
   // 肢數：沿剪力方向之箍筋肢，量於腹板寬度方向
   let nlegs;
@@ -1154,35 +1146,54 @@ function shearDesign(s,r,R,m,opt,cv,res,dir){
   const At1 = BAR[r.tieSize].A;
   const Av = nlegs*At1;
 
-  // 扭矩（箱型：封閉薄壁）
+  // 扭矩幾何（箱型：封閉薄壁）
   const cHoop = r.covO + BAR[r.tieSize].d/2;
   const Aoh = Math.max(1,(s.B-2*cHoop))*Math.max(1,(s.H-2*cHoop));
   const ph  = 2*((s.B-2*cHoop)+(s.H-2*cHoop));
   const cot = 1/Math.tan(opt.theta*Math.PI/180);
   const Tthr = m.phiv*1.06*Math.sqrt(m.fc)*(m.Ag*m.Ag/Math.max(1,2*(s.B+s.H)));
-  const torsion = Tu > Tthr;
   const Ao = 0.85*Aoh;
-  const AtS = torsion ? Tu/(2*m.phiv*Ao*m.fyt*cot) : 0;     // 單肢，每單位 s
-  const Al  = torsion ? AtS*ph*(m.fyt/m.fy)*cot*cot : 0;
-  // 斷面上限（中空斷面採直接相加）
-  const lhs = Vdes/(bw*d) + (torsion? Tu*ph/(1.7*Aoh*Aoh) : 0);
-  const rhs = m.phiv*(V.vc/(bw*d) + 2.12*Math.sqrt(m.fc));
-  const sectOver = lhs > rhs;
-
-  // 需求間距
-  const AvS_shear = VsReq>1e-9 ? VsReq/(m.fyt*d) : 0;       // Av/s
-  const AvS_tot = AvS_shear + 2*AtS;
-  const s_str = AvS_tot>1e-9 ? Av/AvS_tot : 1e9;
-  const s_min1 = Av*m.fyt/(0.2*Math.sqrt(m.fc)*bw);
-  const s_min2 = Av*m.fyt/(3.5*bw);
-  const s_minAv = Math.min(s_min1,s_min2);
-  const s_code = VsReq>VsTight ? Math.min(d/4,30) : Math.min(d/2,60);
+  const s_minAv = Math.min(Av*m.fyt/(0.2*Math.sqrt(m.fc)*bw), Av*m.fyt/(3.5*bw));
   const s_ph = opt.plastic ? Math.min(Math.min(s.B,s.H)/4, 6*R.db, 15) : 1e9;
-  const s_tors = torsion ? Math.min(ph/8, 30) : 1e9;
 
-  return {dir,bw,d,ctrl,Nu,Vu,Tu,Mn,Mo,Ve,Vdes,V,VsReq,VsMax,VsTight,sectionFail,
-          nlegs,Av,At1,Aoh,ph,Ao,cot,Tthr,torsion,AtS,Al,lhs,rhs,sectOver,
-          AvS_shear,AvS_tot,s_str,s_minAv,s_code,s_ph,s_tors};
+  // 逐組合檢核：V_c 隨 N_u 變（塑鉸區 N_u < 0.1f'cAg 時歸零），
+  // 最大 V_u 的組合未必控制 —— 低軸壓組合常因 V_c = 0 而需最多箍筋
+  const one = ctrl => {
+    const Nu = ctrl.Lk.Pu, Vu = ctrl.Lk[Vukey], Tu = ctrl.Lk.Tu;
+    const Vdes = opt.plastic ? Math.max(Ve,Vu) : Vu;
+    const V = VcCalc(m,bw,d,Nu,opt.plastic);
+    const VsReq = Math.max(0, Vdes/m.phiv - V.vc);
+    const sectionFail = VsReq > VsMax;
+    const torsion = Tu > Tthr;
+    const AtS = torsion ? Tu/(2*m.phiv*Ao*m.fyt*cot) : 0;     // 單肢，每單位 s
+    const Al  = torsion ? AtS*ph*(m.fyt/m.fy)*cot*cot : 0;
+    // 斷面上限（中空斷面採直接相加）
+    const lhs = Vdes/(bw*d) + (torsion? Tu*ph/(1.7*Aoh*Aoh) : 0);
+    const rhs = m.phiv*(V.vc/(bw*d) + 2.12*Math.sqrt(m.fc));
+    const sectOver = lhs > rhs;
+    const AvS_shear = VsReq>1e-9 ? VsReq/(m.fyt*d) : 0;       // Av/s
+    const AvS_tot = AvS_shear + 2*AtS;
+    const s_str = AvS_tot>1e-9 ? Av/AvS_tot : 1e9;
+    const s_code = VsReq>VsTight ? Math.min(d/4,30) : Math.min(d/2,60);
+    const s_tors = torsion ? Math.min(ph/8, 30) : 1e9;
+    const s_gov = Math.min(s_str, s_code, s_tors);
+    return {ctrl,Nu,Vu,Tu,Vdes,V,VsReq,sectionFail,torsion,AtS,Al,lhs,rhs,sectOver,
+            AvS_shear,AvS_tot,s_str,s_code,s_tors,s_gov};
+  };
+  const all = res.map(one);
+  // 控制組合：斷面不足者優先 → 強度需求 A_v/s 最大 → 規範間距最小 → 應力比最高
+  const worse = (a,b) => {
+    const fa = a.sectionFail||a.sectOver, fb = b.sectionFail||b.sectOver;
+    if(fa!==fb) return fa ? a : b;
+    if(Math.abs(a.AvS_tot-b.AvS_tot) > 1e-12) return a.AvS_tot > b.AvS_tot ? a : b;
+    if(Math.abs(a.s_gov-b.s_gov) > 1e-9) return a.s_gov < b.s_gov ? a : b;
+    return a.lhs/a.rhs >= b.lhs/b.rhs ? a : b;
+  };
+  const gov = all.reduce(worse, all[0]);
+
+  return {dir,bw,d,Mn,PMn,Mo,Ve,VsMax,VsTight,
+          nlegs,Av,At1,Aoh,ph,Ao,cot,Tthr,s_minAv,s_ph,
+          ...gov, all};
 }
 
 /* ---------- 施工性與配筋查核 ---------- */
@@ -1735,8 +1746,10 @@ function renderSummary(M){
   const X=M.shX,Y=M.shY;
   h+=row('b_w (cm)',f(X.bw,1),f(Y.bw,1));
   h+=row('d (cm)',f(X.d,1),f(Y.d,1));
+  h+=row('剪力控制組合',`<b>${esc(X.ctrl.L.name)}</b>`,`<b>${esc(Y.ctrl.L.name)}</b>`);
+  h+=row('N_u (tf)',f(X.Nu/TF,0),f(Y.Nu/TF,0));
   h+=row('V_u 分析值 (tf)',f(X.Vu/TF,1),f(Y.Vu/TF,1));
-  h+=row('M_n at P_u (tf·m)',f(X.Mn/TFM,0),f(Y.Mn/TFM,0));
+  h+=row('M_n,max（各組合 P_u 取大）(tf·m)',f(X.Mn/TFM,0),f(Y.Mn/TFM,0));
   h+=row('V_e = φ_o·M_n/L_v (tf)',f(X.Ve/TF,1),f(Y.Ve/TF,1));
   h+=row('設計剪力 V_des (tf)',`<b>${f(X.Vdes/TF,1)}</b>`,`<b>${f(Y.Vdes/TF,1)}</b>`);
   h+=row('V_c (tf)',f(X.V.vc/TF,1)+(X.V.zeroed?' <span style="color:var(--warn)">(塑鉸歸零)</span>':''),
@@ -1748,6 +1761,7 @@ function renderSummary(M){
   h+=row('A_t/s 扭矩單肢 (cm²/cm)',f(X.AtS,4),f(Y.AtS,4));
   h+=row('A_l 扭矩縱筋 (cm²)',f(X.Al,1),f(Y.Al,1));
   h+=`</tbody></table></div>`;
+  h+=shearComboTable(M);
   document.getElementById('summary').innerHTML=SB(h);
 }
 
@@ -1787,7 +1801,7 @@ function renderAlerts(M){
     const t=sh.dir.toUpperCase();
     if(sh.sectionFail) add('bad',`<b>${t} 向斷面不足</b>：V_s 需求 ${f(sh.VsReq/TF,0)} tf > 上限 2.12√f'c·b_w·d = ${f(sh.VsMax/TF,0)} tf。<b>加箍筋無效，必須加大斷面或提高 f'c</b>。`);
     if(sh.sectOver) add('bad',`<b>${t} 向剪力+扭矩斷面應力超限</b>：${f(sh.lhs,1)} > ${f(sh.rhs,1)} kgf/cm²（中空斷面採直接相加）。`);
-    if(sh.V.zeroed) add('warn',`${t} 向：塑鉸區且 N_u = ${f(sh.Nu/TF,0)} tf < 0.1f'c·A_g = ${f(0.1*M.m.fc*M.m.Ag/TF,0)} tf → <b>V_c 取 0</b>，全部剪力由箍筋承擔。`);
+    if(sh.V.zeroed) add('warn',`${t} 向（控制組合「${esc(sh.ctrl.L.name)}」）：塑鉸區且 N_u = ${f(sh.Nu/TF,0)} tf < 0.1f'c·A_g = ${f(0.1*M.m.fc*M.m.Ag/TF,0)} tf → <b>V_c 取 0</b>，全部剪力由箍筋承擔。`);
     if(sh.Nu<0) add('warn',`${t} 向：控制組合為<b>軸拉</b>（N_u = ${f(sh.Nu/TF,0)} tf），V_c 改用分母 35 之公式並夾至 ≥ 0。`);
     if(M.opt.plastic && sh.Ve>sh.Vu) add('info',`${t} 向：<b>容量設計控制</b>。V_e = φ_o·M_n/L_v = ${f(sh.Ve/TF,0)} tf > 分析值 V_u = ${f(sh.Vu/TF,0)} tf，設計剪力採 V_e。`);
   }
@@ -2083,14 +2097,35 @@ function breakpointTable(M,axis){
   return h;
 }
 
+/* 剪力逐組合明細：介面與報告共用 */
+function shearComboRows(sh,forPrint){
+  const n=x=>Number.isFinite(x)&&x<1e8?f(x,1):'—';
+  let h=`<table${forPrint?' class="no-break"':''}><thead><tr><th class="l">組合（${sh.dir.toUpperCase()} 向）</th><th>N_u (tf)</th><th>V_des (tf)</th><th>V_c (tf)</th><th>V_s 需求 (tf)</th><th>強度需求 s (cm)</th><th>規範上限 s (cm)</th></tr></thead><tbody>`;
+  for(const c of sh.all){
+    const g=c.ctrl===sh.ctrl, bad=c.sectionFail||c.sectOver;
+    h+=`<tr${g?' style="font-weight:700"':''}><td class="l">${g?'▶ ':''}${esc(c.ctrl.L.name)}</td>`+
+       `<td>${f(c.Nu/TF,0)}</td><td>${f(c.Vdes/TF,1)}</td>`+
+       `<td>${f(c.V.vc/TF,1)}${c.V.zeroed?'（歸零）':''}</td>`+
+       `<td>${f(c.VsReq/TF,1)}${bad?' ✗':''}</td><td>${n(c.s_str)}</td><td>${n(Math.min(c.s_code,c.s_tors))}</td></tr>`;
+  }
+  return h+`</tbody></table>`;
+}
+function shearComboTable(M){
+  return `<details class="mt-3"><summary style="cursor:pointer;font-weight:600">剪力逐組合明細（V_c 隨軸力改變，取最嚴者）</summary>`+
+    `<div class="mt-2">${shearComboRows(M.shX)}</div><div class="mt-2">${shearComboRows(M.shY)}</div></details>`;
+}
+
 function shearReport(M,sh){
   const m=M.m,d=(x,n=2)=>f(x,n),t=sh.dir.toUpperCase();
   const eq=x=>`<div class="rp-eq">${KD(x)}</div>`;   /* 同樣走 display 模式 */
   const o=[`<div class="rp-h3">6.${sh.dir==='x'?'1':'2'} ${t} 向（控制組合：${esc(sh.ctrl.L.name)}）</div>`];
+  o.push(`<div class="rp-note">各載重組合逐一檢核（V_c 隨 N_u 改變），取強度需求 A_v/s 最大者為控制組合，以下計算均以該組合代入。</div>`);
+  o.push(shearComboRows(sh,true));
   o.push(eq(`b_w=${M.s.type==='box'?`2t_w=2\\times${d(M.s.tw,0)}`:`${d(sh.bw,0)}`}=${d(sh.bw,1)}\\ \\text{cm},\\qquad
     d=${d(sh.d,2)}\\ \\text{cm}\\ \\ (\\text{受壓緣至受拉鋼筋群形心})`));
   if(M.opt.plastic){
-    o.push(eq(`M_n(P_u=${d(sh.Nu/TF,0)}\\text{tf})=${d(sh.Mn/TFM,0)}\\ \\text{tf}\\cdot\\text{m}\\quad\\Rightarrow\\quad
+    o.push(`<div class="rp-note">超強彎矩取各載重組合軸力下 M_n 之最大者（P_u = ${d(sh.PMn/TF,0)} tf）。</div>`);
+    o.push(eq(`M_n(P_u=${d(sh.PMn/TF,0)}\\text{tf})=${d(sh.Mn/TFM,0)}\\ \\text{tf}\\cdot\\text{m}\\quad\\Rightarrow\\quad
       M_o=\\phi_o M_n=${d(M.opt.phio,2)}\\times${d(sh.Mn/TFM,0)}=${d(sh.Mo/TFM,0)}\\ \\text{tf}\\cdot\\text{m}`));
     o.push(eq(`V_e=\\frac{M_o}{L_v}=\\frac{${d(sh.Mo/TFM,0)}\\times100}{${d(M.opt.Lv,0)}}=${d(sh.Ve/TF,1)}\\ \\text{tf}
       \\qquad V_{des}=\\max(V_e,\\;V_u)=\\max(${d(sh.Ve/TF,1)},\\;${d(sh.Vu/TF,1)})=${d(sh.Vdes/TF,1)}\\ \\text{tf}`));
@@ -2163,6 +2198,14 @@ function selfTest(){
   const cbal = m.ecu*bal.dmax/(m.ecu+m.ety);
   T('平衡點 c 與解析解一致', Math.abs(bal.c-cbal)/cbal<0.05,
     `掃描 c=${f(bal.c,2)}，解析 c=ε_cu·d_max/(ε_cu+ε_ty)=${f(cbal,2)} cm`);
+
+  // 剪力控制組合須為各組合中最嚴者（V_c 隨 N_u 變，最大 V_u 未必控制）
+  for(const sh of [M.shX,M.shY]){
+    const maxD=Math.max(...sh.all.map(c=>c.AvS_tot)), anyFail=sh.all.some(c=>c.sectionFail||c.sectOver);
+    T(`剪力 ${sh.dir.toUpperCase()} 向控制組合為最嚴者`,
+      anyFail ? (sh.sectionFail||sh.sectOver) : sh.AvS_tot>=maxD-1e-12,
+      `控制「${esc(sh.ctrl.L.name)}」(A_v/s)_{tot}=${f(sh.AvS_tot,5)}；全組合最大 ${f(maxD,5)} cm²/cm（共 ${sh.all.length} 組）`);
+  }
 
   // 5) 受壓面積在 a=t_w 前後連續（箱型分段積分）
   if(M.s.type==='box'){
