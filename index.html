@@ -314,6 +314,9 @@ input.src-miss,select.src-miss{border-color:var(--warn);border-style:dashed;
     <button id="tabBeam"  class="!border-0" style="background:transparent;box-shadow:none">梁斷面</button>
   </div>
   <button id="btnImport" style="background:var(--acc);border-color:var(--acc);color:#fff">從圖說匯入</button>
+  <button id="btnCaseOpen" title="開啟先前儲存的案件檔（.json）">開啟案件</button>
+  <button id="btnCaseSave" title="把目前所有輸入與載重下載成 .json；本機也會自動保存">儲存案件</button>
+  <input id="caseFile" type="file" accept=".json,application/json" style="display:none">
   <button id="btnTest">內部自測</button>
   <button id="btnPreview">預覽報告</button>
   <button id="btnPrint">列印 / 存成 PDF</button>
@@ -1667,6 +1670,65 @@ function stampCalc(){
     + pad(t.getHours()) + ':' + pad(t.getMinutes()) + ':' + pad(t.getSeconds());
 }
 
+/* ---------- 案件存檔：所有輸入值 + 載重組合 + 檢視狀態 ----------
+   自動存在本機（localStorage），也可下載成 JSON 帶走或交人複核。
+   開機時先以範本建好畫面，再還原上次狀態；還原完成前不寫入，避免範本蓋掉存檔。 */
+const CASE_KEY = 'rcsd.case.v1', CASE_APP = 'rc-section-designer';
+let CASE_READY = false, CASE_T = 0;
+function caseInputs(){
+  return [...document.querySelectorAll('#app input[id],#app select[id],#appBeam input[id],#appBeam select[id]')]
+    .filter(el => !el.closest('#loadTbl,#bLoadTbl'));
+}
+function caseSnapshot(){
+  const values = {};
+  caseInputs().forEach(el => values[el.id] = el.value);
+  return {app:CASE_APP, ver:1, saved:new Date().toISOString(), tab:TAB, axis:AXIS, bsign:BSIGN,
+          values, loads:LOADS, bloads:BLOADS};
+}
+function caseApply(c){
+  if(!c || c.app!==CASE_APP || typeof c.values!=='object') throw new Error('這不是本工具的案件檔');
+  const ok = new Set(caseInputs().map(el=>el.id));
+  for(const [id,val] of Object.entries(c.values)){
+    if(!ok.has(id)) continue;
+    const el = document.getElementById(id);
+    // 下拉選單只接受現有選項（舊版存檔的選項可能已不存在）
+    if(el.tagName==='SELECT' && ![...el.options].some(o=>o.value===String(val))) continue;
+    el.value = val;
+  }
+  const rows = a => Array.isArray(a) ? a.filter(x=>x && typeof x==='object').map(x=>({...x})) : null;
+  LOADS  = rows(c.loads)  || LOADS;
+  BLOADS = rows(c.bloads) || BLOADS;
+  if(c.axis==='x'||c.axis==='y') AXIS = c.axis;
+  if(c.bsign==='pos'||c.bsign==='neg') BSIGN = c.bsign;
+  drawLoads(); drawBLoads();
+  renderBeam();
+  document.getElementById(c.tab==='beam'?'tabBeam':'tabPylon').click();
+}
+function caseAutosave(){
+  if(!CASE_READY) return;
+  clearTimeout(CASE_T);
+  CASE_T = setTimeout(()=>{ try{ localStorage.setItem(CASE_KEY, JSON.stringify(caseSnapshot())); }catch(e){} }, 400);
+}
+function caseRestore(){
+  try{ const raw = localStorage.getItem(CASE_KEY); if(raw) caseApply(JSON.parse(raw)); }catch(e){}
+  CASE_READY = true;
+}
+function caseDownload(){
+  const c = caseSnapshot(), d = new Date(), p = n=>String(n).padStart(2,'0');
+  const name = `RC斷面設計_${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}.json`;
+  const url = URL.createObjectURL(new Blob([JSON.stringify(c,null,1)], {type:'application/json'}));
+  const a = Object.assign(document.createElement('a'), {href:url, download:name});
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 1000);
+}
+function caseOpenFile(file){
+  if(!file) return;
+  file.text().then(txt=>{
+    let c; try{ c = JSON.parse(txt); }catch(e){ throw new Error('檔案不是有效的 JSON'); }
+    caseApply(c); caseAutosave();
+  }).catch(e=>alert('無法開啟案件：' + e.message));
+}
+
 /* ---------- 判定列：每項 [狀態, 標題, 值, 補充, 跳轉目標 id] ---------- */
 function renderVerdict(items, alertsId){
   const box=document.getElementById(alertsId);
@@ -1745,6 +1807,7 @@ function render(){
   renderSummary(M); renderAlerts(M); verdictPylon(M);
   pinStatus('pylon', pinMapPylon(M));
   if(document.getElementById('report').classList.contains('preview')) buildReport(M);
+  caseAutosave();
   return M;
 }
 
@@ -2979,6 +3042,7 @@ function renderBeam(){
   stampCalc();
   pinStatus('beam', pinMapBeam(B));
   if(document.getElementById('report').classList.contains('preview')) buildBeamReport(B);
+  caseAutosave();
   return B;
 }
 
@@ -3790,6 +3854,11 @@ function pinStatus(mod, map){
 
   applyBPreset('deckT');
   setTab('pylon');
+
+  document.getElementById('btnCaseSave').onclick = caseDownload;
+  document.getElementById('btnCaseOpen').onclick = ()=>document.getElementById('caseFile').click();
+  document.getElementById('caseFile').onchange = e=>{ caseOpenFile(e.target.files[0]); e.target.value=''; };
+  caseRestore();
 })();
 </script>
 
