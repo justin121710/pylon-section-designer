@@ -458,7 +458,8 @@ img,video{max-width:100%;height:auto}
       <div class="fld"><span><b>斷面範本</b></span><select id="preset"></select></div>
       <div style="border-top:1px solid var(--line);margin:8px 0"></div>
       <div class="fld"><span>斷面型式</span>
-        <select id="secType"><option value="box">中空箱型</option><option value="solid">實心矩形</option></select></div>
+        <select id="secType"><option value="box">中空箱型</option><option value="solid">實心矩形</option><option value="circle">圓形</option></select></div>
+      <div class="fld"><span>直徑 D (cm)</span><input id="Dia" type="number" step="5" value="100"></div>
       <div class="fld"><span>外寬 B (cm)</span><input id="B" type="number" step="1" value="600"></div>
       <div class="fld"><span>外高 H (cm)</span><input id="H" type="number" step="1" value="800"></div>
       <div class="fld" id="rowTw"><span>壁厚 t<sub>w</sub> (cm)</span><input id="tw" type="number" step="1" value="90"></div>
@@ -488,6 +489,7 @@ img,video{max-width:100%;height:auto}
       <div class="fld"><span>主筋號數</span><select id="barSize"></select></div>
       <div class="fld"><span>B 向每面根數 n<sub>B</sub></span><input id="nB" type="number" step="1" value="39"></div>
       <div class="fld"><span>H 向每面根數 n<sub>H</sub></span><input id="nH" type="number" step="1" value="53"></div>
+      <div class="fld"><span>主筋總根數 n</span><input id="nCir" type="number" step="1" value="12"></div>
       <div class="fld" id="rowDbl"><span>內層同配置</span>
         <select id="dbl"><option value="1">是（雙層）</option><option value="0">否（單層）</option></select></div>
       <div class="text-[11.5px] mt-1" style="color:var(--dim)">
@@ -499,6 +501,7 @@ img,video{max-width:100%;height:auto}
     <div class="card">
       <h2>④ 橫向鋼筋 / 塑鉸區</h2>
       <div class="fld"><span>箍筋 / 繫筋號數</span><select id="tieSize"></select></div>
+      <div class="fld"><span>圓柱橫向筋型式</span><select id="spiral"><option value="spiral">螺旋箍筋（連續）</option><option value="hoop">圓形箍筋（單圈搭接）</option></select></div>
       <div class="fld"><span>此斷面為塑鉸區</span>
         <select id="ph"><option value="1">是（塑鉸區／柱端加密區）</option><option value="0">否（一般斷面）</option></select></div>
       <div class="fld"><span>柱淨高 l<sub>u</sub> (cm)</span><input id="lu" type="number" step="10" value="300"></div>
@@ -773,10 +776,12 @@ const Ecof  = fc => 15000*Math.sqrt(fc);
 
 /* ---------- 斷面幾何 ---------- */
 function grossArea(s){
+  if(s.type==='circle') return Math.PI*s.D*s.D/4;
   return s.type==='box' ? s.B*s.H - Math.max(0,s.B-2*s.tw)*Math.max(0,s.H-2*s.tw) : s.B*s.H;
 }
 /* axis 'x' → 中性軸水平、深度沿 H；axis 'y' → 中性軸垂直、深度沿 B */
 function geoFor(s, axis){
+  if(s.type==='circle') return {D:s.D, W:s.D, Dv:0, Wv:0, hollow:false, circle:true, Rr:s.D/2};
   const hollow = s.type==='box';
   const iw = hollow ? Math.max(0,s.B-2*s.tw) : 0;
   const ih = hollow ? Math.max(0,s.H-2*s.tw) : 0;
@@ -788,6 +793,14 @@ function geoFor(s, axis){
    → 自動處理箱型三段：a≤t / t<a<D−t / a≥D−t，無需分支判斷 */
 function compBlock(a, g){
   a = Math.max(0, Math.min(a, g.D));
+  if(g.circle){
+    /* 圓形：深度 a 的弓形。圓心角 θ = 2·acos((R−a)/R)，
+       面積 R²(θ − sinθ)/2，形心距圓心 4R·sin³(θ/2) / [3(θ − sinθ)] */
+    const Rr = g.Rr, th = 2*Math.acos(Math.max(-1, Math.min(1, (Rr-a)/Rr)));
+    const A = Rr*Rr*(th - Math.sin(th))/2;
+    const yc = A>1e-9 ? 4*Rr*Math.pow(Math.sin(th/2),3)/(3*(th - Math.sin(th))) : Rr;
+    return {A, yc, a};
+  }
   let A = g.W*a;
   let S = A*(g.D/2 - a/2);
   if(g.hollow && g.Dv>0 && g.Wv>0){
@@ -805,6 +818,14 @@ function compBlock(a, g){
 /* ---------- 主筋產生 ---------- */
 function genBars(s, r){
   const db=BAR[r.barSize].d, Ab=BAR[r.barSize].A, dt=BAR[r.tieSize].d;
+  if(s.type==='circle'){
+    // 沿圓周等距，第一根置於正上方，使斷面對 Y 軸對稱
+    const dOut=r.covO+dt+db/2, rb=s.D/2-dOut, n=r.nCir, bars=[];
+    for(let i=0;i<n;i++){ const a=Math.PI/2+2*Math.PI*i/n; bars.push({x:rb*Math.cos(a), y:rb*Math.sin(a), A:Ab, db, layer:'out'}); }
+    const pitch = 2*Math.PI*rb/n;
+    return {bars, rings:[], db, Ab, dt, dOut, dIn:dOut, hxO:rb, hyO:rb, pB:pitch, pH:pitch,
+            xsO:[], ysO:[], inner:null, rb, circle:true};
+  }
   const dOut=r.covO+dt+db/2, dIn=r.covI+dt+db/2;
   const hxO=s.B/2-dOut, hyO=s.H/2-dOut;
   const pB=2*hxO/(r.nB-1), pH=2*hyO/(r.nH-1);
@@ -952,6 +973,12 @@ function MnAtP(cv,P){
 /* ---------- 雙軸：Bresler / PCA 載重輪廓 ---------- */
 function biaxialDC(cvX,cvY,pX,pY,m,L){
   const {Pu,Mux,Muy}=L;
+  if(m.circle){
+    // 圓形斷面各向同性：以合彎矩 √(M_ux² + M_uy²) 對單一 P-M 曲線檢核
+    const Mr = Math.hypot(Mux,Muy);
+    const u = radialDC(pX.poly,Mr,Pu,pX.cap,m.phit*cvX.Pnt);
+    return {dc:Math.abs(u.dc), method:'圓形：合彎矩', Mr, uniX:u, uniY:u};
+  }
   const uniX = radialDC(pX.poly,Mux,Pu,pX.cap,m.phit*cvX.Pnt);
   const uniY = radialDC(pY.poly,Muy,Pu,pY.cap,m.phit*cvY.Pnt);
   if(Math.abs(Mux)<1e-9 && Math.abs(Muy)<1e-9) return {dc:Math.abs(uniX.dc),method:'純軸力',uniX,uniY};
@@ -1001,7 +1028,7 @@ function pmCurveConfined(ctx, MD, coreGeo){
       const d = g.D/2 - ym;
       const eps = MD.ecu*(c-d)/c;
       if(eps<=0) continue;
-      let w = g.W;
+      let w = g.circle ? 2*Math.sqrt(Math.max(0, g.Rr*g.Rr - ym*ym)) : g.W;
       if(g.hollow && Math.abs(ym)<g.Dv/2) w = g.W - g.Wv;
       const dA = w*(yTop-yBot);
       const F = manderSig(eps,MD)*dA;
@@ -1075,6 +1102,20 @@ const PRESETS = {
            {name:'1.2D+1.0L+E (X)',Pu:430,Mux:58,Muy:18,Vux:19,Vuy:6,Tu:0},
            {name:'1.2D+1.0L+E (Y)',Pu:425,Mux:18,Muy:56,Vux:6,Vuy:18,Tu:0},
            {name:'0.9D+E（滿水浮力）',Pu:140,Mux:52,Muy:16,Vux:17,Vuy:5,Tu:0}]},
+  circ80: {label:'建築 RC 圓柱 D80（螺箍）', code:'bldg', ph:'1', lu:350,
+    type:'circle', D:80, nCir:12, spiral:'spiral', B:80, H:80, tw:20, fc:280, bar:'#8', nB:4, nH:4, tie:'#4',
+    covO:4, covI:4, Lv:175, dagg:2.5,
+    loads:[{name:'1.2D+1.6L',Pu:420,Mux:30,Muy:15,Vux:12,Vuy:6,Tu:0},
+           {name:'1.2D+L+E (X)',Pu:340,Mux:78,Muy:20,Vux:40,Vuy:9,Tu:0},
+           {name:'1.2D+L+E (Y)',Pu:335,Mux:20,Muy:76,Vux:9,Vuy:39,Tu:0},
+           {name:'0.9D+E',Pu:150,Mux:70,Muy:18,Vux:36,Vuy:8,Tu:0}]},
+  pierC180: {label:'橋墩 圓柱 D180（螺箍）', code:'bridge', ph:'1', lu:1000,
+    type:'circle', D:180, nCir:32, spiral:'spiral', B:180, H:180, tw:40, fc:350, bar:'#10', nB:9, nH:9, tie:'#5',
+    covO:7.5, covI:5, Lv:1000, dagg:2.5,
+    loads:[{name:'D+L',Pu:1300,Mux:250,Muy:100,Vux:40,Vuy:18,Tu:10},
+           {name:'地震 X',Pu:1150,Mux:1000,Muy:200,Vux:120,Vuy:28,Tu:20},
+           {name:'地震 Y',Pu:1150,Mux:200,Muy:980,Vux:28,Vuy:118,Tu:20},
+           {name:'最小軸力',Pu:600,Mux:880,Muy:170,Vux:105,Vuy:24,Tu:15}]},
   pier100: {label:'橋墩柱 實心 100×100', code:'bridge', ph:'1', lu:800,
     type:'solid', B:100, H:100, tw:20, fc:280, bar:'#8', nB:6, nH:6, tie:'#5',
     covO:5, covI:5, Lv:800, dagg:2.5,
@@ -1112,6 +1153,7 @@ function applyPreset(key){
   S('covO',P.covO); S('covI',P.covI); S('Lv',P.Lv); S('dagg',P.dagg);
   S('dbl', P.type==='box' ? '1' : '0');
   S('codeBasis', P.code || 'bridge'); S('ph', P.ph || '1'); S('lu', P.lu || 300);
+  if(P.type==='circle'){ S('Dia',P.D); S('nCir',P.nCir); S('spiral',P.spiral||'spiral'); }
   LOADS = P.loads.map(l=>({...l}));
   drawLoads(); render();
 }
@@ -1119,7 +1161,9 @@ function applyPreset(key){
 function compute(){
   /* --- 讀入 --- */
   const type = document.getElementById('secType').value;
-  const s = {type, B:pos('B',600), H:pos('H',800), tw:pos('tw',90)};
+  const s = type==='circle'
+    ? (D=>({type, D, B:D, H:D, tw:0}))(pos('Dia',100))
+    : {type, B:pos('B',600), H:pos('H',800), tw:pos('tw',90)};
   if(type==='box' && s.tw >= Math.min(s.B,s.H)/2) s.tw = Math.min(s.B,s.H)/2 - 1;
 
   const r = {
@@ -1128,6 +1172,8 @@ function compute(){
     nB: Math.max(2,Math.round(pos('nB',39))),
     nH: Math.max(2,Math.round(pos('nH',53))),
     dbl: document.getElementById('dbl').value==='1' && type==='box',
+    nCir: Math.max(4, Math.round(pos('nCir',12))),
+    spiral: type==='circle' && document.getElementById('spiral').value==='spiral',
     covO: Math.max(0,num('covO',7.5)), covI: Math.max(0,num('covI',5))
   };
   const R = genBars(s,r);
@@ -1142,7 +1188,7 @@ function compute(){
     pmaxf: pos('pmaxf',0.80), alpha: pos('alpha',1.0),
     Ag, Ast
   };
-  m.b1 = beta1(m.fc); m.ety = m.fy/m.Es; m.Ec = Ecof(m.fc);
+  m.b1 = beta1(m.fc); m.ety = m.fy/m.Es; m.Ec = Ecof(m.fc); m.circle = type==='circle';
   const opt = {
     code: document.getElementById('codeBasis').value==='bridge' ? 'bridge' : 'bldg',
     lu: pos('lu',300),
@@ -1198,6 +1244,7 @@ function compute(){
 
 /* ---------- 圍束核心幾何（保護層剝落後，量至箍筋外緣） ---------- */
 function coreGeom(s,r,axis){
+  if(s.type==='circle'){ const Dc=Math.max(1,s.D-2*r.covO); return {D:Dc, W:Dc, Dv:0, Wv:0, hollow:false, circle:true, Rr:Dc/2}; }
   const Bc = s.B-2*r.covO, Hc = s.H-2*r.covO;
   if(s.type!=='box') return axis==='x'?{D:Hc,W:Bc,Dv:0,Wv:0,hollow:false}:{D:Bc,W:Hc,Dv:0,Wv:0,hollow:false};
   const twc = Math.max(0.1, s.tw - r.covO - r.covI);
@@ -1214,6 +1261,7 @@ function coreGeom(s,r,axis){
    ------------------------------------------------------------------ */
 function confinement(s,r,R,m,opt){
   const At = BAR[r.tieSize].A, dt = BAR[r.tieSize].d, db = R.db;
+  if(s.type==='circle') return confinementCircle(s,r,R,m,opt,At,dt);
   const hxO=s.B/2-R.dOut, hyO=s.H/2-R.dOut;
   const pitchB = 2*hxO/(r.nB-1), pitchH = 2*hyO/(r.nH-1);
   const eB = edgeTies(r.nB,pitchB,db,opt.tieAll), eH = edgeTies(r.nH,pitchH,db,opt.tieAll);
@@ -1277,6 +1325,38 @@ function confinement(s,r,R,m,opt){
           }};
 }
 
+/* ---------- 圓柱：螺箍／圓箍體積比 ρ_s ----------
+   ρ_s,req = max{0.45(A_g/A_ch − 1)f'c/f_yt（螺箍恆需；圓箍僅耐震）,
+                 0.12f'c/f_yt（耐震）, 0.35k_f P_u/(f_yt A_ch)（建築、高軸力）}
+   ρ_s = 螺箍體積 / 核心體積 = A_sp·π·d_s / (π D_c²/4 · s) = 4A_sp d_s /(D_c² s)
+   D_c 量至螺箍外緣（A_ch 同），d_s 為螺箍中心線直徑。 */
+function confinementCircle(s,r,R,m,opt,At,dt){
+  const Dc = Math.max(1, s.D - 2*r.covO), ds = Math.max(1, Dc - dt), Ach = Math.PI*Dc*Dc/4;
+  const seis = opt.plastic, need = r.spiral || seis;
+  const t1 = 0.45*(m.Ag/Ach-1)*m.fc/m.fyt;
+  const t2 = seis ? 0.12*m.fc/m.fyt : 0;
+  const termC = opt.code==='bldg' && seis && (opt.PuMax > 0.3*m.Ag*m.fc || m.fc > 700);
+  const kf = Math.max(1, m.fc/1750 + 0.6);
+  const t3 = termC ? 0.35*kf*opt.PuMax/(m.fyt*Ach) : 0;
+  const rhoReq = need ? Math.max(t1,t2,t3) : 0;
+  const sAsh = rhoReq>0 ? 4*At*ds/(Dc*Dc*rhoReq) : 1e9;
+  const rho_cc = Math.min(0.06, m.Ast/(m.Ag||1));
+  const none = {hx:0, n:r.nCir, clear:0, everyBar:false, idx:[], ties:0};
+  return {circ:{Dc,ds,Ach,t1,t2,t3,rhoReq,need,spiral:r.spiral},
+          walls:[], sAsh, wc:null, At, dt, eB:none, eH:none, tieX:[], tieY:[], perp:true,
+          termC, kf, kn:1, nlSup:r.nCir, nTieB:0, nTieH:0, pitchB:R.pB, pitchH:R.pH, sumW2:0, rho_cc,
+          finalize(sUse){
+            const sp = Math.max(0.1, sUse-dt);
+            // Mander：螺箍 k_e = (1 − s'/2d_s)/(1 − ρ_cc)；圓箍 k_e = (1 − s'/2d_s)²/(1 − ρ_cc)
+            let ke = (r.spiral ? (1-sp/(2*ds)) : Math.pow(1-sp/(2*ds),2)) / (1-rho_cc);
+            ke = Math.max(0.25, Math.min(0.95, ke));
+            const rho_s = 4*At/(ds*sUse);
+            const fl = 0.5*ke*rho_s*m.fyt;
+            const MD = fl>1e-6 ? manderCore(m.fc,fl,rho_s,m.fyt,m.esu) : null;
+            return {ke, rho_t:rho_s/2, rho_L:rho_s/2, rho_s, fl, MD};
+          }};
+}
+
 /* ---------- 剪力 + 扭矩設計 ---------- */
 function shearDesign(s,r,R,m,opt,cv,res,dir,cvPr){
   // dir 'x'：剪力沿 x → 腹板為 y=±H/2 之壁，bw 量於 y；有效深度沿 x
@@ -1286,7 +1366,8 @@ function shearDesign(s,r,R,m,opt,cv,res,dir,cvPr){
   const D = dir==='x'? s.B : s.H;
   const tens = R.bars.filter(b=>coord(b)<0);
   const ubar = tens.length? tens.reduce((a,b)=>a+coord(b)*b.A,0)/tens.reduce((a,b)=>a+b.A,0) : -D/2*0.8;
-  const d = D/2 - ubar;
+  // 圓形：b_w = D、d = 0.8D（土木401／ACI 22.5.2.2）
+  const d = s.type==='circle' ? 0.8*s.D : D/2 - ubar;
   const Vukey = dir==='x'?'Vux':'Vuy';
 
   // 容量設計剪力：超強彎矩取各組合軸力下 M_n 之最大者（塑鉸可能發展的最大彎矩），
@@ -1303,7 +1384,8 @@ function shearDesign(s,r,R,m,opt,cv,res,dir,cvPr){
 
   // 肢數：沿剪力方向之箍筋肢，量於腹板寬度方向
   let nlegs;
-  if(s.type==='box') nlegs = r.dbl? 4 : 2;
+  if(s.type==='circle') nlegs = 2;                 // 圓箍／螺箍：A_v 取 2 倍單肢面積
+  else if(s.type==='box') nlegs = r.dbl? 4 : 2;
   else nlegs = 2 + (dir==='x' ? edgeTies(r.nH, 2*(s.H/2-R.dOut)/(r.nH-1), R.db, opt.tieAll).ties
                               : edgeTies(r.nB, 2*(s.B/2-R.dOut)/(r.nB-1), R.db, opt.tieAll).ties);
   const At1 = BAR[r.tieSize].A;
@@ -1311,10 +1393,12 @@ function shearDesign(s,r,R,m,opt,cv,res,dir,cvPr){
 
   // 扭矩幾何（箱型：封閉薄壁）
   const cHoop = r.covO + BAR[r.tieSize].d/2;
-  const Aoh = Math.max(1,(s.B-2*cHoop))*Math.max(1,(s.H-2*cHoop));
-  const ph  = 2*((s.B-2*cHoop)+(s.H-2*cHoop));
+  const circ = s.type==='circle', Dh = Math.max(1, s.D - 2*cHoop);
+  const Aoh = circ ? Math.PI*Dh*Dh/4 : Math.max(1,(s.B-2*cHoop))*Math.max(1,(s.H-2*cHoop));
+  const ph  = circ ? Math.PI*Dh : 2*((s.B-2*cHoop)+(s.H-2*cHoop));
   const cot = 1/Math.tan(opt.theta*Math.PI/180);
-  const Tthr = m.phiv*1.06*Math.sqrt(m.fc)*(m.Ag*m.Ag/Math.max(1,2*(s.B+s.H)));
+  const pcp = circ ? Math.PI*s.D : 2*(s.B+s.H);
+  const Tthr = m.phiv*1.06*Math.sqrt(m.fc)*(m.Ag*m.Ag/Math.max(1,pcp));
   const Ao = 0.85*Aoh;
   const s_minAv = Math.min(Av*m.fyt/(0.2*Math.sqrt(m.fc)*bw), Av*m.fyt/(3.5*bw));
   // 塑鉸區／柱端加密區間距：橋梁 min(b/4, 6d_b, 15)；建築 min(b/4, 6d_b, s_o)
@@ -1363,6 +1447,16 @@ function shearDesign(s,r,R,m,opt,cv,res,dir,cvPr){
 /* ---------- 施工性與配筋查核 ---------- */
 function constructability(s,r,R,m,opt,conf){
   const db=R.db, dt=R.dt;
+  if(s.type==='circle'){
+    const need = Math.max(4.0, 1.5*db, (4/3)*opt.dagg);
+    const cl = R.pB - db;
+    // 螺箍無 16d_b／48d_t 通則（以淨距 2.5～7.5 cm 控制）；圓箍沿用橫箍柱通則
+    const sTie = r.spiral ? 1e9 : Math.min(16*db, 48*dt, s.D);
+    const spMinClr = Math.max(2.5, (4/3)*opt.dagg);
+    return {pB:R.pB, pH:R.pB, clB:cl, clH:cl, need, rho:m.Ast/m.Ag*100, layerGap:null,
+            hook135:Math.max(6*dt,7.5), hook90:Math.max(6*dt,7.5), sTie, spMinClr,
+            hxMaxB:0, hxMaxH:0, tiesB:0, tiesH:0, everyB:false, everyH:false, circle:true};
+  }
   const hxO=s.B/2-R.dOut, hyO=s.H/2-R.dOut;
   const pB = 2*hxO/(r.nB-1), pH = 2*hyO/(r.nH-1);
   const need = Math.max(4.0, 1.5*db, (4/3)*opt.dagg);       // 柱主筋淨距（4 cm，非梁的 2.5）
@@ -1398,8 +1492,11 @@ function finalSpacing(M){
     push(sh.s_tors, `扭矩間距上限 (${sh.dir.toUpperCase()} 向)`);
   }
   // A_sh 為耐震圍束需求：建築柱僅柱端加密區檢核；橋梁維持原規格（全斷面檢核）
-  if(M.opt.code!=='bldg' || M.opt.plastic) push(M.conf.sAsh, '圍束筋量 A_sh');
-  push(M.chk.sTie, '柱箍筋間距通則 min(16d_b, 48d_t, 最小邊)');
+  if(M.conf.circ){
+    push(M.conf.sAsh, M.r.spiral ? '螺箍體積比 ρ_s' : '圓箍圍束 ρ_s');
+    if(M.r.spiral) push(7.5 + M.conf.dt, '螺箍淨距上限 7.5 cm');
+  }else if(M.opt.code!=='bldg' || M.opt.plastic) push(M.conf.sAsh, '圍束筋量 A_sh');
+  push(M.chk.sTie, M.conf.circ ? '圓箍間距通則 min(16d_b, 48d_t, D)' : '柱箍筋間距通則 min(16d_b, 48d_t, 最小邊)');
   const gov = cands.reduce((a,b)=> b.v<a.v?b:a, cands[0]);
   const sUse = PRACTICAL_S.find(v=>v<=gov.v) || PRACTICAL_S[PRACTICAL_S.length-1];
   return {cands,gov,sUse,tooTight: sUse > gov.v};
@@ -1408,7 +1505,58 @@ function finalSpacing(M){
 /* =========================================================================
    SVG 繪圖
    ========================================================================= */
+function svgCircle(M,forPrint){
+  const {s,r,R}=M;
+  const W=760, Hh=600, pad=110, band=72;
+  const k = (Math.min(W, Hh-band) - 2*pad)/s.D;
+  const cx = W/2, cy = band + (Hh-band)/2;
+  const X = x=>cx + x*k, Y = y=>cy - y*k;
+  const C = forPrint
+    ? {conc:'#dcdcdc',line:'#000',bar:'#000',tie:'#000',dim:'#333',ann:'#000',annBad:'#000'}
+    : {conc:'#DCE2E8',line:'#8A97A5',bar:'#151C24',tie:'#0F5F6B',dim:'#5E6B7A',ann:'#8A5A12',annBad:'#B03A2E'};
+  const o=[`<svg viewBox="0 0 ${W} ${Hh}" xmlns="http://www.w3.org/2000/svg" font-family="ui-sans-serif,system-ui,sans-serif">`,
+           `<rect width="${W}" height="${Hh}" fill="${forPrint?'#fff':'transparent'}"/>`];
+  o.push(`<circle cx="${cx}" cy="${cy}" r="${s.D/2*k}" fill="${C.conc}" stroke="${C.line}" stroke-width="2"/>`);
+  const rad = Math.max(2.0, R.db/2*k), radT = Math.max(1.2, R.dt/2*k);
+  const rT = R.rb*k + rad + radT;                                   // 橫向筋中心線包在主筋外側
+  o.push(`<circle cx="${cx}" cy="${cy}" r="${rT.toFixed(1)}" fill="none" stroke="${C.tie}" stroke-width="${Math.max(1.4,radT*2)}"/>`);
+  if(!r.spiral){
+    // 圓箍：兩端 135° 彎鉤於頂部搭接後伸入核心
+    const len = Math.max(8, Math.max(6*R.dt,7.5)*k), sw=Math.max(1.4,radT*2);
+    for(const sg of [1,-1]){
+      const a = Math.PI/2 + sg*0.16, px = cx + rT*Math.cos(a), py = cy - rT*Math.sin(a);
+      const dx = -Math.cos(a)*0.7 - sg*0.7*Math.sin(a), dy = Math.sin(a)*0.7 - sg*0.7*Math.cos(a);
+      const L = Math.hypot(dx,dy)||1;
+      o.push(`<line x1="${px.toFixed(1)}" y1="${py.toFixed(1)}" x2="${(px+dx/L*len).toFixed(1)}" y2="${(py+dy/L*len).toFixed(1)}" stroke="${C.tie}" stroke-width="${sw}" stroke-linecap="round"/>`);
+    }
+  }
+  for(const b of R.bars)
+    o.push(`<circle cx="${X(b.x)}" cy="${Y(b.y)}" r="${rad}" fill="${C.bar}" stroke="${forPrint?'#000':'#FFFFFF'}" stroke-width="0.7"/>`);
+  // 直徑標註（水平，置於斷面下方）
+  const yD = Y(-s.D/2)+40, x1=X(-s.D/2), x2=X(s.D/2), aw=8, hh=aw*0.3;
+  o.push(`<line x1="${x1}" y1="${cy}" x2="${x1}" y2="${yD+7}" stroke="${C.dim}" stroke-width="1.1"/>`,
+         `<line x1="${x2}" y1="${cy}" x2="${x2}" y2="${yD+7}" stroke="${C.dim}" stroke-width="1.1"/>`,
+         `<line x1="${x1}" y1="${yD}" x2="${x2}" y2="${yD}" stroke="${C.dim}" stroke-width="1.15"/>`,
+         `<path d="M${x1},${yD} L${x1+aw},${yD-hh} L${x1+aw},${yD+hh} Z" fill="${C.dim}"/>`,
+         `<path d="M${x2},${yD} L${x2-aw},${yD-hh} L${x2-aw},${yD+hh} Z" fill="${C.dim}"/>`,
+         `<text x="${cx}" y="${yD-10}" fill="${C.dim}" font-size="13" text-anchor="middle">D = ${f(s.D,0)} cm</text>`);
+  // 主筋淨距（沿圓周弧長）
+  const bad = M.chk.clB < M.chk.need;
+  o.push(`<text x="${cx}" y="${Y(s.D/2)-14}" fill="${bad?C.annBad:C.ann}" font-size="11.5" text-anchor="middle" font-weight="${bad?700:500}">${
+    bad ? `主筋淨距 ${f(M.chk.clB,1)} ＜ 需求 ${f(M.chk.need,1)} cm ✗` : `主筋淨距（沿圓周）${f(M.chk.clB,1)} cm`}</text>`);
+  const lg=[['dot', `主筋 ${r.barSize} ×${R.bars.length}（沿圓周等距）`, C.bar],
+            ['solid', r.spiral ? `螺旋箍筋 ${r.tieSize}（連續螺旋，端部加繞 1.5 圈）` : `圓形箍筋 ${r.tieSize}（兩端 135° 彎鉤搭接，搭接位置逐層輪替）`, C.tie]];
+  lg.forEach((L,i)=>{
+    const yy=16+i*17;
+    if(L[0]==='dot') o.push(`<circle cx="16" cy="${yy}" r="4.5" fill="${L[2]}"/>`);
+    else o.push(`<line x1="7" y1="${yy}" x2="26" y2="${yy}" stroke="${L[2]}" stroke-width="${forPrint?2:2.4}"/>`);
+    o.push(`<text x="34" y="${yy+4}" fill="${forPrint?'#000':'#151C24'}" font-size="12">${svgTxt(L[1],12)}</text>`);
+  });
+  o.push(`</svg>`);
+  return o.join('');
+}
 function svgSection(M,forPrint){
+  if(M.s.type==='circle') return svgCircle(M,forPrint);
   const {s,r,R,conf}=M;
   const W=760, Hh=600, pad=98, band=72;   // band：頂部保留給圖例，避免與淨距標註重疊
   const k = Math.min((W-2*pad)/s.B, (Hh-band-2*pad)/s.H);
@@ -1701,7 +1849,8 @@ function svgPM(M,axis,forPrint){
   // 否則其高軸壓分支（非設計相關）會把整張圖壓扁。
   let mMax=0,pMax=0,pMin=0;
   for(const p of cv.pts){ mMax=Math.max(mMax,p.Mn/TFM); pMax=Math.max(pMax,Math.min(p.Pn,cv.PnMax)/TF); pMin=Math.min(pMin,p.Pn/TF); }
-  for(const R2 of M.res){ mMax=Math.max(mMax,Math.abs(R2.L[key])); pMax=Math.max(pMax,R2.L.Pu); pMin=Math.min(pMin,R2.L.Pu); }
+  const mOf = L => M.m.circle ? Math.hypot(L.Mux,L.Muy) : Math.abs(L[key]);   // 圓形：合彎矩
+  for(const R2 of M.res){ mMax=Math.max(mMax,mOf(R2.L)); pMax=Math.max(pMax,R2.L.Pu); pMin=Math.min(pMin,R2.L.Pu); }
   mMax*=1.06; pMax*=1.05; pMin=Math.min(pMin*1.12,-0.04*pMax);
   const NT = forPrint ? 5 : 6;
   const TX = niceTicks(0, mMax, NT), TY = niceTicks(pMin, pMax, NT);
@@ -1734,7 +1883,7 @@ function svgPM(M,axis,forPrint){
   }
   o.push(`<line x1="${L}" y1="${Y(0)}" x2="${W-Rr}" y2="${Y(0)}" stroke="${C.ax}" stroke-width="1.8"/>`);
   o.push(`<line x1="${L}" y1="${T}" x2="${L}" y2="${Hh-Bm}" stroke="${C.ax}" stroke-width="1.8"/>`);
-  o.push(`<text x="${(L+W-Rr)/2}" y="${Hh-14}" fill="${C.txt}" font-size="${(12.5*FS).toFixed(1)}" text-anchor="middle">${svgTxt(`M_${axis} (tf·m)`,12.5*FS)}</text>`);
+  o.push(`<text x="${(L+W-Rr)/2}" y="${Hh-14}" fill="${C.txt}" font-size="${(12.5*FS).toFixed(1)}" text-anchor="middle">${svgTxt(M.m.circle?'M_r = √(M_x² + M_y²) (tf·m)':`M_${axis} (tf·m)`,12.5*FS)}</text>`);
   o.push(`<text x="16" y="${(T+Hh-Bm)/2}" fill="${C.txt}" font-size="${(12.5*FS).toFixed(1)}" text-anchor="middle" transform="rotate(-90 16 ${(T+Hh-Bm)/2})">P (tf)  壓為正</text>`);
 
   const path=(arr,col,w,dash)=>{
@@ -1760,7 +1909,7 @@ function svgPM(M,axis,forPrint){
   const placedPts=[];
   M.res.forEach((R2,i)=>{
     const isC = R2===M.ctrlFlex;
-    const mx=Math.abs(R2.L[key]), py=R2.L.Pu;
+    const mx=mOf(R2.L), py=R2.L.Pu;
     if(isC && Number.isFinite(R2.dc) && R2.dc>1e-9){
       const t=1/R2.dc;                        // 容量點 = 載重點 ÷ D/C
       o.push(`<line x1="${X(0)}" y1="${Y(0)}" x2="${X(mx/t)}" y2="${Y(py/t)}" stroke="${C.ptc}" stroke-width="1.1" stroke-dasharray="3 3" opacity=".85"/>`);
@@ -1932,7 +2081,22 @@ function verdictPylon(M){
   ],'alerts');
 }
 
+/* 螺箍柱 φ_c = 0.75、軸力截斷 0.85；橫箍（含圓箍）0.65／0.80。
+   只在型式改變時、且欄位仍是另一組的規範值時才改，不覆蓋使用者自訂值。 */
+let _tieKind = null;
+function syncPhiDefaults(){
+  const circ = document.getElementById('secType').value==='circle';
+  const kind = circ && document.getElementById('spiral').value==='spiral' ? 'spiral' : 'tied';
+  if(_tieKind!==null && kind!==_tieKind){
+    const pc=document.getElementById('phic'), pm=document.getElementById('pmaxf');
+    const [c0,m0,c1,m1] = kind==='spiral' ? [0.65,0.80,0.75,0.85] : [0.75,0.85,0.65,0.80];
+    if(Math.abs(parseFloat(pc.value)-c0)<1e-9) pc.value=c1;
+    if(Math.abs(parseFloat(pm.value)-m0)<1e-9) pm.value=m1;
+  }
+  _tieKind = kind;
+}
 function render(){
+  syncPhiDefaults();
   const M=compute();
   const fin=finalSpacing(M);
   M.fin=fin;
@@ -1955,6 +2119,9 @@ function render(){
   document.getElementById('oAg').textContent=f(M.Ag,0);
   document.getElementById('oRho').textContent=f(M.chk.rho,3);
   pinNA('pylon', ['tw','covI','dbl'], M.s.type!=='box');
+  const isC = M.s.type==='circle';
+  pinNA('pylon', ['B','H','nB','nH','tieLayout','ashPair'], isC);
+  pinNA('pylon', ['Dia','nCir','spiral'], !isC);
   pinNA('pylon', ['phio','Lv'], M.opt.code==='bldg');
   pinNA('pylon', ['lu'], M.opt.code!=='bldg');
   document.getElementById('rowTw').style.display = M.s.type==='box'?'':'none';
@@ -2015,8 +2182,14 @@ function renderSummary(M){
   h += kv('控制項', F.gov.tag);
   h += kv('需求上限 s_req', f(F.gov.v,2)+' cm');
   h += kv('剪力肢數 n_legs (X / Y)', `${M.shX.nlegs} / ${M.shY.nlegs} 肢`);
-  h += kv('繫筋根數（B 邊 / H 邊，每面）', `${M.chk.tiesB} / ${M.chk.tiesH} 根`);
-  h += kv('h_x (B 邊 / H 邊)', `${f(M.chk.hxMaxB,1)} / ${f(M.chk.hxMaxH,1)} cm`);
+  if(M.conf.circ){
+    const cc=M.conf.circ;
+    h += kv('橫向筋型式', M.r.spiral ? '螺旋箍筋' : '圓形箍筋');
+    h += kv('ρ_s 提供／需求', `${f(4*M.conf.At*cc.ds/(cc.Dc*cc.Dc*M.fin.sUse)*100,3)} / ${cc.rhoReq>0?f(cc.rhoReq*100,3):'—'} %`);
+  }else{
+    h += kv('繫筋根數（B 邊 / H 邊，每面）', `${M.chk.tiesB} / ${M.chk.tiesH} 根`);
+    h += kv('h_x (B 邊 / H 邊)', `${f(M.chk.hxMaxB,1)} / ${f(M.chk.hxMaxH,1)} cm`);
+  }
   h += cf.MD ? kv("f'_cc（Mander 圍束）", f(cf.MD.fcc,0)+` kgf/cm² (×${f(cf.MD.fcc/M.m.fc,2)})`) : kv("f'_cc",'—');
   h += cf.MD ? kv('ε_cu,c（圍束極限應變）', f(cf.MD.ecu,4)+` (×${f(cf.MD.ecu/M.m.ecu,1)})`) : '';
   h += `</div></div>`;
@@ -2078,6 +2251,12 @@ function renderAlerts(M){
   if(chk.layerGap!==null && chk.layerGap<2.5)
     add('bad',`<b>雙層層距不足</b>：內外層淨距 ${f(chk.layerGap,2)} cm < 2.5 cm。壁厚 t_w = ${f(M.s.tw,0)} cm 容不下雙層配筋。`);
 
+  if(chk.circle){
+    const cc=M.conf.circ, clr=M.fin.sUse-M.conf.dt;
+    if(M.R.bars.length < (M.r.spiral?6:4)) add('bad',`<b>主筋根數不足</b>：${M.r.spiral?'螺箍':'圓箍'}柱至少 ${M.r.spiral?6:4} 根（目前 ${M.R.bars.length} 根）。`);
+    if(cc.need) add('info',`${M.r.spiral?'螺箍':'圓箍'}體積比需求 ρ_s ≥ ${f(cc.rhoReq*100,3)} %（${cc.rhoReq===cc.t1?"0.45(A_g/A_ch−1)f'c/f_yt":cc.rhoReq===cc.t2?"0.12f'c/f_yt":"0.35k_f P_u/(f_yt A_ch)"} 控制）→ s ≤ ${f(M.conf.sAsh,2)} cm。`);
+    if(M.r.spiral && clr < chk.spMinClr) add('bad',`<b>螺箍淨距過小</b>：s − d_t = ${f(clr,1)} cm ＜ ${f(chk.spMinClr,1)} cm（max(2.5, 4/3·d_agg)），混凝土無法澆置。請改用較大號數的螺箍。`);
+  }else
   add(chk.everyB||chk.everyH?'warn':'info',
     `繫筋排布：B 邊每面 <b>${chk.tiesB}</b> 根、H 邊每面 <b>${chk.tiesH}</b> 根（規範：每隔一根縱筋須側向支撐，且距被支撐筋淨距 ≤ 15 cm）。`+
     (chk.everyB?`<br>B 邊主筋淨距 ${f(chk.clB,1)} cm > 15 cm，<b>每一根</b>都須繫筋。`:'')+
@@ -2125,7 +2304,7 @@ function buildReport(M){
   o.push(`<div class="rp-page">`);
   o.push(`<div class="rp-h1"><svg class="logo rp-logo" viewBox="0 0 32 32"><use href="#logoMark"/></svg>${colReportTitle(M)}</div>`);
   o.push(`<div style="font-size:13px;margin-bottom:4px">構材類別：<b>${M.opt.code==='bridge'?'橋墩／橋塔（受壓構材，雙軸 P-M 互制）':'柱（受壓構材，雙軸 P-M 互制）'}</b>
-    ｜ 斷面：<b>${s.type==='box'?`中空箱型 B × H = ${d(s.B,0)} × ${d(s.H,0)} cm，t_{w} = ${d(s.tw,0)} cm`:`實心矩形 B × H = ${d(s.B,0)} × ${d(s.H,0)} cm`}</b>
+    ｜ 斷面：<b>${s.type==='circle'?`圓形 D = ${d(s.D,0)} cm（${r.spiral?'螺箍':'圓箍'}）`:s.type==='box'?`中空箱型 B × H = ${d(s.B,0)} × ${d(s.H,0)} cm，t_{w} = ${d(s.tw,0)} cm`:`實心矩形 B × H = ${d(s.B,0)} × ${d(s.H,0)} cm`}</b>
     ｜ ${M.opt.plastic?(M.opt.code==='bldg'?'柱端加密區（耐震特殊抗彎構材）':'塑鉸區斷面'):'一般斷面'}</div>`);
   o.push(`<div style="font-size:12px;color:#444;margin-bottom:10px">
     依據：${codeText(M.opt.code)} ｜ 單位：kgf, cm（顯示 tf, tf·m）｜
@@ -2133,8 +2312,9 @@ function buildReport(M){
 
   o.push(`<div class="rp-h2">1. 斷面與材料</div>`);
   o.push(`<table class="no-break"><tbody>
-    <tr><td class="l">斷面型式</td><td class="l">${s.type==='box'?'中空箱型':'實心矩形'}</td>
-        <td class="l">外寬 B</td><td>${d(s.B,0)} cm</td><td class="l">外高 H</td><td>${d(s.H,0)} cm</td></tr>
+    <tr><td class="l">斷面型式</td><td class="l">${s.type==='circle'?(r.spiral?'圓形（螺箍）':'圓形（圓箍）'):s.type==='box'?'中空箱型':'實心矩形'}</td>
+        ${s.type==='circle'?`<td class="l">直徑 D</td><td>${d(s.D,0)} cm</td><td class="l">—</td><td>—</td>`
+          :`<td class="l">外寬 B</td><td>${d(s.B,0)} cm</td><td class="l">外高 H</td><td>${d(s.H,0)} cm</td>`}</tr>
     <tr><td class="l">壁厚 t_w</td><td>${s.type==='box'?d(s.tw,0)+' cm':'—'}</td>
         <td class="l">外保護層</td><td>${d(r.covO,1)} cm</td><td class="l">內保護層</td><td>${d(r.covI,1)} cm</td></tr>
     <tr><td class="l">f'_c</td><td>${d(m.fc,0)} kgf/cm²</td>
@@ -2148,7 +2328,7 @@ function buildReport(M){
   o.push(`<div class="rp-h3">1.1 導出量</div>`);
   o.push(eq(`\\beta_1=\\max\\!\\left(0.65,\\min\\!\\left(0.85,\\;0.85-0.05\\frac{f'_c-280}{70}\\right)\\right)
     =\\max\\!\\left(0.65,\\min\\!\\left(0.85,\\;0.85-0.05\\frac{${d(m.fc,0)}-280}{70}\\right)\\right)=${d(m.b1,4)}`));
-  o.push(eq(`A_g=${s.type==='box'
+  o.push(eq(`A_g=${s.type==='circle' ? `\\frac{\\pi D^2}{4}=\\frac{\\pi\\times${d(s.D,0)}^2}{4}` : s.type==='box'
       ? `B\\,H-(B-2t_w)(H-2t_w)=${d(s.B,0)}\\times${d(s.H,0)}-${d(s.B-2*s.tw,0)}\\times${d(s.H-2*s.tw,0)}`
       : `B\\,H=${d(s.B,0)}\\times${d(s.H,0)}`}=${d(M.Ag,0)}\\ \\text{cm}^2`));
   o.push(eq(`\\rho_g=\\frac{A_{st}}{A_g}=\\frac{${d(M.Ast,1)}}{${d(M.Ag,0)}}=${d(M.chk.rho/100,5)}=${d(M.chk.rho,3)}\\%`));
@@ -2236,6 +2416,9 @@ function buildReport(M){
     o.push(eq(`\\left(\\frac{M_{ux}}{\\phi M_{nx}}\\right)^{\\alpha}+\\left(\\frac{M_{uy}}{\\phi M_{ny}}\\right)^{\\alpha}\\le1,
       \\quad \\alpha=${d(m.alpha,2)},\\ \\phi M_{nx}=${d((C.bi.phiMnx||0)/TFM,0)},\\ \\phi M_{ny}=${d((C.bi.phiMny||0)/TFM,0)}\\ \\text{tf}\\cdot\\text{m}`));
     o.push(eq(`D/C=1/\\lambda^{*}=${d(C.dc,3)}\\quad(\\lambda^{*}\\text{ 由定偏心射線二分求解})`));
+  }else if(M.m.circle){
+    o.push(eq(`M_r=\\sqrt{M_{ux}^2+M_{uy}^2}=\\sqrt{${d(C.L.Mux,1)}^2+${d(C.L.Muy,1)}^2}=${d(C.bi.Mr/TFM,1)}\\ \\text{tf}\\cdot\\text{m}`));
+    o.push(eq(`D/C=${d(C.dc,3)}\\quad(\\text{圓形斷面各向同性，合彎矩對單一 P-M 曲線之射線交點})`));
   }else{
     o.push(eq(`D/C=${d(C.dc,3)}\\quad(\\text{單軸，直接射線交點})`));
   }
@@ -2252,6 +2435,26 @@ function buildReport(M){
 
   /* --- 第 6 頁：圍束筋 + 繫筋 + 施工性 --- */
   o.push(`<div class="rp-page">`);
+  if(M.conf.circ){
+    const cc=M.conf.circ;
+    o.push(`<div class="rp-h2">7. ${r.spiral?'螺旋箍筋':'圓形箍筋'}體積比 ρ_s</div>`);
+    o.push(eq(`\\rho_s\\ \\ge\\ \\max\\left\\{0.45\\left(\\frac{A_g}{A_{ch}}-1\\right)\\frac{f'_c}{f_{yt}}${M.opt.plastic?`,\\ \\ 0.12\\frac{f'_c}{f_{yt}}`:''}${M.conf.termC?`,\\ \\ 0.35k_f\\frac{P_u}{f_{yt}A_{ch}}`:''}\\right\\}`));
+    if(!cc.need) o.push(note(`圓形箍筋且非耐震區：不需檢核 ρ_s（以橫箍柱間距通則控制）。`));
+    o.push(eq(`D_c=D-2c_o=${d(s.D,0)}-2\\times${d(r.covO,1)}=${d(cc.Dc,1)}\\ \\text{cm},\\quad
+      A_{ch}=\\frac{\\pi D_c^2}{4}=${d(cc.Ach,0)}\\ \\text{cm}^2,\\quad d_s=D_c-d_t=${d(cc.ds,2)}\\ \\text{cm}`));
+    o.push(eq(`0.45\\left(\\frac{${d(M.Ag,0)}}{${d(cc.Ach,0)}}-1\\right)\\frac{${d(m.fc,0)}}{${d(m.fyt,0)}}=${d(cc.t1,5)}
+      ${M.opt.plastic?`,\\qquad 0.12\\frac{${d(m.fc,0)}}{${d(m.fyt,0)}}=${d(cc.t2,5)}`:''}${M.conf.termC?`,\\qquad 0.35k_f\\frac{P_u}{f_{yt}A_{ch}}=${d(cc.t3,5)}`:''}`));
+    if(cc.need) o.push(eq(`\\rho_s=\\frac{A_{sp}\\,\\pi d_s}{\\frac{\\pi D_c^2}{4}\\,s}=\\frac{4A_{sp}d_s}{D_c^2\\,s}
+      \\ \\Rightarrow\\ s\\le\\frac{4A_{sp}d_s}{D_c^2\\,\\rho_{s,req}}=\\frac{4\\times${d(M.conf.At,3)}\\times${d(cc.ds,2)}}{${d(cc.Dc,1)}^2\\times${d(cc.rhoReq,5)}}=${d(M.conf.sAsh,2)}\\ \\text{cm}`));
+    o.push(`<div class="rp-h2">8. 橫向鋼筋細則</div>`);
+    o.push(note(r.spiral
+      ? `螺旋箍筋須連續，淨距 2.5～7.5 cm 且 ≥ 4/3·d_agg（土木401／ACI 25.7.3）；端部加繞 1.5 圈錨定，續接採搭接 48d_t 以上或機械式續接。
+         螺箍柱主筋至少 6 根，強度折減 φ_c = 0.75、軸力截斷 0.85P_o。`
+      : `圓形箍筋兩端以 135° 耐震彎鉤搭接並伸入核心（延伸 ≥ max(6d_b, 7.5 cm) = ${d(M.chk.hook135,2)} cm），
+         相鄰層搭接位置沿圓周輪流錯開。圓箍柱屬橫箍柱，φ_c = 0.65、軸力截斷 0.80P_o。`));
+    o.push(eq(`\\text{主筋沿圓周淨距}=\\frac{2\\pi r_b}{n}-d_b=\\frac{2\\pi\\times${d(M.R.rb,2)}}{${M.R.bars.length}}-${d(M.R.db,2)}=${d(M.chk.clB,2)}\\ \\text{cm}
+      \\ ${M.chk.clB>=M.chk.need?'\\ge':'\\lt'}\\ ${d(M.chk.need,2)}\\ \\text{cm}`));
+  }else{
   o.push(`<div class="rp-h2">7. 耐震圍束筋量 A_sh</div>`);
   o.push(eq(`\\frac{A_{sh}}{s\\,b_c}\\ \\ge\\ \\max\\left\\{0.3\\left(\\frac{A_g}{A_{ch}}-1\\right)\\frac{f'_c}{f_{yt}},
     \\ \\ 0.09\\frac{f'_c}{f_{yt}}${M.conf.termC?`,\\ \\ 0.2k_fk_n\\frac{P_u}{f_{yt}A_{ch}}`:''}\\right\\}`));
@@ -2310,6 +2513,7 @@ function buildReport(M){
     且勾住同一根主筋的上下相鄰兩層，其 <b>90° 端位於相反側</b>（土木401 / ACI 18.7.5.2(c)）。
     2D 斷面圖僅能表示其中一層，下一層 135°／90° 端全部互換。`));
 
+  }
   o.push(`</div><div class="rp-page">`);
   o.push(`<div class="rp-h2">9. 箍筋間距彙整</div>`);
   o.push(`<table class="no-break"><thead><tr><th class="l">控制項</th><th>容許 s (cm)</th></tr></thead><tbody>`);
@@ -2321,10 +2525,16 @@ function buildReport(M){
 
   if(cf.MD){
     o.push(`<div class="rp-h2">10. Mander 圍束混凝土</div>`);
+    if(M.conf.circ){
+      o.push(eq(`k_e=\\frac{${r.spiral?`1-\\dfrac{s'}{2d_s}`:`\\left(1-\\dfrac{s'}{2d_s}\\right)^2`}}{1-\\rho_{cc}}=${d(cf.ke,4)},\\qquad
+        \\rho_s=\\frac{4A_{sp}}{d_s\\,s}=${d(cf.rho_s,5)}`));
+      o.push(eq(`f'_l=\\tfrac12 k_e\\,\\rho_s\\,f_{yt}=0.5\\times${d(cf.ke,4)}\\times${d(cf.rho_s,5)}\\times${d(m.fyt,0)}=${d(cf.MD.fl,2)}\\ \\text{kgf/cm}^2`));
+    }else{
     o.push(eq(`k_e=\\frac{\\left[1-\\dfrac{\\sum w_i^2}{6b_{c,t}b_{c,L}}\\right]\\left[1-\\dfrac{s'}{2b_{c,t}}\\right]
       \\left[1-\\dfrac{s'}{2b_{c,L}}\\right]}{1-\\rho_{cc}}=${d(cf.ke,4)}`));
     o.push(eq(`f'_l=k_e\\,\\rho_{s,min}\\,f_{yt}=${d(cf.ke,4)}\\times${d(Math.min(cf.rho_t,cf.rho_L),5)}\\times${d(m.fyt,0)}
       =${d(cf.MD.fl,2)}\\ \\text{kgf/cm}^2`));
+    }
     o.push(eq(`f'_{cc}=f'_c\\left(-1.254+2.254\\sqrt{1+\\frac{7.94f'_l}{f'_c}}-\\frac{2f'_l}{f'_c}\\right)
       =${d(m.fc,0)}\\left(-1.254+2.254\\sqrt{1+\\frac{7.94\\times${d(cf.MD.fl,2)}}{${d(m.fc,0)}}}-\\frac{2\\times${d(cf.MD.fl,2)}}{${d(m.fc,0)}}\\right)=${d(cf.MD.fcc,1)}`));
     o.push(eq(`\\varepsilon_{cc}=0.002\\left[1+5\\left(\\frac{f'_{cc}}{f'_c}-1\\right)\\right]=${d(cf.MD.ecc,5)},\\qquad
@@ -2358,7 +2568,7 @@ function breakpointTable(M,axis){
   // 控制組合對應點
   const key = axis==='x'?'Mux':'Muy';
   // 帶號偏心：控制組合為軸拉時，對應點必須落在受拉分支，不可只找 P_n>0
-  const Pu0=M.ctrlFlex.Lk.Pu, Mu0=Math.abs(M.ctrlFlex.Lk[key]);
+  const Pu0=M.ctrlFlex.Lk.Pu, Mu0=M.m.circle ? Math.hypot(M.ctrlFlex.Lk.Mux,M.ctrlFlex.Lk.Muy) : Math.abs(M.ctrlFlex.Lk[key]);
   const sgn=Math.sign(Pu0)||1;
   const eSigned = Mu0/(Math.abs(Pu0)<1e-6 ? 1e-6*sgn : Pu0);
   // 掃描點在 P≈0 附近偏心變化極快、解析度不足 → 先取最近點，再以二分法收斂到精確偏心
@@ -2427,7 +2637,9 @@ function shearReport(M,sh){
   const o=[`<div class="rp-h3">6.${sh.dir==='x'?'1':'2'} ${t} 向（控制組合：${esc(sh.ctrl.L.name)}）</div>`];
   o.push(`<div class="rp-note">各載重組合逐一檢核（V_c 隨 N_u 改變），取強度需求 A_v/s 最大者為控制組合，以下計算均以該組合代入。</div>`);
   o.push(shearComboRows(sh,true));
-  o.push(eq(`b_w=${M.s.type==='box'?`2t_w=2\\times${d(M.s.tw,0)}`:`${d(sh.bw,0)}`}=${d(sh.bw,1)}\\ \\text{cm},\\qquad
+  o.push(M.s.type==='circle'
+    ? eq(`b_w=D=${d(sh.bw,1)}\\ \\text{cm},\\qquad d=0.8D=${d(sh.d,2)}\\ \\text{cm}\\ \\ (\\text{圓形斷面，土木401／ACI 22.5.2.2})`)
+    : eq(`b_w=${M.s.type==='box'?`2t_w=2\\times${d(M.s.tw,0)}`:`${d(sh.bw,0)}`}=${d(sh.bw,1)}\\ \\text{cm},\\qquad
     d=${d(sh.d,2)}\\ \\text{cm}\\ \\ (\\text{受壓緣至受拉鋼筋群形心})`));
   if(M.opt.plastic && sh.bldgCD){
     o.push(`<div class="rp-note">建築柱容量設計（ACI 18.7.6.1）：機率彎矩強度 M_pr 以 1.25f_y、φ = 1.0 重解 P-M，
@@ -2520,6 +2732,12 @@ function selfTest(){
       `控制「${esc(sh.ctrl.L.name)}」(A_v/s)_{tot}=${f(sh.AvS_tot,5)}；全組合最大 ${f(maxD,5)} cm²/cm（共 ${sh.all.length} 組）`);
   }
 
+  // 圓形：半圓面積與形心解析解
+  if(M.s.type==='circle'){
+    const half=compBlock(g.D/2,g), Rr=g.Rr;
+    T('圓形 a=D/2 時弓形 = 半圓', Math.abs(half.A-Math.PI*Rr*Rr/2)<1e-6*half.A && Math.abs(half.yc-4*Rr/(3*Math.PI))<1e-6*Rr,
+      `A=${f(half.A,2)} vs πR²/2=${f(Math.PI*Rr*Rr/2,2)} cm²；ȳ=${f(half.yc,4)} vs 4R/3π=${f(4*Rr/(3*Math.PI),4)} cm`);
+  }
   // 5) 受壓面積在 a=t_w 前後連續（箱型分段積分）
   if(M.s.type==='box'){
     const tw=M.s.tw, eps=0.01;
@@ -3585,6 +3803,7 @@ const PIN_META = {
       ['secType','—','斷面型式','','決定受壓區積分方式。中空箱型須扣掉中空區，分段涵蓋 a ≤ t_w、t_w < a < D−t_w、a ≥ D−t_w 三種情形。','',''],
       ['B','B','外寬','cm','毛斷面積 A_g、繞 Y 軸的有效深度。','',''],
       ['H','H','外高','cm','繞 X 軸的有效深度與 P-M 曲線形狀。','',''],
+      ['Dia','D','直徑','cm','圓形斷面的 A_g、受壓弓形面積與剪力 b_w = D、d = 0.8D。','',''],
       ['tw','t_w','壁厚','cm','箱型剪力的 b_w = 2t_w；也決定主筋能否排雙層。','需容納 外保護層 + 箍筋 + 雙層主筋','']    ,
       ['covO','c_o','外側保護層','cm','主筋位置 d_i、圍束核心尺寸 A_ch。','橋塔外露面慣用 7.5；海洋環境 10',''],
       ['covI','c_i','內側保護層','cm','內層主筋位置與牆片核心厚度 b_c,t。','',''],
@@ -3602,10 +3821,14 @@ const PIN_META = {
       ['barSize','—','主筋號數','','d_b 影響淨距需求與塑鉸區箍筋間距上限 6d_b。','#4 ~ #18（CNS 560）',''],
       ['nB','n_B','B 向每面根數','根','中心距與淨距，進而決定繫筋根數與 h_x。','',''],
       ['nH','n_H','H 向每面根數','根','同上（H 向）。','',''],
+      ['nCir','n','主筋總根數','根','沿圓周等距排列，決定主筋淨距與 A_st。','螺箍柱至少 6 根（土木401／ACI 10.7.3.1）',''],
       ['dbl','—','內層同配置','','雙層才有 4 肢剪力肢數；內層座標對齊外層網格，使繫筋垂直穿過壁厚。','','']
     ]],
     ['橫向筋 / 耐震', [
       ['tieSize','—','箍筋 / 繫筋號數','','A_v 與 A_sh 的單肢面積。','',''],
+      ['spiral','—','圓柱橫向筋型式','','螺箍：φ_c = 0.75、軸力截斷 0.85P_o，並須滿足螺箍體積比 ρ_s；圓箍：同矩形橫箍柱 0.65／0.80。',
+       "ρ_s ≥ 0.45(A_g/A_ch − 1)f'_c/f_yt；耐震另 ≥ 0.12f'_c/f_yt　·　螺箍淨距 2.5～7.5 cm",
+       '切換型式時 φ_c 與軸力截斷會自動改為對應的規範值（若你未自訂）。'],
       ['ph','—','塑鉸區／柱端加密區','','開啟後啟動容量設計剪力、V_c 依軸壓歸零、加密區箍筋間距與 A_sh 圍束檢核。',
        '橋梁：s ≤ min(b/4, 6d_b, 15 cm)　·　建築：s ≤ min(b/4, 6d_b, s_o)，s_o = 10 + (35 − h_x)/3 介於 10～15 cm',
        "V_c 取 0 的門檻：橋梁 N_u < 0.1f'_c·A_g；建築 N_u < A_g·f'_c/20。"],
@@ -3833,6 +4056,9 @@ function pinMapPylon(M){
     + `需求取 max(4.0, 1.5d_b, 4/3·d_agg)，不足時混凝土無法澆置密實 —— 減少根數或改小號數。`;
   s.nB = c.clB < c.need ? {state:'bad',chip:'淨距',msg:'B 邊'+clrMsg(c.clB)} : OK;
   s.nH = c.clH < c.need ? {state:'bad',chip:'淨距',msg:'H 邊'+clrMsg(c.clH)} : OK;
+  s.nCir = c.clB < c.need ? {state:'bad',chip:'淨距',msg:'沿圓周'+clrMsg(c.clB)}
+         : (M.r.spiral && M.R.bars.length<6) ? {state:'bad',chip:'≥6',msg:'螺箍柱主筋至少 6 根。'} : OK;
+  s.spiral = M.conf.circ ? {state:'ok',chip:M.r.spiral?'φ0.75':'φ0.65'} : OK;
   s.dagg = spacingBad ? {state:'warn',chip:'⚠',
     msg:'目前淨距不足，而骨材粒徑會抬高淨距需求（需求含 4/3·d_agg 這一項）。'} : OK;
   s.barSize = spacingBad ? {state:'warn',chip:'⚠',
