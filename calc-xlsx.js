@@ -113,7 +113,7 @@ function writeCalcSheet(ws, cs, resolve){
     if(row.t==='blank') continue;
     if(row.t==='text'){
       ws.mergeCells(row.r,1,row.r,7); const c=R.getCell(1); c.value=row.text;
-      plain(c,{font:row.bold?{bold:true}:{} , align:{vertical:'top'}}); R.height=row.h||30; continue;
+      plain(c,{font:row.bold?{bold:true}:{} , align:{vertical:'top', wrapText:true}}); R.height=row.h||30; continue;
     }
     if(row.t==='sum'){
       const cells=[row.label,row.need,row.cap,row.ratio,row.judge];
@@ -203,6 +203,7 @@ function buildColumn(ExcelJS, inp){
 
   S.title(`RC 柱斷面設計檢核表（矩形／中空箱型／圓形，kgf-cm 制）`);
   S.header();
+  if(inp.tieCustom) S.text('⚠ 本案繫筋採「自訂（點選）」配置：繫筋根數、受側撐主筋數 nl、被支撐筋中心距 hx 與箍筋肢距為匯出當下之網頁值（「配筋座標」K、L 欄為點選旗標），在本表修改主筋根數或繫筋配置不會重算這幾格。如需變更請回網頁調整後重新匯出。', {bold:true, h:44});
 
   /* ---------------- 一、設計依據與斷面 ---------------- */
   S.section('【一、設計依據與斷面幾何】');
@@ -303,7 +304,7 @@ function buildColumn(ExcelJS, inp){
   S.item({key:'clH', label:'主筋淨距（H 邊）', sym:'s', f:'IF({isCirc}=1,{clB},{pH}-{db})', unit:'cm', fmt:'0.00', expr:'pH − db', ref:'—'});
   S.item({key:'everyB', label:'B 邊每根皆須側撐', f:'IF({tieAll}="自訂（點選）",'+(TC?TC.everyB:0)+',--OR({tieAll}="每一根主筋皆設",{clB}>15))', expr:'淨距 > 15 cm 或選「每一根」；自訂時為「是否每根皆已設」', crit:'1＝每根', ref:ref401('25.7.2.3')});
   S.item({key:'everyH', label:'H 邊每根皆須側撐', f:'IF({tieAll}="自訂（點選）",'+(TC?TC.everyH:0)+',--OR({tieAll}="每一根主筋皆設",{clH}>15))', ref:ref401('25.7.2.3')});
-  S.item({key:'nTieX', label:'B 邊繫筋根數（每面）', f:"IF({isCirc}=1,0,IF({tieAll}=\"自訂（點選）\","+(TC?TC.legB:0)+",SUM('配筋座標'!D3:D"+(2+NMAX)+')))', unit:'根', expr:'詳「配筋座標」D 欄；自訂時為內部肢數（繫筋＋重疊閉合箍 2 肢／個）'+(TC&&TC.nHoop?'，本案含重疊閉合箍 '+TC.nHoop+' 個':''), ref:ref401('25.7.2.3')});
+  S.item({key:'nTieX', label:'B 邊繫筋根數（每面）', f:"IF({isCirc}=1,0,IF({tieAll}=\"自訂（點選）\","+(TC?TC.legB:0)+",SUM('配筋座標'!D3:D"+(2+NMAX)+')))', unit:'根', expr:'詳「配筋座標」D 欄；自訂時為點選之繫筋數（匯出當下網頁值）', ref:ref401('25.7.2.3')});
   S.item({key:'nTieY', label:'H 邊繫筋根數（每面）', f:"IF({isCirc}=1,0,IF({tieAll}=\"自訂（點選）\","+(TC?TC.legH:0)+",SUM('配筋座標'!E3:E"+(2+NMAX)+')))', unit:'根', expr:'詳「配筋座標」E 欄；自訂時同上', ref:ref401('25.7.2.3')});
   S.item({key:'hxB', label:'被支撐筋中心距 hx（B 邊）', sym:'hx', f:'IF({isCirc}=1,0,IF({tieAll}="自訂（點選）",'+(TC?TC.hxB:0)+',IF({everyB}=1,{pB},2*{pB})))', unit:'cm', fmt:'0.00', crit:'耐震 ≦ 35 cm', expr:'自訂：相鄰受側撐主筋最大中心距（匯出當下網頁值）', ref:ref401('18.4.5.2')});
   S.item({key:'hxH', label:'被支撐筋中心距 hx（H 邊）', sym:'hx', f:'IF({isCirc}=1,0,IF({tieAll}="自訂（點選）",'+(TC?TC.hxH:0)+',IF({everyH}=1,{pH},2*{pH})))', unit:'cm', fmt:'0.00', crit:'耐震 ≦ 35 cm', ref:ref401('18.4.5.2')});
@@ -391,7 +392,7 @@ function buildColumn(ExcelJS, inp){
   /* ---------------- 七、圍束鋼筋 ---------------- */
   S.section('【七、耐震圍束鋼筋 Ash／螺箍體積比 ρs】');
   S.item({key:'kf', label:'kf', sym:'kf', f:'MAX(1,{fc}/1750+0.6)', unit:'無因次', fmt:'0.000', expr:"f'c/1750 + 0.6 ≧ 1.0", ref:ref401('18.4.5.4')});
-  S.item({key:'nlS', label:'受側撐主筋數 nl', sym:'nl', f:'IF({isCirc}=1,{nC},IF({tieAll}="自訂（點選）",'+(TC?TC.nlSup:0)+',4+2*({nTieX}+{nTieY})))', unit:'根', expr:'自訂：角隅 4 ＋ 受繫筋或重疊箍側撐之主筋', ref:ref401('18.4.5.4')});
+  S.item({key:'nlS', label:'受側撐主筋數 nl', sym:'nl', f:'IF({isCirc}=1,{nC},IF({tieAll}="自訂（點選）",'+(TC?TC.nlSup:0)+',4+2*({nTieX}+{nTieY})))', unit:'根', expr:'自訂：角隅 4 ＋ 受繫筋側撐之主筋（匯出當下網頁值）', ref:ref401('18.4.5.4')});
   S.item({key:'kn', label:'kn', sym:'kn', f:'{nlS}/MAX(1,{nlS}-2)', unit:'無因次', fmt:'0.000', expr:'nl/(nl − 2)', ref:ref401('18.4.5.4')});
   S.item({key:'termC', label:'適用高軸力第三式', f:'--AND({isBldg}=1,{isPH}=1,{isBox}=0,OR({PuMax}>0.3*{Ag}*{fc},{fc}>700))',
     expr:"建築加密區且 Pu > 0.3Ag·f'c 或 f'c > 700", crit:'1＝適用；此時每根主筋皆須側撐', ref:ref401('18.4.5.4(c)、18.4.5.2(f)')});
@@ -1219,6 +1220,7 @@ function buildA4Column(ws, S, R, inp, jRow, sumRows){
   a.para('1.2',{f:'IF({isBldg}=1,"建築物耐震設計規範及解說（柱端加密區依特殊抗彎構材規定）。","公路橋梁耐震設計規範（塑鉸區容量設計，超強係數 φo）。")'},26);
   a.para('1.3','CNS 560 鋼筋混凝土用鋼筋（號數、直徑、面積）。',18);
   a.para('1.4','本計算書數值均連結「檢核表」工作表，修改輸入後自動更新。',18);
+  if(inp.tieCustom) a.para('1.5','⚠ 繫筋採「自訂（點選）」配置：繫筋根數、nl、hx 與箍筋肢距為匯出當下之網頁值，於「檢核表」修改主筋根數或繫筋配置不會重算這幾項；變更請回網頁調整後重新匯出。',30);
 
   a.chap('二、設計條件');
   a.sub('2.1 幾何形狀'); a.thead();
