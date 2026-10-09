@@ -276,8 +276,9 @@ function buildColumn(ExcelJS, inp){
   S.item({key:'spiral', label:'圓柱橫向筋型式', v:inp.spiral?'螺旋箍筋':'圓形箍筋', kind:'list', list:['螺旋箍筋','圓形箍筋'],
     crit:'螺箍 φc = 0.75、截斷 0.85；圓箍同橫箍柱', ref:ref401('25.7.3'), note:'螺旋箍筋須連續且滿足體積比 ρs；圓形箍筋為單圈搭接（135° 彎鉤）。'});
   S.item({key:'isSp', label:'　旗標：螺箍', f:'--(AND({isCirc}=1,{spiral}="螺旋箍筋"))', ref:'非規範明列條文，係本表判別用'});
-  S.item({key:'tieAll', label:'繫筋配置', v:inp.tieAll?'每一根主筋皆設':'規範最低（每隔一根）', kind:'list', list:['規範最低（每隔一根）','每一根主筋皆設'],
-    crit:'淨距 > 15 cm 時自動改為每根支撐', ref:ref401('25.7.2.3'), note:'規範：每隔一根縱筋須側撐，且未支撐筋距被支撐筋淨距 ≦ 15 cm。'});
+  const TC = inp.tieCustom;
+  S.item({key:'tieAll', label:'繫筋配置', v:TC?'自訂（點選）':inp.tieAll?'每一根主筋皆設':'規範最低（每隔一根）', kind:'list', list:['規範最低（每隔一根）','每一根主筋皆設','自訂（點選）'],
+    crit:'淨距 > 15 cm 時自動改為每根支撐', ref:ref401('25.7.2.3'), note:'規範：每隔一根縱筋須側撐，且未支撐筋距被支撐筋淨距 ≦ 15 cm。自訂＝網頁斷面圖點選之位置（「配筋座標」K、L 欄，匯出當下網頁值）。'});
   S.item({key:'dOut', label:'外層主筋中心至外緣', sym:'d′', f:'{covO}+{dt}+{db}/2', unit:'cm', fmt:'0.00', expr:'co + dt + db/2', ref:'—（幾何）'});
   S.item({key:'dIn', label:'內層主筋中心至內緣', sym:'d′i', f:'{covI}+{dt}+{db}/2', unit:'cm', fmt:'0.00', expr:'ci + dt + db/2', ref:'—（幾何）'});
   S.item({key:'hxO', label:'外層主筋 x 半寬', sym:'hxo', f:'{Be}/2-{dOut}', unit:'cm', fmt:'0.00', ref:'—（幾何）'});
@@ -300,12 +301,12 @@ function buildColumn(ExcelJS, inp){
   S.item({key:'clB', label:'主筋淨距（B 邊／圓周）', sym:'s', f:'IF({isCirc}=1,2*PI()*{rb}/{nC}-{db},{pB}-{db})', unit:'cm', fmt:'0.00',
     expr:'矩形 pB − db；圓形 2πrb/n − db', ref:'—'});
   S.item({key:'clH', label:'主筋淨距（H 邊）', sym:'s', f:'IF({isCirc}=1,{clB},{pH}-{db})', unit:'cm', fmt:'0.00', expr:'pH − db', ref:'—'});
-  S.item({key:'everyB', label:'B 邊每根皆須側撐', f:'--OR({tieAll}="每一根主筋皆設",{clB}>15)', expr:'淨距 > 15 cm 或選「每一根」', crit:'1＝每根', ref:ref401('25.7.2.3')});
-  S.item({key:'everyH', label:'H 邊每根皆須側撐', f:'--OR({tieAll}="每一根主筋皆設",{clH}>15)', ref:ref401('25.7.2.3')});
+  S.item({key:'everyB', label:'B 邊每根皆須側撐', f:'IF({tieAll}="自訂（點選）",'+(TC?TC.everyB:0)+',--OR({tieAll}="每一根主筋皆設",{clB}>15))', expr:'淨距 > 15 cm 或選「每一根」；自訂時為「是否每根皆已設」', crit:'1＝每根', ref:ref401('25.7.2.3')});
+  S.item({key:'everyH', label:'H 邊每根皆須側撐', f:'IF({tieAll}="自訂（點選）",'+(TC?TC.everyH:0)+',--OR({tieAll}="每一根主筋皆設",{clH}>15))', ref:ref401('25.7.2.3')});
   S.item({key:'nTieX', label:'B 邊繫筋根數（每面）', f:"IF({isCirc}=1,0,SUM('配筋座標'!D3:D"+(2+NMAX)+'))', unit:'根', expr:'詳「配筋座標」D 欄', ref:ref401('25.7.2.3')});
   S.item({key:'nTieY', label:'H 邊繫筋根數（每面）', f:"IF({isCirc}=1,0,SUM('配筋座標'!E3:E"+(2+NMAX)+'))', unit:'根', expr:'詳「配筋座標」E 欄', ref:ref401('25.7.2.3')});
-  S.item({key:'hxB', label:'被支撐筋中心距 hx（B 邊）', sym:'hx', f:'IF({isCirc}=1,0,IF({everyB}=1,{pB},2*{pB}))', unit:'cm', fmt:'0.00', crit:'耐震 ≦ 35 cm', ref:ref401('18.4.5.2')});
-  S.item({key:'hxH', label:'被支撐筋中心距 hx（H 邊）', sym:'hx', f:'IF({isCirc}=1,0,IF({everyH}=1,{pH},2*{pH}))', unit:'cm', fmt:'0.00', crit:'耐震 ≦ 35 cm', ref:ref401('18.4.5.2')});
+  S.item({key:'hxB', label:'被支撐筋中心距 hx（B 邊）', sym:'hx', f:'IF({isCirc}=1,0,IF({tieAll}="自訂（點選）",'+(TC?TC.hxB:0)+',IF({everyB}=1,{pB},2*{pB})))', unit:'cm', fmt:'0.00', crit:'耐震 ≦ 35 cm', expr:'自訂：相鄰受側撐主筋最大中心距（匯出當下網頁值）', ref:ref401('18.4.5.2')});
+  S.item({key:'hxH', label:'被支撐筋中心距 hx（H 邊）', sym:'hx', f:'IF({isCirc}=1,0,IF({tieAll}="自訂（點選）",'+(TC?TC.hxH:0)+',IF({everyH}=1,{pH},2*{pH})))', unit:'cm', fmt:'0.00', crit:'耐震 ≦ 35 cm', ref:ref401('18.4.5.2')});
 
   /* ---------------- 四、耐震參數 ---------------- */
   S.section('【四、耐震參數與容量設計】');
@@ -357,8 +358,8 @@ function buildColumn(ExcelJS, inp){
       f:`IF({isCirc}=1,0.8*{Din},${ax==='x'?'{Be}':'{He}'}/2-IFERROR(SUMPRODUCT(${A}${end},--(${L}${end}<0),${L}${end})/SUMPRODUCT(${A}${end},--(${L}${end}<0)),-${ax==='x'?'{Be}':'{He}'}/2*0.8))`,
       expr:'受壓緣至受拉側鋼筋群形心；圓形 d = 0.8D', ref:ref401('22.5.2.2')});
     S.item({key:'nl'+ax, label:`${X} 向剪力肢數`, sym:'nlegs', unit:'肢',
-      f: ax==='x' ? 'IF({isCirc}=1,2,IF({isBox}=1,IF({inOK}=1,4,2),2+IF({everyH}=1,{nH}-2,INT(({nH}-2)/2))))'
-                  : 'IF({isCirc}=1,2,IF({isBox}=1,IF({inOK}=1,4,2),2+IF({everyB}=1,{nB}-2,INT(({nB}-2)/2))))',
+      f: ax==='x' ? 'IF({isCirc}=1,2,IF({isBox}=1,IF({inOK}=1,4,2),2+{nTieY}))'
+                  : 'IF({isCirc}=1,2,IF({isBox}=1,IF({inOK}=1,4,2),2+{nTieX}))',
       expr:'實心：閉合箍筋 2 肢＋該向繫筋；箱型 2（單層）或 4（雙層）；圓形 Av = 2Asp', ref:ref401('22.5.10.5')});
     S.item({key:'Av'+ax, label:`${X} 向 Av`, sym:'Av', f:`{nl${ax}}*{At}`, unit:'cm²', fmt:'0.000', ref:'—'});
     S.item({key:'Mcd'+ax, label:`${X} 向容量設計彎矩（各組合取大）`, sym:'Mo', unit:'tf·m', fmt:'#,##0.0',
@@ -471,10 +472,10 @@ function buildColumn(ExcelJS, inp){
     f:'IF({isPH}=1,IFERROR(_xlfn.AGGREGATE(14,6,{rng:sList}/(({rng:sList}<={sGov2})*((({rng:sFlag}=0)+{isSp})>0)),1),IF({isSp}=1,5,7.5)),{sUse})',
     expr:'實務間距表中 ≦ 需求之最大值', ref:'非規範明列條文，係施工慣用間距'});
   S.item({key:'legGx', label:'X 向剪力之箍筋肢橫向間距', sym:'s⊥', unit:'cm', fmt:'0.0',
-    f:'IF({isCirc}=1,0,IF({isBox}=1,IF({inOK}=1,MAX(1,{tw}-{covO}-{covI}-{dt}),{tw}),IF(OR({everyH}=1,{nH}<=2),{pH},2*{pH})))',
+    f:'IF({isCirc}=1,0,IF({isBox}=1,IF({inOK}=1,MAX(1,{tw}-{covO}-{covI}-{dt}),{tw}),IF({tieAll}="自訂（點選）",'+(TC?TC.legGx:0)+',IF(OR({everyH}=1,{nH}<=2),{pH},2*{pH}))))',
     expr:'矩形：每根皆設肢取 pH，否則 2pH；箱型：內外層肢跨壁厚', ref:ref401('10.7.6.5.2')});
   S.item({key:'legGy', label:'Y 向剪力之箍筋肢橫向間距', sym:'s⊥', unit:'cm', fmt:'0.0',
-    f:'IF({isCirc}=1,0,IF({isBox}=1,IF({inOK}=1,MAX(1,{tw}-{covO}-{covI}-{dt}),{tw}),IF(OR({everyB}=1,{nB}<=2),{pB},2*{pB})))', expr:'同上（B 邊）', ref:ref401('10.7.6.5.2')});
+    f:'IF({isCirc}=1,0,IF({isBox}=1,IF({inOK}=1,MAX(1,{tw}-{covO}-{covI}-{dt}),{tw}),IF({tieAll}="自訂（點選）",'+(TC?TC.legGy:0)+',IF(OR({everyB}=1,{nB}<=2),{pB},2*{pB}))))', expr:'同上（B 邊）；自訂時為匯出當下網頁值', ref:ref401('10.7.6.5.2')});
   S.item({key:'legLx', label:'X 向肢距上限', sym:'s⊥,max', unit:'cm', fmt:'0.0',
     f:`IF(MAX('載重組合'!P4:P${3+NCB})*1000>1.06*SQRT({fc})*{bwx}*{dx},MIN({dx}/2,30),MIN({dx},60))`, expr:"Vs ≦ 1.06√f'c·bw·d：min(d, 60)；否則 min(d/2, 30)", ref:ref401('10.7.6.5.2')});
   S.item({key:'legLy', label:'Y 向肢距上限', sym:'s⊥,max', unit:'cm', fmt:'0.0',
@@ -561,7 +562,7 @@ function buildColumn(ExcelJS, inp){
   // 總判定 E 欄位址
   const allJudge = `'檢核表'!$E$${jt.r}`;
 
-  buildCoordSheet(W['配筋座標'], resolve);
+  buildCoordSheet(W['配筋座標'], resolve, inp.tieCustom);
   buildLayerSheet(W['鋼筋層'], resolve);
   buildPMSheet(W['P-M_X'], resolve, 'x');
   buildPMSheet(W['P-M_Y'], resolve, 'y');
@@ -885,9 +886,10 @@ function devPlanBeamX(S, X){
 }
 
 /* ---------- 配筋座標：每邊主筋座標、繫筋位置旗標、圓周座標 ---------- */
-function buildCoordSheet(ws, R){
+function buildCoordSheet(ws, R, TC){
   const r = f => ({f:R(f,'配筋座標')});
-  ws.columns = [6,12,12,10,10,10,10,12,12,12].map(w=>({width:w}));
+  ws.columns = [6,12,12,10,10,10,10,12,12,12,11,11].map(w=>({width:w}));
+  put(ws,'K2','自訂 B 繫筋',{head:true}); put(ws,'L2','自訂 H 繫筋',{head:true});
   put(ws,'A1','配筋座標（自動產生；i 超過根數時為 0／不計）',{sec:true});
   ['i','x 外層','y 外層','B 邊繫筋','H 邊繫筋','內層 x 旗標','內層 y 旗標','圓周角 (rad)','x 圓形','y 圓形']
     .forEach((h,j)=>put(ws,colL(j)+'2',h,{head:true}));
@@ -896,8 +898,9 @@ function buildCoordSheet(ws, R){
     put(ws,'A'+n,i);
     put(ws,'B'+n,r(`IF(AND({isCirc}=0,A${n}<={nB}),-{hxO}+{pB}*(A${n}-1),0)`),{fmt:'0.00'});
     put(ws,'C'+n,r(`IF(AND({isCirc}=0,A${n}<={nH}),-{hyO}+{pH}*(A${n}-1),0)`),{fmt:'0.00'});
-    put(ws,'D'+n,r(`IF(AND({isCirc}=0,A${n}>=2,A${n}<={nB}-1,OR({everyB}=1,MOD(A${n}-1,2)=0),IF({isBox}=1,AND({inOK}=1,ABS(B${n})<{hxI}-1E-6),TRUE)),1,0)`));
-    put(ws,'E'+n,r(`IF(AND({isCirc}=0,A${n}>=2,A${n}<={nH}-1,OR({everyH}=1,MOD(A${n}-1,2)=0),IF({isBox}=1,AND({inOK}=1,ABS(C${n})<{hyI}-1E-6),TRUE)),1,0)`));
+    put(ws,'K'+n, TC && TC.fB[i-1] ? 1 : 0); put(ws,'L'+n, TC && TC.fH[i-1] ? 1 : 0);
+    put(ws,'D'+n,r(`IF(AND({isCirc}=0,A${n}>=2,A${n}<={nB}-1,IF({tieAll}="自訂（點選）",K${n}=1,OR({everyB}=1,MOD(A${n}-1,2)=0)),IF({isBox}=1,AND({inOK}=1,ABS(B${n})<{hxI}-1E-6),TRUE)),1,0)`));
+    put(ws,'E'+n,r(`IF(AND({isCirc}=0,A${n}>=2,A${n}<={nH}-1,IF({tieAll}="自訂（點選）",L${n}=1,OR({everyH}=1,MOD(A${n}-1,2)=0)),IF({isBox}=1,AND({inOK}=1,ABS(C${n})<{hyI}-1E-6),TRUE)),1,0)`));
     put(ws,'F'+n,r(`IF(AND({inOK}=1,A${n}<={nB},ABS(B${n})<{hxI}-1E-6),1,0)`));
     put(ws,'G'+n,r(`IF(AND({inOK}=1,A${n}<={nH},ABS(C${n})<{hyI}-1E-6),1,0)`));
     put(ws,'H'+n,r(`IF(AND({isCirc}=1,A${n}<={nC}),PI()/2+2*PI()*(A${n}-1)/{nC},0)`),{fmt:'0.0000'});
