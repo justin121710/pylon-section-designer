@@ -124,13 +124,13 @@ body.rp-open #app,body.rp-open #appBeam{display:none!important}
 .pin-mid>#derivedP,.pin-mid>#derivedB{margin:10px 0 0}
 .pin-sheet{background:var(--panel);border:1px solid var(--line);border-radius:8px;
   display:flex;flex-direction:column;min-height:0;overflow:hidden;box-shadow:var(--shadow)}
-.pin-head{display:grid;grid-template-columns:58px 1fr 142px 62px 48px;background:var(--sub);
+.pin-head{display:grid;grid-template-columns:58px 1fr 168px 62px 48px;background:var(--sub);
   border-bottom:1px solid var(--line);font-size:12px;font-weight:600;color:var(--dim)}
 .pin-head>div{padding:7px 10px}
 .pin-body{overflow-y:auto;flex-grow:1}
 .pin-sec{padding:11px 10px 7px;font-size:11.5px;font-weight:700;letter-spacing:.08em;color:var(--dim);
   background:var(--sub);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:1}
-.pin-row{display:grid;grid-template-columns:58px 1fr 142px 62px 48px;align-items:center;
+.pin-row{display:grid;grid-template-columns:58px 1fr 168px 62px 48px;align-items:center;
   min-height:39px;cursor:pointer;border-bottom:1px solid var(--line)}
 .pin-row:hover{background:var(--sub)}
 .pin-row.on{background:var(--sel);box-shadow:inset 3px 0 0 var(--acc)}
@@ -140,6 +140,7 @@ body.rp-open #app,body.rp-open #appBeam{display:none!important}
 .pin-u{padding:0 10px;font-size:12.5px;color:var(--dim)}
 .pin-s{padding:0 4px;text-align:center}
 .pin-row.pin-hidden,.pin-row.pin-na{display:none}
+@media(min-width:641px){ .pin-row.pin-wide .pin-v{grid-column:3 / 5} .pin-row.pin-wide .pin-u{display:none} }
 .pin-chip{display:inline-block;padding:2px 7px;border-radius:10px;font-size:10.5px}
 .pin-chip.ok{background:rgba(30,122,68,.12);color:var(--ok)}
 .pin-chip.warn{background:rgba(180,113,26,.13);color:var(--warn)}
@@ -200,6 +201,7 @@ body.rp-open #app,body.rp-open #appBeam{display:none!important}
 .pin-body{scrollbar-gutter:stable}
 .pin-head>div:nth-child(3){padding-right:16px}
 body .pin-v input{text-align:right;font-variant-numeric:tabular-nums}
+body .pin-v input[type=text]{text-align:left}
 
 /* ---- 堆疊版面（≤1150px）：須放在 .pin-mid 的 grid 定義之後，否則會被蓋回 grid，
         說明卡掉進 8px 的分隔線軌道、下方留下一整塊空白 ---- */
@@ -462,7 +464,8 @@ img,video{max-width:100%;height:auto}
   <div id="stashP" style="display:none">
     <div class="card">
       <h2>① 斷面幾何</h2>
-      <div class="fld"><span><b>斷面範本</b></span><select id="preset"></select></div>
+      <div class="fld"><span><b>預設範本</b></span><select id="preset"></select></div>
+      <div class="fld"><span>構件名稱／編號</span><input id="memName" type="text" placeholder="例：C1、P3 橋墩"></div>
       <div style="border-top:1px solid var(--line);margin:8px 0"></div>
       <div class="fld"><span>斷面型式</span>
         <select id="secType"><option value="box">中空箱型</option><option value="solid">實心矩形</option><option value="circle">圓形</option></select></div>
@@ -607,7 +610,8 @@ img,video{max-width:100%;height:auto}
   <div id="stashB" style="display:none">
     <div class="card">
       <h2>① 斷面幾何</h2>
-      <div class="fld"><span><b>斷面範本</b></span><select id="bPreset"></select></div>
+      <div class="fld"><span><b>預設範本</b></span><select id="bPreset"></select></div>
+      <div class="fld"><span>構件名稱／編號</span><input id="bMemName" type="text" placeholder="例：G1、頂版 S1"></div>
       <div style="border-top:1px solid var(--line);margin:8px 0"></div>
       <div class="fld"><span>斷面型式</span>
         <select id="bType"><option value="T">T 型（與版共同作用）</option><option value="rect">矩形</option><option value="slab">單位寬版（b = 100 cm）</option></select></div>
@@ -685,7 +689,7 @@ img,video{max-width:100%;height:auto}
       <div class="fld"><span>活載限值 L/</span><input id="bLimLive" type="number" step="10" value="360"></div>
       <div class="fld"><span>總撓度限值 L/</span><input id="bLimTotal" type="number" step="10" value="240"></div>
       <div class="fld"><span>容許裂縫寬度 (mm)</span><select id="bWlim">
-        <option value="0.10">0.10（水密要求嚴格）</option><option value="0.15">0.15</option>
+        <option value="0.10">0.10（嚴格水密）</option><option value="0.15">0.15</option>
         <option value="0.20" selected>0.20</option><option value="0.25">0.25</option><option value="0.30">0.30</option></select></div>
     </div>
   </div>
@@ -1120,56 +1124,56 @@ let TAB = 'pylon';      /* 'pylon' 橋塔／柱　'beam' 梁 */
 
 /* 斷面範本：涵蓋一般橋墩柱到長跨徑橋塔的量體差距（Ag 相差 20 倍以上） */
 const PRESETS = {
-  bldg60: {label:'建築 RC 柱 60×60', code:'bldg', ph:'1', lu:320,
+  bldg60: {label:'建築 RC 方柱', code:'bldg', ph:'1', lu:320,
     type:'solid', B:60, H:60, tw:15, fc:280, bar:'#8', nB:4, nH:4, tie:'#4',
     covO:4, covI:4, Lv:160, dagg:2.5,
     loads:[{name:'1.2D+1.6L',Pu:260,Mux:18,Muy:10,Vux:8,Vuy:5,Tu:0},
            {name:'1.2D+L+E (X)',Pu:210,Mux:42,Muy:12,Vux:24,Vuy:6,Tu:0},
            {name:'1.2D+L+E (Y)',Pu:205,Mux:12,Muy:40,Vux:6,Vuy:23,Tu:0},
            {name:'0.9D+E',Pu:95,Mux:38,Muy:11,Vux:22,Vuy:6,Tu:0}]},
-  pond80: {label:'地下滯洪池柱 80×80', code:'bldg', ph:'1', lu:650,
+  pond80: {label:'地下滯洪池柱', code:'bldg', ph:'1', lu:650,
     type:'solid', B:80, H:80, tw:20, fc:280, bar:'#8', nB:5, nH:5, tie:'#4',
     covO:5, covI:5, Lv:325, dagg:2.5,
     loads:[{name:'1.2D+1.6L（頂版覆土）',Pu:520,Mux:22,Muy:15,Vux:7,Vuy:5,Tu:0},
            {name:'1.2D+1.0L+E (X)',Pu:430,Mux:58,Muy:18,Vux:19,Vuy:6,Tu:0},
            {name:'1.2D+1.0L+E (Y)',Pu:425,Mux:18,Muy:56,Vux:6,Vuy:18,Tu:0},
            {name:'0.9D+E（滿水浮力）',Pu:140,Mux:52,Muy:16,Vux:17,Vuy:5,Tu:0}]},
-  circ80: {label:'建築 RC 圓柱 D80（螺箍）', code:'bldg', ph:'1', lu:350,
+  circ80: {label:'建築 RC 圓柱（螺箍）', code:'bldg', ph:'1', lu:350,
     type:'circle', D:80, nCir:12, spiral:'spiral', B:80, H:80, tw:20, fc:280, bar:'#8', nB:4, nH:4, tie:'#4',
     covO:4, covI:4, Lv:175, dagg:2.5,
     loads:[{name:'1.2D+1.6L',Pu:420,Mux:30,Muy:15,Vux:12,Vuy:6,Tu:0},
            {name:'1.2D+L+E (X)',Pu:340,Mux:78,Muy:20,Vux:40,Vuy:9,Tu:0},
            {name:'1.2D+L+E (Y)',Pu:335,Mux:20,Muy:76,Vux:9,Vuy:39,Tu:0},
            {name:'0.9D+E',Pu:150,Mux:70,Muy:18,Vux:36,Vuy:8,Tu:0}]},
-  pierC180: {label:'橋墩 圓柱 D180（螺箍）', code:'bridge', ph:'1', lu:1000,
+  pierC180: {label:'橋墩圓柱（螺箍）', code:'bridge', ph:'1', lu:1000,
     type:'circle', D:180, nCir:32, spiral:'spiral', B:180, H:180, tw:40, fc:350, bar:'#10', nB:9, nH:9, tie:'#7',
     covO:7.5, covI:5, Lv:1000, dagg:2.5,
     loads:[{name:'D+L',Pu:1300,Mux:250,Muy:100,Vux:40,Vuy:18,Tu:10},
            {name:'地震 X',Pu:1150,Mux:1000,Muy:200,Vux:120,Vuy:28,Tu:20},
            {name:'地震 Y',Pu:1150,Mux:200,Muy:980,Vux:28,Vuy:118,Tu:20},
            {name:'最小軸力',Pu:600,Mux:880,Muy:170,Vux:105,Vuy:24,Tu:15}]},
-  pier100: {label:'橋墩柱 實心 100×100', code:'bridge', ph:'1', lu:800,
+  pier100: {label:'橋墩柱（實心方形）', code:'bridge', ph:'1', lu:800,
     type:'solid', B:100, H:100, tw:20, fc:280, bar:'#8', nB:6, nH:6, tie:'#5',
     covO:5, covI:5, Lv:800, dagg:2.5,
     loads:[{name:'D+L',Pu:320,Mux:60,Muy:25,Vux:20,Vuy:10,Tu:2},
            {name:'地震 X',Pu:280,Mux:196,Muy:40,Vux:52,Vuy:12,Tu:5},
            {name:'地震 Y',Pu:280,Mux:40,Muy:196,Vux:12,Vuy:52,Tu:5},
            {name:'最小軸力',Pu:120,Mux:152,Muy:32,Vux:44,Vuy:10,Tu:4}]},
-  pier200: {label:'橋墩 實心 200×300', code:'bridge', ph:'1', lu:1500,
+  pier200: {label:'大型橋墩（實心矩形）', code:'bridge', ph:'1', lu:1500,
     type:'solid', B:200, H:300, tw:40, fc:280, bar:'#11', nB:13, nH:19, tie:'#5',
     covO:7.5, covI:5, Lv:1500, dagg:2.5,
     loads:[{name:'D+L',Pu:1500,Mux:600,Muy:250,Vux:80,Vuy:40,Tu:20},
            {name:'地震 X',Pu:1300,Mux:2450,Muy:400,Vux:330,Vuy:60,Tu:60},
            {name:'地震 Y',Pu:1300,Mux:400,Muy:1750,Vux:60,Vuy:240,Tu:60},
            {name:'最小軸力',Pu:600,Mux:2150,Muy:350,Vux:290,Vuy:55,Tu:50}]},
-  box300: {label:'中跨徑橋塔 中空箱型 300×400×40', code:'bridge', ph:'1', lu:2500,
+  box300: {label:'中跨徑橋塔（中空箱型）', code:'bridge', ph:'1', lu:2500,
     type:'box', B:300, H:400, tw:40, fc:350, bar:'#8', nB:19, nH:25, tie:'#6', tieAll:true,
     covO:7.5, covI:5, Lv:2500, dagg:2.5,
     loads:[{name:'D+L',Pu:2200,Mux:900,Muy:400,Vux:120,Vuy:60,Tu:40},
            {name:'地震 X',Pu:1900,Mux:6300,Muy:1100,Vux:520,Vuy:110,Tu:150},
            {name:'地震 Y',Pu:1850,Mux:1200,Muy:4700,Vux:120,Vuy:400,Tu:180},
            {name:'最小軸力',Pu:700,Mux:5400,Muy:950,Vux:450,Vuy:100,Tu:120}]},
-  box600: {label:'長跨徑橋塔 中空箱型 600×800×90', code:'bridge', ph:'1', lu:4000,
+  box600: {label:'長跨徑橋塔（中空箱型）', code:'bridge', ph:'1', lu:4000,
     type:'box', B:600, H:800, tw:90, fc:420, bar:'#11', nB:39, nH:53, tie:'#6',
     covO:7.5, covI:5, Lv:4000, dagg:2.5,
     loads:[{name:'D+L',Pu:4200,Mux:21000,Muy:8000,Vux:600,Vuy:250,Tu:400},
@@ -2103,7 +2107,7 @@ function colXlsxInput(){
     dbl:g('dbl')==='1', spiral:g('spiral')==='spiral', tieAll:g('tieLayout')==='all', ph:g('ph')==='1',
     phio:num('phio',1.25), Lv:num('Lv',400), lu:num('lu',300), theta:num('theta',45), ashPerp:g('ashPair')!=='para',
     loads: LOADS.map(L=>({name:L.name, Pu:+L.Pu||0, Mux:+L.Mux||0, Muy:+L.Muy||0, Vux:+L.Vux||0, Vuy:+L.Vuy||0, Tu:+L.Tu||0})),
-    meta:{project:'', member:''}};
+    meta:{project:'', member:memName('memName')}};
 }
 function beamXlsxInput(){
   const g=id=>document.getElementById(id).value, ty=g('bType');
@@ -2117,7 +2121,7 @@ function beamXlsxInput(){
     MD:num('bMD',0), ML:num('bML',0), MDn:num('bMDn',0), MLn:num('bMLn',0), sustain:num('bSustain',0.2), xi:num('bXi',2), limLive:num('bLimLive',360), limTotal:num('bLimTotal',240),
     deflCase:g('bDeflCase'), wLim:g('bWlim'),
     loads: BLOADS.map(L=>({name:L.name, Mpos:+(L.Mpos??L.Mu??0)||0, Mneg:+(L.Mneg??0)||0, Vu:+L.Vu||0, Tu:+L.Tu||0})),
-    meta:{project:'', member:''}};
+    meta:{project:'', member:memName('bMemName')}};
 }
 async function exportXlsx(){
   const btn=document.getElementById('btnXlsx'), t0=btn.textContent;
@@ -2406,6 +2410,8 @@ const codeText = code => code==='bridge'
   ? '混凝土結構設計規範（土木401，斷面強度）＋ 公路橋梁耐震設計規範'
   : '混凝土結構設計規範（土木401）＋ 建築物耐震設計規範及解說';
 const colReportTitle = M => M.opt.code==='bridge' ? 'RC 橋墩／橋塔斷面設計檢核計算書' : 'RC 柱斷面設計檢核計算書';
+const memName = id => (document.getElementById(id).value || '').trim();
+const memLine = id => memName(id) ? `<div style="font-size:15px;font-weight:700;margin:-2px 0 6px">構件：${esc(memName(id))}</div>` : '';
 
 function buildReport(M){
   const m=M.m, s=M.s, r=M.r, R=M.R, F=M.fin, cf=M.cf, C=M.ctrlFlex;
@@ -2416,7 +2422,7 @@ function buildReport(M){
 
   /* --- 第 1 頁：輸入與圖 --- */
   o.push(`<div class="rp-page">`);
-  o.push(`<div class="rp-h1"><svg class="logo rp-logo" viewBox="0 0 32 32"><use href="#logoMark"/></svg>${colReportTitle(M)}</div>`);
+  o.push(`<div class="rp-h1"><svg class="logo rp-logo" viewBox="0 0 32 32"><use href="#logoMark"/></svg>${colReportTitle(M)}</div>` + memLine('memName'));
   o.push(`<div style="font-size:13px;margin-bottom:4px">構材類別：<b>${M.opt.code==='bridge'?'橋墩／橋塔（受壓構材，雙軸 P-M 互制）':'柱（受壓構材，雙軸 P-M 互制）'}</b>
     ｜ 斷面：<b>${s.type==='circle'?`圓形 D = ${d(s.D,0)} cm（${r.spiral?'螺箍':'圓箍'}）`:s.type==='box'?`中空箱型 B × H = ${d(s.B,0)} × ${d(s.H,0)} cm，t_{w} = ${d(s.tw,0)} cm`:`實心矩形 B × H = ${d(s.B,0)} × ${d(s.H,0)} cm`}</b>
     ｜ ${M.opt.plastic?(M.opt.code==='bldg'?'柱端加密區（耐震特殊抗彎構材）':'塑鉸區斷面'):'一般斷面'}</div>`);
@@ -3308,30 +3314,30 @@ const envText = env => env==='water' ? '＋ 水工／環境結構加嚴（參考
 
 /* ---------- 梁：範本 ---------- */
 const BPRESETS = {
-  deckT: {label:'橋面板 T 梁（內梁）', type:'T', bw:45, h:110, hf:22, L:1500, sSpacing:250, sClear:205, edge:false,
+  deckT: {label:'橋面板 T 梁', type:'T', bw:45, h:110, hf:22, L:1500, sSpacing:250, sClear:205, edge:false,
     fc:280, botSize:'#9', nBot:8, topSize:'#7', nTop:5, tieSize:'#4', nLegs:2, cover:4,
     seismic:false, ln:1450, Vg:0, MDn:0, MLn:0, MD:80, ML:45,
     loads:[{name:'跨中 1.2D+1.6L', Mpos:168, Mneg:0, Vu:52, Tu:3},
            {name:'跨中 D+L（含衝擊）', Mpos:150, Mneg:0, Vu:46, Tu:2}]},
-  capBeam: {label:'蓋梁（矩形・耐震）', type:'rect', bw:150, h:180, hf:0, L:900, sSpacing:0, sClear:0, edge:false,
+  capBeam: {label:'橋墩蓋梁（耐震）', type:'rect', bw:150, h:180, hf:0, L:900, sSpacing:0, sClear:0, edge:false,
     fc:280, botSize:'#11', nBot:12, topSize:'#11', nTop:16, tieSize:'#5', nLegs:4, cover:5,
     seismic:true, ln:850, Vg:120, MDn:420, MLn:180, MD:210, ML:95,
     loads:[{name:'柱面 地震 (1.2D+1.0E+0.5L)', Mpos:430, Mneg:880, Vu:340, Tu:22},
            {name:'重力 1.2D+1.6L', Mpos:400, Mneg:520, Vu:200, Tu:12}]},
-  pondTop: {label:'地下滯洪池頂版（單位寬・水工）', type:'slab', env:'water', bw:100, h:60, hf:0, L:600, sSpacing:0, sClear:0, edge:false,
+  pondTop: {label:'滯洪池頂版（水工）', type:'slab', env:'water', bw:100, h:60, hf:0, L:600, sSpacing:0, sClear:0, edge:false,
     fc:280, botSize:'#6', nBot:7, topSize:'#7', nTop:10, spBot:15, spTop:10, rhoTs:0.003, tieSize:'#4', nLegs:2, cover:5,
     seismic:false, ln:600, Vg:0, MDn:18, MLn:12, MD:9, ML:6, deflCase:'fixedUDL', wLim:'0.20',
     loads:[{name:'跨中 1.2D+1.6L（覆土＋活載）', Mpos:20.5, Mneg:41, Vu:26, Tu:0}]},
-  pondWall: {label:'滯洪池側牆（單位寬・土水壓）', type:'slab', env:'water', bw:100, h:60, hf:0, L:650, sSpacing:0, sClear:0, edge:false,
+  pondWall: {label:'滯洪池側牆（土水壓）', type:'slab', env:'water', bw:100, h:60, hf:0, L:650, sSpacing:0, sClear:0, edge:false,
     fc:280, botSize:'#7', nBot:8, topSize:'#6', nTop:7, spBot:12.5, spTop:15, rhoTs:0.003, tieSize:'#4', nLegs:2, cover:5,
     seismic:false, ln:650, Vg:0, MDn:0, MLn:0, MD:18, ML:4, deflCase:'cantUDL', wLim:'0.20',
     loads:[{name:'牆底 1.6H（土壓＋地下水）', Mpos:38, Mneg:0, Vu:32, Tu:0}]},
-  pondBeam: {label:'滯洪池頂版大梁（矩形・水工）', type:'rect', env:'water', bw:80, h:130, hf:0, L:800, sSpacing:0, sClear:0, edge:false,
+  pondBeam: {label:'滯洪池頂版大梁', type:'rect', env:'water', bw:80, h:130, hf:0, L:800, sSpacing:0, sClear:0, edge:false,
     fc:280, botSize:'#9', nBot:9, topSize:'#11', nTop:9, tieSize:'#4', nLegs:2, cover:5,
     seismic:false, ln:720, Vg:0, MDn:110, MLn:50, MD:62, ML:30, deflCase:'fixedUDL', wLim:'0.20',
     loads:[{name:'跨中 1.2D+1.6L', Mpos:122, Mneg:0, Vu:78, Tu:2},
            {name:'支承 1.2D+1.6L', Mpos:0, Mneg:228, Vu:96, Tu:2}]},
-  gradeBeam: {label:'地梁（矩形）', type:'rect', bw:60, h:90, hf:0, L:800, sSpacing:0, sClear:0, edge:false,
+  gradeBeam: {label:'地梁', type:'rect', bw:60, h:90, hf:0, L:800, sSpacing:0, sClear:0, edge:false,
     fc:280, botSize:'#8', nBot:5, topSize:'#7', nTop:5, tieSize:'#4', nLegs:2, cover:5,
     seismic:false, ln:750, Vg:0, MDn:15, MLn:8, MD:32, ML:16,
     loads:[{name:'1.2D+1.6L', Mpos:64, Mneg:30, Vu:42, Tu:2}]}
@@ -3881,7 +3887,7 @@ function buildBeamReport(B){
 
   /* 第 1 頁：斷面與材料 */
   o.push(`<div class="rp-page">`);
-  o.push(`<div class="rp-h1"><svg class="logo rp-logo" viewBox="0 0 32 32"><use href="#logoMark"/></svg>${S.slab?'RC 版（單位寬）設計檢核計算書':'RC 梁斷面設計檢核計算書'}</div>`);
+  o.push(`<div class="rp-h1"><svg class="logo rp-logo" viewBox="0 0 32 32"><use href="#logoMark"/></svg>${S.slab?'RC 版（單位寬）設計檢核計算書':'RC 梁斷面設計檢核計算書'}</div>` + memLine('bMemName'));
   o.push(`<div style="font-size:13px;margin-bottom:4px">構材類別：<b>${S.slab?'版（單向受撓，每公尺寬）':`梁（受撓構材${S.seismic?'，耐震特殊抗彎構材':''}）`}</b>
     ｜ 斷面：<b>${S.slab?`b × h = 100 × ${d(S.h,0)} cm`:`${S.type==='T'?'T 型':'矩形'} b_{w} × h = ${d(S.bw,0)} × ${d(S.h,0)} cm${S.type==='T'?`，h_{f} = ${d(S.hf,0)} cm`:''}`}</b></div>`);
   o.push(`<div style="font-size:12px;color:#444;margin-bottom:10px">
@@ -4115,7 +4121,8 @@ function buildBeamReport(B){
 const PIN_META = {
   pylon: [
     ['斷面幾何', [
-      ['preset','—','斷面範本','','一次帶入尺寸、材料、配筋與載重組合。','',''],
+      ['preset','—','預設範本','','載入一組預設的尺寸、材料、配筋與載重組合作為起點。載入後可自由修改，範本名稱只代表起點，不代表目前斷面。','',''],
+      ['memName','—','構件名稱／編號','','自訂此斷面的名稱，顯示於計算書標題、列印檔名與 Excel 封面；不影響計算。','',''],
       ['secType','—','斷面型式','','決定受壓區積分方式。中空箱型須扣掉中空區，分段涵蓋 a ≤ t_w、t_w < a < D−t_w、a ≥ D−t_w 三種情形。','',''],
       ['B','B','外寬','cm','毛斷面積 A_g、繞 Y 軸的有效深度。','',''],
       ['H','H','外高','cm','繞 X 軸的有效深度與 P-M 曲線形狀。','',''],
@@ -4169,7 +4176,8 @@ const PIN_META = {
 
   beam: [
     ['斷面幾何', [
-      ['bPreset','—','斷面範本','','一次帶入尺寸、材料、配筋與載重組合。','',''],
+      ['bPreset','—','預設範本','','載入一組預設的尺寸、材料、配筋與載重組合作為起點。載入後可自由修改，範本名稱只代表起點，不代表目前斷面。','',''],
+      ['bMemName','—','構件名稱／編號','','自訂此斷面的名稱，顯示於計算書標題、列印檔名與 Excel 封面；不影響計算。','',''],
       ['bType','—','斷面型式','','T 型時翼緣參與受壓（僅正彎矩）；負彎矩一律退化為 b_w×h 矩形。','',''],
       ['bw','b_w','腹板寬','cm','剪力的 b_w、A_s,min、主筋每排可排根數。','耐震：b_w ≥ max(0.3h, 25 cm)',''],
       ['bh','h','全深','cm','有效深度 d、I_g、加密區長度 2h。','',''],
@@ -4307,6 +4315,7 @@ function pinRender(mod){
          <div class="pin-s"><span class="pin-chip ${s.state||'ok'}">${esc(s.chip || (s.state==='warn'?'⚠':s.state==='bad'?'✗':'✓'))}</span></div>`);
       row.dataset.pid = p[0];
       if(!show) row.classList.add('pin-hidden');
+      if((rec.el.tagName==='SELECT' || rec.el.type==='text') && !p[3]) row.classList.add('pin-wide');
       row.querySelector('.pin-v').appendChild(rec.el);      // 搬移，不重建
       /* 說明卡改成「游標掃過就顯示」，不必先點選。
          點選與鍵盤 focus 也保留：觸控裝置沒有 hover。 */
@@ -4486,6 +4495,7 @@ function pinStatus(mod, map){
 
   document.querySelectorAll('#app input,#app select').forEach(el=>{
     if(el.id==='preset') return;
+    if(el.id==='memName'){ el.addEventListener('input',caseAutosave); return; }
     el.addEventListener('input',()=>{ if(!el.closest('#loadTbl')) render(); });
     el.addEventListener('change',()=>{ if(!el.closest('#loadTbl')) render(); });
   });
@@ -4521,7 +4531,8 @@ function pinStatus(mod, map){
     buildActive();
     // 存成 PDF 時預設檔名取自 document.title，暫時換成計算書名稱
     const t0 = document.title, d = new Date(), p = n=>String(n).padStart(2,'0');
-    document.title = (TAB==='beam' ? ((BMODEL&&BMODEL.S.slab)?'RC版設計檢核計算書':'RC梁斷面設計檢核計算書') : colReportTitle(MODEL||render()).replace(/\s|／/g,''))
+    const mn = memName(TAB==='beam'?'bMemName':'memName').replace(/[\\/:*?"<>|\s]+/g,'');
+    document.title = (mn ? mn+'_' : '') + (TAB==='beam' ? ((BMODEL&&BMODEL.S.slab)?'RC版設計檢核計算書':'RC梁斷面設計檢核計算書') : colReportTitle(MODEL||render()).replace(/\s|／/g,''))
       + `_${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}`;
     window.addEventListener('afterprint', ()=>{ document.title = t0; }, {once:true});
     setTimeout(()=>window.print(),260);
@@ -4545,6 +4556,7 @@ function pinStatus(mod, map){
   bp.addEventListener('change',e=>applyBPreset(e.target.value));
   document.querySelectorAll('#appBeam input,#appBeam select').forEach(el=>{
     if(el.id==='bPreset') return;
+    if(el.id==='bMemName'){ el.addEventListener('input',caseAutosave); return; }
     const h=()=>{ if(!el.closest('#bLoadTbl')) renderBeam(); };
     el.addEventListener('input',h); el.addEventListener('change',h);
   });

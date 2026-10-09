@@ -1599,7 +1599,7 @@ function buildColumnChartData(ws, R){
 const LOAD_MK = [['diamond','B03A2E'],['square','1F5FA8'],['triangle','2E7D32'],['circle','EF6C00'],['x','6B4FA8'],['star','C2185B'],
                  ['plus','00838F'],['dash','5D4037'],['diamond','7CB342'],['square','3949AB'],['triangle','8A5A12'],['circle','455A64']];
 function loadSeries(inp, ax){
-  const n = Math.min(NCB, Math.max(1, inp.loads.length) + 2);   // 匯出組數＋2 組預留（空白組合在圖例留空白項）
+  const n = Math.min(NCB, Math.max(1, inp.loads.length));   // 有幾組載重就幾個圖例（Excel 內新增之組合須重新匯出才會上圖）
   const [cx, cy] = ax==='x' ? ['S','T'] : ['U','V'];
   return Array.from({length:n}, (_,i)=>{
     const [sym, col] = LOAD_MK[i % LOAD_MK.length];
