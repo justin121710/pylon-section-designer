@@ -5682,9 +5682,10 @@ function svgBeam(B, forPrint){
   const a = B.sol.a, top = S.sign==='pos';
   const yA = top ? S.h : a, yB = top ? S.h-a : 0;
   const wC = (S.type==='T' && !top) ? S.bw : wTot;
+  const yEdge = top ? yB : yA;   // 受壓區邊界（中性軸側）：正彎矩在 h − a，負彎矩在 a（自底面）
   o.push(`<rect x="${X(-wC/2)}" y="${Y(yA)}" width="${wC*k}" height="${(yA-yB)*k}"
     fill="${C.comp}" opacity="${forPrint?0.55:0.5}"/>`);
-  o.push(`<line x1="${X(-wC/2)}" y1="${Y(yB)}" x2="${X(wC/2)}" y2="${Y(yB)}" stroke="${C.ann}" stroke-width="1.4" stroke-dasharray="7 4"/>`);
+  o.push(`<line x1="${X(-wC/2)}" y1="${Y(yEdge)}" x2="${X(wC/2)}" y2="${Y(yEdge)}" stroke="${C.ann}" stroke-width="1.4" stroke-dasharray="7 4"/>`);
   // 標註避讓用的障礙：斷面外框、箍筋、主筋、尺寸線（a 的標籤最後再放）
   const OBS = [], OBB = [];
   if(S.type==='T') pushPts(OBS, obsSample([[X(-S.be/2),Y(S.h)],[X(S.be/2),Y(S.h)],[X(S.be/2),Y(S.h-S.hf)],[X(S.bw/2),Y(S.h-S.hf)],[X(S.bw/2),Y(0)],[X(-S.bw/2),Y(0)],[X(-S.bw/2),Y(S.h-S.hf)],[X(-S.be/2),Y(S.h-S.hf)],[X(-S.be/2),Y(S.h)]],3));
@@ -5782,7 +5783,7 @@ function svgBeam(B, forPrint){
       {dir:'v',color:C.ann,label:`d = ${f(B.d,1)} cm`,fs:11.5});
 
   // 受壓區深度 a 的標籤：依序嘗試斷面外右側、尺寸線外、斷面內四角、斷面上下方，取不壓到任何線與鋼筋者
-  { const fs=10.5, t=`a = ${f(a,1)} cm`, w=txtW(t,fs)+4, yl=Y(yB), xr=X(wC/2), xl=X(-wC/2);
+  { const fs=10.5, t=`a = ${f(a,1)} cm`, w=txtW(t,fs)+4, yl=Y(yEdge), xr=X(wC/2), xl=X(-wC/2);
     const cs=[];
     for(const x1 of [xr+8, xr+56, xr+96]) cs.push({x1, x2:x1+w, y1:yl-fs*0.5, y2:yl+fs*0.6, ax:x1, ay:yl+fs*0.36, lead:true});
     for(const [x1,dy] of [[xr-4-w,14],[xr-4-w,-6],[xl+4,14],[xl+4,-6]]) cs.push({x1, x2:x1+w, y1:yl+dy-fs, y2:yl+dy+2, ax:x1, ay:yl+dy});
