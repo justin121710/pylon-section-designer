@@ -4014,6 +4014,7 @@ function beamXlsxInput(){
     MD:num('bMD',0), ML:num('bML',0), MDn:num('bMDn',0), MLn:num('bMLn',0), sustain:num('bSustain',0.2), xi:num('bXi',2), limLive:num('bLimLive',360), limTotal:num('bLimTotal',240),
     deflCase:g('bDeflCase'), wLim:g('bWlim'),
     layTotal: BMODEL && BMODEL.lay ? BMODEL.lay.total : 60,
+    legGap: BMODEL && BMODEL.leg ? BMODEL.leg.gap : 0, legPos: BMODEL && BMODEL.leg ? BMODEL.leg.pos : [],
     dev: devOpts('bd'), devX: devXBeam(),
     loads: BLOADS.map(L=>({name:L.name, Mpos:+(L.Mpos??L.Mu??0)||0, Mneg:+(L.Mneg??0)||0, Vu:+L.Vu||0, Tu:+L.Tu||0})),
     meta:{project:'', member:memName('bMemName')}};
@@ -5551,7 +5552,7 @@ function computeBeam(){
   // 沿梁軸向：耐震梁兩端 2h 加密、其外另算；一般梁全長同一間距
   const fin2 = (!S.slab && S.seismic) ? beamZone2(S,m,sh) : null;
   const lay  = S.slab ? null : layoutAlong(S.ln, 2*S.h, S.seismic?2:0, sUse, fin2?fin2.sUse:null);
-  const leg  = S.slab ? null : beamLeg(S,sh);
+  const leg  = S.slab ? null : beamLeg(S,sh,R);
 
   BMODEL = {S,m,R,EF,gross,icr,ctxPos,ctxNeg,ctx,solPos,solNeg,sol,phi,phiMn,phiPos,phiNeg,
             d,AsTen,AsCom,AsMin,rho,res,ctrl,sh,defl,crack,cw,clr,sug,noTen,noLoads,
@@ -5580,14 +5581,38 @@ function beamZone2(S, m, sh){
 }
 /* 梁箍筋肢橫向間距（§9.7.6.2.2）：≤ d 及 60 cm；V_s > 1.06√f'c·b_w·d 時 ≤ d/2 及 30 cm。
    耐震梁另以肢距估「受側撐主筋間距 ≤ 35 cm」（§18.3.4.2）。 */
-function beamLeg(S, sh){
-  const dt = BAR[S.tieSize].d;
-  const gap = (S.bw - 2*(S.cover + dt/2))/Math.max(1, S.nLegs-1);
+/* 梁橫向鋼筋肢位（斷面圖與肢距檢核共用；x 自斷面中心，cm）：
+   外箍 2 肢包第 1 排底筋最外兩根；其餘肢自第 1 排底筋中平均挑選 ——
+   每 2 肢一個肋筋（ㄇ 形開口箍：上緣包 2 根頂筋、下端兩支 135° 彎鉤勾 2 根底筋），奇數多出 1 肢為繫筋（置中）。
+   肢中心線：箍／肋筋之肢在主筋外側 (d_b+d_t)/2；繫筋貼主筋右側 (d_b+d_t)/2。 */
+function beamLegLayout(S, R){
+  const dt = BAR[S.tieSize].d, cc = S.cover;
+  const LB = R.layers[0], n = Math.max(1, LB.n), db = LB.db, off = (db+dt)/2;
+  const x0 = -S.bw/2+cc+dt+db/2, x1 = S.bw/2-cc-dt-db/2;
+  const bx = Array.from({length:n}, (_,i)=> n===1 ? 0 : x0+(x1-x0)*i/(n-1));
+  const nL = Math.max(2, Math.round(S.nLegs||2));
+  let legBar;
+  if(n >= nL){ legBar = []; for(let j=0;j<nL;j++) legBar.push(bx[Math.round(j*(n-1)/(nL-1))]); }
+  else legBar = Array.from({length:nL}, (_,j)=> x0+(x1-x0)*j/(nL-1));   // 肢數多於主筋（不應發生）：平均分布
+  const outer = [legBar[0], legBar[nL-1]];
+  const inner = legBar.slice(1, nL-1), ties = [], hoops = [];
+  if(inner.length % 2){ const m = (inner.length-1)/2; ties.push(inner[m]); inner.splice(m, 1); }
+  for(let j=0; j+1<inner.length; j+=2) hoops.push([inner[j], inner[j+1]]);
+  const legs = [outer[0]-off, outer[1]+off];
+  for(const [a,b] of hoops) legs.push(a-off, b+off);
+  for(const x of ties) legs.push(x+off);
+  legs.sort((a,b)=>a-b);
+  let gap = 0; for(let i=1;i<legs.length;i++) gap = Math.max(gap, legs[i]-legs[i-1]);
+  return {outer, hoops, ties, legs, gap, fewBars: n < nL};
+}
+function beamLeg(S, sh, R){
+  const lay = beamLegLayout(S, R);
+  const gap = lay.gap;
   const tight = sh.VsReq > sh.VsTight;
   const lim0 = tight ? Math.min(sh.d/2,30) : Math.min(sh.d,60);
   const seis = S.seismic && 35 < lim0;
   const lim = seis ? 35 : lim0;
-  return {gap, lim, tight, seis, ok: gap <= lim + 1e-9,
+  return {gap, lim, tight, seis, ok: gap <= lim + 1e-9, pos: lay.legs.map(x=>x+S.bw/2), fewBars: lay.fewBars,
           rule: seis ? '耐震梁受側撐主筋間距 ≤ 35 cm（§18.3.4.2，以肢距估）' : `${tight?'min(d/2, 30)':'min(d, 60)'}（§9.7.6.2.2）`};
 }
 
@@ -5651,7 +5676,8 @@ function elevInfoBeam(B){
     加密區外由「${esc(B.fin2.gov.t)}」控制（≤ ${f(B.fin2.gov.v,2)} cm）。</div>`;
   else if(S.seismic) h += `<div style="margin-top:6px">兩端 2h 加密區相接，<b>全長以加密區間距配置</b>。</div>`;
   else h += `<div style="margin-top:6px">一般梁：以最大設計剪力決定之間距配置全長（保守；剪力較小的跨中可另行放寬）。</div>`;
-  h += `<div style="margin-top:3px;color:var(--${leg.ok?'ok':'bad'})">箍筋肢橫向間距 ${f(leg.gap,1)} cm ${leg.ok?'≤':'＞'} ${f(leg.lim,1)} cm（${leg.rule}）</div>`;
+  h += `<div style="margin-top:3px;color:var(--${leg.ok?'ok':'bad'})">箍筋肢橫向間距（實際肢位相鄰最大值）${f(leg.gap,1)} cm ${leg.ok?'≤':'＞'} ${f(leg.lim,1)} cm（${leg.rule}）</div>`;
+  h += `<div style="margin-top:2px;color:var(--muted)">肢位（肢中心線距左緣，cm）：${leg.pos.map(x=>f(x,1)).join('、')}${leg.fewBars?'；肢數多於第 1 排底筋根數，部分肢無主筋可勾':''}</div>`;
   return h;
 }
 
@@ -5693,64 +5719,61 @@ function svgBeam(B, forPrint){
 
   // 箍筋（版不配）
   const cc=S.cover, dt=R.dt;
-  /* 橫向鋼筋綁法（依肢數）：
+  /* 橫向鋼筋綁法（肢位見 beamLegLayout）：
      外箍 = 閉合箍筋 2 肢，兩端 135° 耐震彎鉤於頂部角隅搭接；
-     多出的肢：每 2 肢用一個內箍（肋筋，閉合，勾住上下各 2 根共 4 根主筋，兩端 135°），
-     奇數多出的 1 肢用繫筋（勾住上下各 1 根，一端 135°、一端 90°；90° 端置頂部版側，相鄰繫筋沿梁長交替）。
-     肢位一律對齊第 1 排底筋，箍筋中心線距主筋中心 = (d_b + d_t)/2，即包在主筋外側。 */
-  const rowX = (n, db) => { const x0=-S.bw/2+cc+dt+db/2, x1=S.bw/2-cc-dt-db/2;
-    return Array.from({length:Math.max(0,n)}, (_,i)=> n===1 ? 0 : x0+(x1-x0)*i/(n-1)); };
+     肋筋 = ㄇ 形開口箍，上緣包 2 根頂筋，下端兩支 135° 彎鉤向內勾住 2 根底筋（共勾 4 根）；
+     繫筋 = 貼主筋右側通過，底端 135°、頂端 90°（版側），相鄰繫筋沿梁長交替。 */
   const tieInfo = {nH:0, nC:0};
   if(!S.slab){
-    const LB = R.layers[0], LT = R.layers[R.layers.length-1];
+    const LB = R.layers[0], LT = R.layers[R.layers.length-1], LL = beamLegLayout(S, R);
     const swT = Math.max(1.4, dt*k);
     const oB = (LB.db+dt)/2*k, oT = (LT.db+dt)/2*k;            // 箍筋中心線 ↔ 主筋中心（畫面）
     const yb = Y(LB.y), yt = Y(LT.y);
     const hookLen = Math.max(8, Math.max(6*dt, 7.5)*k);
+    const ext = Math.max(6, hookLen*0.75);
     let clr = C.tie, sw = swT;
     const strokeAttr = () => `fill="none" stroke="${clr}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"`;
+    const P = v => v.toFixed(1);
     const put = (d, pts) => { o.push(`<path d="${d}" ${strokeAttr()}/>`); if(pts) pushPts(OBS, obsSample(pts, 2.5)); };
-    /* 閉合箍：xl/xr 為兩側肢所在主筋中心；corner = 搭接角隅（-1 左上、+1 右上） */
-    const hoop = (xl, xr, corner) => {
+    /* 外箍（閉合）：xl/xr 為兩側肢所在主筋中心（畫面） */
+    const hoop = (xl, xr) => {
       const L = xl - oB, Rr = xr + oB, Tp = yt - oT, Bt = yb + oB, cr = Math.max(2.5, (oB+oT)/2);
-      o.push(`<rect x="${L.toFixed(1)}" y="${Tp.toFixed(1)}" width="${(Rr-L).toFixed(1)}" height="${(Bt-Tp).toFixed(1)}" rx="${cr.toFixed(1)}" ${strokeAttr()}/>`);
+      o.push(`<rect x="${P(L)}" y="${P(Tp)}" width="${P(Rr-L)}" height="${P(Bt-Tp)}" rx="${P(cr)}" ${strokeAttr()}/>`);
       pushPts(OBS, obsSample([[L,Tp],[Rr,Tp],[Rr,Bt],[L,Bt],[L,Tp]], 2.5));
-      const bx = corner < 0 ? xl : xr, by = yt;                 // 角隅主筋中心
-      const dx = -corner/Math.SQRT2, dy = 1/Math.SQRT2;         // 45° 伸入核心
+      const bx = xl, by = yt, dx = 1/Math.SQRT2, dy = 1/Math.SQRT2;   // 左上角隅，45° 伸入核心
       for(const sg of [1,-1]){
         const px = bx + (-dy)*sg*oT*0.75 - dx*oT*0.2, py = by + dx*sg*oT*0.75 - dy*oT*0.2;
-        put(`M${px.toFixed(1)},${py.toFixed(1)} l${(dx*hookLen).toFixed(1)},${(dy*hookLen).toFixed(1)}`,
-            [[px,py],[px+dx*hookLen,py+dy*hookLen]]);
+        put(`M${P(px)},${P(py)} l${P(dx*hookLen)},${P(dy*hookLen)}`, [[px,py],[px+dx*hookLen,py+dy*hookLen]]);
       }
+    };
+    /* 肋筋（ㄇ 形開口箍）：上緣包頂筋，兩肢下到底筋後各自繞過底筋下緣，以 135° 向內上方伸入核心 */
+    const uTie = (xl, xr) => {
+      const L = xl - oB, Rr = xr + oB, Tp = yt - oT, cr = Math.max(2.5, (oB+oT)/2);
+      put(`M${P(L)},${P(yb)} L${P(L)},${P(Tp+cr)} A${P(cr)},${P(cr)} 0 0 1 ${P(L+cr)},${P(Tp)} L${P(Rr-cr)},${P(Tp)} A${P(cr)},${P(cr)} 0 0 1 ${P(Rr)},${P(Tp+cr)} L${P(Rr)},${P(yb)}`,
+          [[L,yb],[L,Tp],[Rr,Tp],[Rr,yb]]);
+      const c45 = Math.SQRT1_2;
+      // 左肢：自左側切點（角 π）經底部（π/2）轉到右下（π/4），再沿切線向右上伸出
+      { const e = [xl + oB*c45, yb + oB*c45];
+        put(`M${P(L)},${P(yb)} A${P(oB)},${P(oB)} 0 0 0 ${P(e[0])},${P(e[1])} l${P(ext*c45)},${P(-ext*c45)}`, [[e[0],e[1]],[e[0]+ext*c45,e[1]-ext*c45]]); }
+      // 右肢：鏡射
+      { const e = [xr - oB*c45, yb + oB*c45];
+        put(`M${P(Rr)},${P(yb)} A${P(oB)},${P(oB)} 0 0 1 ${P(e[0])},${P(e[1])} l${P(-ext*c45)},${P(-ext*c45)}`, [[e[0],e[1]],[e[0]-ext*c45,e[1]-ext*c45]]); }
     };
     /* 繫筋：本體貼主筋右側通過（相切），兩端繞過主筋後折出 6d_b 延伸段 */
     const crosstie = (x) => {
-      const rc = Math.max(oB, oT), ext = Math.max(6, 6*dt*k*0.6);
-      const xs = x + rc;
-      put(`M${xs.toFixed(1)},${yt.toFixed(1)} L${xs.toFixed(1)},${yb.toFixed(1)}`, [[xs,yt],[xs,yb]]);
-      // 底端 135°：自右側切點繞過主筋下緣，向左上 45° 伸入核心
-      { const a1 = Math.PI*0.75, p1 = [x + Math.cos(a1)*rc, yb + Math.sin(a1)*rc];   // 畫面座標 y 向下
-        put(`M${xs.toFixed(1)},${yb.toFixed(1)} A${rc.toFixed(1)},${rc.toFixed(1)} 0 0 1 ${p1[0].toFixed(1)},${p1[1].toFixed(1)} l${(-ext*Math.SQRT1_2).toFixed(1)},${(-ext*Math.SQRT1_2).toFixed(1)}`,
+      const rc = Math.max(oB, oT), xs = x + rc;
+      put(`M${P(xs)},${P(yt)} L${P(xs)},${P(yb)}`, [[xs,yt],[xs,yb]]);
+      { const a1 = Math.PI*0.75, p1 = [x + Math.cos(a1)*rc, yb + Math.sin(a1)*rc];   // 底端 135°（畫面 y 向下）
+        put(`M${P(xs)},${P(yb)} A${P(rc)},${P(rc)} 0 0 1 ${P(p1[0])},${P(p1[1])} l${P(-ext*Math.SQRT1_2)},${P(-ext*Math.SQRT1_2)}`,
             [[p1[0],p1[1]],[p1[0]-ext*Math.SQRT1_2,p1[1]-ext*Math.SQRT1_2]]); }
-      // 頂端 90°：自右側切點繞過主筋上緣，水平向左伸出
-      { const p1 = [x, yt - rc];
-        put(`M${xs.toFixed(1)},${yt.toFixed(1)} A${rc.toFixed(1)},${rc.toFixed(1)} 0 0 0 ${p1[0].toFixed(1)},${p1[1].toFixed(1)} l${(-ext).toFixed(1)},0`,
-            [[p1[0],p1[1]],[p1[0]-ext,p1[1]]]); }
+      { const p1 = [x, yt - rc];                                                        // 頂端 90°
+        put(`M${P(xs)},${P(yt)} A${P(rc)},${P(rc)} 0 0 0 ${P(p1[0])},${P(p1[1])} l${P(-ext)},0`, [[p1[0],p1[1]],[p1[0]-ext,p1[1]]]); }
     };
-    const xb = rowX(LB.n, LB.db).map(X);
-    const nL = Math.max(2, S.nLegs);
-    // 肢位：自第 1 排底筋中平均挑選；肢數多於主筋根數時（實務上不應發生）改為平均分布
-    let legX;
-    if(LB.n >= nL){ legX = []; for(let j=0;j<nL;j++) legX.push(xb[Math.round(j*(LB.n-1)/(nL-1))]); }
-    else { const a0 = xb[0], a1 = xb[xb.length-1] ?? a0; legX = Array.from({length:nL}, (_,j)=> a0+(a1-a0)*j/(nL-1)); }
-    hoop(legX[0], legX[nL-1], -1);
+    hoop(X(LL.outer[0]), X(LL.outer[1]));
     clr = C.tin;
-    const inner = legX.slice(1, nL-1);
-    let tieAt = [];
-    if(inner.length % 2){ const m = (inner.length-1)/2; tieAt.push(inner[m]); inner.splice(m, 1); }
-    for(let j=0; j+1<inner.length; j+=2){ hoop(inner[j], inner[j+1], 1); tieInfo.nH++; }
+    for(const [a,b] of LL.hoops){ uTie(X(a), X(b)); tieInfo.nH++; }
     clr = C.ct; sw = Math.max(1.2, swT*0.8);
-    for(const x of tieAt){ crosstie(x); tieInfo.nC++; }
+    for(const x of LL.ties){ crosstie(X(x)); tieInfo.nC++; }
   }
   // 主筋
   const drawRow=(n,y,db,sp)=>{
@@ -5863,8 +5886,8 @@ function svgBeam(B, forPrint){
        ['fill',aTxt,C.comp]]
     : [['dot',`底筋 ${S.botSize} ×${S.nBot}（${R.rows} 排）／頂筋 ${S.topSize} ×${S.nTop}`,C.bar],
        ['solid',`箍筋 ${S.tieSize} 共 ${S.nLegs} 肢：外箍 2 肢（閉合，兩端 135° 角隅搭接）`,C.tie],
-       ...(tieInfo.nH ? [['solid',`內箍（肋筋）×${tieInfo.nH}：勾住 4 根主筋，兩端 135°（${2*tieInfo.nH} 肢）`,C.tin]] : []),
-       ...(tieInfo.nC ? [['solid',`繫筋 ×${tieInfo.nC}：勾住上下 2 根，一端 135°、一端 90°（沿梁長交替）`,C.ct]] : []),
+       ...(tieInfo.nH ? [['solid',`肋筋 ×${tieInfo.nH}：ㄇ 形開口箍，頂部包 2 根、底端 135° 勾 2 根（${2*tieInfo.nH} 肢）`,C.tin]] : []),
+       ...(tieInfo.nC ? [['solid',`繫筋 ×${tieInfo.nC}：勾上下 2 根，底 135°、頂 90°（沿梁長交替）`,C.ct]] : []),
        ['fill',aTxt,C.comp]];
   const perCol = lg.length > 3 ? Math.ceil(lg.length/2) : 3;
   lg.forEach((Lg,i)=>{
@@ -5872,7 +5895,8 @@ function svgBeam(B, forPrint){
     if(Lg[0]==='dot') o.push(`<circle cx="${xx+15}" cy="${yy}" r="4.2" fill="${Lg[2]}"/>`);
     else if(Lg[0]==='fill') o.push(`<rect x="${xx+7}" y="${yy-5}" width="17" height="10" fill="${Lg[2]}" opacity="${forPrint?0.35:0.5}" stroke="${C.ann}" stroke-width="0.6"/>`);
     else o.push(`<line x1="${xx+7}" y1="${yy}" x2="${xx+24}" y2="${yy}" stroke="${Lg[2]}" stroke-width="2"/>`);
-    o.push(`<text x="${xx+30}" y="${yy+4}" fill="${C.txt}" font-size="11">${svgTxt(Lg[1],11)}</text>`);
+    const room = (col || perCol >= lg.length ? W : W/2 - 10) - (xx+30) - 6, lfs = Math.min(11, 11*room/Math.max(1, txtW(Lg[1],11)));
+    o.push(`<text x="${xx+30}" y="${yy+4}" fill="${C.txt}" font-size="${lfs.toFixed(1)}">${svgTxt(Lg[1],lfs)}</text>`);
   });
   o.push(`</svg>`);
   return o.join('');
@@ -6084,7 +6108,7 @@ function renderBeamAlerts(B){
   if(!S.slab){
     if(B.fin2) add(B.fin2.tooTight?'bad':'ok',`加密區（自柱面 2h）外採用 ${S.tieSize} @ ${f(B.fin2.sUse,1)} cm（控制：${B.fin2.gov.t}，需求 ≤ ${f(B.fin2.gov.v,2)} cm）。`, ['bTieSize']);
     add('info',`沿梁軸向配置（l_n = ${f(S.ln,0)} cm）：`+B.lay.zones.map(z=>`${z.tag} ${f(z.b-z.a,0)} cm @ ${f(z.s,1)} ×${z.n}`).join('、')+`，共 <b>${B.lay.total}</b> 支。`, ['bLn','bSeismic','#bElevInfo']);
-    if(!B.leg.ok) add('bad',`<b>箍筋肢橫向間距過大</b>：${f(B.leg.gap,1)} cm ＞ ${f(B.leg.lim,1)} cm（${B.leg.rule}）。請增加箍筋肢數（加繫筋或內箍）。`, ['bNlegs']);
+    if(!B.leg.ok) add('bad',`<b>箍筋肢橫向間距過大</b>：${f(B.leg.gap,1)} cm ＞ ${f(B.leg.lim,1)} cm（${B.leg.rule}）。請增加箍筋肢數（加肋筋或繫筋）。`, ['bNlegs']);
   }
   if(S.env==='water'){
     const c=B.cw;

@@ -1531,7 +1531,8 @@ function buildBeam(ExcelJS, inp){
   S.item({key:'sGov2', label:'加密區外控制需求間距', sym:'s', unit:'cm', fmt:'0.00', f:'IF({isS}=1,MIN('+cands2.map(c=>'{'+c[0]+'}').join(',')+'),{sGov})', expr:'非耐震梁同 sGov', ref:'—'});
   S.item({key:'sGov2Tag', label:'加密區外控制項', f:'IF({isS}=1,INDEX({rng:candName2},MATCH({sGov2},{rng:candVal2},0)),"（全長同一間距）")', ref:'—'});
   S.item({key:'sUse2', label:'加密區外採用間距', sym:'s₂', unit:'cm', fmt:'0.0', f:'IF({isS}=1,IFERROR(_xlfn.AGGREGATE(14,6,{rng:sList}/(({rng:sList}<={sGov2})*({rng:sFlag}=0)),1),7.5),{sUse})', ref:'非規範明列條文，係施工慣用間距'});
-  S.item({key:'legG', label:'箍筋肢橫向間距', sym:'s⊥', unit:'cm', fmt:'0.0', f:'IF({isSlab}=1,0,({bw}-2*({cover}+{dt}/2))/MAX(1,{nLegs}-1))', expr:'(bw − 2(cc + dt/2))/(nlegs − 1)', ref:ref401('9.7.6.2.2')});
+  S.item({key:'legG', label:'箍筋肢橫向間距（實際肢位相鄰最大值）', sym:'s⊥', unit:'cm', fmt:'0.0', v: inp.slab ? 0 : (inp.legGap ?? 0),
+    expr: inp.slab ? '版不配箍筋' : '肢位（肢中心線距左緣）：' + (inp.legPos||[]).map(x=>x.toFixed(1)).join('、') + ' cm；外箍、肋筋之肢在主筋外側 (db+dt)/2，繫筋貼主筋側邊；取相鄰兩肢之最大距離（匯出當下網頁值）', ref:ref401('9.7.6.2.2')});
   S.item({key:'legL', label:'肢距上限', sym:'s⊥,max', unit:'cm', fmt:'0.0',
     f:'MIN(IF({VsReq}*1000>1.06*SQRT({fc})*{bw}*{d},MIN({d}/2,30),MIN({d},60)),IF({isS}=1,35,1E9))',
     expr:"Vs ≦ 1.06√f'c·bw·d：min(d, 60)；否則 min(d/2, 30)；耐震梁另 ≦ 35（以肢距估受側撐主筋間距）", ref:ref401('9.7.6.2.2、18.3.4.2')});
