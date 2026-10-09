@@ -1144,9 +1144,11 @@ function edgeTies(n,pitch,db,forceAll){
 }
 
 /* ---------- 剪力 / 扭矩 / 圍束筋 ---------- */
-/* 塑鉸區 V_c 歸零門檻：橋梁 N_u < 0.1f'c·A_g；建築柱 N_u < A_g·f'c/20（ACI 18.7.6.2.1，
+/* 塑鉸區 V_c 歸零門檻：橋梁 N_u < 0.1f'c·A_g；建築柱 N_u < A_g·f'c/20（土木401 §18.4.6.2.1，
    另一條件「地震引致剪力 ≥ 設計剪力之半」在耐震設計柱端視為成立，保守取之） */
 const vcZeroRatio = code => code==='bldg' ? 0.05 : 0.10;
+/* 耐震箍筋間距之主筋直徑倍數（土木401 §18.3.4.4、§18.4.5.3、§18.4.5.5）：f_y 4200 → 6、5000 → 5.5、5600 → 5 */
+const seisKdb = fy => fy <= 4200+1e-6 ? 6 : fy <= 5000+1e-6 ? 5.5 : 5;
 function VcCalc(m,bw,d,Nu,plastic,code){
   const base = 0.53*Math.sqrt(m.fc)*bw*d;
   let vc = Nu>=0 ? base*(1+Nu/(140*m.Ag)) : base*(1+Nu/(35*m.Ag));
@@ -1286,7 +1288,7 @@ function compute(){
   const ctxY = {g:geoFor(s,'y'), bars:R.bars, m, axis:'y'};
   const cvX = pmCurve(ctxX), cvY = pmCurve(ctxY);
   const pX = designPoly(cvX,m), pY = designPoly(cvY,m);
-  // 建築柱容量設計剪力：機率強度 M_pr 以 1.25f_y、φ = 1.0 重解 P-M（ACI 18.7.6.1）
+  // 建築柱容量設計剪力：機率強度 M_pr 以 1.25f_y、φ = 1.0 重解 P-M（土木401 §18.4.6.1）
   let cvXpr = null, cvYpr = null;
   if(opt.code==='bldg' && opt.plastic){
     const mpr = {...m, fy:1.25*m.fy};
@@ -1297,7 +1299,7 @@ function compute(){
          故此處僅備妥幾何與 conf.finalize()，曲線於 render() 內以最終 s 產生 --- */
   opt.PuMax = Math.max(0, ...LOADS.map(L=>(+L.Pu||0)*TF));
   const conf = confinement(s,r,R,m,opt);
-  /* 建築柱端加密區間距 s_o = 10 + (35 − h_x)/3，夾於 10～15 cm（ACI 18.7.5.3(c)，cm 制） */
+  /* 建築柱端加密區間距 s_o = 10 + (35 − h_x)/3，夾於 10～15 cm（土木401 §18.4.5.3(c)，cm 制） */
   opt.hx = Math.max(conf.eB.hx, conf.eH.hx);
   opt.so = Math.max(10, Math.min(15, 10 + (35 - opt.hx)/3));
   const coreGeoX = coreGeom(s,r,'x'), coreGeoY = coreGeom(s,r,'y');
@@ -1368,7 +1370,7 @@ function confinement(s,r,R,m,opt){
   const perp = opt.ashPair !== 'para';
 
   const walls=[];
-  /* 建築柱 ACI 18.7.5.4(c)：P_u > 0.3A_g f'c 或 f'c > 700 kgf/cm² 時另加
+  /* 建築柱 土木401 §18.4.5.4(c)：P_u > 0.3A_g f'c 或 f'c > 700 kgf/cm² 時另加
      A_sh/(s·b_c) ≥ 0.2 k_f k_n P_u/(f_yt A_ch)，k_f = f'c/1750 + 0.6 ≥ 1，k_n = n_l/(n_l − 2)。
      中空箱型無對應條文，僅適用實心斷面。 */
   const nlSup = 4 + 2*(tieX.length + tieY.length);              // 受箍角或耐震彎鉤側撐之主筋數
@@ -1500,8 +1502,8 @@ function shearDesign(s,r,R,m,opt,cv,res,dir,cvPr){
   const Tthr = m.phiv*0.265*Math.sqrt(m.fc)*(m.Ag*m.Ag/Math.max(1,pcp));
   const Ao = 0.85*Aoh;
   const s_minAv = Math.min(Av*m.fyt/(0.2*Math.sqrt(m.fc)*bw), Av*m.fyt/(3.5*bw));
-  // 塑鉸區／柱端加密區間距：橋梁 min(b/4, 6d_b, 15)；建築 min(b/4, 6d_b, s_o)
-  const s_ph = opt.plastic ? Math.min(Math.min(s.B,s.H)/4, 6*R.db, opt.code==='bldg' ? opt.so : 15) : 1e9;
+  // 塑鉸區／柱端加密區間距：橋梁 min(b/4, 6d_b, 15)；建築 min(b/4, k·d_b, s_o)，k 依 f_y（§18.4.5.3）
+  const s_ph = opt.plastic ? Math.min(Math.min(s.B,s.H)/4, (opt.code==='bldg' ? seisKdb(m.fy) : 6)*R.db, opt.code==='bldg' ? opt.so : 15) : 1e9;
 
   // 逐組合檢核：V_c 隨 N_u 變（塑鉸區 N_u < 0.1f'cAg 時歸零），
   // 最大 V_u 的組合未必控制 —— 低軸壓組合常因 V_c = 0 而需最多箍筋
@@ -1573,14 +1575,14 @@ function constructability(s,r,R,m,opt,conf){
   const hook90  = Math.max(6*dt, 7.5);
   // 柱橫向鋼筋間距通則（土木401／ACI 25.7.2.1）：s ≤ min(16d_b, 48d_t, 最小斷面尺寸)
   const sTie = Math.min(16*R.db, 48*dt, Math.min(s.B, s.H));
-  return {pB,pH,clB,clH,need,rho,layerGap,hook135,hook90,sTie,
+  return {pB,pH,clB,clH,need,rho,layerGap,hook135,hook90,sTie, hxLim: conf.termC ? 20 : 35,
           hxMaxB:conf.eB.hx, hxMaxH:conf.eH.hx,
           tiesB:conf.nTieB, tiesH:conf.nTieH,
           everyB:conf.eB.everyBar, everyH:conf.eH.everyBar};
 }
 
 /* ---------- 沿構材軸向箍筋配置 ----------
-   加密區長 l_o 內以 s₁ 配置，第一支距接頭面 e = min(5 cm, s₁/2)（土木401 §18.7.5.3、§18.6.4.4：≤ 5 cm）；
+   加密區長 l_o 內以 s₁ 配置，第一支距接頭面 e = min(5 cm, s₁/2)（土木401 §18.4.5.3、§18.3.4.4：≤ 5 cm）；
    中段以 s₂ 均分（實際間距 ≤ s₂）。兩端加密區重疊或中段不足一個 s₁ 時改為全長加密。
    nEnds：0＝不分區（全長同一間距）、1＝僅底端、2＝兩端。 */
 function layoutAlong(L, lo, nEnds, s1, s2){
@@ -1633,7 +1635,7 @@ function legGaps(M){
 
 /* ---------- 加密區（塑鉸區）以外之箍筋間距 ----------
    V_c 不折減但仍取容量設計剪力 V_e；不受 A_sh 控制（圓柱螺箍仍需非耐震 ρ_s）。
-   建築：§18.7.5.5 加密區外 s ≤ min(6d_b, 15 cm)；
+   建築：§18.4.5.5 加密區外 s ≤ min(6d_b, 15 cm)；
    橋梁：塑鉸區外橫向筋量不少於塑鉸區之 50%（s ≤ 2s₁），係 AASHTO 耐震細則慣例，非我國規範明列條文。 */
 function finalSpacing2(M){
   if(!M.opt.plastic) return null;
@@ -1649,7 +1651,7 @@ function finalSpacing2(M){
   if(M.conf2 && M.r.spiral) push(M.conf2.sAsh, '螺箍體積比 ρ_s（0.45 式）');
   if(M.r.spiral) push(7.5 + M.conf.dt, '螺箍淨距上限 7.5 cm');
   push(M.chk.sTie, M.conf.circ ? '圓箍間距通則 min(16d_b, 48d_t, D)' : '柱箍筋間距通則 min(16d_b, 48d_t, 最小邊)');
-  if(M.opt.code==='bldg') push(Math.min(6*M.R.db, 15), '柱端加密區外 min(6d_b, 15 cm)');
+  if(M.opt.code==='bldg') push(Math.min(seisKdb(M.m.fy)*M.R.db, 15), `柱端加密區外 min(${seisKdb(M.m.fy)}d_b, 15 cm)`);
   else push(2*M.fin.sUse, '塑鉸區外不少於塑鉸區之 50%（s ≤ 2s₁）');
   const gov = cands.reduce((a,b)=> b.v<a.v?b:a, cands[0]);
   const list = M.r.spiral ? PRACTICAL_S.concat([6,5]) : PRACTICAL_S;
@@ -1657,7 +1659,7 @@ function finalSpacing2(M){
   return {cands, gov, sUse, tooTight: sUse > gov.v};
 }
 
-/* 柱加密區長度 l_o = max(h, l_u/6, 45 cm)（土木401 §18.7.5.1；公路橋梁耐震設計規範塑鉸區範圍同式） */
+/* 柱加密區長度 l_o = max(h, l_u/6, 45 cm)（土木401 §18.4.5.1；公路橋梁耐震設計規範塑鉸區範圍同式） */
 function colLayout(M){
   const {s,opt} = M;
   const hMax = s.type==='circle' ? s.D : Math.max(s.B, s.H);
@@ -1768,19 +1770,26 @@ function finalSpacing(M){
 }
 
 /* =========================================================================
-   伸展長度與搭接（土木401-112 第 25 章，以 ACI 318-19 為基礎；kgf-cm 制）
-     直線受拉 §25.4.2.4：l_d = [f_y/(3.5λ√f'c)]·[ψ_tψ_eψ_sψ_g/((c_b+K_tr)/d_b)]·d_b ≥ 30 cm，(c_b+K_tr)/d_b ≤ 2.5，K_tr = 40A_tr/(s·n)
-     標準彎鉤 §25.4.3.1：l_dh = [f_yψ_eψ_rψ_oψ_c/(23λ√f'c)]·d_b^1.5 ≥ max(8d_b, 15 cm)
-     T 頭    §25.4.4.2：l_dt = [f_yψ_eψ_pψ_oψ_c/(31√f'c)]·d_b^1.5 ≥ max(8d_b, 15 cm)
-     受壓    §25.4.9.2：l_dc = max(0.075f_yψ_r/(λ√f'c), 0.0043f_yψ_r)·d_b ≥ 20 cm
-     搭接    §25.5.2（受拉 A 級 1.0l_d、B 級 1.3l_d ≥ 30 cm）、§25.5.5（受壓）
-     耐震接頭 §18.8.5.1：l_dh = f_y d_b/(17.2λ√f'c) ≥ max(8d_b, 15 cm)；直線 2.5l_dh（頂筋 3.25l_dh）
-   d_b^1.5 式之常數 23、31 為 SI 式換算至 kgf-cm 制（差 < 1%）；√f'c 上限 26.5（§25.4.1.4）。
+   伸展長度與搭接（土木401-112 第 25 章；kgf-cm 制，係數與條文原文核對）
+     直線受拉 §25.4.2.4：l_d = [f_y/(3.5λ√f'c)]·[ψ_tψ_eψ_s/((c_b+K_tr)/d_b)]·d_b ≥ 30 cm，(c_b+K_tr)/d_b ≤ 2.5，K_tr = 40A_tr/(s·n)
+              （ψ_g 不用於伸展長度，僅用於搭接，見 §25.4.2.5 解說、表 25.5.2.1）
+     標準彎鉤 §25.4.3.1：l_dh = [f_yψ_eψ_rψ_oψ_c/(23λ√f'c)]·d_b^1.5 ≥ max(8d_b, 15 cm)；另列前版式 §25.4.3.6 供擇用
+     擴頭    §25.4.4.2：l_dt = [f_yψ_eψ_pψ_oψ_c/(32√f'c)]·d_b^1.5 ≥ max(8d_b, 15 cm)
+     受壓    §25.4.9.2：l_dc = max(0.075f_yψ_r/(λ√f'c), 0.0044f_yψ_r)·d_b ≥ 20 cm
+     搭接    表 25.5.2.1：甲級 1.0ψ_g l_d、乙級 1.3ψ_g l_d ≥ 30 cm；受壓 §25.5.5.1
+     耐震接頭 §18.5.5：l_dh = 0.06f_y d_b/(λ√f'c)；直線 2.5／3.25 倍
+     超量鋼筋折減 §25.4.10 僅用於直線 l_d 與受壓 l_dc，不用於彎鉤、擴頭、搭接及抵抗地震力系統。
+     √f'c 上限 26.5（§25.4.1.4）。
    ========================================================================= */
-const devPsiG = fy => fy <= 4200+1e-6 ? 1.0 : fy <= 5600+1e-6 ? 1.15 : 1.3;
+/* 鋼筋等級修正因數 ψ_g（表 25.5.2.1 註[1]，僅用於搭接） */
+const devPsiG = fy => fy <= 4200+1e-6 ? 1.0 : fy <= 5000+1e-6 ? 1.08 : fy <= 5600+1e-6 ? 1.15 : 1.3;
+/* 前版彎鉤式（§25.4.3.5）適用之 f'c 上限：D25 以下 700、D29 490、D32 420、D36 350；大於 D36 不適用 */
+const devHookFcCap = db => db <= 2.54+1e-6 ? 700 : db <= 2.87+1e-6 ? 490 : db <= 3.22+1e-6 ? 420 : db <= 3.58+1e-6 ? 350 : 0;
 function devLength(o){
-  const db = o.db, lam = o.lambda, sq = Math.min(Math.sqrt(o.fc), 26.5);
+  const db = o.db, lam = o.lambda, sq = Math.min(Math.sqrt(o.fc), 26.5), db15 = Math.pow(db, 1.5);
+  const big = db > 3.58+1e-6;                                   // 大於 D36
   const clrSp = o.cSp ? o.cSp - db : Infinity;
+  // 直線受拉
   const psiT = o.top ? 1.3 : 1.0;
   const psiE = o.epoxy ? ((o.ccov < 3*db || clrSp < 6*db) ? 1.5 : 1.2) : 1.0;
   const psiTE = Math.min(psiT*psiE, 1.7);
@@ -1789,35 +1798,48 @@ function devLength(o){
   const cb = Math.min(o.ccov + db/2, o.cSp ? o.cSp/2 : Infinity);
   const Ktr = (o.Atr>0 && o.s>0 && o.n>0) ? 40*o.Atr/(o.s*o.n) : 0;
   const confRaw = (cb+Ktr)/db, conf = Math.min(confRaw, 2.5);
+  const ktrNeed = (o.fy >= 5600-1e-6 && o.cSp && o.cSp < 15) ? 0.5*db : 0;      // §25.4.2.2、§25.5.1.5
   const exc = (!o.seis && o.excess>0 && o.excess<1) ? o.excess : 1;
-  const ld0 = o.fy*psiTE*psiS*psiG/(3.5*lam*sq*conf)*db;
+  const ld0 = o.fy*psiTE*psiS/(3.5*lam*sq*conf)*db;
   const ld = Math.max(ld0*exc, 30);
+  // 標準彎鉤（大於 D36：ψ_r 取 1.6、ψ_o 取 1.25）
   const psiC = o.fc < 420 ? o.fc/1050 + 0.6 : 1.0;
   const psiEh = o.epoxy ? 1.2 : 1.0;
-  const db15 = Math.pow(db, 1.5);
-  const ldh0 = o.fy*psiEh*o.psiR*o.psiO*psiC/(23*lam*sq)*db15;
-  const ldh = Math.max(ldh0*exc, 8*db, 15);
+  const psiR = big ? 1.6 : o.psiR, psiO = big ? 1.25 : o.psiO;
+  const ldh0 = o.fy*psiEh*psiR*psiO*psiC/(23*lam*sq)*db15;
+  const ldh = Math.max(ldh0, 8*db, 15);
+  const fcCap = devHookFcCap(db);
+  const ldhA0 = fcCap ? 0.075*psiEh*o.fy/Math.sqrt(Math.min(o.fc, fcCap))*db*(lam<1 ? 1.3 : 1) : null;
+  const ldhA = fcCap ? Math.max(ldhA0, 8*db, 15) : null;
   const bendD = (db <= 2.54+1e-6 ? 6 : db <= 3.58+1e-6 ? 8 : 10)*db;
+  // 擴頭（§25.4.4.1 條件）
   const headFail = [];
-  if(db > 3.58+1e-6) headFail.push('鋼筋大於 #11');
-  if(o.fy > 5600+1e-6) headFail.push('f_y > 5600');
+  if(big) headFail.push('大於 D36');
   if(lam !== 1) headFail.push('輕質混凝土');
   if(o.ccov < 2*db) headFail.push(`淨保護層 ${f(o.ccov,1)} ＜ 2d_b`);
-  if(clrSp < 3*db) headFail.push(`淨距 ${f(clrSp,1)} ＜ 3d_b`);
-  const ldt0 = o.fy*psiEh*o.psiR*o.psiO*psiC/(31*sq)*db15;
+  if(o.cSp && o.cSp < 3*db) headFail.push(`中心距 ${f(o.cSp,1)} ＜ 3d_b`);
+  const ldt0 = o.fy*psiEh*psiR*psiO*psiC/(32*sq)*db15;
   const ldt = Math.max(ldt0, 8*db, 15);
+  // 受壓
   const psiRc = o.compConf ? 0.75 : 1.0;
-  const ldc0 = Math.max(0.075*o.fy*psiRc/(lam*Math.sqrt(o.fc))*db, 0.0043*o.fy*psiRc*db);
+  const ldc0 = Math.max(0.075*o.fy*psiRc/(lam*sq)*db, 0.0044*o.fy*psiRc*db);
   const ldc = Math.max(ldc0*exc, 20);
-  const lapA = Math.max(ld0, 30), lapB = Math.max(1.3*ld0, 30);
-  const lapC0 = o.fy <= 4200+1e-6 ? 0.0071*o.fy*db : (0.013*o.fy - 24)*db;
+  // 搭接
+  const lapA = Math.max(psiG*ld0, 30), lapB = Math.max(1.3*psiG*ld0, 30);
+  let lapC0 = o.fy <= 4200+1e-6 ? 0.0073*o.fy*db : (0.013*o.fy - 24)*db;
+  if(o.fy > 5600+1e-6) lapC0 = Math.max(lapC0, lapB);
   const lapC = Math.max(lapC0*(o.fc < 210 ? 4/3 : 1), 30);
-  const joint = o.joint && db <= 3.58+1e-6;
-  const ldhS = joint ? Math.max(o.fy*db/(17.2*lam*Math.sqrt(o.fc)), 8*db, 15) : null;
-  const ldS = joint ? (o.top ? 3.25 : 2.5)*ldhS : null;
-  return {db, fy:o.fy, fc:o.fc, lam, sq, top:o.top, psiT, psiE, psiTE, psiS, psiG, cb, Ktr, Atr:o.Atr, s:o.s, n:o.n, confRaw, conf, exc,
-          ld0, ld, psiC, psiEh, psiR:o.psiR, psiO:o.psiO, ldh0, ldh, bendD, ext90:12*db, ext180:Math.max(4*db,6.5),
-          headFail, headOK:!headFail.length, ldt0, ldt, psiRc, ldc, lapA, lapB, lapC, ldhS, ldS};
+  // 耐震梁柱接頭（§18.5.5；D10～D36）
+  const joint = o.joint && !big;
+  const minS = lam < 1 ? Math.max(10*db, 19) : Math.max(8*db, 15);
+  const ldhS0 = joint ? Math.max(0.06*o.fy*db/(lam*sq), minS) : null;
+  const ldhS = joint ? ldhS0*psiEh : null;                       // §18.5.5.5 環氧樹脂
+  const ldS = joint ? (o.top ? 3.25 : 2.5)*ldhS0*psiE : null;
+  const ldtS = joint && !headFail.length ? Math.max(0.06*o.fy*db/(lam*sq), 8*db, 15) : null;
+  return {db, fy:o.fy, fc:o.fc, lam, sq, big, top:o.top, psiT, psiE, psiTE, psiS, psiG, cb, Ktr, Atr:o.Atr, s:o.s, n:o.n,
+          confRaw, conf, ktrNeed, ktrBad: ktrNeed>0 && Ktr < ktrNeed-1e-9, exc, ld0, ld,
+          psiC, psiEh, psiR, psiO, ldh0, ldh, fcCap, ldhA0, ldhA, bendD, ext90:12*db, ext180:Math.max(4*db,6.5),
+          headFail, headOK:!headFail.length, ldt0, ldt, psiRc, ldc, lapA, lapB, lapC, ldhS0, ldhS, ldS, ldtS};
 }
 function devOpts(pre){
   const g = id => document.getElementById(pre+id).value;
@@ -1858,21 +1880,26 @@ function beamDev(B){
 function devTable(D, opt){
   const c = (fn) => D.sets.map(st=>`<td>${fn(st.d, st)}</td>`).join('');
   const cm = v => `<b>${f(Math.ceil(v),0)}</b> cm`;
-  const row = (k, fn, sub) => `<tr><td class="l">${k}${sub?`<div style="font-size:11px;color:var(--dim)">${sub}</div>`:''}</td>${c(fn)}</tr>`;
-  let h = `<table style="width:100%"><thead><tr><th class="l">項目（土木401）</th>${D.sets.map(st=>`<th>${st.name}${st.face?`<div style="font-weight:400;font-size:11px">${st.face} 控制</div>`:''}</th>`).join('')}</tr></thead><tbody>`;
-  h += row('直線受拉 l_d（§25.4.2.4）', d=>cm(d.ld)+`<div style="font-size:11px;color:var(--dim)">ψ_t ${f(d.psiT,1)}·ψ_e ${f(d.psiE,1)}·ψ_s ${f(d.psiS,1)}·ψ_g ${f(d.psiG,2)}；c_b ${f(d.cb,1)}、K_tr ${f(d.Ktr,2)}、(c_b+K_tr)/d_b = ${f(d.conf,2)}${d.confRaw>2.5?'（上限）':''}${d.exc<1?`；×${f(d.exc,2)}`:''}</div>`);
-  h += row('標準彎鉤 l_dh（§25.4.3.1）', d=>cm(d.ldh)+`<div style="font-size:11px;color:var(--dim)">ψ_e ${f(d.psiEh,1)}·ψ_r ${f(d.psiR,1)}·ψ_o ${f(d.psiO,2)}·ψ_c ${f(d.psiC,3)}；90° 延伸 12d_b = ${f(d.ext90,1)}、內徑 ${f(d.bendD,1)}</div>`,
-    '量自臨界斷面至彎鉤外緣');
-  h += row('T 頭 l_dt（§25.4.4.2）', d=> d.headOK ? cm(d.ldt)+`<div style="font-size:11px;color:var(--dim)">ψ_p ${f(d.psiR,1)}·ψ_o ${f(d.psiO,2)}·ψ_c ${f(d.psiC,3)}；需 A_brg ≥ 4A_b</div>`
-    : `<span style="color:var(--warn)">不適用</span><div style="font-size:11px;color:var(--dim)">${d.headFail.join('、')}</div>`);
-  h += row('受壓 l_dc（§25.4.9）', d=>cm(d.ldc)+`<div style="font-size:11px;color:var(--dim)">ψ_r ${f(d.psiRc,2)}${d.psiRc<1?'（螺箍或 #4 以上箍筋 @ ≤ 10 cm）':''}</div>`);
-  h += row('受拉搭接（§25.5.2）', d=>`B 級 ${cm(d.lapB)}<div style="font-size:11px;color:var(--dim)">A 級 ${f(Math.ceil(d.lapA),0)} cm（A_s,prov/A_s,req ≥ 2 且搭接 ≤ 50%）</div>`);
-  h += row('受壓搭接（§25.5.5）', d=>cm(d.lapC));
+  const sm = t => `<div style="font-size:11px;color:var(--dim)">${t}</div>`;
+  const row = (k, fn, sub) => `<tr><td class="l">${k}${sub?sm(sub):''}</td>${c(fn)}</tr>`;
+  let h = `<table style="width:100%"><thead><tr><th class="l">項目（土木401-112）</th>${D.sets.map(st=>`<th>${st.name}${st.face?`<div style="font-weight:400;font-size:11px">${st.face} 控制</div>`:''}</th>`).join('')}</tr></thead><tbody>`;
+  h += row('直線受拉 l_d（§25.4.2.4）', d=>cm(d.ld)+sm(`ψ_t ${f(d.psiT,1)}·ψ_e ${f(d.psiE,1)}·ψ_s ${f(d.psiS,1)}；c_b ${f(d.cb,1)}、K_tr ${f(d.Ktr,2)}、(c_b+K_tr)/d_b = ${f(d.conf,2)}${d.confRaw>2.5?'（上限）':''}${d.exc<1?`；×${f(d.exc,2)}`:''}`)
+    + (d.ktrBad ? `<div style="font-size:11px;color:var(--bad)">f_y ≥ 5600 且中心距 ＜ 15 cm：K_tr = ${f(d.Ktr,2)} ＜ 0.5d_b = ${f(d.ktrNeed,2)}（§25.4.2.2）</div>` : ''));
+  h += row('標準彎鉤 l_dh（§25.4.3.1）', d=>cm(d.ldh)+sm(`ψ_e ${f(d.psiEh,1)}·ψ_r ${f(d.psiR,1)}·ψ_o ${f(d.psiO,2)}·ψ_c ${f(d.psiC,3)}${d.big?'（大於 D36：ψ_r 1.6、ψ_o 1.25）':''}；90° 延伸 12d_b = ${f(d.ext90,1)}、內徑 ${f(d.bendD,1)}`),
+    '量自臨界斷面至彎鉤外緣；不適用超量折減');
+  h += row('標準彎鉤 前版式（§25.4.3.6，可擇用）', d=> d.fcCap ? cm(d.ldhA)+sm(`0.075ψ_e f_y d_b/√f'c，f'c 取 ≤ ${d.fcCap}${d.lam<1?'、輕質 ×1.3':''}；尚可乘表 25.4.3.8 之 0.7（保護層）、0.8（箍筋圍束）`)
+    : `<span style="color:var(--warn)">不適用</span>${sm('大於 D36')}`);
+  h += row('擴頭 l_dt（§25.4.4.2）', d=> d.headOK ? cm(d.ldt)+sm(`ψ_p ${f(d.psiR,1)}·ψ_o ${f(d.psiO,2)}·ψ_c ${f(d.psiC,3)}；需 A_brg ≥ 4A_b、HA 級擴頭`)
+    : `<span style="color:var(--warn)">不適用</span>${sm(d.headFail.join('、'))}`);
+  h += row('受壓 l_dc（§25.4.9）', d=>cm(d.ldc)+sm(`ψ_r ${f(d.psiRc,2)}${d.psiRc<1?'（螺箍或 D13 以上箍筋 @ ≤ 10 cm）':''}`));
+  h += row('受拉搭接（表 25.5.2.1）', d=>`乙級 ${cm(d.lapB)}`+sm(`1.3ψ_g l_d，ψ_g = ${f(d.psiG,2)}；甲級 1.0ψ_g l_d = ${f(Math.ceil(d.lapA),0)} cm（A_s,使用/A_s,需求 ≥ 2 且搭接 ≤ 50%）`));
+  h += row('受壓搭接（§25.5.5.1）', d=>cm(d.lapC));
   if(D.sets.some(st=>st.d.ldhS)) {
-    h += row('耐震梁柱接頭內 彎鉤 l_dh（§18.8.5.1）', d=> d.ldhS ? cm(d.ldhS) : '—', "f_y d_b/(17.2λ√f'c)，彎鉤須在柱圍束核心內");
-    h += row('耐震梁柱接頭內 直線 l_d（§18.8.5.3）', d=> d.ldS ? cm(d.ldS)+`<div style="font-size:11px;color:var(--dim)">${d.top?'頂筋 3.25':'2.5'}l_dh</div>` : '—', '直線筋須穿過柱圍束核心');
+    h += row('耐震梁柱接頭內 彎鉤 l_dh（§18.5.5.1）', d=> d.ldhS ? cm(d.ldhS) : '—', "0.06f_y d_b/(λ√f'c)；90° 彎鉤置於柱圍束核心內並彎入接頭");
+    h += row('耐震梁柱接頭內 擴頭 l_dt（§18.5.5.2）', d=> d.ldtS ? cm(d.ldtS) : '—');
+    h += row('耐震梁柱接頭內 直線 l_d（§18.5.5.3）', d=> d.ldS ? cm(d.ldS)+sm(`${d.top?'頂筋 3.25':'2.5'} × §18.5.5.1 長度`) : '—', '須貫穿柱圍束核心；核心外部分 ×1.6（§18.5.5.4）');
   }
-  h += `</tbody></table><div style="margin-top:6px;font-size:12px;color:var(--dim)">數值已無條件進位至 cm。K_tr 以箍筋 @ ${f(D.sLap,1)} cm（搭接所在之一般區）計算${D.o.excess<1?`；超量鋼筋折減 ${f(D.o.excess,2)}（耐震構材、搭接、T 頭不適用）`:''}。
+  h += `</tbody></table><div style="margin-top:6px;font-size:12px;color:var(--dim)">數值已無條件進位至 cm。K_tr 以箍筋 @ ${f(D.sLap,1)} cm（搭接所在之一般區）計算${D.o.excess<1?`；超量鋼筋折減 ${f(D.o.excess,2)} 僅用於直線 l_d 與受壓 l_dc（耐震構材不適用，§25.4.10.2）`:''}。
     ${opt.colNote||''}</div>`;
   return h;
 }
@@ -2032,7 +2059,7 @@ function svgSection(M,forPrint){
     };
 
     /* flip：交換 135°／90° 端。規範要求相鄰繫筋沿高度與「沿斷面周邊」皆須端對端交替
-       （ACI 18.7.5.2(c)），故同一層相鄰兩支也左右輪流。 */
+       （土木401 §18.4.5.2(c)），故同一層相鄰兩支也左右輪流。 */
     const seg = (ax,ay,bx,by,flip) => {            // 兩端皆為主筋中心（畫面座標）
       if(flip){ [ax,bx]=[bx,ax]; [ay,by]=[by,ay]; }
       const dx=bx-ax, dy=by-ay, L=Math.hypot(dx,dy) || 1;
@@ -2511,7 +2538,7 @@ function verdictPylon(M){
   const shs=[M.shX,M.shY];
   const shBad=shs.some(s=>s.sectionFail||s.sectOver);
   const shW=shs.reduce((a,b)=> b.VsReq/b.VsMax > a.VsReq/a.VsMax ? b : a);
-  const clrBad = c.clB<c.need || c.clH<c.need, hxBad = c.hxMaxB>35 || c.hxMaxH>35;
+  const clrBad = c.clB<c.need || c.clH<c.need, hxBad = c.hxMaxB>(c.hxLim||35) || c.hxMaxH>(c.hxLim||35);
   renderVerdict([
     [dcSt,'撓曲 D/C',fdc(C.dc),C.L.name,'summary'],
     [shBad?'bad':'ok','剪力 V_s/V_s,max',f(shW.VsReq/shW.VsMax,2),`${shW.dir.toUpperCase()} 向 · ${shW.ctrl.L.name}`,'summary'],
@@ -2601,7 +2628,7 @@ function render(){
 function colDevNote(M){
   if(!M.opt.plastic) return '';
   return M.opt.code==='bldg'
-    ? '耐震柱：主筋搭接僅可設於柱中央半高範圍內，且為 B 級受拉搭接（土木401 §18.7.4.3）；柱端加密區內不得搭接。'
+    ? '耐震柱：主筋搭接僅可設於柱中央半高範圍內，且為 B 級受拉搭接（土木401 §18.4.4.3）；柱端加密區內不得搭接。'
     : '橋梁墩柱：塑鉸區內主筋不得搭接（公路橋梁耐震設計規範），搭接或續接器應設於塑鉸區外。';
 }
 /* 計算書：伸展長度逐式代入（柱、梁共用） */
@@ -2610,29 +2637,34 @@ function devReport(D, eq, d, note){
   for(const st of D.sets){
     const x = st.d;
     o.push(`<div class="rp-h3">${st.name}${st.face?`（${st.face}控制）`:''}：d_b = ${d(x.db,2)} cm，f_y = ${d(x.fy,0)}、f'_c = ${d(x.fc,0)} kgf/cm²</div>`);
-    o.push(eq(`\\psi_t=${d(x.psiT,1)},\\ \\psi_e=${d(x.psiE,1)}\\ (\\psi_t\\psi_e\\le1.7),\\ \\psi_s=${d(x.psiS,1)},\\ \\psi_g=${d(x.psiG,2)},\\ \\lambda=${d(x.lam,2)},\\ \\sqrt{f'_c}=${d(x.sq,2)}`));
+    o.push(eq(`\\psi_t=${d(x.psiT,1)},\\ \\psi_e=${d(x.psiE,1)}\\ (\\psi_t\\psi_e\\le1.7),\\ \\psi_s=${d(x.psiS,1)},\\ \\lambda=${d(x.lam,2)},\\ \\sqrt{f'_c}=${d(x.sq,2)}\\ (\\le 26.5)`));
     o.push(eq(`c_b=${d(x.cb,2)}\\ \\text{cm},\\quad K_{tr}=${x.Ktr>0?`\\frac{40A_{tr}}{s\\,n}=\\frac{40\\times${d(x.Atr,3)}}{${d(x.s,1)}\\times${x.n}}=`:''}${d(x.Ktr,3)},\\quad
       \\frac{c_b+K_{tr}}{d_b}=${d(x.confRaw,3)}${x.confRaw>2.5?'\\to 2.5':''}`));
-    o.push(eq(`l_d=\\frac{f_y}{3.5\\lambda\\sqrt{f'_c}}\\cdot\\frac{\\psi_t\\psi_e\\psi_s\\psi_g}{(c_b+K_{tr})/d_b}\\,d_b
-      =\\frac{${d(x.fy,0)}}{3.5\\times${d(x.lam,2)}\\times${d(x.sq,2)}}\\cdot\\frac{${d(x.psiTE,2)}\\times${d(x.psiS,1)}\\times${d(x.psiG,2)}}{${d(x.conf,3)}}\\times${d(x.db,2)}
+    o.push(eq(`l_d=\\frac{f_y}{3.5\\lambda\\sqrt{f'_c}}\\cdot\\frac{\\psi_t\\psi_e\\psi_s}{(c_b+K_{tr})/d_b}\\,d_b
+      =\\frac{${d(x.fy,0)}}{3.5\\times${d(x.lam,2)}\\times${d(x.sq,2)}}\\cdot\\frac{${d(x.psiTE,2)}\\times${d(x.psiS,1)}}{${d(x.conf,3)}}\\times${d(x.db,2)}
       =${d(x.ld0,1)}\\ \\Rightarrow\\ l_d=\\max(${x.exc<1?`${d(x.exc,2)}\\times`:''}${d(x.ld0,1)},\\ 30)=\\mathbf{${d(x.ld,1)}}\\ \\text{cm}`));
+    if(x.ktrBad) o.push(note(`f_y ≥ 5600 且主筋中心距 ＜ 15 cm：K_tr = ${d(x.Ktr,2)} ＜ 0.5d_b = ${d(x.ktrNeed,2)}，不符 §25.4.2.2，須加密橫向鋼筋。`));
     o.push(eq(`\\psi_c=${x.fc<420?`\\frac{f'_c}{1050}+0.6=`:''}${d(x.psiC,3)},\\quad
       l_{dh}=\\frac{f_y\\psi_e\\psi_r\\psi_o\\psi_c}{23\\lambda\\sqrt{f'_c}}d_b^{1.5}
       =\\frac{${d(x.fy,0)}\\times${d(x.psiEh,1)}\\times${d(x.psiR,1)}\\times${d(x.psiO,2)}\\times${d(x.psiC,3)}}{23\\times${d(x.lam,2)}\\times${d(x.sq,2)}}\\times${d(x.db,2)}^{1.5}
-      =${d(x.ldh0,1)}\\ \\Rightarrow\\ l_{dh}=\\max(${x.exc<1?`${d(x.exc,2)}\\times`:''}${d(x.ldh0,1)},\\ 8d_b,\\ 15)=\\mathbf{${d(x.ldh,1)}}\\ \\text{cm}`));
-    o.push(note(`標準彎鉤：90° 延伸 12d_b = ${d(x.ext90,1)} cm、180° 延伸 max(4d_b, 6.5) = ${d(x.ext180,1)} cm，彎曲內徑 ${d(x.bendD,1)} cm（§25.3.1）。`));
-    if(x.headOK) o.push(eq(`l_{dt}=\\frac{f_y\\psi_e\\psi_p\\psi_o\\psi_c}{31\\sqrt{f'_c}}d_b^{1.5}
-      =\\frac{${d(x.fy,0)}\\times${d(x.psiEh,1)}\\times${d(x.psiR,1)}\\times${d(x.psiO,2)}\\times${d(x.psiC,3)}}{31\\times${d(x.sq,2)}}\\times${d(x.db,2)}^{1.5}
+      =${d(x.ldh0,1)}\\ \\Rightarrow\\ l_{dh}=\\max(${d(x.ldh0,1)},\\ 8d_b,\\ 15)=\\mathbf{${d(x.ldh,1)}}\\ \\text{cm}`));
+    if(x.fcCap) o.push(eq(`\\text{前版式（§25.4.3.6）：}l_{dh}=\\frac{0.075\\psi_e f_y}{\\sqrt{f'_c}}d_b${x.lam<1?'\\times1.3':''}
+      =\\frac{0.075\\times${d(x.psiEh,1)}\\times${d(x.fy,0)}}{\\sqrt{${d(Math.min(x.fc,x.fcCap),0)}}}\\times${d(x.db,2)}=${d(x.ldhA0,1)}\\ \\Rightarrow\\ \\mathbf{${d(x.ldhA,1)}}\\ \\text{cm}`));
+    o.push(note(`標準彎鉤：90° 延伸 12d_b = ${d(x.ext90,1)} cm、180° 延伸 max(4d_b, 6.5) = ${d(x.ext180,1)} cm，彎曲內徑 ${d(x.bendD,1)} cm（§25.3.1）。
+      前版式適用 f'c 上限依 §25.4.3.5（本筋 ${x.fcCap||'—'} kgf/cm²），並得乘表 25.4.3.8 之修正因數。`));
+    if(x.headOK) o.push(eq(`l_{dt}=\\frac{f_y\\psi_e\\psi_p\\psi_o\\psi_c}{32\\sqrt{f'_c}}d_b^{1.5}
+      =\\frac{${d(x.fy,0)}\\times${d(x.psiEh,1)}\\times${d(x.psiR,1)}\\times${d(x.psiO,2)}\\times${d(x.psiC,3)}}{32\\times${d(x.sq,2)}}\\times${d(x.db,2)}^{1.5}
       =${d(x.ldt0,1)}\\ \\Rightarrow\\ l_{dt}=\\max(${d(x.ldt0,1)},\\ 8d_b,\\ 15)=\\mathbf{${d(x.ldt,1)}}\\ \\text{cm}`));
-    else o.push(note(`T 頭鋼筋不適用（§25.4.4.1）：${x.headFail.join('、')}。`));
-    o.push(eq(`l_{dc}=\\max\\left(\\frac{0.075f_y\\psi_r}{\\lambda\\sqrt{f'_c}},\\ 0.0043f_y\\psi_r\\right)d_b\\ (\\psi_r=${d(x.psiRc,2)})\\ \\Rightarrow\\ l_{dc}=\\mathbf{${d(x.ldc,1)}}\\ \\text{cm}`));
-    o.push(eq(`\\text{受拉搭接 B 級}=1.3l_d=\\mathbf{${d(x.lapB,1)}},\\quad \\text{A 級}=${d(x.lapA,1)},\\quad
-      \\text{受壓搭接}=${x.fy<=4200?'0.0071f_yd_b':'(0.013f_y-24)d_b'}${x.fc<210?'\\times\\tfrac43':''}=\\mathbf{${d(x.lapC,1)}}\\ \\text{cm}`));
-    if(x.ldhS) o.push(eq(`\\text{耐震梁柱接頭：}l_{dh}=\\frac{f_y d_b}{17.2\\lambda\\sqrt{f'_c}}=\\mathbf{${d(x.ldhS,1)}},\\quad
-      l_d=${x.top?'3.25':'2.5'}l_{dh}=\\mathbf{${d(x.ldS,1)}}\\ \\text{cm}`));
+    else o.push(note(`擴頭鋼筋不適用（§25.4.4.1）：${x.headFail.join('、')}。`));
+    o.push(eq(`l_{dc}=\\max\\left(\\frac{0.075f_y\\psi_r}{\\lambda\\sqrt{f'_c}},\\ 0.0044f_y\\psi_r\\right)d_b\\ (\\psi_r=${d(x.psiRc,2)})\\ \\Rightarrow\\ l_{dc}=\\mathbf{${d(x.ldc,1)}}\\ \\text{cm}`));
+    o.push(eq(`\\psi_g=${d(x.psiG,2)},\\quad \\text{乙級}=1.3\\psi_g l_d=\\mathbf{${d(x.lapB,1)}},\\quad \\text{甲級}=\\psi_g l_d=${d(x.lapA,1)},\\quad
+      \\text{受壓搭接}=${x.fy<=4200?'0.0073f_yd_b':'(0.013f_y-24)d_b'}${x.fc<210?'\\times\\tfrac43':''}=\\mathbf{${d(x.lapC,1)}}\\ \\text{cm}`));
+    if(x.ldhS) o.push(eq(`\\text{耐震梁柱接頭（§18.5.5）：}l_{dh}=\\frac{0.06f_y d_b}{\\lambda\\sqrt{f'_c}}${x.psiEh>1?'\\times1.2':''}=\\mathbf{${d(x.ldhS,1)}},\\quad
+      l_d=${x.top?'3.25':'2.5'}l_{dh}${x.psiE>1?`\\times${d(x.psiE,1)}`:''}=\\mathbf{${d(x.ldS,1)}}\\ \\text{cm}`));
   }
-  o.push(note(`依據土木401-112 第 25 章（以 ACI 318-19 為基礎）。d_b^{1.5} 式之常數 23、31 係由 SI 式換算為 kgf-cm 制（差 < 1%）；
-    彎鉤／T 頭之 ψ_r、ψ_p、ψ_o 依設計者輸入之錨定條件；K_tr 以箍筋 @ ${d(D.sLap,1)} cm 計，圓形與箱型保守取 0。`));
+  o.push(note(`依據土木401-112 第 25 章及 §18.5.5（kgf-cm 制公式）。ψ_g 僅用於搭接（表 25.5.2.1），不用於伸展長度；
+    超量鋼筋折減僅用於直線 l_d 與受壓 l_dc（§25.4.10）。彎鉤／擴頭之 ψ_r、ψ_p、ψ_o 依設計者輸入之錨定條件；
+    K_tr 以箍筋 @ ${d(D.sLap,1)} cm 計，圓形與箱型保守取 0（§25.4.2.4 允許 K_tr = 0）。`));
   return o.join('');
 }
 
@@ -2642,7 +2674,7 @@ function elevInfoCol(M){
     <td>${r.tieSize} @ ${f(z.s,1)}</td><td>${f(z.act,1)}</td><td>${z.n}</td></tr>`).join('');
   let h = `<table style="width:100%"><thead><tr><th class="l">區段</th><th>範圍 (cm)</th><th>長度 (cm)</th><th>配置</th><th>實際間距 (cm)</th><th>數量 (${unit})</th></tr></thead>
     <tbody>${rows}<tr style="font-weight:700"><td class="l">合計</td><td></td><td>${f(M.opt.lu,0)}</td><td></td><td></td><td>${lay.total}</td></tr></tbody></table>`;
-  if(M.opt.plastic && !lay.full) h += `<div style="margin-top:6px">加密區長度 l<sub>o</sub> = max(h = ${f(lay.hMax,0)}, l<sub>u</sub>/6 = ${f(M.opt.lu/6,0)}, 45) = <b>${f(lay.lo,0)} cm</b>（土木401 §18.7.5.1）；
+  if(M.opt.plastic && !lay.full) h += `<div style="margin-top:6px">加密區長度 l<sub>o</sub> = max(h = ${f(lay.hMax,0)}, l<sub>u</sub>/6 = ${f(M.opt.lu/6,0)}, 45) = <b>${f(lay.lo,0)} cm</b>（土木401 §18.4.5.1）；
     一般區間距由「${esc(M.fin2.gov.tag)}」控制（≤ ${f(M.fin2.gov.v,2)} cm）。</div>`;
   else if(M.opt.plastic) h += `<div style="margin-top:6px">加密區長度 l<sub>o</sub> = ${f(lay.lo,0)} cm，兩端加密區相接或中段不足一個間距，<b>全長以加密區間距配置</b>。</div>`;
   else h += `<div style="margin-top:6px">本斷面設為「一般斷面」（非塑鉸區），全長以同一間距配置。若為耐震柱，請將「塑鉸區／柱端加密區」切為「是」以分區配置。</div>`;
@@ -2775,8 +2807,8 @@ function renderAlerts(M){
       (userAll && !(codeB&&codeH) ? `<br>目前設定為「每一根主筋皆設」${codeB||codeH?'（另一邊）':''}：主筋淨距 ${f(Math.min(chk.clB,chk.clH),1)} cm ≤ 15 cm，規範僅要求每隔一根；每根皆設為使用者選擇（增加 A_sh 與肢數）。` : ''));
   }
 
-  if(chk.hxMaxB>35||chk.hxMaxH>35)
-    add('bad',`<b>耐震 h_x 超限</b>：被支撐筋中心距 B 邊 ${f(chk.hxMaxB,1)} / H 邊 ${f(chk.hxMaxH,1)} cm，超過 35 cm 上限，橫向圍束不足。`);
+  if(chk.hxMaxB>(chk.hxLim||35)||chk.hxMaxH>(chk.hxLim||35))
+    add('bad',`<b>耐震 h_x 超限</b>：被支撐筋中心距 B 邊 ${f(chk.hxMaxB,1)} / H 邊 ${f(chk.hxMaxH,1)} cm，超過 ${chk.hxLim||35} cm 上限${chk.hxLim===20?"（P_u > 0.3A_g f'c 或 f'c > 700，§18.4.5.2(f)）":'（§18.4.5.2(e)）'}，橫向圍束不足。`);
 
   for(const sh of [M.shX,M.shY]){
     const t=sh.dir.toUpperCase();
@@ -2788,7 +2820,7 @@ function renderAlerts(M){
   }
   if(document.getElementById('envWater').value==='water' && M.r.covO < 5)
     add('warn',`水工／環境結構：外側保護層 ${f(M.r.covO,1)} cm ＜ 5 cm，建議至少 5 cm（參考 ACI 350）。`);
-  if(M.conf.termC) add('warn',`P_u,max = ${f(M.opt.PuMax/TF,0)} tf ${M.opt.PuMax>0.3*M.m.Ag*M.m.fc?"＞ 0.3A_g·f'c":"（f'c ＞ 700）"}：A_sh 另加第三式 0.2k_f k_n P_u/(f_yt A_ch)，且<b>每一根主筋都須側撐</b>（ACI 18.7.5.2(f)、18.7.5.4(c)）。`);
+  if(M.conf.termC) add('warn',`P_u,max = ${f(M.opt.PuMax/TF,0)} tf ${M.opt.PuMax>0.3*M.m.Ag*M.m.fc?"＞ 0.3A_g·f'c":"（f'c ＞ 700）"}：A_sh 另加第三式 0.2k_f k_n P_u/(f_yt A_ch)，且<b>每一根主筋都須側撐</b>（土木401 §18.4.5.2(f)、18.4.5.4(c)）。`);
   if(M.fin.tooTight) add('bad',`<b>實務間距無解</b>：需求 s = ${f(M.fin.gov.v,2)} cm（${M.fin.gov.tag}）已小於最小實務間距 ${M.fin.sMin} cm。`);
   else add('ok',`採用 ${M.r.tieSize} @ ${f(M.fin.sUse,1)} cm（控制項：${M.fin.gov.tag}，需求 ≤ ${f(M.fin.gov.v,2)} cm）。`);
   if(M.fin2){
@@ -2986,8 +3018,8 @@ function buildReport(M){
   o.push(eq(`\\frac{A_{sh}}{s\\,b_c}\\ \\ge\\ \\max\\left\\{0.3\\left(\\frac{A_g}{A_{ch}}-1\\right)\\frac{f'_c}{f_{yt}},
     \\ \\ 0.09\\frac{f'_c}{f_{yt}}${M.conf.termC?`,\\ \\ 0.2k_fk_n\\frac{P_u}{f_{yt}A_{ch}}`:''}\\right\\}`));
   if(M.conf.termC) o.push(note(`P_u,max = ${d(M.opt.PuMax/TF,0)} tf${M.opt.PuMax>0.3*M.Ag*m.fc?" ＞ 0.3A_g f'_c":''}${m.fc>700?"；f'_c ＞ 700 kgf/cm²":''}
-    → 適用第三式（ACI 18.7.5.4(c)）：k_f = ${d(M.conf.kf,3)}、k_n = n_l/(n_l−2) = ${M.conf.nlSup}/${M.conf.nlSup-2} = ${d(M.conf.kn,3)}。
-    此時每一根主筋皆須以箍角或耐震彎鉤側撐（ACI 18.7.5.2(f)）。`));
+    → 適用第三式（土木401 §18.4.5.4(c)）：k_f = ${d(M.conf.kf,3)}、k_n = n_l/(n_l−2) = ${M.conf.nlSup}/${M.conf.nlSup-2} = ${d(M.conf.kn,3)}。
+    此時每一根主筋皆須以箍角或耐震彎鉤側撐（土木401 §18.4.5.2(f)）。`));
   if(M.opt.code==='bldg' && !M.opt.plastic) o.push(note(`本斷面非柱端加密區，A_sh 為耐震圍束需求，<b>不納入箍筋間距控制</b>，下表僅供參考。`));
   o.push(note(M.s.type==='box'
     ? `規範原文係針對實心柱。中空箱型依決議<b>拆為四片獨立牆片</b>逐片檢核：每片視為厚 t_w、長 L 之矩形，
@@ -3037,7 +3069,7 @@ function buildReport(M){
     相鄰層箍筋的搭接角隅須沿構材高度<b>輪流錯開</b>（圖示為左上角）。
     繫筋一端 135°、另一端 90°，所有繫筋貼主筋同一側、彎鉤繞向一致（同一種加工形狀）；
     相鄰繫筋須<b>端對端交替</b>：同一層沿斷面周邊左右輪流（圖示即此排法），
-    且勾住同一根主筋的上下相鄰兩層，其 <b>90° 端位於相反側</b>（土木401 / ACI 18.7.5.2(c)）。
+    且勾住同一根主筋的上下相鄰兩層，其 <b>90° 端位於相反側</b>（土木401 / 土木401 §18.4.5.2(c)）。
     2D 斷面圖僅能表示其中一層，下一層 135°／90° 端全部互換。`));
 
   }
@@ -3056,7 +3088,7 @@ function buildReport(M){
     for(const c2 of F2.cands.slice().sort((a,b)=>a.v-b.v))
       o.push(`<tr${c2===F2.gov?' style="font-weight:800;background:#f0f0f0"':''}><td class="l">${esc(c2.tag)}</td><td>${d(c2.v,2)}</td></tr>`);
     o.push(`</tbody></table>`);
-    o.push(note(M.opt.code==='bldg' ? '加密區外間距上限 min(6d_b, 15 cm) 依土木401 §18.7.5.5。'
+    o.push(note(M.opt.code==='bldg' ? `加密區外間距上限 min(${seisKdb(m.fy)}d_b, 15 cm) 依土木401 §18.4.5.5。`
       : '塑鉸區外「橫向筋量不少於塑鉸區之 50%」係 AASHTO 耐震細則慣例，<b>非我國規範明列條文</b>，請依主管機關核定之設計準則確認。'));
   }
   o.push(`<div class="rp-h3">9.${M.fin2?2:1} 沿柱軸向箍筋配置</div>`);
@@ -3185,7 +3217,7 @@ function shearReport(M,sh){
     : eq(`b_w=${M.s.type==='box'?`2t_w=2\\times${d(M.s.tw,0)}`:`${d(sh.bw,0)}`}=${d(sh.bw,1)}\\ \\text{cm},\\qquad
     d=${d(sh.d,2)}\\ \\text{cm}\\ \\ (\\text{受壓緣至受拉鋼筋群形心})`));
   if(M.opt.plastic && sh.bldgCD){
-    o.push(`<div class="rp-note">建築柱容量設計（ACI 18.7.6.1）：機率彎矩強度 M_pr 以 1.25f_y、φ = 1.0 重解 P-M，
+    o.push(`<div class="rp-note">建築柱容量設計（土木401 §18.4.6.1）：機率彎矩強度 M_pr 以 1.25f_y、φ = 1.0 重解 P-M，
       取各載重組合軸力下之最大者（P_u = ${d(sh.PMn/TF,0)} tf）；柱上下兩端同時達 M_pr。</div>`);
     o.push(eq(`M_{pr}(P_u=${d(sh.PMn/TF,0)}\\text{tf})=${d(sh.Mo/TFM,0)}\\ \\text{tf}\\cdot\\text{m}`));
     o.push(eq(`V_e=\\frac{2M_{pr}}{l_u}=\\frac{2\\times${d(sh.Mo/TFM,0)}\\times100}{${d(M.opt.lu,0)}}=${d(sh.Ve/TF,1)}\\ \\text{tf}
@@ -3233,7 +3265,7 @@ function shearReport(M,sh){
     <tr><td class="l">強度需求（剪力+扭矩）</td><td>${d(sh.s_str,2)}</td></tr>
     <tr><td class="l">最小剪力鋼筋量 A_v,min</td><td>${d(sh.s_minAv,2)}</td></tr>
     <tr><td class="l">規範上限 ${sh.VsReq>sh.VsTight?'d/4, 30':'d/2, 60'}</td><td>${d(sh.s_code,2)}</td></tr>
-    <tr><td class="l">${M.opt.code==='bldg'?`柱端加密區 min(b/4, 6d_b, s_o = ${d(M.opt.so,1)})`:'塑鉸區 min(b/4, 6d_b, 15)'}</td><td>${Number.isFinite(sh.s_ph)&&sh.s_ph<1e8?d(sh.s_ph,2):'—'}</td></tr>
+    <tr><td class="l">${M.opt.code==='bldg'?`柱端加密區 min(b/4, ${seisKdb(m.fy)}d_b, s_o = ${d(M.opt.so,1)})`:'塑鉸區 min(b/4, 6d_b, 15)'}</td><td>${Number.isFinite(sh.s_ph)&&sh.s_ph<1e8?d(sh.s_ph,2):'—'}</td></tr>
     <tr><td class="l">扭矩 min(p_h/8, 30)</td><td>${Number.isFinite(sh.s_tors)&&sh.s_tors<1e8?d(sh.s_tors,2):'—'}</td></tr>
   </tbody></table>`);
   return o.join('');
@@ -3532,8 +3564,9 @@ function beamShearDesign(S, R, m, ctx, res, MnPos, MnNeg){
   const Vu = Math.abs(ctrl.k.Vu), Tu = Math.abs(ctrl.k.Tu);
 
   // 容量設計剪力（耐震特殊抗彎構材）：M_pr 以 1.25f_y、φ=1.0
-  const MprP = S.seismic ? (beamSolve({...ctx, sign:'pos'}, 1.25*m.fy)||{Mn:0}).Mn : 0;
-  const MprN = S.seismic ? (beamSolve({...ctx, sign:'neg'}, 1.25*m.fy)||{Mn:0}).Mn : 0;
+  // 正、負彎矩各用其斷面幾何（T 梁正彎矩翼板受壓）；舊版沿用檢核中斷面之幾何，負彎矩檢核時 M_pr⁺ 偏低
+  const MprP = S.seismic ? (beamSolve({...ctx, g:beamShape(S,'pos'), sign:'pos'}, 1.25*m.fy)||{Mn:0}).Mn : 0;
+  const MprN = S.seismic ? (beamSolve({...ctx, g:beamShape(S,'neg'), sign:'neg'}, 1.25*m.fy)||{Mn:0}).Mn : 0;
   const Ve   = S.seismic && S.ln>0 ? (MprP+MprN)/S.ln + S.Vg*TF : 0;
   const Vdes = S.seismic ? Math.max(Ve, Vu) : Vu;
 
@@ -3567,9 +3600,9 @@ function beamShearDesign(S, R, m, ctx, res, MnPos, MnNeg){
   const sStr = AvStot>1e-9 ? Av/AvStot : 1e9;
   const sMin = Math.min(Av*m.fyt/(0.2*Math.sqrt(m.fc)*bw), Av*m.fyt/(3.5*bw));
   const sCode = VsReq>VsTight ? Math.min(d/4,30) : Math.min(d/2,60);
-  // 耐震加密區（ACI 18.6.4.4）：自柱面 2h 範圍內
+  // 耐震加密區（土木401 §18.3.4.4）：自柱面 2h 範圍內
   const dbMin = Math.min(R.dbB, R.dbT);
-  const sConf = S.seismic ? Math.min(d/4, 6*dbMin, 15) : 1e9;
+  const sConf = S.seismic ? Math.min(d/4, seisKdb(m.fy)*dbMin, 15) : 1e9;   // §18.3.4.4
   const sTors = tors ? Math.min(ph/8, 30) : 1e9;
 
   // 版：一般不配剪力筋，須 V_u ≤ φV_c
@@ -3882,7 +3915,7 @@ function computeBeam(){
   const push=(v,t)=>{ if(Number.isFinite(v)&&v>0&&v<1e8) cands.push({v,t}); };
   push(sh.sStr,'剪力+扭矩強度需求'); push(sh.sMin,'最小剪力鋼筋量 A_v,min');
   push(sh.sCode, S.seismic?'規範間距上限（非加密區）':'規範間距上限');
-  push(sh.sConf,'耐震加密區 min(d/4, 6d_b, 15)'); push(sh.sTors,'扭矩 min(p_h/8, 30)');
+  push(sh.sConf,`耐震加密區 min(d/4, ${seisKdb(m.fy)}d_b, 15)`); push(sh.sTors,'扭矩 min(p_h/8, 30)');
   let gov = cands.reduce((a,b)=> b.v<a.v?b:a, cands[0]);
   let sUse = PRACTICAL_S.find(v=>v<=gov.v) || PRACTICAL_S[PRACTICAL_S.length-1];
   let tooTight = sUse>gov.v;
@@ -3907,7 +3940,7 @@ function computeBeam(){
 }
 
 /* ---------- 耐震梁：加密區（自柱面 2h）以外之箍筋間距 ----------
-   V_c 不折減（§18.6.5.2 只在 2h 內歸零），設計剪力仍取 V_e；另 s ≤ d/2（§18.6.4.6）。 */
+   V_c 不折減（§18.3.5.2 只在 2h 內歸零），設計剪力仍取 V_e；另 s ≤ d/2（§18.3.4.6）。 */
 function beamZone2(S, m, sh){
   const Vc = 0.53*Math.sqrt(m.fc)*sh.bw*sh.d;
   const VsReq = Math.max(0, sh.Vdes/m.phiv - Vc);
@@ -3924,7 +3957,7 @@ function beamZone2(S, m, sh){
   return {cands, gov, sUse, tooTight: sUse>gov.v, Vc, VsReq};
 }
 /* 梁箍筋肢橫向間距（§9.7.6.2.2）：≤ d 及 60 cm；V_s > 1.06√f'c·b_w·d 時 ≤ d/2 及 30 cm。
-   耐震梁另以肢距估「受側撐主筋間距 ≤ 35 cm」（§18.6.4.2）。 */
+   耐震梁另以肢距估「受側撐主筋間距 ≤ 35 cm」（§18.3.4.2）。 */
 function beamLeg(S, sh){
   const dt = BAR[S.tieSize].d;
   const gap = (S.bw - 2*(S.cover + dt/2))/Math.max(1, S.nLegs-1);
@@ -3933,7 +3966,7 @@ function beamLeg(S, sh){
   const seis = S.seismic && 35 < lim0;
   const lim = seis ? 35 : lim0;
   return {gap, lim, tight, seis, ok: gap <= lim + 1e-9,
-          rule: seis ? '耐震梁受側撐主筋間距 ≤ 35 cm（§18.6.4.2，以肢距估）' : `${tight?'min(d/2, 30)':'min(d, 60)'}（§9.7.6.2.2）`};
+          rule: seis ? '耐震梁受側撐主筋間距 ≤ 35 cm（§18.3.4.2，以肢距估）' : `${tight?'min(d/2, 30)':'min(d, 60)'}（§9.7.6.2.2）`};
 }
 
 /* ---------- 梁立面：沿梁軸向箍筋配置 ---------- */
@@ -3992,7 +4025,7 @@ function elevInfoBeam(B){
     <td>${S.tieSize} @ ${f(z.s,1)}</td><td>${f(z.act,1)}</td><td>${z.n}</td></tr>`).join('');
   let h = `<table style="width:100%"><thead><tr><th class="l">區段</th><th>範圍 (cm)</th><th>長度 (cm)</th><th>配置</th><th>實際間距 (cm)</th><th>數量 (支)</th></tr></thead>
     <tbody>${rows}<tr style="font-weight:700"><td class="l">合計</td><td></td><td>${f(S.ln,0)}</td><td></td><td></td><td>${lay.total}</td></tr></tbody></table>`;
-  if(S.seismic && !lay.full) h += `<div style="margin-top:6px">耐震梁：自柱面 2h = ${f(2*S.h,0)} cm 內加密（土木401 §18.6.4.1），第一支距柱面 ≤ 5 cm；
+  if(S.seismic && !lay.full) h += `<div style="margin-top:6px">耐震梁：自柱面 2h = ${f(2*S.h,0)} cm 內加密（土木401 §18.3.4.1），第一支距柱面 ≤ 5 cm；
     加密區外由「${esc(B.fin2.gov.t)}」控制（≤ ${f(B.fin2.gov.v,2)} cm）。</div>`;
   else if(S.seismic) h += `<div style="margin-top:6px">兩端 2h 加密區相接，<b>全長以加密區間距配置</b>。</div>`;
   else h += `<div style="margin-top:6px">一般梁：以最大設計剪力決定之間距配置全長（保守；剪力較小的跨中可另行放寬）。</div>`;
@@ -4185,7 +4218,7 @@ function renderBeam(){
   }
   B.dev=beamDev(B);
   document.getElementById('bDevInfo').innerHTML=SB(devTable(B.dev, {colNote: S.seismic
-    ? '耐震梁：搭接不得設於梁柱接頭內、自柱面 2h 內及可能產生塑鉸處，搭接長度範圍內箍筋間距 ≤ min(d/4, 10 cm)（土木401 §18.6.3.3）。' : ''}));
+    ? '耐震梁：搭接不得設於梁柱接頭內、自柱面 2h 內及可能產生塑鉸處，搭接長度範圍內箍筋間距 ≤ min(d/4, 10 cm)（土木401 §18.3.3.3）。' : ''}));
 
   const kv=(k,v,cls='')=>`<div class="kv"><span>${k}</span><b class="${cls}">${v}</b></div>`;
   const C=B.ctrl, F=B.fin;
@@ -4311,15 +4344,15 @@ function renderBeamAlerts(B){
 
   if(B.sh.fail) add('bad',`<b>斷面剪力不足</b>：V_s 需求 ${f(B.sh.VsReq/TF,1)} tf > 上限 2.12√f'_c·b_w·d = ${f(B.sh.VsMax/TF,1)} tf。加箍筋無效，須加大斷面。`);
   if(B.sh.over) add('bad',`<b>剪扭斷面應力超限</b>：${f(B.sh.lhs,1)} > ${f(B.sh.rhs,1)} kgf/cm²（實心斷面採平方根合成）。`);
-  if(B.sh.VcZero) add('warn',`耐震：地震剪力佔設計剪力 ≥ 50% 且軸壓甚低 → <b>V_c = 0</b>，全部剪力由箍筋承擔（ACI 18.6.5.2）。`);
+  if(B.sh.VcZero) add('warn',`耐震：地震剪力佔設計剪力 ≥ 50% 且軸壓甚低 → <b>V_c = 0</b>，全部剪力由箍筋承擔（土木401 §18.3.5.2）。`);
   if(S.seismic){
     add(B.sh.Ve>B.sh.Vu?'info':'ok',`容量設計剪力 V_e = (M_pr1+M_pr2)/l_n + V_g = ${f(B.sh.Ve/TF,1)} tf，分析值 V_u = ${f(B.sh.Vu/TF,1)} tf → 設計剪力採 <b>${f(B.sh.Vdes/TF,1)} tf</b>。`);
     const r = B.phiNeg>0 ? B.phiPos/B.phiNeg : 0;
-    if(r < 0.5) add('bad',`<b>接頭面正彎矩強度不足</b>：φM_n⁺/φM_n⁻ = ${f(r,3)} < 0.50（ACI 18.6.3.2）。需增加底筋。`);
+    if(r < 0.5) add('bad',`<b>接頭面正彎矩強度不足</b>：φM_n⁺/φM_n⁻ = ${f(r,3)} < 0.50（土木401 §18.3.3.2）。需增加底筋。`);
     else add('ok',`接頭面 φM_n⁺/φM_n⁻ = ${f(r,3)} ≥ 0.50。`);
-    if(B.rho > 0.025) add('bad',`<b>ρ = ${f(B.rho*100,3)}% > 2.5%</b>，超過耐震特殊抗彎構材上限（ACI 18.6.3.1）。`);
-    if(S.bw < Math.max(0.3*S.h,25)) add('bad',`<b>腹板過窄</b>：b_w = ${f(S.bw,0)} < max(0.3h, 25) = ${f(Math.max(0.3*S.h,25),1)} cm（ACI 18.6.2.1）。`);
-    if(S.ln < 4*B.d) add('bad',`<b>淨跨不足</b>：l_n = ${f(S.ln,0)} < 4d = ${f(4*B.d,0)} cm，不適用梁之規定（ACI 18.6.2.1）。`);
+    if(B.rho > 0.025) add('bad',`<b>ρ = ${f(B.rho*100,3)}% > 2.5%</b>，超過耐震特殊抗彎構材上限（土木401 §18.3.3.1）。`);
+    if(S.bw < Math.max(0.3*S.h,25)) add('bad',`<b>腹板過窄</b>：b_w = ${f(S.bw,0)} < max(0.3h, 25) = ${f(Math.max(0.3*S.h,25),1)} cm（土木401 §18.3.2.1）。`);
+    if(S.ln < 4*B.d) add('bad',`<b>淨跨不足</b>：l_n = ${f(S.ln,0)} < 4d = ${f(4*B.d,0)} cm，不適用梁之規定（土木401 §18.3.2.1）。`);
     add('info',`「任一斷面 M_n ≥ 25% 端部最大值」需整根梁的彎矩包絡線，<b>本工具無法由單一斷面判斷</b>，請另行檢核。`);
   }
   add(B.crack.ok?'ok':'bad',`裂縫控制（ACI 24.3.2）：底排鋼筋中心距 ${f(B.crack.sAct,1)} cm ${B.crack.ok?'≤':'＞'} 上限 min(38·(2855/f_s) − 2.5c_c, 30·(2855/f_s)) = ${f(B.crack.sLim,1)} cm　（f_s = ⅔f_y = ${f(B.crack.fs,0)} kgf/cm²）`);
@@ -4556,7 +4589,7 @@ function buildBeamReport(B){
   } else o.push(eq(`V_{des}=V_u=${d(sh.Vdes/TF,1)}\\ \\text{tf}\\quad(\\text{非耐震特殊抗彎構材，不作容量設計})`));
 
   o.push(`<div class="rp-h3">5.${S.seismic?'2':'1'} 混凝土與箍筋分擔</div>`);
-  if(sh.VcZero) o.push(eq(`\\text{地震剪力佔比}\\ge50\\%\\ \\Rightarrow\\ \\boxed{V_c=0}\\quad(\\text{ACI 18.6.5.2})`));
+  if(sh.VcZero) o.push(eq(`\\text{地震剪力佔比}\\ge50\\%\\ \\Rightarrow\\ \\boxed{V_c=0}\\quad(\\text{土木401 §18.3.5.2})`));
   else o.push(eq(`V_c=0.53\\sqrt{f'_c}\\,b_w d=0.53\\times\\sqrt{${d(m.fc,0)}}\\times${d(S.bw,0)}\\times${d(sh.d,2)}
     =${d(sh.Vc,0)}\\ \\text{kgf}=${d(sh.Vc/TF,1)}\\ \\text{tf}`));
   if(S.slab){
@@ -4643,7 +4676,7 @@ function buildBeamReport(B){
       <tr><td class="l">鋼筋比</td><td class="l">ρ ≤ 0.025</td><td>${d(B.rho,5)}</td><td>${B.rho<=0.025?'✓':'✗'}</td></tr>
       <tr><td class="l">接頭面正彎矩</td><td class="l">φM_n⁺ ≥ 0.50 φM_n⁻</td><td>${d(r,3)}</td><td>${r>=0.5?'✓':'✗'}</td></tr>
       <tr><td class="l">加密區長度</td><td class="l">自柱面 2h</td><td>${d(sh.confLen,0)} cm</td><td>—</td></tr>
-      <tr><td class="l">加密區間距</td><td class="l">s ≤ min(d/4, 6d_b, 15 cm)</td><td>${d(sh.sConf,2)} cm</td><td>${fin.sUse<=sh.sConf?'✓':'✗'}</td></tr>
+      <tr><td class="l">加密區間距</td><td class="l">s ≤ min(d/4, ${seisKdb(m.fy)}d_b, 15 cm)</td><td>${d(sh.sConf,2)} cm</td><td>${fin.sUse<=sh.sConf?'✓':'✗'}</td></tr>
     </tbody></table>`);
     o.push(note(`<b>未涵蓋</b>：「任一斷面 M_n ≥ 端部最大 M_n 之 25%」需整根梁的彎矩包絡線，
       無法由單一斷面判斷，請另行檢核。`));
@@ -4712,10 +4745,10 @@ const PIN_META = {
        "ρ_s ≥ 0.45(A_g/A_ch − 1)f'_c/f_yt；耐震另 ≥ 0.12f'_c/f_yt　·　螺箍淨距 2.5～7.5 cm",
        '切換型式時 φ_c 與軸力截斷會自動改為對應的規範值（若你未自訂）。'],
       ['ph','—','塑鉸區／柱端加密區','','開啟後啟動容量設計剪力、V_c 依軸壓歸零、加密區箍筋間距與 A_sh 圍束檢核。',
-       '橋梁：s ≤ min(b/4, 6d_b, 15 cm)　·　建築：s ≤ min(b/4, 6d_b, s_o)，s_o = 10 + (35 − h_x)/3 介於 10～15 cm',
+       '橋梁：s ≤ min(b/4, 6d_b, 15 cm)　·　建築：s ≤ min(b/4, 6d_b（SD490 5.5d_b、SD550 5d_b）, s_o)，s_o = 10 + (35 − h_x)/3 介於 10～15 cm',
        "V_c 取 0 的門檻：橋梁 N_u < 0.1f'_c·A_g；建築 N_u < A_g·f'_c/20。"],
       ['phEnds','—','塑鉸區位置','','決定沿柱軸向配置時，哪幾端要設加密區（塑鉸區）。建築柱兩端皆設；懸臂墩柱、橋塔通常僅底端。','',''],
-      ['lu','l_u','柱淨高','cm','沿柱軸向配置的總長，並決定加密區長度 l_o = max(h, l_u/6, 45 cm)；建築柱另為 V_e = 2M_pr/l_u 的分母（M_pr 以 1.25f_y、φ = 1 計）。','l_o 依土木401 §18.7.5.1；橋梁同公路橋梁耐震設計規範塑鉸區範圍',''],
+      ['lu','l_u','柱淨高','cm','沿柱軸向配置的總長，並決定加密區長度 l_o = max(h, l_u/6, 45 cm)；建築柱另為 V_e = 2M_pr/l_u 的分母（M_pr 以 1.25f_y、φ = 1 計）。','l_o 依土木401 §18.4.5.1；橋梁同公路橋梁耐震設計規範塑鉸區範圍',''],
       ['phio','φ_o','超強係數','','塑鉸超強彎矩 M_o = φ_o·M_n，用來反算設計剪力。','V_e = φ_o·M_n / L_v　（僅「橋梁」設計依據使用）',''],
       ['Lv','L_v','剪力跨度','cm','V_e 的分母。','設計剪力取 max(V_e, V_u)　（僅「橋梁」設計依據使用）',''],
       ['theta','θ','扭矩桁架角','°','A_t/s 與扭矩縱筋 A_l。','',''],
@@ -4973,7 +5006,7 @@ function pinMapPylon(M){
             : (c.rho<1||c.rho>4) ? {state:'warn',chip:'ρ',
       msg:`鋼筋比 ρ_g = ${f(c.rho,2)}%，超出常用範圍 1%~4%。`}
             : {state:'ok',chip:f(c.rho,2)+'%'};
-  s.tieLayout = (c.hxMaxB>35||c.hxMaxH>35) ? {state:'bad',chip:'h_x',
+  s.tieLayout = (c.hxMaxB>(c.hxLim||35)||c.hxMaxH>(c.hxLim||35)) ? {state:'bad',chip:'h_x',
       msg:`h_x = ${f(Math.max(c.hxMaxB,c.hxMaxH),1)} cm ＞ 35 cm。耐震規定側向支撐間距上限 35 cm，`
         + `請把繫筋改為「每一根主筋皆設」。`}
               : (M.fin.gov.tag.indexOf('A_sh')>=0 ? {state:'note',chip:'控制',
@@ -4982,7 +5015,7 @@ function pinMapPylon(M){
     msg:'規範條文對 b_c 方向的敘述有歧義，箱型牆片兩種讀法可差 7 倍以上，直接決定箍筋間距。請對照條文自行確認後再選。'};
   s.ph = !M.opt.plastic ? OK : M.opt.code==='bldg'
     ? {state:'note',chip:'加密',
-       msg:`柱端加密區已開啟：容量設計剪力 V_e = 2M_pr/l_u、間距 ≤ min(b/4, 6d_b, s_o = ${f(M.opt.so,1)} cm)、`
+       msg:`柱端加密區已開啟：容量設計剪力 V_e = 2M_pr/l_u、間距 ≤ min(b/4, ${seisKdb(M.m.fy)}d_b, s_o = ${f(M.opt.so,1)} cm)、`
          + "A_sh 圍束檢核；N_u < A_g·f'_c/20 時 V_c 取 0。"}
     : {state:'note',chip:'塑鉸',
        msg:"塑鉸區已開啟：V_c 依軸壓折減、箍筋間距受 min(b/4, 6d_b, 15cm) 限制，並啟動容量設計剪力。"
