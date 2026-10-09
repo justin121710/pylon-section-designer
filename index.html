@@ -223,6 +223,12 @@ body .al-btn:hover{background:var(--acc-soft)}
 body .a-bad .al-btn{border-color:var(--bad);color:var(--bad)}
 body .a-ok .al-btn,body .a-info .al-btn{border-color:var(--line2);color:var(--dim)}
 body .al-card{border-style:dashed}
+#vdPop{position:fixed;z-index:60;max-width:min(520px,calc(100vw - 16px));background:var(--panel);border:1px solid var(--line2);border-radius:10px;
+  box-shadow:0 8px 28px rgba(21,28,36,.18);padding:10px 12px;font-size:12.5px}
+#vdPop .vp-h{font-weight:700;margin-bottom:6px}
+#vdPop .vp-k{font-size:11.5px;color:var(--dim);margin:6px 0 4px}
+#vdPop .vp-b{display:flex;flex-wrap:wrap;gap:6px}
+#vdPop .vp-n{color:var(--dim)}
 .alert.al-x{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:start}
 .alert.al-x::before{grid-column:1;grid-row:1 / span 2}
 .alert.al-x .al-t,.alert.al-x .al-go{grid-column:2}
@@ -583,13 +589,13 @@ img,video{max-width:100%;height:auto}
       <span>設計依據</span>
       <select id="codeBasis">
         <option value="bldg">建築物（土木401＋建築物耐震設計規範）</option>
-        <option value="bridge">橋梁（土木401 斷面強度＋公路橋梁耐震設計規範）</option>
+        <option value="bridge">橋梁（土木401＋公路橋梁耐震設計規範）</option>
       </select></label>
     <label class="sb-field" title="水工／環境結構：保護層 ≥ 5 cm、梁版檢核裂縫寬度、溫度收縮鋼筋比提高（參考 ACI 350／ACI 224R）">
       <span>環境</span>
       <select id="envWater">
         <option value="normal">一般環境</option>
-        <option value="water">水工／環境結構（加嚴）</option>
+        <option value="water">水工結構（加嚴）</option>
       </select></label>
   </div>
   <div id="verdict" aria-label="檢核結論"></div>
@@ -680,7 +686,7 @@ img,video{max-width:100%;height:auto}
       <div class="fld"><span>此斷面為塑鉸區</span>
         <select id="ph"><option value="1">是（塑鉸區／柱端加密區）</option><option value="0">否（一般斷面）</option></select></div>
       <div class="fld"><span>塑鉸區位置</span>
-        <select id="phEnds"><option value="2">兩端（雙曲率，柱端皆加密）</option><option value="1">僅底端（懸臂墩柱／橋塔）</option></select></div>
+        <select id="phEnds"><option value="2">兩端（柱端皆加密）</option><option value="1">僅底端（懸臂墩柱／橋塔）</option></select></div>
       <div class="fld"><span>柱淨高 l<sub>u</sub> (cm)</span><input id="lu" type="number" step="10" value="300"></div>
       <div class="fld"><span>超強係數 φ<sub>o</sub></span><input id="phio" type="number" step="0.05" value="1.25"></div>
       <div class="fld"><span>剪力跨度 L<sub>v</sub> (cm)</span><input id="Lv" type="number" step="10" value="4000"></div>
@@ -718,7 +724,7 @@ img,video{max-width:100%;height:auto}
       <div class="fld"><span>頂端錨定方式</span><select id="dAncTop"><option value="hook90">標準彎鉤 90°</option><option value="hook180">標準彎鉤 180°</option><option value="head">擴頭</option><option value="straight">直線</option><option value="through">貫穿續接（不錨定）</option></select></div>
       <div class="fld"><span>頂端構材深度 (cm)</span><input id="dHTop" type="number" step="10" value="180"></div>
       <div class="fld"><span>錨定端保護層 (cm)</span><input id="dAncCov" type="number" step="0.5" value="7.5"></div>
-      <div class="fld"><span>主筋續接方式</span><select id="dSplice"><option value="B">乙級搭接</option><option value="A">甲級搭接（錯開，A<sub>s</sub> 比 ≥ 2）</option><option value="m1">機械式續接 第一類</option><option value="m2">機械式續接 第二類</option><option value="m3">機械式續接 第三類</option></select></div>
+      <div class="fld"><span>主筋續接方式</span><select id="dSplice"><option value="B">乙級搭接</option><option value="A">甲級搭接（須錯開）</option><option value="m1">機械式續接 第一類</option><option value="m2">機械式續接 第二類</option><option value="m3">機械式續接 第三類</option></select></div>
       <div class="fld"><span>搭接錯開</span><select id="dStagger"><option value="0">不錯開</option><option value="1">錯開 50%（間隔 ≥ l<sub>st</sub>）</option></select></div>
       <div class="fld"><span>非接觸搭接心距 (cm)</span><input id="dLapGap" type="number" step="0.5" value="0"></div>
       <div class="text-[11.5px] mt-1" style="color:var(--dim)">
@@ -879,8 +885,8 @@ img,video{max-width:100%;height:auto}
       <div class="fld"><span>重力剪力 V<sub>g</sub> (tf)</span><input id="bVg" type="number" step="1" value="0"></div>
       <div class="fld"><span>扭矩桁架角 θ (°)</span><input id="bTheta" type="number" step="5" value="45"></div>
       <div class="fld"><span>φ<sub>t</sub> / φ<sub>v</sub></span>
-        <span style="display:flex;gap:4px"><input id="bphit" type="number" step="0.05" value="0.90" style="width:46px">
-        <input id="bphiv" type="number" step="0.05" value="0.75" style="width:46px"></span></div>
+        <span style="display:flex;gap:4px"><input id="bphit" type="number" step="0.05" value="0.90">
+        <input id="bphiv" type="number" step="0.05" value="0.75"></span></div>
       <input id="bphic" type="hidden" value="0.65">
     </div>
 
@@ -902,7 +908,7 @@ img,video{max-width:100%;height:auto}
       <div class="fld"><span>活載限值 L/</span><input id="bLimLive" type="number" step="10" value="360"></div>
       <div class="fld"><span>總撓度限值 L/</span><input id="bLimTotal" type="number" step="10" value="240"></div>
       <div class="fld"><span>容許裂縫寬度 (mm)</span><select id="bWlim">
-        <option value="0.10">0.10（嚴格水密）</option><option value="0.15">0.15</option>
+        <option value="0.10">0.10（水密）</option><option value="0.15">0.15</option>
         <option value="0.20" selected>0.20</option><option value="0.25">0.25</option><option value="0.30">0.30</option></select></div>
       <div class="fld"><span>鋼筋塗布環氧樹脂</span><select id="bdEpoxy"><option value="0">否（未塗布）</option><option value="1">是（環氧樹脂塗布）</option></select></div>
       <div class="fld"><span>混凝土單位重</span><select id="bdLight"><option value="1">常重混凝土（λ = 1.0）</option><option value="0.75">輕質混凝土（λ = 0.75）</option></select></div>
@@ -912,12 +918,12 @@ img,video{max-width:100%;height:auto}
       <div class="fld"><span>支承內錨定方式</span><select id="bdAnc"><option value="hook90">標準彎鉤 90°</option><option value="hook180">標準彎鉤 180°</option><option value="head">擴頭</option><option value="straight">直線</option></select></div>
       <div class="fld"><span>支承柱寬（平行梁軸，cm）</span><input id="bdHc" type="number" step="5" value="60"></div>
       <div class="fld"><span>支承外側保護層 (cm)</span><input id="bdAncCov" type="number" step="0.5" value="4"></div>
-      <div class="fld"><span>主筋續接方式</span><select id="bdSplice"><option value="B">乙級搭接</option><option value="A">甲級搭接（錯開，A<sub>s</sub> 比 ≥ 2）</option><option value="m1">機械式續接 第一類</option><option value="m2">機械式續接 第二類</option><option value="m3">機械式續接 第三類</option></select></div>
+      <div class="fld"><span>主筋續接方式</span><select id="bdSplice"><option value="B">乙級搭接</option><option value="A">甲級搭接（須錯開）</option><option value="m1">機械式續接 第一類</option><option value="m2">機械式續接 第二類</option><option value="m3">機械式續接 第三類</option></select></div>
       <div class="fld"><span>頂筋續接位置</span><select id="bdLapTop"><option value="mid">跨中續接</option><option value="none">通長不續接</option></select></div>
-      <div class="fld"><span>底筋續接位置</span><select id="bdLapBot"><option value="none">通長不續接（兩端錨入支承）</option><option value="sup">支承附近續接</option></select></div>
+      <div class="fld"><span>底筋續接位置</span><select id="bdLapBot"><option value="none">通長（兩端錨入支承）</option><option value="sup">支承附近續接</option></select></div>
       <div class="fld"><span>搭接錯開</span><select id="bdStagger"><option value="0">不錯開</option><option value="1">錯開 50%（間隔 ≥ l<sub>st</sub>）</option></select></div>
       <div class="fld"><span>非接觸搭接心距 (cm)</span><input id="bdLapGap" type="number" step="0.5" value="0"></div>
-      <div class="fld"><span>頂筋截斷點分析</span><select id="bdCut"><option value="0">不分析（頂筋全數通長）</option><option value="1">分析（均布載重彎矩圖近似）</option></select></div>
+      <div class="fld"><span>頂筋截斷點分析</span><select id="bdCut"><option value="0">不分析（頂筋全數通長）</option><option value="1">分析（均布載重近似）</option></select></div>
       <div class="fld"><span>頂筋通長根數</span><input id="bdNcont" type="number" step="1" value="2"></div>
     </div>
   </div>
@@ -3316,8 +3322,11 @@ function devCheckIds(P, c){
 /* ---------- 判定膠囊、警示、計算書附圖 ---------- */
 function devVerdict(P, target){
   const bad = P.checks.filter(c=>c.lv==='bad'), warn = P.checks.filter(c=>c.lv==='warn');
+  const focus = bad.length ? bad : warn;
+  const ids = focus.length ? [...new Set(focus.flatMap(c=>devCheckIds(P, c)))]
+    : (P.mod==='col' ? ['dAncBot','dHBot','dAncTop','dHTop','dSplice'] : ['bdAnc','bdHc','bdSplice','bdLapTop','bdLapBot']);
   return [bad.length?'bad':warn.length?'warn':'ok', '伸展／搭接', bad.length ? `${bad.length} 項不符` : warn.length ? `${warn.length} 項注意` : '通過',
-          bad.length ? bad[0].item : warn.length ? warn[0].item : `${SPLICE_TXT[P.sp]}`, target];
+          bad.length ? bad[0].item : warn.length ? warn[0].item : `${SPLICE_TXT[P.sp]}`, target, ids.concat(['#'+target])];
 }
 function devAlerts(P, add){
   for(const c of P.checks) add(c.lv, `${c.lv==='ok'?'':'<b>'}${esc(c.item)}${c.lv==='ok'?'':'</b>'}：${c.msg}（土木401 ${c.ref}）`, devCheckIds(P, c));
@@ -4039,23 +4048,52 @@ function renderVerdict(items, alertsId){
   const box=document.getElementById(alertsId);
   const nBad = box ? box.querySelectorAll('.a-bad').length : 0;
   const nWarn= box ? box.querySelectorAll('.a-warn').length : 0;
+  const alIds = box ? [...new Set([...box.querySelectorAll('.a-bad .al-btn[data-pid], .a-warn .al-btn[data-pid]')].map(b=>b.dataset.pid))] : [];
   items = items.concat([[nBad?'bad':nWarn?'warn':'ok','警示',
-    nBad||nWarn ? `${nBad?nBad+' 項不合格':''}${nBad&&nWarn?'、':''}${nWarn?nWarn+' 項注意':''}` : '無', '', alertsId]]);
+    nBad||nWarn ? `${nBad?nBad+' 項不合格':''}${nBad&&nWarn?'、':''}${nWarn?nWarn+' 項注意':''}` : '無', '', alertsId, alIds]]);
   const bdg = box && box.closest('.ws') && box.closest('.ws').querySelector('.ws-badge');
   if(bdg){ bdg.hidden = !(nBad||nWarn); bdg.textContent = nBad||nWarn; bdg.className = 'ws-badge ' + (nBad?'bad':'warn'); }
   const ic={ok:'✓',warn:'!',bad:'✗'};
   requestAnimationFrame(()=>document.documentElement.style.setProperty('--sbH', document.getElementById('statusbar').offsetHeight+'px'));
-  document.getElementById('verdict').innerHTML = items.map(([st,k,v,sub,go])=>
-    `<button type="button" class="vd ${st}" data-go="${go}"><i>${ic[st]}</i><span>${SB(esc(k))} <b>${SB(esc(v))}</b>${sub?` <em>${SB(esc(sub))}</em>`:''}</span></button>`).join('');
+  VD_IDS = {};
+  document.getElementById('verdict').innerHTML = items.map(([st,k,v,sub,go,ids],i)=>{ VD_IDS[i] = ids || [];
+    return `<button type="button" class="vd ${st}" data-go="${go}" data-i="${i}" title="${(ids&&ids.length)?'點選列出相關參數，可直接跳到參數表修改':'點選查看'}"><i>${ic[st]}</i><span>${SB(esc(k))} <b>${SB(esc(v))}</b>${sub?` <em>${SB(esc(sub))}</em>`:''}</span></button>`; }).join('');
+  vdPopClose();
 }
-document.addEventListener('click',e=>{
-  const b=e.target.closest && e.target.closest('#verdict .vd'); if(!b) return;
-  const el=document.getElementById(b.dataset.go); if(!el) return;
+/* 判定膠囊：一個相關參數就直接跳；多個就彈出參數按鈕選單（另附結果卡片連結） */
+let VD_IDS = {};
+function vdPopClose(){ const p = document.getElementById('vdPop'); if(p) p.remove(); }
+function vdGoCard(go){
+  const el=document.getElementById(go); if(!el) return;
   const card=el.closest('.card')||el;
   if(card.dataset.pane) wsShow(card.closest('.ws'), card.dataset.pane);
   card.scrollIntoView({behavior:'smooth',block:'start'});
   card.animate([{boxShadow:'0 0 0 3px var(--acc)'},{boxShadow:'0 0 0 0 transparent'}],{duration:1200});
+}
+document.addEventListener('click',e=>{
+  if(e.target.closest && e.target.closest('#vdPop')){ if(e.target.closest('.al-btn')) setTimeout(vdPopClose, 0); return; }
+  const b=e.target.closest && e.target.closest('#verdict .vd');
+  if(!b){ vdPopClose(); return; }
+  const mod = TAB==='beam' ? 'beam' : 'pylon';
+  const ids = (VD_IDS[b.dataset.i] || []).filter(id => id[0]==='#' || (()=>{ const el=document.getElementById(id); const r=el&&el.closest('.pin-row'); return el && !(r && r.classList.contains('pin-na')); })());
+  const params = ids.filter(x=>x[0]!=='#');
+  const wasOpen = document.getElementById('vdPop') && document.getElementById('vdPop').dataset.i===b.dataset.i;
+  vdPopClose();
+  if(wasOpen) return;
+  if(!ids.length){ vdGoCard(b.dataset.go); return; }
+  if(params.length===1 && ids.length===1){ pinGo(mod, params[0]); return; }
+  const pop = document.createElement('div'); pop.id='vdPop'; pop.dataset.i=b.dataset.i; pop.setAttribute('role','dialog');
+  const cardIds = ids.filter(x=>x[0]==='#'), seen = new Set();
+  pop.innerHTML = SB(`<div class="vp-h">${b.querySelector('span').innerHTML}</div>
+    <div class="vp-k">跳到參數修改</div><div class="vp-b">${params.map(id=>alertBtnHtml(mod,id)).join('') || '<span class="vp-n">（無可直接修改之參數）</span>'}</div>
+    <div class="vp-k">查看</div><div class="vp-b"><button type="button" class="al-btn al-card" data-go="${b.dataset.go}">檢核結果 ↗</button>${cardIds.filter(x=>x.slice(1)!==b.dataset.go && !seen.has(x) && seen.add(x)).map(x=>alertBtnHtml(mod,x)).join('')}</div>`);
+  document.body.appendChild(pop);
+  const r = b.getBoundingClientRect();
+  pop.style.left = Math.max(8, Math.min(r.left, innerWidth - pop.offsetWidth - 8)) + 'px';
+  pop.style.top = (r.bottom + 6) + 'px';
 });
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') vdPopClose(); });
+window.addEventListener('scroll', vdPopClose, true);
 function verdictPylon(M){
   const C=M.ctrlFlex, F=M.fin, c=M.chk;
   const dcSt = !Number.isFinite(C.dc)||C.dc>1 ? 'bad' : C.dc>0.9 ? 'warn' : 'ok';
@@ -4064,13 +4102,13 @@ function verdictPylon(M){
   const shW=shs.reduce((a,b)=> b.VsReq/b.VsMax > a.VsReq/a.VsMax ? b : a);
   const clrBad = c.clB<c.need || c.clH<c.need, hxBad = c.hxMaxB>(c.hxLim||35) || c.hxMaxH>(c.hxLim||35);
   renderVerdict([
-    [dcSt,'撓曲 D/C',fdc(C.dc),C.L.name,'summary'],
-    [shBad?'bad':'ok','剪力 V_s/V_s,max',f(shW.VsReq/shW.VsMax,2),`${shW.dir.toUpperCase()} 向 · ${shW.ctrl.L.name}`,'summary'],
-    [F.tooTight?'bad':'ok','箍筋',`${M.r.tieSize} @ ${f(F.sUse,1)} cm`,`需 ≤ ${f(F.gov.v,2)}（${F.gov.tag.replace(/ \(.*\)$/,'')}）`,'summary'],
-    [(c.rho<1||c.rho>4)?'warn':'ok','ρ_g',f(c.rho,2)+'%','','summary'],
+    [dcSt,'撓曲 D/C',fdc(C.dc),C.L.name,'summary',['B','H','Dia','tw','barSize','nB','nH','nCir','#loadTbl']],
+    [shBad?'bad':'ok','剪力 V_s/V_s,max',f(shW.VsReq/shW.VsMax,2),`${shW.dir.toUpperCase()} 向 · ${shW.ctrl.L.name}`,'summary',['B','H','Dia','tw','tieSize','tieLayout','#loadTbl']],
+    [F.tooTight?'bad':'ok','箍筋',`${M.r.tieSize} @ ${f(F.sUse,1)} cm`,`需 ≤ ${f(F.gov.v,2)}（${F.gov.tag.replace(/ \(.*\)$/,'')}）`,'summary',['tieSize','tieLayout','dbl']],
+    [(c.rho<1||c.rho>4)?'warn':'ok','ρ_g',f(c.rho,2)+'%','','summary',['barSize','nB','nH','nCir']],
     [(M.fin2&&M.fin2.tooTight)||M.legs.some(g=>!g.ok&&!g.soft)?'bad':M.legs.some(g=>!g.ok)?'warn':'ok','軸向配置',`${M.lay.total} ${M.r.spiral?'圈':'組'}`,
-      M.fin2&&!M.lay.full?`加密 @${f(M.fin.sUse,1)} · 一般 @${f(M.fin2.sUse,1)}`:`全長 @${f(M.fin.sUse,1)}`,'elevInfo'],
-    [clrBad||hxBad?'bad':'ok','主筋淨距',Math.min(c.clB,c.clH)<0?'放不下':f(Math.min(c.clB,c.clH),1)+' cm',`需 ≥ ${f(c.need,1)}${hxBad?' · h_x 超限':''}`,'alerts'],
+      M.fin2&&!M.lay.full?`加密 @${f(M.fin.sUse,1)} · 一般 @${f(M.fin2.sUse,1)}`:`全長 @${f(M.fin.sUse,1)}`,'elevInfo',['lu','ph','phEnds','tieSize','tieLayout','#elevInfo']],
+    [clrBad||hxBad?'bad':'ok','主筋淨距',Math.min(c.clB,c.clH)<0?'放不下':f(Math.min(c.clB,c.clH),1)+' cm',`需 ≥ ${f(c.need,1)}${hxBad?' · h_x 超限':''}`,'alerts',['nB','nH','nCir','barSize','dagg','covO','tieLayout']],
     devVerdict(M.devPlan,'devPlan'),
   ],'alerts');
 }
@@ -5848,19 +5886,19 @@ function renderBeam(){
   {
     const sh=B.sh, dcSt = !C ? 'ok' : (!Number.isFinite(C.dc)||C.dc>1) ? 'bad' : C.dc>0.9 ? 'warn' : 'ok';
     renderVerdict([
-      [dcSt,'撓曲 D/C',C?fdc(C.dc):'—',C?C.L.name:'','bSummary'],
+      [dcSt,'撓曲 D/C',C?fdc(C.dc):'—',C?C.L.name:'','bSummary',['bh','bBotSize','bNbot','bTopSize','bNtop','#bLoadTbl']],
       ...(S.slab
-        ? [[sh.slabFail?'bad':'ok','剪力 V_u/φV_c',f(sh.Vdes/Math.max(1e-9,sh.phiVc),2),'不配剪力筋','bSummary'],
-           [F.tooTight?'bad':'ok','主筋',`底 ${bBarTxt(S,'bot')}`,`間距 ≤ ${f(F.gov.v,1)}`,'bSummary']]
-        : [[sh.fail||sh.over?'bad':'ok','剪力 V_s/V_s,max',f(sh.VsReq/sh.VsMax,2),'','bSummary'],
-           [F.tooTight?'bad':'ok','箍筋',bTieTxt(S,F),`需 ≤ ${f(F.gov.v,2)}`,'bSummary'],
+        ? [[sh.slabFail?'bad':'ok','剪力 V_u/φV_c',f(sh.Vdes/Math.max(1e-9,sh.phiVc),2),'不配剪力筋','bSummary',['bh','#bLoadTbl']],
+           [F.tooTight?'bad':'ok','主筋',`底 ${bBarTxt(S,'bot')}`,`間距 ≤ ${f(F.gov.v,1)}`,'bSummary',['bSpBot','bSpTop','bBotSize']]]
+        : [[sh.fail||sh.over?'bad':'ok','剪力 V_s/V_s,max',f(sh.VsReq/sh.VsMax,2),'','bSummary',['bw','bh','bTieSize','bNlegs','#bLoadTbl']],
+           [F.tooTight?'bad':'ok','箍筋',bTieTxt(S,F),`需 ≤ ${f(F.gov.v,2)}`,'bSummary',['bTieSize','bNlegs']],
            [(B.fin2&&B.fin2.tooTight)||!B.leg.ok?'bad':'ok','軸向配置',`${B.lay.total} 支`,
-             B.fin2&&!B.lay.full?`加密 @${f(F.sUse,1)} · 一般 @${f(B.fin2.sUse,1)}`:`全長 @${f(F.sUse,1)}`,'bElevInfo']]),
-      ...(S.env==='water' ? [[B.cw.ok?'ok':'bad','裂縫寬度',`${f(B.cw.w,3)} mm`,`≤ ${f(B.cw.wLim,2)}`,'bSummary']] : []),
-      [B.crack.ok?'ok':'bad','裂縫',`${f(B.crack.sAct,1)} / ${f(B.crack.sLim,1)} cm`,'','bSummary'],
+             B.fin2&&!B.lay.full?`加密 @${f(F.sUse,1)} · 一般 @${f(B.fin2.sUse,1)}`:`全長 @${f(F.sUse,1)}`,'bElevInfo',['bLn','bSeismic','bTieSize','bNlegs','#bElevInfo']]]),
+      ...(S.env==='water' ? [[B.cw.ok?'ok':'bad','裂縫寬度',`${f(B.cw.w,3)} mm`,`≤ ${f(B.cw.wLim,2)}`,'bSummary',['bCover','bNbot','bBotSize','bWlim']]] : []),
+      [B.crack.ok?'ok':'bad','裂縫',`${f(B.crack.sAct,1)} / ${f(B.crack.sLim,1)} cm`,'','bSummary',['bNbot','bBotSize','bCover']],
       (()=>{ const c=B.clr, vals=[c.bot,c.top].filter(v=>v!==null), mn=vals.length?Math.min(...vals):null;
-        return [c.okB&&c.okT?'ok':'bad','主筋淨距', mn===null?'—':(mn<0?'排不下':`${f(mn,1)} cm`), `需 ≥ ${f(Math.max(c.needB,c.needT),1)}`,'bSummary']; })(),
-      ...(B.defl.na ? [] : [[B.defl.okL&&B.defl.okT?'ok':'warn','撓度',`Δ_LT ${f(B.defl.dLT,2)} / ${f(B.defl.limT,2)} cm`,'','bSummary']]),
+        return [c.okB&&c.okT?'ok':'bad','主筋淨距', mn===null?'—':(mn<0?'排不下':`${f(mn,1)} cm`), `需 ≥ ${f(Math.max(c.needB,c.needT),1)}`,'bSummary',['bNbot','bNtop','bBotSize','bTopSize','bw','bDagg']]; })(),
+      ...(B.defl.na ? [] : [[B.defl.okL&&B.defl.okT?'ok':'warn','撓度',`Δ_LT ${f(B.defl.dLT,2)} / ${f(B.defl.limT,2)} cm`,'','bSummary',['bh','bML','bMD','bDeflCase','bLimTotal']]]),
       devVerdict(B.devPlan,'bDevPlan'),
     ],'bAlerts');
   }
