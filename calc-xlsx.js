@@ -679,7 +679,7 @@ function devStraight(S, P, s, o){
 function devRest(S, P, s, o){
   const k = x => '{'+P+x+s+'}';
   const L = o.label ? o.label+'：' : '';
-  const db = o.db, big = `${db}>3.58+1E-6`;
+  const db = o.db, big = `${db}>3.59`;
   S.item({key:P+'exc'+s, label:`${L}超量折減採用值（僅直線 ld、受壓 ldc）`, f:`IF(OR(${o.seis}=1,{${P}Exc}<=0,{${P}Exc}>=1),1,{${P}Exc})`, unit:'無因次', fmt:'0.00', crit:'抵抗地震力系統不適用', ref:R401('25.4.10')});
   S.item({key:P+'ld'+s, label:`${L}直線受拉伸展長度`, sym:'ld', f:`MAX(${o.ld0}*${k('exc')},30)`, unit:'cm', fmt:'0.0', crit:'≧ 30 cm', ref:R401('25.4.2.1')});
   S.item({key:P+'pR'+s, label:`${L}彎鉤／擴頭 ψr、ψp 採用值`, f:`IF(${big},1.6,{${P}PsiR})`, unit:'無因次', fmt:'0.0', expr:'大於 D36 取 1.6', ref:R401('25.4.3.2')});
@@ -687,13 +687,13 @@ function devRest(S, P, s, o){
   S.item({key:P+'ldh'+s, label:`${L}標準彎鉤伸展長度`, sym:'ldh', unit:'cm', fmt:'0.0',
     f:`MAX({fy}*{${P}psiEh}*${k('pR')}*${k('pO')}*{${P}psiC}/(23*{${P}Lam}*{${P}sq})*${db}^1.5,8*${db},15)`,
     expr:"fyψeψrψoψc/(23λ√f'c) · db^1.5 ≧ max(8db, 15)；不適用超量折減", ref:R401('25.4.3.1')});
-  S.item({key:P+'fcH'+s, label:`${L}前版彎鉤式 f'c 上限`, f:`IF(${db}<=2.54+1E-6,700,IF(${db}<=2.87+1E-6,490,IF(${db}<=3.22+1E-6,420,IF(${db}<=3.58+1E-6,350,0))))`,
+  S.item({key:P+'fcH'+s, label:`${L}前版彎鉤式 f'c 上限`, f:`IF(${db}<=2.54+1E-6,700,IF(${db}<=2.87+1E-6,490,IF(${db}<=3.23,420,IF(${db}<=3.59,350,0))))`,
     unit:'kgf/cm²', fmt:'0', expr:'D25 以下 700、D29 490、D32 420、D36 350；0＝不適用', ref:R401('25.4.3.5')});
   S.item({key:P+'ldhA'+s, label:`${L}標準彎鉤（前版式，可擇用）`, sym:'ldh', unit:'cm', fmt:'0.0',
     f:`IF(${k('fcH')}>0,MAX(0.075*{${P}psiEh}*{fy}/SQRT(MIN({fc},${k('fcH')}))*${db}*IF({${P}Lam}<1,1.3,1),8*${db},15),0)`,
     expr:"0.075ψe·fy·db/√f'c（輕質 ×1.3）≧ max(8db, 15)；得再乘表 25.4.3.8 之 0.7、0.8", ref:R401('25.4.3.6、25.4.3.7')});
   S.item({key:P+'hd'+s, label:`${L}擴頭鋼筋適用條件`, unit:'',
-    f:`IF(AND(${db}<=3.58+1E-6,{${P}Lam}=1,${o.ccov}>=2*${db},${o.cSp}>=3*${db}),"適用","不適用")`,
+    f:`IF(AND(${db}<=3.59,{${P}Lam}=1,${o.ccov}>=2*${db},${o.cSp}>=3*${db}),"適用","不適用")`,
     expr:'D36 以下、常重混凝土、淨保護層 ≧ 2db、中心距 ≧ 3db（另須 Abrg ≧ 4Ab）', ref:R401('25.4.4.1')});
   S.item({key:P+'ldt'+s, label:`${L}擴頭伸展長度`, sym:'ldt', unit:'cm', fmt:'0.0',
     f:`IF(${k('hd')}="適用",MAX({fy}*{${P}psiEh}*${k('pR')}*${k('pO')}*{${P}psiC}/(32*{${P}sq})*${db}^1.5,8*${db},15),0)`,
@@ -709,10 +709,10 @@ function devRest(S, P, s, o){
   if(o.joint){
     const minS = `IF({${P}Lam}<1,MAX(10*${db},19),MAX(8*${db},15))`;
     S.item({key:P+'ldhS0'+s, label:`${L}耐震接頭彎鉤基本長度`, unit:'cm', fmt:'0.0',
-      f:`IF(AND(${o.joint}=1,${db}<=3.58+1E-6),MAX(0.06*{fy}*${db}/({${P}Lam}*{${P}sq}),${minS}),0)`, expr:"0.06fy·db/(λ√f'c) ≧ 常重 max(8db, 15)、輕質 max(10db, 19)", ref:R401('18.5.5.1')});
+      f:`IF(AND(${o.joint}=1,${db}<=3.59),MAX(0.06*{fy}*${db}/({${P}Lam}*{${P}sq}),${minS}),0)`, expr:"0.06fy·db/(λ√f'c) ≧ 常重 max(8db, 15)、輕質 max(10db, 19)", ref:R401('18.5.5.1')});
     S.item({key:P+'ldhS'+s, label:`${L}耐震梁柱接頭內彎鉤 ldh`, sym:'ldh', unit:'cm', fmt:'0.0', f:`${k('ldhS0')}*{${P}psiEh}`, expr:'環氧樹脂另乘 1.2（§18.5.5.5）', ref:R401('18.5.5.1、18.5.5.5')});
     S.item({key:P+'ldtS'+s, label:`${L}耐震梁柱接頭內擴頭 ldt`, sym:'ldt', unit:'cm', fmt:'0.0',
-      f:`IF(AND(${o.joint}=1,${db}<=3.58+1E-6,${k('hd')}="適用"),MAX(0.06*{fy}*${db}/({${P}Lam}*{${P}sq}),8*${db},15),0)`, ref:R401('18.5.5.2')});
+      f:`IF(AND(${o.joint}=1,${db}<=3.59,${k('hd')}="適用"),MAX(0.06*{fy}*${db}/({${P}Lam}*{${P}sq}),8*${db},15),0)`, ref:R401('18.5.5.2')});
     S.item({key:P+'ldS'+s, label:`${L}耐震梁柱接頭內直線 ld`, sym:'ld', unit:'cm', fmt:'0.0', f:`IF(${o.topKey}=1.3,3.25,2.5)*${k('ldhS0')}*${k('psiE')}`,
       expr:'2.5ldh（頂筋 3.25ldh）× 直線 ψe', ref:R401('18.5.5.3、18.5.5.5')});
   }
