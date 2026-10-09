@@ -32,6 +32,7 @@ html,body{background:var(--bg);color:var(--txt);font-family:ui-sans-serif,"Noto 
 body input,body select{background:var(--panel);color:var(--txt);border:1px solid var(--line);
   border-radius:5px;padding:6px 9px;width:100%;font-size:13.5px;line-height:1.35}
 body input:focus,body select:focus{outline:2px solid var(--acc);outline-offset:-1px}
+body input.inp-bad{outline:2px solid var(--bad);outline-offset:-1px;background:rgba(176,58,46,.08)}
 body button{cursor:pointer;border-radius:6px;border:1px solid var(--line);background:var(--panel);
   color:var(--txt);padding:8px 14px;font-size:13.5px;line-height:1.25;box-shadow:var(--shadow)}
 body button:hover{background:var(--sel)}
@@ -742,8 +743,25 @@ const MAIN_SIZES = ['#4','#5','#6','#7','#8','#9','#10','#11','#14','#18'];
 const TIE_SIZES  = ['#3','#4','#5','#6','#7'];
 const PRACTICAL_S = [30,25,20,15,12.5,10,7.5];
 
-const num = (id,dflt=0)=>{const v=parseFloat(document.getElementById(id).value);return Number.isFinite(v)?v:dflt;};
-const pos = (id,dflt=1)=>{const v=num(id,dflt);return v>0?v:dflt;};
+/* 讀數值輸入。空白或無效時改用預設值，但記錄在 BADIN，重算後於欄位標紅並列入警示，
+   避免「欄位空白卻默默以 420 計算」這類看不見的錯誤。 */
+const BADIN = new Map();
+const num = (id,dflt=0)=>{const v=parseFloat(document.getElementById(id).value);if(Number.isFinite(v)) return v; BADIN.set(id,dflt); return dflt;};
+const pos = (id,dflt=1)=>{const v=parseFloat(document.getElementById(id).value);if(Number.isFinite(v)&&v>0) return v; BADIN.set(id,dflt); return dflt;};
+/* 依目前分頁收集無效輸入（不適用而隱藏的欄位不計），回傳 [{id,label,dflt}] 並標紅 */
+function collectBadInputs(mod){
+  const root = document.getElementById(mod==='beam'?'appBeam':'app');
+  root.querySelectorAll('.inp-bad').forEach(el=>el.classList.remove('inp-bad'));
+  const out=[];
+  for(const [id,dflt] of BADIN){
+    const el=document.getElementById(id); if(!el || !root.contains(el)) continue;
+    const row=el.closest('.pin-row'); if(row && row.classList.contains('pin-na')) continue;
+    el.classList.add('inp-bad');
+    let label=id; for(const g of PIN_META[mod==='beam'?'beam':'pylon']) for(const p of g[1]) if(p[0]===id) label=p[2];
+    out.push({id,label,dflt});
+  }
+  return out;
+}
 const f = (x,n=2)=>(Number.isFinite(x)?x.toLocaleString('en-US',{minimumFractionDigits:n,maximumFractionDigits:n}):'—');
 const esc = s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 /* D/C 可能為 Infinity（射線與包絡線無交點＝載重點完全在外），需與一般數值分開顯示 */
@@ -1174,6 +1192,7 @@ function applyPreset(key){
 }
 
 function compute(){
+  BADIN.clear();
   /* --- 讀入 --- */
   const type = document.getElementById('secType').value;
   const s = type==='circle'
@@ -1236,7 +1255,9 @@ function compute(){
   const coreGeoX = coreGeom(s,r,'x'), coreGeoY = coreGeom(s,r,'y');
 
   /* --- 各組合 D/C --- */
-  const res = LOADS.map(L=>{
+  // 載重組合為空時以零載重佔位，避免整個重算中斷；警示另行提醒
+  const noLoads = !LOADS.length;
+  const res = (noLoads ? [{name:'（尚未輸入載重）',Pu:0,Mux:0,Muy:0,Vux:0,Vuy:0,Tu:0}] : LOADS).map(L=>{
     const Lk = {Pu:L.Pu*TF, Mux:Math.abs(L.Mux)*TFM, Muy:Math.abs(L.Muy)*TFM,
                 Vux:Math.abs(L.Vux)*TF, Vuy:Math.abs(L.Vuy)*TF, Tu:Math.abs(L.Tu)*TFM};
     const bi = biaxialDC(cvX,cvY,pX,pY,m,Lk);
@@ -1252,7 +1273,7 @@ function compute(){
   /* --- 施工性 / 配筋查核 --- */
   const chk = constructability(s,r,R,m,opt,conf);
 
-  MODEL = {s,r,R,m,opt,Ast,Ag,ctxX,ctxY,cvX,cvY,pX,pY,cvXc:null,cvYc:null,conf,cvXpr,cvYpr,
+  MODEL = {s,r,R,m,opt,Ast,Ag,ctxX,ctxY,cvX,cvY,pX,pY,cvXc:null,cvYc:null,conf,cvXpr,cvYpr,noLoads,
            coreGeoX,coreGeoY,res,ctrlFlex,ctrlAxial,shX,shY,chk};
   return MODEL;
 }
@@ -1282,8 +1303,10 @@ function confinement(s,r,R,m,opt){
   const eB = edgeTies(r.nB,pitchB,db,opt.tieAll), eH = edgeTies(r.nH,pitchH,db,opt.tieAll);
   const lim = R.inner;
   // 繫筋實際可設位置：箱型須有內層主筋可勾（角隅區主筋由交叉之另一向箍筋支撐）
-  const tieX = eB.idx.map(i=>R.xsO[i]).filter(x=> !lim || Math.abs(x) < lim.hxI-1e-6);
-  const tieY = eH.idx.map(j=>R.ysO[j]).filter(y=> !lim || Math.abs(y) < lim.hyI-1e-6);
+  // 箱型若無內層主筋，繫筋貫穿壁厚後沒有鋼筋可勾 → 不設、也不計入 A_sh（舊版仍計入，偏不保守）
+  const noIn = s.type==='box' && !lim;
+  const tieX = noIn ? [] : eB.idx.map(i=>R.xsO[i]).filter(x=> !lim || Math.abs(x) < lim.hxI-1e-6);
+  const tieY = noIn ? [] : eH.idx.map(j=>R.ysO[j]).filter(y=> !lim || Math.abs(y) < lim.hyI-1e-6);
   const perp = opt.ashPair !== 'para';
 
   const walls=[];
@@ -1400,7 +1423,7 @@ function shearDesign(s,r,R,m,opt,cv,res,dir,cvPr){
   // 肢數：沿剪力方向之箍筋肢，量於腹板寬度方向
   let nlegs;
   if(s.type==='circle') nlegs = 2;                 // 圓箍／螺箍：A_v 取 2 倍單肢面積
-  else if(s.type==='box') nlegs = r.dbl? 4 : 2;
+  else if(s.type==='box') nlegs = R.inner ? 4 : 2;    // 內層實際成立才有 4 肢
   else nlegs = 2 + (dir==='x' ? edgeTies(r.nH, 2*(s.H/2-R.dOut)/(r.nH-1), R.db, opt.tieAll).ties
                               : edgeTies(r.nB, 2*(s.B/2-R.dOut)/(r.nB-1), R.db, opt.tieAll).ties);
   const At1 = BAR[r.tieSize].A;
@@ -1513,11 +1536,14 @@ function finalSpacing(M){
   if(M.conf.circ){
     push(M.conf.sAsh, M.r.spiral ? '螺箍體積比 ρ_s' : '圓箍圍束 ρ_s');
     if(M.r.spiral) push(7.5 + M.conf.dt, '螺箍淨距上限 7.5 cm');
-  }else if(M.opt.code!=='bldg' || M.opt.plastic) push(M.conf.sAsh, '圍束筋量 A_sh');
+  // A_sh 需求間距為 0（例如箱型單層無貫穿壁厚繫筋）代表無法滿足，不可被 push 的 v>0 過濾掉
+  }else if(M.opt.code!=='bldg' || M.opt.plastic) push(Math.max(M.conf.sAsh,1e-3), '圍束筋量 A_sh');
   push(M.chk.sTie, M.conf.circ ? '圓箍間距通則 min(16d_b, 48d_t, D)' : '柱箍筋間距通則 min(16d_b, 48d_t, 最小邊)');
   const gov = cands.reduce((a,b)=> b.v<a.v?b:a, cands[0]);
-  const sUse = PRACTICAL_S.find(v=>v<=gov.v) || PRACTICAL_S[PRACTICAL_S.length-1];
-  return {cands,gov,sUse,tooTight: sUse > gov.v};
+  // 螺箍常用間距較密（淨距仍須 ≥ 2.5 cm 且 ≥ 4/3·d_agg，另有警示檢核）
+  const list = M.r.spiral ? PRACTICAL_S.concat([6,5]) : PRACTICAL_S;
+  const sUse = list.find(v=>v<=gov.v) || list[list.length-1];
+  return {cands,gov,sUse,tooTight: sUse > gov.v, sMin:list[list.length-1]};
 }
 
 /* =========================================================================
@@ -2156,7 +2182,7 @@ function verdictPylon(M){
     [shBad?'bad':'ok','剪力 V_s/V_s,max',f(shW.VsReq/shW.VsMax,2),`${shW.dir.toUpperCase()} 向 · ${shW.ctrl.L.name}`,'summary'],
     [F.tooTight?'bad':'ok','箍筋',`${M.r.tieSize} @ ${f(F.sUse,1)} cm`,`需 ≤ ${f(F.gov.v,2)}（${F.gov.tag.replace(/ \(.*\)$/,'')}）`,'summary'],
     [(c.rho<1||c.rho>4)?'warn':'ok','ρ_g',f(c.rho,2)+'%','','summary'],
-    [clrBad||hxBad?'bad':'ok','主筋淨距',f(Math.min(c.clB,c.clH),1)+' cm',`需 ≥ ${f(c.need,1)}${hxBad?' · h_x 超限':''}`,'alerts'],
+    [clrBad||hxBad?'bad':'ok','主筋淨距',Math.min(c.clB,c.clH)<0?'放不下':f(Math.min(c.clB,c.clH),1)+' cm',`需 ≥ ${f(c.need,1)}${hxBad?' · h_x 超限':''}`,'alerts'],
   ],'alerts');
 }
 
@@ -2220,6 +2246,7 @@ function render(){
   document.getElementById('axX').style.outline = AXIS==='x'?'2px solid var(--acc)':'none';
   document.getElementById('axY').style.outline = AXIS==='y'?'2px solid var(--acc)':'none';
 
+  M.badIn = collectBadInputs('pylon');
   renderSummary(M); renderAlerts(M); verdictPylon(M);
   pinStatus('pylon', pinMapPylon(M));
   if(document.getElementById('report').classList.contains('preview')) buildReport(M);
@@ -2309,6 +2336,10 @@ function renderSummary(M){
 function renderAlerts(M){
   const A=[];
   const add=(lv,t)=>A.push(`<div class="alert a-${lv}">${t}</div>`);
+  if(M.badIn && M.badIn.length) add('bad',`<b>輸入空白或無效（已暫以預設值計算，請補正）</b>：${M.badIn.map(b=>`${esc(b.label)} → ${b.dflt}`).join('、')}。`);
+  if(M.noLoads) add('warn','<b>尚未輸入載重組合</b>：目前以零載重計算，撓曲與剪力檢核結果沒有意義。請於「載重組合」新增。');
+  if(M.s.type==='box' && !M.R.inner)
+    add('bad',`<b>箱型未設內層主筋</b>${M.r.dbl?'（壁厚容不下雙層，內層已取消）':''}：繫筋貫穿壁厚後沒有主筋可勾，貫穿壁厚方向無圍束鋼筋，A_sh 須由內層主筋＋繫筋提供。請改為雙層配筋${M.r.dbl?'或加厚壁厚':''}。`);
   const C=M.ctrlFlex, F=M.fin, chk=M.chk;
 
   if(!Number.isFinite(C.dc))
@@ -2323,7 +2354,9 @@ function renderAlerts(M){
   else add('ok',`鋼筋比 ρ_g = ${f(chk.rho,3)}%，落在 1.0% ~ 4.0% 之間。`);
 
   const nd=chk.need;
-  if(chk.clB<nd||chk.clH<nd)
+  if(Math.min(chk.clB,chk.clH) < 0)
+    add('bad',`<b>斷面內放不下主筋</b>：依目前保護層、箍筋與主筋號數，相鄰主筋已重疊（計算淨距 ${f(Math.min(chk.clB,chk.clH),2)} cm）。請減少根數、改用較小號數或檢查保護層與斷面尺寸。`);
+  else if(chk.clB<nd||chk.clH<nd)
     add('bad',`<b>主筋淨距不足</b>：B 邊 ${f(chk.clB,2)} cm、H 邊 ${f(chk.clH,2)} cm，需求 ≥ max(4.0, 1.5d_b=${f(1.5*M.R.db,2)}, 4/3·d_agg=${f(4/3*M.opt.dagg,2)}) = <b>${f(nd,2)} cm</b>。混凝土無法澆置密實（註：4 cm 為柱之規定，非梁的 2.5 cm）。`);
   else add('ok',`主筋淨距 B 邊 ${f(chk.clB,2)} / H 邊 ${f(chk.clH,2)} cm ≥ 需求 ${f(nd,2)} cm。`);
 
@@ -2355,7 +2388,7 @@ function renderAlerts(M){
   if(document.getElementById('envWater').value==='water' && M.r.covO < 5)
     add('warn',`水工／環境結構：外側保護層 ${f(M.r.covO,1)} cm ＜ 5 cm，建議至少 5 cm（參考 ACI 350）。`);
   if(M.conf.termC) add('warn',`P_u,max = ${f(M.opt.PuMax/TF,0)} tf ${M.opt.PuMax>0.3*M.m.Ag*M.m.fc?"＞ 0.3A_g·f'c":"（f'c ＞ 700）"}：A_sh 另加第三式 0.2k_f k_n P_u/(f_yt A_ch)，且<b>每一根主筋都須側撐</b>（ACI 18.7.5.2(f)、18.7.5.4(c)）。`);
-  if(M.fin.tooTight) add('bad',`<b>實務間距無解</b>：需求 s = ${f(M.fin.gov.v,2)} cm（${M.fin.gov.tag}）已小於最小實務間距 ${PRACTICAL_S[PRACTICAL_S.length-1]} cm。`);
+  if(M.fin.tooTight) add('bad',`<b>實務間距無解</b>：需求 s = ${f(M.fin.gov.v,2)} cm（${M.fin.gov.tag}）已小於最小實務間距 ${M.fin.sMin} cm。`);
   else add('ok',`採用 ${M.r.tieSize} @ ${f(M.fin.sUse,1)} cm（控制項：${M.fin.gov.tag}，需求 ≤ ${f(M.fin.gov.v,2)} cm）。`);
 
   if(M.conf.sAsh===M.fin.gov.v) add('info',`<b>圍束筋量 A_sh 為控制項</b> —— 橋塔塑鉸區常見情形，箍筋間距由圍束需求而非剪力強度決定。`);
@@ -3323,6 +3356,7 @@ function applyBPreset(k){
 
 /* ---------- 梁：主計算 ---------- */
 function computeBeam(){
+  BADIN.clear();
   const typeIn = document.getElementById('bType').value, slab = typeIn==='slab';
   const S = {
     type: slab ? 'rect' : typeIn, slab,
@@ -3372,7 +3406,9 @@ function computeBeam(){
   const ctx = S.sign==='pos'?ctxPos:ctxNeg, sol = S.sign==='pos'?solPos:solNeg;
   if(!sol) return null;
 
-  const phi = phiOf(sol.eps_t, m), phiMn = phi*sol.Mn;
+  // 受拉側沒有鋼筋時不具撓曲強度（避免以受壓筋與混凝土算出無意義的 φMn）
+  const noTen = (S.sign==='pos' ? R.AsBot : R.AsTop) <= 1e-9;
+  const phi = phiOf(sol.eps_t, m), phiMn = noTen ? 0 : phi*sol.Mn;
   const phiPos = solPos?phiOf(solPos.eps_t,m)*solPos.Mn:0;
   const phiNeg = solNeg?phiOf(solNeg.eps_t,m)*solNeg.Mn:0;
   const d = ctxDepth(ctx);
@@ -3383,10 +3419,11 @@ function computeBeam(){
   const rho = AsTen/(S.bw*d);
 
   // 同一組載重同時帶正、負彎矩；依目前檢核的斷面取對應值
-  const res = BLOADS.map(L=>({L, Mused:Math.abs(S.sign==='pos'?(L.Mpos??L.Mu??0):(L.Mneg??0)),
+  const noLoads = !BLOADS.length;
+  const res = (noLoads ? [{name:'（尚未輸入載重）',Mpos:0,Mneg:0,Vu:0,Tu:0}] : BLOADS).map(L=>({L, Mused:Math.abs(S.sign==='pos'?(L.Mpos??L.Mu??0):(L.Mneg??0)),
     k:{Mu:Math.abs(S.sign==='pos'?(L.Mpos??L.Mu??0):(L.Mneg??0))*TFM,
        Vu:Math.abs(L.Vu)*TF, Tu:Math.abs(L.Tu)*TFM}}));
-  for(const r of res) r.dc = phiMn>0 ? r.k.Mu/phiMn : Infinity;   // Mu 已依 sign 取對應欄
+  for(const r of res) r.dc = r.k.Mu<=1e-6 ? 0 : (phiMn>0 ? r.k.Mu/phiMn : Infinity);   // Mu 已依 sign 取對應欄
   const ctrl = res.length ? res.reduce((a,b)=> b.dc>a.dc?b:a, res[0]) : null;
 
   const sh = beamShearDesign(S,R,m,ctx,res,solPos?solPos.Mn:0,solNeg?solNeg.Mn:0);
@@ -3397,6 +3434,7 @@ function computeBeam(){
   if(S.sign==='neg'){ defl.na = true; defl.okL = defl.okT = true; }
   const crack = beamCrack(S,R,m,ctx);
   const cw = beamCrackWidth(S,R,m,ctx,icr);
+  if(noTen){ cw.w = Infinity; cw.ok = false; }
   const clr = beamClear(S,R);
   const sug = (ctrl && ctrl.k.Mu>1e-6) ? beamSuggest(S,m,ctrl.k.Mu) : [];
 
@@ -3419,7 +3457,7 @@ function computeBeam(){
   }
 
   BMODEL = {S,m,R,EF,gross,icr,ctxPos,ctxNeg,ctx,solPos,solNeg,sol,phi,phiMn,phiPos,phiNeg,
-            d,AsTen,AsCom,AsMin,rho,res,ctrl,sh,defl,crack,cw,clr,sug,
+            d,AsTen,AsCom,AsMin,rho,res,ctrl,sh,defl,crack,cw,clr,sug,noTen,noLoads,
             fin:{cands,gov,sUse,tooTight}};
   return BMODEL;
 }
@@ -3663,6 +3701,7 @@ function renderBeam(){
       找不到能承受 M_u = ${f(C.Mused,1)} tf·m 的配筋。需加大斷面、提高 f'_c，或改用壓力筋協助。</div>`;
   }
   document.getElementById('bSummary').innerHTML=SB(h);
+  B.badIn = collectBadInputs('beam');
   renderBeamAlerts(B);
   {
     const sh=B.sh, dcSt = !C ? 'ok' : (!Number.isFinite(C.dc)||C.dc>1) ? 'bad' : C.dc>0.9 ? 'warn' : 'ok';
@@ -3676,7 +3715,7 @@ function renderBeam(){
       ...(S.env==='water' ? [[B.cw.ok?'ok':'bad','裂縫寬度',`${f(B.cw.w,3)} mm`,`≤ ${f(B.cw.wLim,2)}`,'bSummary']] : []),
       [B.crack.ok?'ok':'bad','裂縫',`${f(B.crack.sAct,1)} / ${f(B.crack.sLim,1)} cm`,'','bSummary'],
       (()=>{ const c=B.clr, vals=[c.bot,c.top].filter(v=>v!==null), mn=vals.length?Math.min(...vals):null;
-        return [c.okB&&c.okT?'ok':'bad','主筋淨距', mn===null?'—':`${f(mn,1)} cm`, `需 ≥ ${f(Math.max(c.needB,c.needT),1)}`,'bSummary']; })(),
+        return [c.okB&&c.okT?'ok':'bad','主筋淨距', mn===null?'—':(mn<0?'排不下':`${f(mn,1)} cm`), `需 ≥ ${f(Math.max(c.needB,c.needT),1)}`,'bSummary']; })(),
       ...(B.defl.na ? [] : [[B.defl.okL&&B.defl.okT?'ok':'warn','撓度',`Δ_LT ${f(B.defl.dLT,2)} / ${f(B.defl.limT,2)} cm`,'','bSummary']]),
     ],'bAlerts');
   }
@@ -3690,6 +3729,9 @@ function renderBeam(){
 function renderBeamAlerts(B){
   const {S,m}=B, A=[];
   const add=(lv,t)=>A.push(`<div class="alert a-${lv}">${t}</div>`);
+  if(B.badIn && B.badIn.length) add('bad',`<b>輸入空白或無效（已暫以預設值計算，請補正）</b>：${B.badIn.map(b=>`${esc(b.label)} → ${b.dflt}`).join('、')}。`);
+  if(B.noLoads) add('warn','<b>尚未輸入載重組合</b>：目前以零載重計算，檢核結果沒有意義。');
+  if(B.noTen) add('bad',`<b>無受拉鋼筋</b>：目前檢核${S.sign==='pos'?'正彎矩（底層受拉）':'負彎矩（頂層受拉）'}，但${S.sign==='pos'?'底':'頂'}層未配置鋼筋，斷面無法抵抗此方向彎矩。`);
   const C=B.ctrl;
   if(C){
     if(!Number.isFinite(C.dc)) add('bad',`<b>φM_n = 0，斷面無撓曲容量</b>。`);
@@ -3704,8 +3746,10 @@ function renderBeamAlerts(B){
   else add('ok',`A_s = ${f(B.AsTen,2)} ≥ A_s,min = ${f(B.AsMin,2)} cm²。`);
 
   { const c=B.clr;
-    if(!c.okB) add('bad',`<b>底筋淨距不足</b>：${f(c.bot,2)} cm ＜ max(2.5, d_b, 4/3·d_agg) = ${f(c.needB,2)} cm（土木401 §25.2.1）。${S.slab?'請加大間距或改用較細鋼筋。':'請減少單排根數（改兩排）、改用較細鋼筋或加寬腹板。'}`);
-    if(!c.okT) add('bad',`<b>頂筋淨距不足</b>：${f(c.top,2)} cm ＜ max(2.5, d_b, 4/3·d_agg) = ${f(c.needT,2)} cm（土木401 §25.2.1）。${S.slab?'請加大間距或改用較細鋼筋。':'頂筋為單排，請減少根數、改用較粗號數減少根數或加寬腹板。'}`);
+    if(c.bot!==null && c.bot<0) add('bad',`<b>底筋排不下</b>：計算淨距 ${f(c.bot,2)} cm，鋼筋已重疊。`);
+    else if(!c.okB) add('bad',`<b>底筋淨距不足</b>：${f(c.bot,2)} cm ＜ max(2.5, d_b, 4/3·d_agg) = ${f(c.needB,2)} cm（土木401 §25.2.1）。${S.slab?'請加大間距或改用較細鋼筋。':'請減少單排根數（改兩排）、改用較細鋼筋或加寬腹板。'}`);
+    if(c.top!==null && c.top<0) add('bad',`<b>頂筋排不下</b>：計算淨距 ${f(c.top,2)} cm，鋼筋已重疊。`);
+    else if(!c.okT) add('bad',`<b>頂筋淨距不足</b>：${f(c.top,2)} cm ＜ max(2.5, d_b, 4/3·d_agg) = ${f(c.needT,2)} cm（土木401 §25.2.1）。${S.slab?'請加大間距或改用較細鋼筋。':'頂筋為單排，請減少根數、改用較粗號數減少根數或加寬腹板。'}`);
     if(c.okB && c.okT) add('ok',`主筋淨距：底 ${c.bot===null?'—':f(c.bot,2)}、頂 ${c.top===null?'—':f(c.top,2)} cm，皆 ≥ max(2.5, d_b, 4/3·d_agg)。`);
   }
   if(B.sol.eps_t < 0.004) add('bad',`<b>鋼筋量過多</b>：ε_t = ${f(B.sol.eps_t,5)} < 0.004。梁為受撓構材，須維持足夠韌性（土木401 / ACI 9.3.3.1）。`);
@@ -4687,6 +4731,9 @@ function pinStatus(mod, map){
   const MAP_P = [
     {k:'secType', id:'secType', label:'斷面型式'},
     {k:'B',  id:'B',  label:'外寬 B',  u:'cm'},
+    {k:'D',  id:'Dia', label:'直徑 D（圓柱）', u:'cm', circ:true},
+    {k:'nCir', id:'nCir', label:'主筋總根數（圓柱）', u:'根', circ:true},
+    {k:'spiral', id:'spiral', label:'圓柱橫向筋型式', circ:true},
     {k:'H',  id:'H',  label:'外高 H',  u:'cm'},
     {k:'tw', id:'tw', label:'壁厚 t_w', u:'cm'},
     {k:'covO', id:'covO', label:'外側保護層', u:'cm'},
@@ -4715,8 +4762,10 @@ function pinStatus(mod, map){
     properties:{
       name:{type:'STRING',nullable:true},
       member_type:{type:'STRING',enum:['column','pier','pylon','beam','wall','other'],nullable:true},
-      secType:{type:'STRING',enum:['box','solid'],nullable:true},
+      secType:{type:'STRING',enum:['box','solid','circle'],nullable:true},
       B:{type:'NUMBER',nullable:true}, H:{type:'NUMBER',nullable:true},
+      D:{type:'NUMBER',nullable:true},
+      tie_type:{type:'STRING',enum:['spiral','hoop','rect'],nullable:true},
       tw:{type:'NUMBER',nullable:true},
       covO:{type:'NUMBER',nullable:true}, covI:{type:'NUMBER',nullable:true},
       fc:{type:'NUMBER',nullable:true}, fy:{type:'NUMBER',nullable:true},
@@ -4731,7 +4780,7 @@ function pinStatus(mod, map){
       low_confidence:{type:'ARRAY',items:{type:'STRING'}},
       evidence:{type:'STRING',nullable:true}
     },
-    required:['name','member_type','secType','B','H','tw','covO','covI','fc','fy','fyt',
+    required:['name','member_type','secType','B','H','D','tie_type','tw','covO','covI','fc','fy','fyt',
               'barSize_as_drawn','bars_note_as_drawn','n_bars_total','n_bars_source',
               'dbl','tieSize_as_drawn','low_confidence','evidence']
   };
@@ -4771,8 +4820,11 @@ function pinStatus(mod, map){
 ## 欄位定義
 - name: 該斷面在圖上的標題原文（如「橋柱斷面」）。沒有標題就描述位置。
 - member_type: 柱/墩柱=column 或 pier，橋塔=pylon，梁（含繫梁、橫梁）=beam，牆=wall，其他=other。
-- secType: "box" = 中空箱型（斷面中間有空心區）；"solid" = 實心矩形。
-- B: 斷面外寬（水平方向，cm）。H: 斷面外高（垂直方向，cm）。
+- secType: "box" = 中空箱型（斷面中間有空心區）；"solid" = 實心矩形；"circle" = 圓形斷面（圓柱、圓墩）。
+- B: 斷面外寬（水平方向，cm）。H: 斷面外高（垂直方向，cm）。圓形斷面 B、H 填 null。
+- D: 圓形斷面直徑（cm），常標成「φ120」「D=120」「直徑 120」。矩形與箱型填 null。
+- tie_type: 橫向鋼筋型式。連續螺旋狀（標「螺箍」「SPIRAL」「螺旋箍筋」）= "spiral"；
+  圓形單圈箍筋（標「圓箍」「HOOP」）= "hoop"；矩形箍筋與繫筋 = "rect"。看不出來填 null。
 - tw: 中空箱型的壁厚（cm）。實心斷面填 null。
 - covO: 外側保護層（cm）。圖上常寫在斷面標題下方的備註，例如「備註：保護層7.5公分」。
 - covI: 內側（中空面）保護層。實心斷面填 null。
@@ -4839,7 +4891,7 @@ function pinStatus(mod, map){
 
   function fmt(k, v){
     if(v === null || v === undefined || v === '') return null;
-    if(k === 'secType') return v === 'box' ? '中空箱型' : '實心矩形';
+    if(k === 'secType') return v === 'box' ? '中空箱型' : v === 'circle' ? '圓形' : '實心矩形';
     if(k === 'dbl')     return v === '1' ? '是（雙層）' : '否（單層）';
     return String(v);
   }
@@ -4860,10 +4912,17 @@ function pinStatus(mod, map){
     const lc = new Set(sec.low_confidence || []);
     const bar = normBar(sec.barSize_as_drawn, isBeam ? 'bBotSize' : 'barSize');
     const tie = normBar(sec.tieSize_as_drawn, isBeam ? 'bTieSize' : 'tieSize');
-    const val = k => k === 'barSize' ? bar.v : (k === 'tieSize' ? tie.v : sec[k]);
+    const circ = sec.secType === 'circle';
+    const val = k => k === 'barSize' ? bar.v : k === 'tieSize' ? tie.v
+      : k === 'nCir' ? (circ ? sec.n_bars_total : null)
+      : k === 'spiral' ? (sec.tie_type==='spiral' ? 'spiral' : sec.tie_type==='hoop' ? 'hoop' : null)
+      : sec[k];
+    // 依斷面型式只列相關欄位：圓柱不列 B、H、壁厚、內側保護層、雙層；矩形不列圓柱欄位
+    const skip = new Set(circ ? ['B','H','tw','covI','dbl'] : ['D','nCir','spiral']);
 
     let rows = '';
     map.forEach(f => {
+      if(!isBeam && skip.has(f.k)) return;
       const v = val(f.k);
       const edId = 'ed_'+idx+'_'+f.id;
       const has = v !== null && v !== undefined && v !== '';
@@ -4907,7 +4966,8 @@ function pinStatus(mod, map){
            : '<span class="imp-tag bad">判讀不出來</span>')
       + (sec.bars_note_as_drawn ? '　圖上原文：'+sec.bars_note_as_drawn : '')
       + (n && !srcOk ? '<br>這個數字不是照抄圖上文字，是模型自己數的，<b>務必自己再數一次</b>。' : '')
-      + (n ? '<br>單面根數 n<sub>B</sub> / n<sub>H</sub> <b>不會自動填</b>，'
+      + (n && circ ? '<br>圓柱：主筋總根數直接帶入「主筋總根數」欄（上表）。' : '')
+      + (n && !circ ? '<br>單面根數 n<sub>B</sub> / n<sub>H</sub> <b>不會自動填</b>，'
             + '套用後請自行輸入，需滿足 2×(n<sub>B</sub>+n<sub>H</sub>)−4 = '+n
             + '，工具會在「總根數」旁即時比對。'
             + '<br><b>但總數相符不等於配置正確</b>——同一個總數有多組解'

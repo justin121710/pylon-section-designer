@@ -131,6 +131,7 @@ function writeCalcSheet(ws, cs, resolve){
       });
       if(row.note){ const c=R.getCell(6); c.value=(typeof row.note==='object')?{formula:resolve(row.note.f,cs.name)}:row.note; plain(c,{fill:row.total?K.amber:undefined}); }
       if(row.ref){ const c=R.getCell(7); c.value=row.ref; plain(c,{fill:row.total?K.amber:undefined}); }
+      if(!row.head) fitHeight(R, [[row.label,230],[typeof row.note==='string'?row.note:'',260],[row.ref,300]]);
       if(row.head){ R.getCell(6).value='說明'; plain(R.getCell(6),{font:{bold:true},fill:K.hdr}); R.getCell(7).value='規範依據'; plain(R.getCell(7),{font:{bold:true},fill:K.hdr}); }
       continue;
     }
@@ -148,7 +149,18 @@ function writeCalcSheet(ws, cs, resolve){
       c.dataValidation={type:'list', allowBlank:true, formulae:[L], showErrorMessage:false};
     }
     if(row.note) c.note={texts:[{text:row.note}]};
+    fitHeight(R, [[row.label,230],[row.expr,260],[row.crit,260],[row.ref,300]]);
   }
+}
+/* 合併前之自動換行列：依各欄文字長度估算行數並設定列高（ExcelJS 不會自動調整） */
+function fitHeight(R, pairs){
+  let lines = 1;
+  for(const [s,w] of pairs){
+    if(!s || typeof s!=='string') continue;
+    let u = 0; for(const ch of s) u += ch.charCodeAt(0) > 0x2E80 ? 10.5 : 5.8;   // 全形約 10.5pt、半形約 5.8pt（Arial 10）
+    lines = Math.max(lines, Math.ceil(u / (w - 8)));
+  }
+  if(lines > 1) R.height = 13.5*lines + 3;
 }
 function writeTable(ws, row, resolve, from){
   const R0=ws.getRow(row.r0);
@@ -343,9 +355,9 @@ function buildColumn(ExcelJS, inp){
       f:`IF({isCirc}=1,0.8*{Din},${ax==='x'?'{Be}':'{He}'}/2-IFERROR(SUMPRODUCT(${A}${end},--(${L}${end}<0),${L}${end})/SUMPRODUCT(${A}${end},--(${L}${end}<0)),-${ax==='x'?'{Be}':'{He}'}/2*0.8))`,
       expr:'受壓緣至受拉側鋼筋群形心；圓形 d = 0.8D', ref:ref401('22.5.2.2')});
     S.item({key:'nl'+ax, label:`${X} 向剪力肢數`, sym:'nlegs', unit:'肢',
-      f: ax==='x' ? 'IF({isCirc}=1,2,IF({isBox}=1,IF({dbl}="是",4,2),2+IF({everyH}=1,{nH}-2,INT(({nH}-2)/2))))'
-                  : 'IF({isCirc}=1,2,IF({isBox}=1,IF({dbl}="是",4,2),2+IF({everyB}=1,{nB}-2,INT(({nB}-2)/2))))',
-      expr:'實心：閉合箍筋 2 肢＋該向繫筋；箱型 2 或 4；圓形 Av = 2Asp', ref:ref401('22.5.10.5')});
+      f: ax==='x' ? 'IF({isCirc}=1,2,IF({isBox}=1,IF({inOK}=1,4,2),2+IF({everyH}=1,{nH}-2,INT(({nH}-2)/2))))'
+                  : 'IF({isCirc}=1,2,IF({isBox}=1,IF({inOK}=1,4,2),2+IF({everyB}=1,{nB}-2,INT(({nB}-2)/2))))',
+      expr:'實心：閉合箍筋 2 肢＋該向繫筋；箱型 2（單層）或 4（雙層）；圓形 Av = 2Asp', ref:ref401('22.5.10.5')});
     S.item({key:'Av'+ax, label:`${X} 向 Av`, sym:'Av', f:`{nl${ax}}*{At}`, unit:'cm²', fmt:'0.000', ref:'—'});
     S.item({key:'Mcd'+ax, label:`${X} 向容量設計彎矩（各組合取大）`, sym:'Mo', unit:'tf·m', fmt:'#,##0.0',
       f:`IF({isBldg}=1,MAX('載重組合'!${ax==='x'?'AD':'AE'}4:${ax==='x'?'AD':'AE'}${3+NCB}),{phio}*MAX('載重組合'!${ax==='x'?'AB':'AC'}4:${ax==='x'?'AB':'AC'}${3+NCB}))`,
@@ -424,7 +436,8 @@ function buildColumn(ExcelJS, inp){
     f:'MIN('+cands.map(c=>'{'+c[0]+'}').join(',')+')', expr:'上列各上限之最小值', ref:'—'});
   S.item({key:'sGovTag', label:'控制項', f:'INDEX({rng:candName},MATCH({sGov},{rng:candVal},0))', expr:'對照表區「間距候選」', ref:'—'});
   S.item({key:'sUse', label:'採用間距（實務值）', sym:'s', unit:'cm', fmt:'0.0',
-    f:'IFERROR(_xlfn.AGGREGATE(14,6,{rng:sList}/({rng:sList}<={sGov}),1),MIN({rng:sList}))', expr:'實務間距表中 ≦ 需求之最大值', ref:'非規範明列條文，係施工慣用間距'});
+    f:'IFERROR(_xlfn.AGGREGATE(14,6,{rng:sList}/(({rng:sList}<={sGov})*((({rng:sFlag}=0)+{isSp})>0)),1),IF({isSp}=1,5,7.5))',
+    expr:'實務間距表中 ≦ 需求之最大值（螺箍另可用 6、5 cm）', ref:'非規範明列條文，係施工慣用間距'});
   S.item({key:'spClr', label:'螺箍淨距', sym:'s − dt', f:`IF({isSp}=1,{sUse}-{dt},${BIG})`, unit:'cm', fmt:FMT_SINF, crit:'≧ max(2.5, 4/3·dagg)', ref:ref401('25.7.3.1')});
   S.item({key:'spMin', label:'螺箍最小淨距', f:'MAX(2.5,4/3*{dagg})', unit:'cm', fmt:'0.00', ref:ref401('25.7.3.1')});
 
@@ -459,7 +472,8 @@ function buildColumn(ExcelJS, inp){
   S.table({cols:[{h:'鋼筋號數',key:'barName',input:true},{h:'直徑 (cm)',key:'barD',input:true,fmt:'0.000'},{h:'面積 (cm²)',key:'barA',input:true,fmt:'0.000'}],
            data:BARS.map(b=>[b[0],b[1],b[2]])});
   S.blank();
-  S.table({cols:[{h:'實務箍筋間距 (cm)',key:'sList',input:true,fmt:'0.0'}], data:PRACTICAL_S.map(v=>[v])});
+  S.table({cols:[{h:'實務箍筋間距 (cm)',key:'sList',input:true,fmt:'0.0'},{h:'螺箍專用 (1＝是)',key:'sFlag',input:true}],
+           data:PRACTICAL_S.map(v=>[v,0]).concat([[6,1],[5,1]])});
   S.blank();
   S.table({cols:[{h:'間距候選項目',key:'candName'},{h:'值 (cm)',key:'candVal',fmt:FMT_SINF}],
            data:cands.map(c=>[c[1],{f:'{'+c[0]+'}'}])});
@@ -503,8 +517,8 @@ function buildCoordSheet(ws, R){
     put(ws,'A'+n,i);
     put(ws,'B'+n,r(`IF(AND({isCirc}=0,A${n}<={nB}),-{hxO}+{pB}*(A${n}-1),0)`),{fmt:'0.00'});
     put(ws,'C'+n,r(`IF(AND({isCirc}=0,A${n}<={nH}),-{hyO}+{pH}*(A${n}-1),0)`),{fmt:'0.00'});
-    put(ws,'D'+n,r(`IF(AND({isCirc}=0,A${n}>=2,A${n}<={nB}-1,OR({everyB}=1,MOD(A${n}-1,2)=0),OR({inOK}=0,ABS(B${n})<{hxI}-1E-6)),1,0)`));
-    put(ws,'E'+n,r(`IF(AND({isCirc}=0,A${n}>=2,A${n}<={nH}-1,OR({everyH}=1,MOD(A${n}-1,2)=0),OR({inOK}=0,ABS(C${n})<{hyI}-1E-6)),1,0)`));
+    put(ws,'D'+n,r(`IF(AND({isCirc}=0,A${n}>=2,A${n}<={nB}-1,OR({everyB}=1,MOD(A${n}-1,2)=0),IF({isBox}=1,AND({inOK}=1,ABS(B${n})<{hxI}-1E-6),TRUE)),1,0)`));
+    put(ws,'E'+n,r(`IF(AND({isCirc}=0,A${n}>=2,A${n}<={nH}-1,OR({everyH}=1,MOD(A${n}-1,2)=0),IF({isBox}=1,AND({inOK}=1,ABS(C${n})<{hyI}-1E-6),TRUE)),1,0)`));
     put(ws,'F'+n,r(`IF(AND({inOK}=1,A${n}<={nB},ABS(B${n})<{hxI}-1E-6),1,0)`));
     put(ws,'G'+n,r(`IF(AND({inOK}=1,A${n}<={nH},ABS(C${n})<{hyI}-1E-6),1,0)`));
     put(ws,'H'+n,r(`IF(AND({isCirc}=1,A${n}<={nC}),PI()/2+2*PI()*(A${n}-1)/{nC},0)`),{fmt:'0.0000'});
@@ -644,9 +658,9 @@ function buildLoadSheet(ws, R, loads){
     // 單軸射線 D/C（由「射線交點」取 1/min t）
     put(ws,'I'+n,{f:`IF(${on},'射線交點'!${colL(1+i)}${RAY_DC_ROW},"")`},{fmt:FMT_INF});
     put(ws,'J'+n,{f:`IF(${on},'射線交點'!${colL(1+NCB+i)}${RAY_DC_ROW},"")`},{fmt:FMT_INF});
-    put(ws,'K'+n, r(`IF(NOT(${on}),"",IF({isCirc}=1,"圓形：合彎矩",IF(AND(${Mx}<1E-9,${My}<1E-9),"純軸力",IF(${My}<1E-9,"單軸（繞 X）",IF(${Mx}<1E-9,"單軸（繞 Y）",IF(B${n}>={Pbr},"Bresler 倒數式","載重輪廓法"))))))`));
+    put(ws,'K'+n, r(`IF(NOT(${on}),"",IF({isCirc}=1,"圓形：合彎矩",IF(AND(${Mx}<1E-9,${My}<1E-9),"純軸力",IF(${My}<1E-9,"單軸（繞 X）",IF(${Mx}<1E-9,"單軸（繞 Y）",IF(B${n}>={Pbr},"Bresler 倒數式","PCA 載重輪廓法"))))))`));
     put(ws,'L'+n, r(`IF(K${n}="Bresler 倒數式",IFERROR(B${n}/(1/(1/(B${n}/I${n})+1/(B${n}/J${n})-1/{cap})),${BIG}),"")`),{fmt:FMT_INF});
-    put(ws,'M'+n, {f:`IF(NOT(${on}),"",CHOOSE(MATCH(K${n},{"圓形：合彎矩","純軸力","單軸（繞 X）","單軸（繞 Y）","Bresler 倒數式","載重輪廓法"},0),ABS(I${n}),ABS(I${n}),I${n},J${n},L${n},'雙軸迭代'!${colL(1+i)}${BIS_DC_ROW}))`},{fmt:FMT_INF});
+    put(ws,'M'+n, {f:`IF(NOT(${on}),"",CHOOSE(MATCH(K${n},{"圓形：合彎矩","純軸力","單軸（繞 X）","單軸（繞 Y）","Bresler 倒數式","PCA 載重輪廓法"},0),ABS(I${n}),ABS(I${n}),I${n},J${n},L${n},'雙軸迭代'!${colL(1+i)}${BIS_DC_ROW}))`},{fmt:FMT_INF});
     // 剪力（X 向剪力用 X 軸曲線，與網頁相同）
     for(const [ax,V,cVd,cVc,cVs] of [['x','E','N','O','P'],['y','F','Q','R','S']]){
       const Nu=`B${n}*1000`, Vu=`ABS(${V}${n})*1000`;
@@ -727,7 +741,7 @@ function buildBisectSheet(ws, R){
   for(let i=0;i<NCB;i++){
     const col=colL(1+i), lr=4+i;
     put(ws,col+'2',{f:`'載重組合'!A${lr}`},{head:true});
-    put(ws,col+'3',{f:`--AND('載重組合'!H${lr}=1,'載重組合'!K${lr}="載重輪廓法")`});
+    put(ws,col+'3',{f:`--AND('載重組合'!H${lr}=1,'載重組合'!K${lr}="PCA 載重輪廓法")`});
     const Pu=`'載重組合'!$B$${lr}`, Mx=`ABS('載重組合'!$C$${lr})`, My=`ABS('載重組合'!$D$${lr})`;
     const util = lam => `IF(OR(${phiMnAt('P-M_X',`${lam}*${Pu}`)}<=0,${phiMnAt('P-M_Y',`${lam}*${Pu}`)}<=0),1E9,(${lam}*${Mx}/(${phiMnAt('P-M_X',`${lam}*${Pu}`)}))^{alpha}+(${lam}*${My}/(${phiMnAt('P-M_Y',`${lam}*${Pu}`)}))^{alpha})`;
     for(let j=0;j<NIT;j++){
@@ -1041,9 +1055,9 @@ function buildBeam(ExcelJS, inp){
   S.item({key:'dmax', label:'最外受拉筋深度', f:'MAX({d1},IF({r2}>0,{d2},-1E9),{dT})', unit:'cm', fmt:'0.00', ref:'—'});
   S.item({key:'et', label:'最外受拉筋應變 εt', sym:'εt', f:'{ecu}*({dmax}-{c})/{c}', unit:'無因次', fmt:'0.00000', crit:'≧ 0.004（受撓構材）', ref:ref401('9.3.3.1')});
   S.item({key:'phi', label:'強度折減因數 φ', sym:'φ', f:'IF({et}<={ety},{phic},IF({et}>=0.005,{phit},{phic}+({phit}-{phic})*({et}-{ety})/(0.005-{ety})))', unit:'無因次', fmt:'0.000', ref:ref401('21.2.2')});
-  S.item({key:'phiMn', label:'設計彎矩強度 φMn', sym:'φMn', f:'{phi}*{Mn}', unit:'tf·m', fmt:'#,##0.00', ref:ref401('9.5.1.1')});
+  S.item({key:'phiMn', label:'設計彎矩強度 φMn', sym:'φMn', f:'IF({AsT}<=0,0,{phi}*{Mn})', unit:'tf·m', fmt:'#,##0.00', expr:'受拉側無鋼筋時取 0', ref:ref401('9.5.1.1')});
   S.item({key:'MuMax', label:'需求彎矩 Mu（各組合最大）', sym:'Mu', f:"MAX('載重組合'!G4:G"+(3+NCB)+')', unit:'tf·m', fmt:'#,##0.00', expr:'依檢核斷面取 Mu⁺ 或 Mu⁻', ref:'—'});
-  S.item({key:'DC', label:'撓曲 D/C', sym:'D/C', f:'IF({phiMn}>0,{MuMax}/{phiMn},1E9)', unit:'無因次', fmt:FMT_INF, crit:'≦ 1.0', ref:ref401('9.5.1.1')});
+  S.item({key:'DC', label:'撓曲 D/C', sym:'D/C', f:'IF({MuMax}<=1E-6,0,IF({phiMn}>0,{MuMax}/{phiMn},1E9))', unit:'無因次', fmt:FMT_INF, crit:'≦ 1.0', ref:ref401('9.5.1.1')});
   S.item({key:'Mpos', label:'φMn⁺（正彎矩，耐震用）', f:"'撓曲求解'!F3", unit:'tf·m', fmt:'#,##0.00', kind:'link', ref:ref401('18.6.3.2')});
   S.item({key:'Mneg', label:'φMn⁻（負彎矩，耐震用）', f:"'撓曲求解'!F4", unit:'tf·m', fmt:'#,##0.00', kind:'link', ref:ref401('18.6.3.2')});
   S.item({key:'MprP', label:'Mpr⁺（1.25fy、φ=1）', f:"'撓曲求解'!F5", unit:'tf·m', fmt:'#,##0.00', kind:'link', ref:ref401('18.6.5.1')});
@@ -1082,7 +1096,7 @@ function buildBeam(ExcelJS, inp){
   S.item({key:'sConf', label:'耐震加密區上限', sym:'s', f:`IF({isS}=1,MIN({d}/4,6*MIN({dbB},{dbT}),15),${BIG})`, unit:'cm', fmt:FMT_SINF, ref:ref401('18.6.4.4')});
   S.item({key:'sTors', label:'扭矩間距上限', sym:'s', f:`IF({tors}=1,MIN({ph}/8,30),${BIG})`, unit:'cm', fmt:FMT_SINF, ref:ref401('9.7.6.3.3')});
   S.item({key:'sGov', label:'控制需求間距（梁）', sym:'s', f:'MIN({sStr},{sMin},{sCode},{sConf},{sTors})', unit:'cm', fmt:'0.00', ref:'—'});
-  S.item({key:'sUse', label:'採用箍筋間距（梁）', sym:'s', f:'IFERROR(_xlfn.AGGREGATE(14,6,{rng:sList}/({rng:sList}<={sGov}),1),MIN({rng:sList}))', unit:'cm', fmt:'0.0', ref:'非規範明列條文，係施工慣用間距'});
+  S.item({key:'sUse', label:'採用箍筋間距（梁）', sym:'s', f:'IFERROR(_xlfn.AGGREGATE(14,6,{rng:sList}/(({rng:sList}<={sGov})*({rng:sFlag}=0)),1),7.5)', unit:'cm', fmt:'0.0', ref:'非規範明列條文，係施工慣用間距'});
   S.item({key:'sSlab', label:'版主筋最大間距', sym:'s', f:'MIN(3*{h},45)', unit:'cm', fmt:'0.0', ref:ref401('7.7.2.3')});
   S.item({key:'sSlabUse', label:'版主筋採用間距（取大）', sym:'s', f:'MAX({spB},{spT})', unit:'cm', fmt:'0.0', ref:'—'});
 
@@ -1129,8 +1143,8 @@ function buildBeam(ExcelJS, inp){
   S.item({key:'dc', label:'裂縫寬度：dc', sym:'dc', f:'{cover}+{dt}+IF({isPos}=1,{dbB},{dbT})/2', unit:'cm', fmt:'0.00', ref:'—'});
   S.item({key:'pit', label:'裂縫寬度：受拉筋間距', f:'IF({isSlab}=1,IF({isPos}=1,{spB},IF({spT}>0,{spT},{spB})),{bw}/MAX(1,IF({isPos}=1,{r1},{nTop})))', unit:'cm', fmt:'0.00', ref:'—'});
   S.item({key:'beta', label:'裂縫寬度：β', sym:'β', f:'({h}-{x})/({d}-{x})', unit:'無因次', fmt:'0.000', ref:'—'});
-  S.item({key:'w', label:'裂縫寬度 w', sym:'w', unit:'mm', fmt:'0.000',
-    f:'1.1E-5*{beta}*{fsS}*0.0980665*(({dc}*10)*(2*{dc}*{pit}*100))^(1/3)', expr:'w = 1.1×10⁻⁵ β fs ∛(dc·A)（SI：MPa、mm）', ref:'非我國規範明列；係 Gergely-Lutz 式（ACI 224R）'});
+  S.item({key:'w', label:'裂縫寬度 w', sym:'w', unit:'mm', fmt:'[>=1E+9]"∞";0.000',
+    f:'IF({AsT}<=0,1E9,1.1E-5*{beta}*{fsS}*0.0980665*(({dc}*10)*(2*{dc}*{pit}*100))^(1/3))', expr:'w = 1.1×10⁻⁵ β fs ∛(dc·A)（SI：MPa、mm）', ref:'非我國規範明列；係 Gergely-Lutz 式（ACI 224R）'});
   S.item({key:'wLim', label:'容許裂縫寬度', sym:'wlim', v:+inp.wLim||0.2, unit:'mm', kind:'list', list:['0.10','0.15','0.20','0.25','0.30'], fmt:'0.00',
     crit:'關鍵假設：水密要求嚴格 0.10；一般戶外 0.15～0.30', ref:'非我國規範明列；參考 ACI 224R 表 4.1', note:'關鍵假設。ACI 224R 建議水密結構 0.10 mm；請依設計準則選定。'});
 
@@ -1149,7 +1163,7 @@ function buildBeam(ExcelJS, inp){
   addSum({label:'底筋淨距（cm）', need:{f:'{needB}'}, cap:{f:'{clrB}'}, ratio:{f:'{needB}/{clrB}'}, judge:{f:`IF({clrB}>=${BIG},"N/A",IF({clrB}>={needB},"PASS","FAIL"))`}, ref:ref401('25.2.1')});
   addSum({label:'頂筋淨距（cm）', need:{f:'{needT}'}, cap:{f:'{clrT}'}, ratio:{f:'{needT}/{clrT}'}, judge:{f:`IF({clrT}>=${BIG},"N/A",IF({clrT}>={needT},"PASS","FAIL"))`}, ref:ref401('25.2.1')});
   addSum({label:'裂縫控制 鋼筋中心距（cm）', need:{f:'{sAct}'}, cap:{f:'{sLim}'}, ratio:{f:'{sAct}/{sLim}'}, judge:J('{sAct}<={sLim}'), ref:ref401('24.3.2')});
-  addSum({label:'水工裂縫寬度（mm）', need:{f:'{w}'}, cap:{f:'{wLim}'}, ratio:{f:'{w}/{wLim}'}, judge:{f:'IF({isW}=0,"N/A",IF({w}<={wLim},"PASS","FAIL"))'}, fmt:'0.000', ref:'ACI 224R（參考）'});
+  addSum({label:'水工裂縫寬度（mm）', need:{f:'{w}'}, cap:{f:'{wLim}'}, ratio:{f:'{w}/{wLim}'}, judge:{f:'IF({isW}=0,"N/A",IF({w}<={wLim},"PASS","FAIL"))'}, fmt:'[>=1E+9]"∞";0.000', ref:'ACI 224R（參考）'});
   addSum({label:'水工保護層（cm）', need:5, cap:{f:'{cover}'}, ratio:{f:'5/{cover}'}, judge:{f:'IF({isW}=0,"N/A",IF({cover}>=5,"PASS","FAIL"))'}, ref:'ACI 350（參考）'});
   addSum({label:'即時活載撓度（cm）', need:{f:'{dL}'}, cap:{f:'{L}/{limL}'}, ratio:{f:'{dL}/({L}/{limL})'}, judge:{f:'IF({isPos}=0,"N/A",IF({dL}<={L}/{limL},"PASS","FAIL"))'}, fmt:'0.000', note:'撓度以跨中正彎矩斷面檢核', ref:ref401('24.2.2')});
   addSum({label:'長期總撓度（cm）', need:{f:'{dLT}'}, cap:{f:'{L}/{limT}'}, ratio:{f:'{dLT}/({L}/{limT})'}, judge:{f:'IF({isPos}=0,"N/A",IF({dLT}<={L}/{limT},"PASS","FAIL"))'}, fmt:'0.000', note:'同上', ref:ref401('24.2.2')});
@@ -1168,7 +1182,8 @@ function buildBeam(ExcelJS, inp){
   S.section('【附錄、對照表區】');
   S.table({cols:[{h:'鋼筋號數',key:'barName',input:true},{h:'直徑 (cm)',key:'barD',input:true,fmt:'0.000'},{h:'面積 (cm²)',key:'barA',input:true,fmt:'0.000'}], data:BARS.map(b=>[b[0],b[1],b[2]])});
   S.blank();
-  S.table({cols:[{h:'實務箍筋間距 (cm)',key:'sList',input:true,fmt:'0.0'}], data:PRACTICAL_S.map(v=>[v])});
+  S.table({cols:[{h:'實務箍筋間距 (cm)',key:'sList',input:true,fmt:'0.0'},{h:'螺箍專用 (1＝是)',key:'sFlag',input:true}],
+           data:PRACTICAL_S.map(v=>[v,0]).concat([[6,1],[5,1]])});
   S.layout();
   const r1=sumRows[0].r, r2=sumRows[sumRows.length-1].r;
   const jt=S.rows.find(r=>r.key==='jAll'); jt.judge={f:`IF(COUNTIF($E$${r1}:$E$${r2},"FAIL")=0,"PASS","NG")`};
@@ -1196,7 +1211,7 @@ function buildBeamLoads(ws, R, loads){
     ['Mpos','Mneg','Vu','Tu'].forEach((k,j)=>put(ws,colL(1+j)+n, L?(+L[k]||0):null, {input:true, fmt:'#,##0.00'}));
     put(ws,'G'+n, r(`IF(A${n}="","",IF({isPos}=1,ABS(B${n}),ABS(C${n})))`),{fmt:'#,##0.00'});
     put(ws,'H'+n, {f:`IF(A${n}="","",ABS(D${n}))`},{fmt:'#,##0.00'});
-    put(ws,'I'+n, r(`IF(A${n}="","",IF({phiMn}>0,G${n}/{phiMn},1E9))`),{fmt:FMT_INF});
+    put(ws,'I'+n, r(`IF(A${n}="","",IF(G${n}<=1E-6,0,IF({phiMn}>0,G${n}/{phiMn},1E9)))`),{fmt:FMT_INF});
   }
 }
 
@@ -1417,7 +1432,7 @@ function scatterChartXml(o){
     + `<c:scatterChart><c:scatterStyle val="lineMarker"/><c:varyColors val="0"/>${ser}<c:axId val="5001"/><c:axId val="5002"/></c:scatterChart>`
     + axis(5001,5002,'b',o.xTitle,o.xAxis) + axis(5002,5001,'l',o.yTitle,o.yAxis)
     + `<c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr></c:plotArea>`
-    + (o.legend===false ? '' : `<c:legend><c:legendPos val="b"/>${(o.legendDel||[]).map(i=>`<c:legendEntry><c:idx val="${i}"/><c:delete val="1"/></c:legendEntry>`).join('')}<c:overlay val="0"/><c:txPr><a:bodyPr/><a:p><a:pPr><a:defRPr sz="800"/></a:pPr><a:endParaRPr lang="zh-TW"/></a:p></c:txPr></c:legend>`)
+    + (o.legend===false ? '' : `<c:legend><c:legendPos val="${o.legendPos||'b'}"/>${(o.legendDel||[]).map(i=>`<c:legendEntry><c:idx val="${i}"/><c:delete val="1"/></c:legendEntry>`).join('')}<c:overlay val="0"/><c:txPr><a:bodyPr/><a:p><a:pPr><a:defRPr sz="800"/></a:pPr><a:endParaRPr lang="zh-TW"/></a:p></c:txPr></c:legend>`)
     + `<c:plotVisOnly val="1"/><c:dispBlanksAs val="gap"/>`
     + `<c:extLst><c:ext uri="{56B9EC1D-385E-4148-901F-78D8002777C0}"><c16r3:dataDisplayOptions16><c16r3:dispNaAsBlank val="1"/></c16r3:dataDisplayOptions16></c:ext></c:extLst>`
     + `</c:chart><c:spPr><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill><a:ln w="6350"><a:solidFill><a:srgbClr val="BFBFBF"/></a:solidFill></a:ln></c:spPr>`
@@ -1584,7 +1599,7 @@ function buildColumnChartData(ws, R){
 const LOAD_MK = [['diamond','B03A2E'],['square','1F5FA8'],['triangle','2E7D32'],['circle','EF6C00'],['x','6B4FA8'],['star','C2185B'],
                  ['plus','00838F'],['dash','5D4037'],['diamond','7CB342'],['square','3949AB'],['triangle','8A5A12'],['circle','455A64']];
 function loadSeries(inp, ax){
-  const n = NCB;          // 預留全部列：在 Excel 新增組合也會畫出（空白列不繪點）
+  const n = Math.min(NCB, Math.max(1, inp.loads.length) + 2);   // 匯出組數＋2 組預留（空白組合在圖例留空白項）
   const [cx, cy] = ax==='x' ? ['S','T'] : ['U','V'];
   return Array.from({length:n}, (_,i)=>{
     const [sym, col] = LOAD_MK[i % LOAD_MK.length];
@@ -1623,11 +1638,11 @@ function columnCharts(inp, info, a4Start){
     return scatterChartXml({
       title: circle ? 'P-M 互制曲線（圓形：合彎矩）' : `P-M 互制曲線（繞 ${ax.toUpperCase()} 軸）`,
       xTitle: circle ? 'Mr = √(Mx² + My²) (tf·m)' : `M${ax} (tf·m)`, yTitle:'P (tf)，壓為正',
-      xAxis:{fmt:'#,##0'}, yAxis:{fmt:'#,##0'},
+      xAxis:{fmt:'#,##0'}, yAxis:{fmt:'#,##0'}, legendPos:'r',
       series:[
         ser('標稱 Pn–Mn', ax==='x' ? [`${qs(CD)}!$Y$3:$Y$${4+NPM}`, `${qs(CD)}!$Z$3:$Z$${4+NPM}`] : [`${qs(CD)}!$AA$3:$AA$${4+NPM}`, `${qs(CD)}!$AB$3:$AB$${4+NPM}`], {color:'8A97A5', w:1.25}),
         ser('設計 φPn–φMn', [rng('Q',PM_H+1,PM_H+POLY_N), rng('R',PM_H+1,PM_H+POLY_N)], {color:'0F5F6B', w:2.25}),
-        {name:'控制組合 D/C 射線（雙軸時僅示意）', x: ax==='x'?`${qs(CD)}!$AC$3:$AC$4`:`${qs(CD)}!$AE$3:$AE$4`, y: ax==='x'?`${qs(CD)}!$AD$3:$AD$4`:`${qs(CD)}!$AF$3:$AF$4`,
+        {name:'控制組合 D/C 射線', x: ax==='x'?`${qs(CD)}!$AC$3:$AC$4`:`${qs(CD)}!$AE$3:$AE$4`, y: ax==='x'?`${qs(CD)}!$AD$3:$AD$4`:`${qs(CD)}!$AF$3:$AF$4`,
          line:{color:'B03A2E', w:1, dash:'dash'}, marker:{symbol:'circle', size:6, color:'B03A2E', fill:'FFFFFF'}},
         ...loadSeries(inp, ax)
       ]});
