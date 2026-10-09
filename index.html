@@ -897,7 +897,7 @@ img,video{max-width:100%;height:auto}
       <div class="fld"><span>最小鋼筋比 ρ_min（版）</span><input id="bRhoTs" type="number" step="0.0002" value="0.0018"></div>
       <div class="fld"><span>箍筋號數</span><select id="bTieSize"></select></div>
       <div class="fld"><span>箍筋肢數 n<sub>legs</sub></span><input id="bNlegs" type="number" step="1" value="2"></div>
-      <div class="fld"><span>外箍型式</span><select id="bHoop"><option value="closed">一體式閉合箍（兩端 135° 角隅搭接）</option><option value="cap">兩件式（U 形肋筋＋頂部繫筋封口）</option></select></div>
+      <div class="fld"><span>外箍型式</span><select id="bHoop"><option value="closed">一體式閉合箍</option><option value="cap">兩件式（U 形＋封口繫筋）</option></select></div>
       <div class="text-[11.5px] mt-1" style="color:var(--dim)">
         d = <b id="bOutD" class="mono">—</b> cm ｜ A<sub>s</sub> = <b id="bOutAs" class="mono">—</b> cm²
         ｜ ρ = <b id="bOutRho" class="mono">—</b> %
@@ -4034,7 +4034,7 @@ function caseApply(c){
   if(c.devexp && typeof c.devexp==='object') for(const k of ['col','beam']) if(c.devexp[k] && Array.isArray(c.devexp[k].f)) DEVEXP[k] = c.devexp[k];
   try{ localStorage.setItem('rcsd.devexp', JSON.stringify(DEVEXP)); }catch(e){}
   drawLoads(); drawBLoads();
-  renderBeam();
+  render(); renderBeam();          // 柱、梁兩個模型都依案件重算（不只目前分頁）
   document.getElementById(c.tab==='beam'?'tabBeam':'tabPylon').click();
 }
 function caseAutosave(){
@@ -4111,6 +4111,9 @@ async function exportXlsx(){
     const inp = TAB==='beam' ? beamXlsxInput() : colXlsxInput();
     { const MM = TAB==='beam' ? (BMODEL||renderBeam()) : (MODEL||render()), sel = devExpSel(MM.devPlan.mod, MM.devPlan);
       inp.devFigs = await devFigsPng(MM);
+      // 斷面圖與箍筋配置立面：與網頁同一張圖（列印配色）轉 PNG 嵌入，不再由 Excel 圖表重繪
+      inp.secFig = await svgPng(TAB==='beam' ? svgBeam(MM, true) : svgSection(MM, true), 2);
+      inp.elevFig = (TAB==='beam' && MM.S.slab) ? null : await svgPng(TAB==='beam' ? svgBeamElev(MM, true) : svgColElev(MM, true), 2);
       inp.devSel = {f:[...sel.f], t:[...sel.t]};
       inp.devSched = sel.t.has('sched') ? devSchedule(MM.devPlan, MM).map(q=>({id:q.id, where:q.where, size:q.size, shape:q.shape, st:q.st, tail:q.tail, len:q.len, n:q.n, kg:q.kg})) : []; }
     const out = TAB==='beam' ? RCXLSX.buildBeam(ExcelJS, inp) : RCXLSX.buildColumn(ExcelJS, inp);
