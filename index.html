@@ -202,6 +202,13 @@ body .seg.wrap button{padding:4px 10px;font-size:12px}
 .seg .seg-sep{width:1px;align-self:stretch;background:#C5CED6;margin:3px 6px}
 .dev-fm{font-size:12px;color:var(--txt);padding:6px 2px 2px;line-height:1.7}
 .dev-h{font-size:12.5px;font-weight:700;margin:14px 0 2px;color:var(--txt)}
+.dev-exp details{border:1px solid var(--line);border-radius:8px;padding:6px 10px;margin:2px 0 8px;background:var(--sub)}
+.dev-exp summary{cursor:pointer;font-size:12.5px;color:var(--txt);font-weight:600}
+.dev-exp .dx-row{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;margin-top:6px;font-size:12px}
+.dev-exp .dx-k{color:var(--dim);min-width:44px}
+.dev-exp .dx-chip{display:inline-flex;align-items:center;gap:4px;cursor:pointer}
+body .dev-exp .dx-chip input{width:auto;margin:0}
+.dev-exp .dx-note{color:var(--dim);font-size:11.5px}
 
 .ov-shell{position:fixed;inset:0;background:rgba(3,7,18,.55);z-index:60;
   display:none;align-items:center;justify-content:center;padding:20px}
@@ -409,6 +416,18 @@ body .ws-tabs button[aria-selected=true]{color:var(--acc-h);font-weight:700}
 .ws[data-active=warn] .card[data-pane]:not([data-pane=warn]),
 .ws[data-active=test] .card[data-pane]:not([data-pane=test]){display:none}
 body.rp-open .ws-tabs{display:none}
+/* 自測：開發者用，平時隱藏分頁、按鈕只留淡色圖示 */
+body .tb-mini{opacity:.45;padding-left:6px;padding-right:6px}
+body .tb-mini:hover{opacity:1}
+body:not(.has-test) .ws-tabs [data-pane="test"]{display:none}
+/* 預覽報告：頂部提示列 */
+#rpBar{display:none}
+body.rp-open #rpBar{display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:30;margin:14px 14px 0;padding:10px 14px;
+  background:#FFF8E6;border:1px solid #E8C770;border-radius:8px;font-size:13px;color:#4A3A10}
+#rpBar .grow{flex:1}
+#rpBar .rp-bar-k{font-size:11.5px;color:#8A6D1F}
+body.rp-open #btnPreview{background:var(--acc-soft);border-color:var(--acc);color:var(--acc-h)}
+@media print{ #rpBar{display:none!important} }
 
 @media(max-width:1150px){
   .ws-tabs{top:var(--sbH,56px)}
@@ -527,10 +546,9 @@ img,video{max-width:100%;height:auto}
     <input id="caseFile" type="file" accept=".json,application/json" style="display:none">
     <span class="tb-div" aria-hidden="true"></span>
     <button id="btnXlsx" type="button" class="btn-quiet" title="匯出附公式的 Excel 計算書（檢核表＋A4 結構計算書），數值皆為公式、可在 Excel 內修改重算"><svg class="ic"><use href="#icSheet"/></svg><span class="lbl">匯出 Excel</span></button>
-    <button id="btnPreview" type="button" class="btn-quiet" title="在畫面上預覽 A4 計算書；再按一次回到設計畫面"><svg class="ic"><use href="#icDoc"/></svg><span class="lbl">預覽報告</span></button>
+    <button id="btnPreview" type="button" class="btn-quiet" aria-pressed="false" title="在畫面上預覽 A4 計算書"><svg class="ic"><use href="#icDoc"/></svg><span class="lbl">預覽報告</span></button>
     <button id="btnPrint" type="button" class="btn-quiet" title="列印計算書，或在列印對話框選「另存為 PDF」"><svg class="ic"><use href="#icPrint"/></svg><span class="lbl">列印 / 存成 PDF</span></button>
-    <span class="tb-div" aria-hidden="true"></span>
-    <button id="btnTest" type="button" class="btn-quiet" title="執行內部一致性自測，結果顯示在右側「自測」分頁"><svg class="ic"><use href="#icTest"/></svg><span class="lbl">內部自測</span></button>
+    <button id="btnTest" type="button" class="btn-quiet tb-mini" title="開發者用：執行內部一致性自測（結果顯示於右側「自測」分頁）" aria-label="內部自測"><svg class="ic"><use href="#icTest"/></svg></button>
   </div>
 </header>
 
@@ -729,6 +747,7 @@ img,video{max-width:100%;height:auto}
         <h2 class="!mb-0">主筋伸展長度與搭接</h2>
         <div class="text-[11.5px]" style="color:var(--dim)">土木401 第 25 章 · 條件於左側「伸展長度與搭接」設定</div>
       </div>
+      <div id="devExp" class="dev-exp"></div>
       <div id="devViews" class="seg wrap" role="group" aria-label="配置圖視圖"></div>
       <div id="devElevWrap" class="pm-box"></div>
       <div id="devLegend" class="pm-box"></div>
@@ -764,7 +783,7 @@ img,video{max-width:100%;height:auto}
 
     <div class="card" data-pane="sum"><h2>設計結果摘要</h2><div id="summary"></div></div>
     <div class="card" data-pane="warn"><h2>工程查核與警示</h2><div id="alerts"></div></div>
-    <div class="card" data-pane="test"><h2>內部一致性自測</h2><div id="testOut" class="text-[12.5px]" style="color:var(--dim)">按頂列「內部自測」執行。</div></div>
+    <div class="card" data-pane="test"><h2>內部一致性自測</h2><div id="testOut" class="text-[12.5px]" style="color:var(--dim)">按頂列右端燒瓶圖示執行。</div></div>
   </div>
 </div>
 
@@ -911,6 +930,7 @@ img,video{max-width:100%;height:auto}
         <h2 class="!mb-0">主筋伸展長度與搭接</h2>
         <div class="text-[11.5px]" style="color:var(--dim)">土木401 第 25 章 · 條件於左側「伸展長度與搭接」設定</div>
       </div>
+      <div id="bDevExp" class="dev-exp"></div>
       <div id="bDevViews" class="seg wrap" role="group" aria-label="配置圖視圖"></div>
       <div id="bDevElevWrap" class="pm-box"></div>
       <div id="bDevLegend" class="pm-box"></div>
@@ -936,10 +956,17 @@ img,video{max-width:100%;height:auto}
 
     <div class="card" data-pane="sum"><h2>設計結果摘要</h2><div id="bSummary"></div></div>
     <div class="card" data-pane="warn"><h2>工程查核與警示</h2><div id="bAlerts"></div></div>
-    <div class="card" data-pane="test"><h2>內部一致性自測</h2><div id="bTestOut" class="text-[12.5px]" style="color:var(--dim)">按頂列「內部自測」執行。</div></div>
+    <div class="card" data-pane="test"><h2>內部一致性自測</h2><div id="bTestOut" class="text-[12.5px]" style="color:var(--dim)">按頂列右端燒瓶圖示執行。</div></div>
   </div>
 </div>
 
+<div id="rpBar" role="region" aria-label="計算書預覽">
+  <span class="rp-bar-t"><b>計算書預覽</b>　內容隨設計畫面的輸入產生；要修改請回設計畫面</span>
+  <span class="grow"></span>
+  <button id="rpBack" type="button" class="btn-primary">← 返回設計畫面</button>
+  <button id="rpPrint" type="button" class="btn-quiet"><svg class="ic"><use href="#icPrint"/></svg><span class="lbl">列印 / 存成 PDF</span></button>
+  <span class="rp-bar-k">Esc 返回</span>
+</div>
 <div id="report"></div>
 
 <script>
@@ -1416,7 +1443,8 @@ function applyPreset(key){
   S('tieLayout', P.tieAll ? 'all' : 'code');
   { const bl = (P.code||'bridge')==='bldg';
     S('dAncBot', P.ancBot || (bl ? 'through' : 'hook90')); S('dAncTop', P.ancTop || (bl ? 'through' : 'hook90'));
-    S('dHBot', P.hBot || (bl ? 70 : 200)); S('dHTop', P.hTop || (bl ? 70 : 180)); S('dAncCov', P.ancCov || (bl ? 4 : 7.5)); }
+    S('dHBot', P.hBot || (bl ? 70 : 200)); S('dHTop', P.hTop || (bl ? 70 : 180)); S('dAncCov', P.ancCov || (bl ? 4 : 7.5));
+    S('dSplice', P.splice || 'B'); S('dStagger', P.stagger ? '1' : '0'); S('dLapGap', P.lapGap || 0); }
   if(P.type==='circle'){ S('Dia',P.D); S('nCir',P.nCir); S('spiral',P.spiral||'spiral'); }
   LOADS = P.loads.map(l=>({...l}));
   drawLoads(); render();
@@ -2101,6 +2129,26 @@ function devTable(D, opt){
      耐震接頭深度 §18.5.2.3：≥ 20d_b/λ（f_y 4200）、23d_b（5000）、26d_b（5600），且 ≥ 梁深 h/2
      截斷點 §9.7.3.3～9.7.3.5、§9.7.3.8.4：以均布載重彎矩圖（端部 M_u⁻、跨中 M_u⁺）近似
    ========================================================================= */
+/* ---------- 標註避讓：候選位置中挑選與障礙點（曲線取樣）、障礙框最少重疊者 ---------- */
+function obsSample(pts, step){
+  const out = [];
+  for(let i=1;i<pts.length;i++){
+    const [x0,y0] = pts[i-1], [x1,y1] = pts[i], n = Math.max(1, Math.ceil(Math.hypot(x1-x0,y1-y0)/(step||3)));
+    for(let k=0;k<=n;k++) out.push([x0+(x1-x0)*k/n, y0+(y1-y0)*k/n]);
+  }
+  return out;
+}
+function pickBox(cands, obsPts, obsBoxes, bounds){
+  let best = null, bs = Infinity;
+  for(const c of cands){
+    if(bounds && (c.x1 < bounds.x1 || c.x2 > bounds.x2 || c.y1 < bounds.y1 || c.y2 > bounds.y2)) continue;
+    let sc = 0;
+    for(const [x,y] of obsPts) if(x > c.x1 && x < c.x2 && y > c.y1 && y < c.y2) sc++;
+    for(const b of obsBoxes||[]) if(Math.min(b.x2,c.x2) > Math.max(b.x1,c.x1) && Math.min(b.y2,c.y2) > Math.max(b.y1,c.y1)) sc += 1e6;
+    if(sc < bs){ bs = sc; best = c; if(sc === 0) break; }
+  }
+  return best || cands[0];
+}
 const devUp = v => Math.ceil(v - 1e-9);
 const SPLICE_TXT = {B:'乙級搭接', A:'甲級搭接', m1:'機械式續接（第一類）', m2:'機械式續接（第二類）', m3:'機械式續接（第三類）'};
 const ANC_TXT = {hook90:'標準彎鉤 90°', hook180:'標準彎鉤 180°', head:'擴頭', straight:'直線', through:'貫穿續接'};
@@ -2445,7 +2493,7 @@ function wrapT(o, x, y, t, fs, col, maxW, lh){
   return yy;
 }
 const T = (o, x, y, t, fs, col, anchor, bold) =>
-  o.push(`<text x="${_p(x)}" y="${_p(y)}" font-size="${fs}" fill="${col}"${anchor?` text-anchor="${anchor}"`:''}${bold?' font-weight="700"':''}>${svgTxt(t, fs)}</text>`);
+  o.push(`<text x="${_p(x)}" y="${_p(y)}" font-size="${fs}" fill="${col}"${anchor?` text-anchor="${anchor}"`:''}${bold?' font-weight="700"':''} stroke="#fff" stroke-width="3" stroke-linejoin="round" paint-order="stroke">${svgTxt(t, fs)}</text>`);
 
 /* 端部錨定形狀（u：沿筋，v：橫向；F.P 轉換到螢幕）。回傳最遠點 u */
 function drawAnchor(o, F, q, d, v, dir, col, w){
@@ -2532,7 +2580,6 @@ function devInset(o, x, y, w, h, M, P, setIdx, C){
 function devViews(P){
   const d = P.mod==='col' ? P.D : (P.bot && P.bot.d);
   const v = [['all','總覽'], ['straight','直線受拉'], ['hook90','標準彎鉤 90°'], ['hook180','標準彎鉤 180°']];
-  if(d && d.fcCap) v.push(['hookCmp','彎鉤新舊式比較']);
   v.push(['head','擴頭'], ['comp','受壓'], ['lap','受拉搭接'], ['stagger','錯開搭接'], ['lapC','受壓搭接']);
   if(P.mod==='beam' && P.seis) v.push(['joint','耐震接頭內']);
   v.push(['mech','機械式續接']);
@@ -2572,11 +2619,13 @@ function svgDevEnd(view, M, P, setIdx, forPrint){
   const sx = col ? Math.min(60, 0.6*memW) : 22;
   // 比例：柱沿筋向為垂直、梁為水平；尺寸鏈放在鋼筋那一側，可用長度放另一側
   const W = 760;
-  let k = col ? Math.min(440/(uM + uMax), 260/(memW + 2*sx)) : Math.min(540/(uM + uMax), 300/(memW + 2*sx));
-  k = Math.max(0.6, Math.min(k, 9));
+  // 右側預留給彎鉤／擴頭說明，左側（柱）預留給量測標籤
+  let k = col ? Math.min(440/(uM + uMax), 200/(memW + 2*sx)) : Math.min(420/(uM + uMax), 300/(memW + 2*sx));
+  k = Math.max(0.15, Math.min(k, 9));
   let ox, oy, Pf, H;
-  if(col){ ox = 220 + sx*k; oy = uSign>0 ? 80 + uM*k : 80 + uMax*k; H = Math.round(130 + (uM + uMax)*k); Pf = (u,v) => [ox + v*k, oy + uSign*u*k]; }
-  else{ ox = 96 + uM*k; oy = 96 + (dir<0 ? 30 : 0) + sx*k; H = Math.round(oy + (memW + sx)*k + (dir>0 ? 34 : 64) + 44); Pf = (u,v) => [ox + u*k, oy + v*k]; }
+  if(col){ ox = 240 + sx*k; oy = uSign>0 ? 80 + uM*k : 80 + uMax*k; H = Math.round(130 + (uM + uMax)*k); if(view==='straight') H = Math.max(H, Math.round(oy + 230)); Pf = (u,v) => [ox + v*k, oy + uSign*u*k]; }
+  else{ ox = 96 + uM*k; oy = (dir>0 ? 128 : 100) + sx*k; H = Math.round(oy + (memW + sx)*k + (dir>0 ? 44 : 84) + 40); Pf = (u,v) => [ox + u*k, oy + v*k]; }
+  const critY = Pf(0, 0)[1], supR = col ? Pf(0, memW + sx)[0] : Pf(hS, 0)[0];
   const F = {P:Pf, u0:-uM};
   o.push(`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" font-family="ui-sans-serif,system-ui,sans-serif">`);
   o.push(`<rect width="${W}" height="${H}" fill="${forPrint?'#fff':'transparent'}"/>`);
@@ -2600,14 +2649,14 @@ function svgDevEnd(view, M, P, setIdx, forPrint){
   // 臨界斷面
   { const [a,b] = Pf(0, -sx-6), [c,e] = Pf(0, memW + sx + 6);
     o.push(`<line x1="${_p(a)}" y1="${_p(b)}" x2="${_p(c)}" y2="${_p(e)}" stroke="${C.crit}" stroke-width="1.6" stroke-dasharray="8 4"/>`);
-    if(col){ const [tx,ty] = Pf(0, memW + sx + 6); T(o, tx + 6, ty + (uSign>0?-5:13), lbl.crit, 11, C.crit, 'start', true); }
+    if(col){ T(o, supR + 26, critY + (uSign>0?-5:13), lbl.crit, 11, C.crit, 'start', true); }
     else{ const [tx,ty] = Pf(0, -sx); T(o, tx - 6, ty + 12, lbl.crit, 11, C.crit, 'end', true); } }
   // 標籤：構材／支承
   { const [mx,my] = Pf(-uM/2, memW/2);
     T(o, mx, my + 4, lbl.mem, 11, C.dim, 'middle');
     const supT = `${lbl.sup}（${col?'深':'寬'} ${f(hS,0)} cm）`;
-    if(col){ const [a,b] = Pf(hS, -sx); T(o, a + 5, b + (uSign>0 ? -7 : 15), supT, 10.5, C.dim, 'start'); }
-    else{ const [a,b] = Pf(hS, dir>0 ? memW + sx : -sx); T(o, a - 5, b + (dir>0 ? -6 : 14), supT, 10.5, C.dim, 'end'); } }
+    if(col){ const [a,b] = Pf(hS - cov, memW + sx); T(o, a - 5, b + (uSign>0 ? -6 : 15), supT, 10.5, C.dim, 'end'); }
+    else{ const [a,b] = Pf(hS - cov, dir>0 ? memW + sx : -sx); T(o, a - 5, b + (dir>0 ? -6 : 14), supT, 10.5, C.dim, 'end'); } }
   // 鋼筋
   const bw = Math.max(2, d.db*k), bad = q.ok && q.len > hS - cov + 1e-9;
   const colQ = bad ? C.bad : C.bar;
@@ -2632,15 +2681,15 @@ function svgDevEnd(view, M, P, setIdx, forPrint){
   }
   // 量測尺寸（起點＝臨界斷面）
   const meas = (u1, u2, vOff, label, col2, sub2) => {
-    const v0 = col ? -(14 + vOff)/k : (dir>0 ? -vOff/k : memW + vOff/k);
+    const v0 = col ? -sx - (12 + vOff)/k : (dir>0 ? -sx - vOff/k : memW + sx + vOff/k);
     const [a,b] = Pf(u1, v0), [c,e] = Pf(u2, v0);
     measArrow(o, a, b, c, e, col2 || C.txt);
     const [ea,eb] = Pf(u2, barV), [ec,ed] = Pf(u2, v0);
     o.push(`<line x1="${_p(ea)}" y1="${_p(eb)}" x2="${_p(ec)}" y2="${_p(ed)}" stroke="${C.dim}" stroke-width="0.6" stroke-dasharray="2 2"/>`);
     const mx = (a+c)/2, my = (b+e)/2;
     if(col){ T(o, a - 8, my + 4, label, 12, col2 || C.txt, 'end', true); if(sub2) T(o, a - 8, my + 19, sub2, 10.5, C.dim, 'end'); }
-    else if(dir>0){ T(o, a + 4, my - 7, label, 12, col2 || C.txt, 'start', true); if(sub2) T(o, a + 4 + txtW(label,12) + 10, my - 7, sub2, 10.5, C.dim, 'start'); }
-    else { T(o, a + 4, my + 16, label, 12, col2 || C.txt, 'start', true); if(sub2) T(o, a + 4 + txtW(label,12) + 10, my + 16, sub2, 10.5, C.dim, 'start'); }
+    else{ const ty = dir>0 ? my - 7 : my + 16, sx2 = Math.max(a + 4 + txtW(label,12) + 10, c + 8);
+      T(o, a + 4, ty, label, 12, col2 || C.txt, 'start', true); if(sub2) T(o, sx2, ty, sub2, 10.5, C.dim, 'start'); }
   };
   const avail = hS - cov;
   if(view==='hookCmp'){
@@ -2653,18 +2702,26 @@ function svgDevEnd(view, M, P, setIdx, forPrint){
     meas(0, q.len, 22, `${q.sym} = ${q.len} cm`, bad ? C.bad : C.txt, `自臨界斷面量至${q.to}`);
   }
   // 可用長度（另一側）
-  { const v0 = col ? memW + sx*0.5 : (dir>0 ? memW + sx + 14/k : -sx - 14/k);
+  // 說明文字的位置（柱：可用尺寸線右側；梁：支承右側），可用長度標籤避開它
+  let annY = null;
+  const annAt = hy => col ? [supR + 34, uSign>0 ? Math.max(hy, critY + 30) : Math.min(hy, critY - 44)] : [supR + 16, hy];
+  if(['hook90','hook180','joint','head'].includes(view) && q.ok){
+    const yy = view==='head' ? Pf(q.len, barV)[1] : Pf(q.len - q.rc - d.db/2 + q.rc, barV + dir*(q.rc + (view==='hook180' ? 0 : q.tail*0.6)))[1];
+    annY = annAt(yy)[1];
+  }
+  { const v0 = col ? memW + sx + 12/k : (dir>0 ? memW + sx + 14/k : -sx - 14/k);
     const [a,b] = Pf(0, v0), [c,e] = Pf(avail, v0);
     dimLine(o, a, b, c, e, C.dim);
     const mx = (a+c)/2, my = (b+e)/2;
-    if(col) T(o, a + 8, my + 4, `可用 ${f(avail,0)} cm`, 11, C.dim, 'start');
+    if(col){ const xx = a + 13, yy = (b + e)/2;
+      o.push(`<text x="${_p(xx)}" y="${_p(yy)}" font-size="11" fill="${C.dim}" text-anchor="middle" transform="rotate(-90 ${_p(xx)} ${_p(yy)})" stroke="#fff" stroke-width="3" paint-order="stroke">${esc(`可用 ${f(avail,0)} cm`)}</text>`); }
     else T(o, mx, my + (dir>0 ? 15 : -7), `可用 ${lbl.sup}寬 − 保護層 = ${f(avail,0)} cm`, 11, C.dim, 'middle'); }
   // 彎鉤細部標註
   if((view==='hook90' || view==='hook180' || view==='joint' || view==='hookCmp') && q.ok){
     const ub = q.len - q.rc - d.db/2;
     const tailTxt = q.type==='hook90' || view!=='hook180' ? `90° 延伸 12d_b = ${f(d.ext90,1)} cm` : `180° 延伸 max(4d_b, 6.5) = ${f(d.ext180,1)} cm`;
     const [hx,hy] = Pf(ub + q.rc, barV + dir*(q.rc + (view==='hook180' ? 0 : q.tail*0.6)));
-    const [lx,ly] = col ? [hx + 70, hy + 30*uSign] : [hx + 40, hy + dir*28];
+    const [lx,ly] = annAt(hy);
     o.push(`<line x1="${_p(hx)}" y1="${_p(hy)}" x2="${_p(lx)}" y2="${_p(ly)}" stroke="${C.dim}" stroke-width="0.7"/>`);
     T(o, lx + 3, ly + 4, tailTxt, 10.5, C.txt, 'start');
     T(o, lx + 3, ly + 18, `彎曲內徑 ${f(d.bendD,1)} cm（${d.db<=2.54+1e-6?'6':d.db<=3.59?'8':'10'}d_b）`, 10.5, C.txt, 'start');
@@ -2673,15 +2730,16 @@ function svgDevEnd(view, M, P, setIdx, forPrint){
     if(q.ok){
       const Dh = Math.sqrt(5)*d.db;
       const [hx,hy] = Pf(q.len + d.db, barV);
-      const [lx,ly] = col ? [hx + 60, hy + 26*uSign] : [hx + 30, hy - dir*34];
+      const [lx,ly] = annAt(hy);
       o.push(`<line x1="${_p(hx)}" y1="${_p(hy)}" x2="${_p(lx)}" y2="${_p(ly)}" stroke="${C.dim}" stroke-width="0.7"/>`);
-      T(o, lx + 3, ly + 4, `A_brg ≥ 4A_b → 圓形擴頭直徑 ≥ √5 d_b = ${f(Dh,1)} cm`, 10.5, C.txt, 'start');
-      T(o, lx + 3, ly + 18, `淨保護層 ≥ 2d_b = ${f(2*d.db,1)}、中心距 ≥ 3d_b = ${f(3*d.db,1)} cm（§25.4.4.1）`, 10.5, C.txt, 'start');
+      T(o, lx + 3, ly + 4, `A_brg ≥ 4A_b → 擴頭直徑 ≥ √5 d_b = ${f(Dh,1)} cm`, 10.5, C.txt, 'start');
+      T(o, lx + 3, ly + 18, `淨保護層 ≥ 2d_b = ${f(2*d.db,1)} cm`, 10.5, C.txt, 'start');
+      T(o, lx + 3, ly + 32, `中心距 ≥ 3d_b = ${f(3*d.db,1)} cm（§25.4.4.1）`, 10.5, C.txt, 'start');
     }else wrapT(o, 16, H - 30, `擴頭鋼筋不適用（§25.4.4.1）：${q.why}`, 11.5, C.bad, 720);
   }
   if(view==='comp') wrapT(o, 16, H - 30, '彎鉤與擴頭不計入受壓伸展（§25.4.1.2）：彎鉤錨定時，臨界斷面至彎轉起點之直段須 ≥ l_dc', 11, C.dim, 720);
   // 斷面小圖（直線受拉）
-  if(view==='straight') devInset(o, W - 214, col ? 70 : H - 168, 200, 150, M, P, setIdx, C);
+  if(view==='straight') devInset(o, W - 214, H - 170, 200, 150, M, P, setIdx, C);
   // 標題
   const nm = st.name + (st.face ? `（${st.face}控制）` : '');
   T(o, 16, 22, `${title}：${nm}`, 13.5, C.txt, null, true);
@@ -2896,7 +2954,8 @@ function svgBeamDev(B, forPrint, mechView){
   o.push(`<rect width="${W}" height="${Hh}" fill="${forPrint?'#fff':'transparent'}"/>`);
   for(const [a,b] of [[-hc,0],[L,L+hc]]){
     o.push(`<rect x="${X(a)}" y="${yT-22}" width="${hc*k}" height="${hpx+44}" fill="${C.stub}"/>`);
-    T(o, (X(a)+X(b))/2, yB+16, `${sup} ${f(hc,0)}`, 10.5, C.dim, 'middle');
+    { const xx = a < 0 ? X(-hc) - 7 : X(L+hc) + 15, yy = (yT+yB)/2;
+      o.push(`<text x="${_p(xx)}" y="${_p(yy)}" font-size="10.5" fill="${C.dim}" text-anchor="middle" transform="rotate(-90 ${_p(xx)} ${_p(yy)})">${esc(`${sup} ${f(hc,0)} cm`)}</text>`); }
   }
   o.push(`<rect x="${X(0)}" y="${yT}" width="${L*k}" height="${hpx}" fill="${C.conc}" stroke="${C.line}" stroke-width="1.6"/>`);
   if(seis && !(showMech && P.sp==='m3')) for(const [a,b] of [[0,P.nz],[L-P.nz,L]]){
@@ -2939,10 +2998,11 @@ function svgBeamDev(B, forPrint, mechView){
   const crit = [[0, `臨界斷面（${sup}面）`], [L, `臨界斷面（${sup}面）`], [L/2, '跨中（正彎矩臨界）']];
   for(const [z] of crit){
     const mid = z === L/2;
-    o.push(`<line x1="${X(z)}" y1="${mid ? yT-6 : 70}" x2="${X(z)}" y2="${yB+(mid?6:24)}" stroke="${C.crit}" stroke-width="${mid?1:1.4}" stroke-dasharray="${mid?'3 3':'7 4'}" opacity="${mid?0.8:1}"/>`);
+    o.push(`<line x1="${X(z)}" y1="${mid ? yT-6 : yT-22}" x2="${X(z)}" y2="${yB+(mid?6:22)}" stroke="${C.crit}" stroke-width="${mid?1:1.4}" stroke-dasharray="${mid?'3 3':'7 4'}" opacity="${mid?0.8:1}"/>`);
   }
   for(const q of spreadLabels(crit.map(([z,t])=>({want:X(z), size:txtW(t,10.5), t})), 4, W-4, 10))
     T(o, q.at, 66, q.t, 10.5, C.crit, 'middle', true);
+  for(const [z,ch] of [[0,'▼'],[L,'▼'],[L/2,'▽']]) T(o, X(z), 80, ch, 9, C.crit, 'middle');
   const chain = (b, yDim, below) => {
     const segs = [];
     const lab = b.q.ok ? `${b.q.sym} = ${b.q.len}${b.ok?'':' NG'}` : '擴頭不適用';
@@ -2980,7 +3040,7 @@ function svgBeamDev(B, forPrint, mechView){
 function svgBeamCut(B, forPrint){
   const {S,R} = B, P = B.devPlan, c = P.cut, C = devPal(forPrint), L = P.L;
   const W = 760, xm = 60, k = (W - 2*xm)/L, X = z => xm + z*k;
-  const yT = 96, hpx = 70, yB = yT + hpx, yM = yB + 90, Hh = yM + 150;
+  const yT = 96, hpx = 70, yB = yT + hpx, yM = yB + 118, Hh = yM + 150;
   const o = [`<svg viewBox="0 0 ${W} ${Hh}" xmlns="http://www.w3.org/2000/svg" font-family="ui-sans-serif,system-ui,sans-serif">`];
   o.push(`<rect width="${W}" height="${Hh}" fill="${forPrint?'#fff':'transparent'}"/>`);
   T(o, 16, 22, `頂筋截斷點：${S.topSize}${c && !c.na ? `，通長 ${c.nC} 根、截斷 ${c.nT - c.nC} 根` : ''}`, 13.5, C.txt, null, true);
@@ -2994,31 +3054,39 @@ function svgBeamCut(B, forPrint){
   const yt1 = yT + 10, yt2 = yT + 18;
   o.push(`<line x1="${X(0)-20}" y1="${yt1}" x2="${X(L)+20}" y2="${yt1}" stroke="${C.bar}" stroke-width="2.2"/>`);
   for(const [a,b] of [[0, c.xCut], [L - c.xCut, L]]) o.push(`<line x1="${a===0?X(0)-20:X(a)}" y1="${yt2}" x2="${b===L?X(L)+20:X(b)}" y2="${yt2}" stroke="${C.bar2}" stroke-width="2.2"/>`);
-  T(o, X(L/2), yt1 - 4, `通長 ${c.nC} 根`, 10.5, C.txt, 'middle');
+  T(o, X(L/2), yT - 6, `通長 ${c.nC} 根`, 10.5, C.txt, 'middle');
   T(o, X(c.xCut/2), yt2 + 14, `截斷 ${c.nT - c.nC} 根`, 10.5, C.bar2, 'middle');
   // 彎矩圖
   const Mmax = Math.max(c.Mn, c.Mp), ks = 70/Mmax;
   const Mx = x => -c.Mn + c.w*x*(L - x)/2;
-  let pth = '';
-  for(let i=0;i<=80;i++){ const x = L*i/80; pth += `${i?'L':'M'}${_p(X(x))},${_p(yM - Mx(x)*ks)}`; }
+  let pth = ''; const MP = [];
+  for(let i=0;i<=80;i++){ const x = L*i/80; MP.push([X(x), yM - Mx(x)*ks]); pth += `${i?'L':'M'}${_p(X(x))},${_p(yM - Mx(x)*ks)}`; }
+  const MO = obsSample(MP, 2);
+  const lab = (x, y, t, fs, col, cands) => { const w = txtW(t, fs) + 4;
+    const c2 = pickBox(cands.map(([dx,dy,an]) => { const x1 = an==='end' ? x+dx-w : x+dx; return {x1, x2:x1+w, y1:y+dy-fs, y2:y+dy+2, ax:x+dx, ay:y+dy, an}; }), MO, []);
+    T(o, c2.ax, c2.ay, t, fs, col, c2.an); };
   o.push(`<line x1="${X(0)}" y1="${yM}" x2="${X(L)}" y2="${yM}" stroke="${C.dim}" stroke-width="0.8"/>`);
   o.push(`<path d="${pth}" fill="none" stroke="${C.m}" stroke-width="1.6"/>`);
   const yc = yM + c.phiMc*ks;
   o.push(`<line x1="${X(0)}" y1="${_p(yc)}" x2="${X(L*0.45)}" y2="${_p(yc)}" stroke="${C.bar}" stroke-width="0.9" stroke-dasharray="4 3"/>`);
-  T(o, X(L*0.45) + 4, yc + 4, `φM_n（通長 ${c.nC} 根）= ${f(c.phiMc/TFM,1)} tf·m`, 10.5, C.txt, 'start');
+  const phiLab = () => lab(X(L*0.45), yc, `φM_n（通長 ${c.nC} 根）= ${f(c.phiMc/TFM,1)} tf·m`, 10.5, C.txt, [[4,4,'start'],[4,-5,'start'],[4,15,'start'],[-4,-5,'end'],[-4,15,'end']]);
   T(o, X(0) - 6, yM - c.Mn*0*ks + 4, '0', 10, C.dim, 'end');
   T(o, X(0) + 4, yM + c.Mn*ks + 14, `M_u⁻ = ${f(c.Mn/TFM,1)}`, 10.5, C.m, 'start');
+  { const w = txtW(`M_u⁻ = ${f(c.Mn/TFM,1)}`,10.5); for(let xx=X(0)+4; xx<=X(0)+4+w; xx+=3) for(let yy=yM + c.Mn*ks + 3; yy<=yM + c.Mn*ks + 15; yy+=3) MO.push([xx,yy]); }
   // 標記
   const vline = (x, y1, y2, col, dash) => o.push(`<line x1="${_p(X(x))}" y1="${y1}" x2="${_p(X(x))}" y2="${y2}" stroke="${col}" stroke-width="1.1"${dash?` stroke-dasharray="${dash}"`:''}/>`);
   vline(0, yT - 20, yM + 80, C.crit, '7 4');
   vline(c.x0, yT, yM + 8, C.dim, '3 3');
   if(c.xc > 0) vline(c.xc, yt2, yM + c.phiMc*ks, C.dim, '2 2');
   vline(c.xCut, yt2 - 6, yM + 40, C.bar2, '5 3');
-  const yd = yM + 56;
+  const yd = yB + 26;
   measArrow(o, X(0), yd, X(c.xCut), yd, C.bar2);
+  MO.push(...obsSample([[X(0)-4,yd],[X(c.xCut)+4,yd]], 2));
   T(o, X(c.xCut) + 6, yd + 4, `截斷點 ${f(c.xCut,0)} cm（${c.ctrl}）`, 11.5, C.bar2, 'start', true);
-  T(o, X(c.x0) + 4, yM - 8, `反曲點 ${f(c.x0,0)} cm`, 10.5, C.dim, 'start');
-  if(c.xc > 0) T(o, X(c.xc) - 4, yM + c.phiMc*ks + 16, `理論截斷 ${f(c.xc,0)}`, 10.5, C.dim, 'end');
+  MO.push(...obsSample([[X(c.xCut)+6, yd], [X(c.xCut)+6+txtW(`截斷點 ${f(c.xCut,0)} cm（${c.ctrl}）`,11.5), yd]], 3));
+  phiLab();
+  lab(X(c.x0), yM, `反曲點 ${f(c.x0,0)} cm`, 10.5, C.dim, [[4,-8,'start'],[4,16,'start'],[-4,-8,'end'],[-4,16,'end'],[4,-22,'start']]);
+  if(c.xc > 0) lab(X(c.xc), yM + c.phiMc*ks, `理論截斷 ${f(c.xc,0)}`, 10.5, C.dim, [[-4,16,'end'],[4,16,'start'],[-4,-6,'end'],[4,-6,'start'],[-4,30,'end']]);
   const fy0 = wrapT(o, 16, Hh - 52, `延伸 max(d, 12d_b) = ${f(c.ext,0)} cm（§9.7.3.3）；截斷筋自柱面 ≥ l_d = ${c.ld} cm（§9.7.3.4）；通長筋 ≥ 1/3 並延伸過反曲點 ≥ ${f(c.contExt,0)} cm（§9.7.3.8.4）`, 10.5, C.dim, 730);
   wrapT(o, 16, fy0 + 16, c.inTen ? `截斷點在拉力區：V_u = ${f(c.VuX/TF,1)} ${c.okV?'≤':'＞'} (2/3)φV_n = ${f(2/3*c.phiVn/TF,1)} tf（§9.7.3.5(a)）` : '截斷點在反曲點之外（壓力區），不受 §9.7.3.5 限制', 10.5, c.inTen && !c.okV ? C.bad : C.dim, 730);
   o.push(`</svg>`);
@@ -3106,6 +3174,40 @@ function devAllViews(M, P){
   return out;
 }
 
+
+/* ---------- 報告／Excel 輸出項目（使用者選取；未調整前依本案自動預設） ---------- */
+const DEVF = [['ld','直線 l_d'],['ldh','標準彎鉤 l_dh'],['ldt','擴頭 l_dt'],['ldc','受壓 l_dc'],['lap','搭接長度'],['joint','耐震接頭內']];
+const DEVT = [['table','伸展與搭接長度表'],['checks','配置檢核表'],['sched','鋼筋下料長度表']];
+const DEVEXP = (()=>{ try{ return JSON.parse(localStorage.getItem('rcsd.devexp')) || {}; }catch(e){ return {}; } })();
+function devExpSel(mod, P){
+  const st = DEVEXP[mod], views = devViews(P).map(v=>v[0]);
+  const dflt = {f: DEVF.map(q=>q[0]), v: [...devReportWant(P)], t: ['checks','sched']};
+  const q = st || dflt;
+  return {f: new Set(q.f), v: new Set(q.v.filter(x=>views.includes(x))), t: new Set(q.t), custom: !!st};
+}
+function devExpRender(mod, M){
+  const pre = mod==='col' ? 'dev' : 'bDev', P = M.devPlan, sel = devExpSel(mod, P);
+  const el = document.getElementById(pre+'Exp'); if(!el) return;
+  const chip = (g, id, t) => `<label class="dx-chip"><input type="checkbox" data-g="${g}" value="${id}"${sel[g].has(id)?' checked':''}><span>${SB(t)}</span></label>`;
+  const views = devViews(P);
+  const n = sel.f.size + sel.v.size + sel.t.size;
+  const open = el.querySelector('details') && el.querySelector('details').open;
+  el.innerHTML = `<details${open?' open':''}><summary>報告／Excel 輸出項目（已選 ${n} 項${sel.custom?'':'，依本案預設'}）</summary>
+    <div class="dx-row"><span class="dx-k">計算式</span>${DEVF.filter(q=>q[0]!=='joint' || (P.mod==='beam' && P.seis)).map(q=>chip('f',q[0],q[1])).join('')}</div>
+    <div class="dx-row"><span class="dx-k">配置圖</span>${views.map(q=>chip('v',q[0],q[1])).join('')}</div>
+    <div class="dx-row"><span class="dx-k">表格</span>${DEVT.map(q=>chip('t',q[0],q[1])).join('')}</div>
+    <div class="dx-row"><button type="button" class="btn-quiet dx-reset">恢復本案預設</button><span class="dx-note">檢核表內的公式不受影響，只決定計算書與 Excel A4／配置圖頁要印出哪些內容。</span></div></details>`;
+  el.onchange = e => {
+    const c = e.target; if(!c.dataset || !c.dataset.g) return;
+    const cur = devExpSel(mod, P), o = {f:[...cur.f], v:[...cur.v], t:[...cur.t]};
+    const arr = o[c.dataset.g], k = c.value;
+    if(c.checked){ if(!arr.includes(k)) arr.push(k); } else o[c.dataset.g] = arr.filter(x=>x!==k);
+    DEVEXP[mod] = o; try{ localStorage.setItem('rcsd.devexp', JSON.stringify(DEVEXP)); }catch(err){}
+    devExpRender(mod, M);
+  };
+  el.querySelector('.dx-reset').onclick = () => { delete DEVEXP[mod]; try{ localStorage.setItem('rcsd.devexp', JSON.stringify(DEVEXP)); }catch(err){} devExpRender(mod, M); };
+}
+
 /* ---------- 判定膠囊、警示、計算書附圖 ---------- */
 function devVerdict(P, target){
   const bad = P.checks.filter(c=>c.lv==='bad'), warn = P.checks.filter(c=>c.lv==='warn');
@@ -3142,23 +3244,24 @@ function svgPng(svg, scale){
 }
 const plainFm = t => String(t||'').replace(/<[^>]+>/g,'').replace(/[_^]\{([^}]*)\}/g,'$1').replace(/_(?=[A-Za-z0-9,])/g,'').replace(/\^(?=[A-Za-z])/g,'');
 async function devFigsPng(M){
-  const P = M.devPlan, want = devReportWant(P), out = [];
+  const P = M.devPlan, want = devExpSel(P.mod, P).v, out = [];
   for(const v of devAllViews(M, P)){
+    if(!want.has(v.id)) continue;
     const png = await svgPng(v.svg, 2);
     out.push({title: v.title, b64: png.b64, w: png.w, h: png.h, fm: plainFm(v.fm), a4: want.has(v.id)});
   }
   return out;
 }
 function devReportFigs(M, P){
-  const all = devAllViews(M, P), o = [];
-  const want = devReportWant(P);
-  o.push(`<div class="rp-h3">伸展與搭接配置圖</div>`);
+  const sel = devExpSel(P.mod, P), all = devAllViews(M, P).filter(v=>sel.v.has(v.id)), o = [];
+  const want = sel.v;
+  if(sel.t.has('table')) o.push(`<div class="rp-h3">伸展與搭接長度</div><div style="font-size:12px">${SB(devTable(M.dev, {}))}</div>`);
+  if(all.length) o.push(`<div class="rp-h3">伸展與搭接配置圖</div>`);
   for(const v of all) if(want.has(v.id)){
     o.push(`<div class="rp-fig no-break">${v.svg}<div style="font-size:11.5px;margin-top:4px">${SB(v.fm)}</div></div>`);
   }
-  o.push(`<div style="font-size:11.5px;color:#444">其餘視圖（${all.filter(v=>!want.has(v.id)).map(v=>v.title).filter((t,i,a)=>a.indexOf(t)===i).join('、')}）見網頁「伸展長度與搭接」分頁切換，或 Excel「伸展搭接配置圖」工作表。</div>`);
-  o.push(`<div class="rp-h3">配置檢核</div><div style="font-size:12px">${SB(devPlanHtml(P))}</div>`);
-  o.push(`<div class="rp-h3">鋼筋下料長度表</div><div style="font-size:12px">${SB(devScheduleHtml(P, M))}</div>`);
+  if(sel.t.has('checks')) o.push(`<div class="rp-h3">配置檢核</div><div style="font-size:12px">${SB(devPlanHtml(P))}</div>`);
+  if(sel.t.has('sched')) o.push(`<div class="rp-h3">鋼筋下料長度表</div><div style="font-size:12px">${SB(devScheduleHtml(P, M))}</div>`);
   return o.join('');
 }
 
@@ -3493,11 +3596,11 @@ function svgPM(M,axis,forPrint){
   const cv = axis==='x'?M.cvX:M.cvY, pd = axis==='x'?M.pX:M.pY;
   const cvc = axis==='x'?M.cvXc:M.cvYc;
   const key = axis==='x'?'Mux':'Muy';
-  const W=760,Hh=520,Rr=22,T=22;
+  const W=760,Rr=22,T=22, Hh = forPrint ? 612 : 520;
   /* 計算書裡這張圖會被縮到約 480px 寬，所以列印版把字級放大 1.5 倍、
      左下邊界加大以容納變寬的刻度標籤，縮圖後刻度仍清楚。 */
   const FS = forPrint ? 1.5 : 1;
-  const L = forPrint ? 100 : 76, Bm = forPrint ? 64 : 52;
+  const Bm = forPrint ? 156 : 52;
   const C = forPrint
     ? {ax:'#000',grid:'#ccc',n:'#888',d:'#000',mc:'#555',pt:'#666',ptc:'#000',txt:'#000',ok:'#000',bad:'#000'}
     : {ax:'#3A4652',grid:'#E2E7EC',n:'#8A97A5',d:'#0F5F6B',mc:'#6B4FA8',pt:'#6B7887',ptc:'#B03A2E',txt:'#151C24',ok:'#1E7A44',bad:'#B03A2E'};
@@ -3512,6 +3615,8 @@ function svgPM(M,axis,forPrint){
   const NT = forPrint ? 5 : 6;
   const TX = niceTicks(0, mMax, NT), TY = niceTicks(pMin, pMax, NT);
   mMax = TX.hi; pMin = TY.lo; pMax = TY.hi;      // 軸界貼齊整數刻度
+  // 左邊界：容納最寬的 P 刻度標籤與直立軸標題
+  const L = Math.max(forPrint ? 100 : 76, Math.max(...TY.ticks.map(v=>txtW(f(v,TY.dp), 11*FS))) + 40);
   // 圍束曲線超出圖框的部分需「分段」繪製：若只過濾點再連線，折線會跨接被濾掉的區段，
   // 憑空畫出一條不存在的線段（實測曾在 P 相差 37,431 tf 的兩點間偽造出近垂直線）。
   const confAll = cvc ? cvc.filter(p=>p.Pn<=cv.PnMax) : [];
@@ -3532,7 +3637,8 @@ function svgPM(M,axis,forPrint){
   // 格線
   for(const mv of TX.ticks){
     o.push(`<line x1="${X(mv)}" y1="${T}" x2="${X(mv)}" y2="${Hh-Bm}" stroke="${C.grid}" stroke-width="1"/>`);
-    o.push(`<text x="${X(mv)}" y="${Hh-Bm+13*FS+4}" fill="${C.txt}" font-size="${(11*FS).toFixed(1)}" text-anchor="middle">${f(mv,TX.dp)}</text>`);
+    { const tw=txtW(f(mv,TX.dp),11*FS), an = X(mv)+tw/2 > W-2 ? 'end' : 'middle';
+      o.push(`<text x="${an==='end'?W-2:X(mv)}" y="${Hh-Bm+13*FS+4}" fill="${C.txt}" font-size="${(11*FS).toFixed(1)}" text-anchor="${an}">${f(mv,TX.dp)}</text>`); }
   }
   for(const pv of TY.ticks){
     o.push(`<line x1="${L}" y1="${Y(pv)}" x2="${W-Rr}" y2="${Y(pv)}" stroke="${C.grid}" stroke-width="1"/>`);
@@ -3540,12 +3646,14 @@ function svgPM(M,axis,forPrint){
   }
   o.push(`<line x1="${L}" y1="${Y(0)}" x2="${W-Rr}" y2="${Y(0)}" stroke="${C.ax}" stroke-width="1.8"/>`);
   o.push(`<line x1="${L}" y1="${T}" x2="${L}" y2="${Hh-Bm}" stroke="${C.ax}" stroke-width="1.8"/>`);
-  o.push(`<text x="${(L+W-Rr)/2}" y="${Hh-14}" fill="${C.txt}" font-size="${(12.5*FS).toFixed(1)}" text-anchor="middle">${svgTxt(M.m.circle?'M_r = √(M_x² + M_y²) (tf·m)':`M_${axis} (tf·m)`,12.5*FS)}</text>`);
+  o.push(`<text x="${(L+W-Rr)/2}" y="${forPrint ? Hh-Bm+43*FS : Hh-14}" fill="${C.txt}" font-size="${(12.5*FS).toFixed(1)}" text-anchor="middle">${svgTxt(M.m.circle?'M_r = √(M_x² + M_y²) (tf·m)':`M_${axis} (tf·m)`,12.5*FS)}</text>`);
   o.push(`<text x="16" y="${(T+Hh-Bm)/2}" fill="${C.txt}" font-size="${(12.5*FS).toFixed(1)}" text-anchor="middle" transform="rotate(-90 16 ${(T+Hh-Bm)/2})">P (tf)  壓為正</text>`);
 
+  const OBS = [];
   const path=(arr,col,w,dash)=>{
-    const d=arr.filter(p=>Number.isFinite(p[0])&&Number.isFinite(p[1]))
-                .map((p,i)=>`${i?'L':'M'}${X(p[0]).toFixed(1)},${Y(p[1]).toFixed(1)}`).join(' ');
+    const pp=arr.filter(p=>Number.isFinite(p[0])&&Number.isFinite(p[1]));
+    OBS.push(...obsSample(pp.map(p=>[X(p[0]),Y(p[1])]), 3));
+    const d=pp.map((p,i)=>`${i?'L':'M'}${X(p[0]).toFixed(1)},${Y(p[1]).toFixed(1)}`).join(' ');
     o.push(`<path d="${d}" fill="none" stroke="${col}" stroke-width="${w}" ${dash?`stroke-dasharray="${dash}"`:''} stroke-linejoin="round"/>`);
   };
   // 標稱
@@ -3556,12 +3664,13 @@ function svgPM(M,axis,forPrint){
   path(pd.poly.map(p=>[p[0]/TFM,p[1]/TF]), C.d, 2.6);
   // 截斷線
   o.push(`<line x1="${L}" y1="${Y(pd.cap/TF)}" x2="${W-Rr}" y2="${Y(pd.cap/TF)}" stroke="${C.d}" stroke-width="1.2" stroke-dasharray="4 4"/>`);
-  o.push(`<text x="${W-Rr-4}" y="${Y(pd.cap/TF)-5}" fill="${C.d}" font-size="${(10.5*FS).toFixed(1)}" text-anchor="end">${svgTxt(`φP_{n,max} = ${f(pd.cap/TF,0)} tf`,10.5*FS)}</text>`);
+
   // 平衡點
   let bal=cv.pts[0],bd=1e9;
   for(const p of cv.pts){ const dd=Math.abs(p.eps_t-M.m.ety); if(dd<bd){bd=dd;bal=p;} }
   o.push(`<circle cx="${X(bal.phi*bal.Mn/TFM)}" cy="${Y(bal.phi*bal.Pn/TF)}" r="5" fill="none" stroke="${C.ok}" stroke-width="2.2"/>`);
-  o.push(`<text x="${X(bal.phi*bal.Mn/TFM)+9}" y="${Y(bal.phi*bal.Pn/TF)+4}" fill="${C.ok}" font-size="${(10.5*FS).toFixed(1)}">平衡點</text>`);
+  for(let a=0;a<8;a++) OBS.push([X(bal.phi*bal.Mn/TFM)+7*Math.cos(a*Math.PI/4), Y(bal.phi*bal.Pn/TF)+7*Math.sin(a*Math.PI/4)]);
+
   // 載重點 + 控制點射線
   const placedPts=[];
   M.res.forEach((R2,i)=>{
@@ -3586,10 +3695,20 @@ function svgPM(M,axis,forPrint){
        編號會疊在一起。與已畫的點太近就把編號拉到圈外並補一條引線；
        這種叢集靠調整軸比例救不了，因為另一組點需要用到整個軸長。 */
     placedPts.push({x:cx, y:cy});
+    for(let a=0;a<8;a++) OBS.push([cx+R0*Math.cos(a*Math.PI/4), cy+R0*Math.sin(a*Math.PI/4)]);
+    OBS.push([cx,cy]);
+    if(isC && Number.isFinite(R2.dc) && R2.dc>1e-9){ const qx=X(mx/R2.dc), qy=Y(py/R2.dc); OBS.push(...obsSample([[X(0),Y(0)],[qx,qy]], 4)); for(let a=0;a<8;a++) OBS.push([qx+7*Math.cos(a*Math.PI/4), qy+7*Math.sin(a*Math.PI/4)]); }
   });
-  // 圖內對照表（取代逐點標籤，避免重疊）
-  const bx=L+8, by=T+8;
+  // 圖內對照表（取代逐點標籤，避免重疊）：放在曲線與載重點最少的角落
   const BW=248*FS, RH=14*FS, CR=6*FS;   // 盒寬 / 行距 / 圓標半徑，隨字級縮放
+  const BH=16*FS+M.res.length*RH;
+  // 列印版另有曲線圖例（三列）：先放它，再放載重組合表
+  const PLW=300*FS, PLH=3*19*FS+10*FS;
+  const plBox = null;   // 列印版曲線圖例畫在 x 軸標題下方（圖框外）
+  const lgC = [{x1:L+8,y1:T+8},{x1:W-Rr-8-BW,y1:T+8},{x1:W-Rr-8-BW,y1:Hh-Bm-8-BH},{x1:L+8,y1:Hh-Bm-8-BH}];
+  if(plBox) lgC.push({x1:plBox.x2-BW, y1:plBox.y1-8-BH}, {x1:plBox.x1, y1:plBox.y1-8-BH}, {x1:plBox.x2-BW, y1:plBox.y2+8}, {x1:plBox.x1, y1:plBox.y2+8});
+  const lgBox = pickBox(lgC.map(c=>({x1:c.x1, y1:c.y1, x2:c.x1+BW, y2:c.y1+BH})), OBS, plBox ? [plBox] : [], {x1:L, x2:W-Rr, y1:T, y2:Hh-Bm});
+  const bx=lgBox.x1, by=lgBox.y1;
   o.push(`<rect x="${bx}" y="${by}" width="${BW}" height="${(16*FS+M.res.length*RH).toFixed(1)}" rx="4"
     fill="${forPrint?'#fff':'#FFFFFF'}" stroke="${forPrint?'#999':'#D8DEE5'}" stroke-width="1" opacity="${forPrint?1:0.94}"/>`);
   o.push(`<text x="${bx+8*FS}" y="${by+13*FS}" fill="${C.txt}" font-size="${(10*FS).toFixed(1)}" font-weight="700">載重組合　（D/C，定偏心射線法）</text>`);
@@ -3600,15 +3719,25 @@ function svgPM(M,axis,forPrint){
     o.push(`<text x="${bx+27*FS}" y="${yy}" fill="${isC?C.ptc:C.txt}" font-size="${(10*FS).toFixed(1)}" font-weight="${isC?700:400}">${esc(nm)}</text>`);
     o.push(`<text x="${bx+BW-8*FS}" y="${yy}" fill="${R2.dc>1?C.bad:(isC?C.ptc:C.txt)}" font-size="${(10*FS).toFixed(1)}" font-weight="${isC?700:400}" text-anchor="end">${fdc(R2.dc)}</text>`);
   });
+  // φP_n,max 與平衡點標籤：避開曲線、載重點與對照表
+  { const fs=10.5*FS, capY=Y(pd.cap/TF), t=`φP_{n,max} = ${f(pd.cap/TF,0)} tf`, w=txtW(t,fs)+6;
+    const cs=[]; for(const xr of [W-Rr-4, L+8+w].concat([0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9].map(t=>L+(W-L-Rr)*t+w/2))) for(const dy of [-9, fs+7, -9-fs*0.8])
+      cs.push({x1:xr-w, x2:xr, y1:capY+dy-fs, y2:capY+dy+2, ax:xr, ay:capY+dy});
+    const c = pickBox(cs, OBS, [lgBox].concat(plBox?[plBox]:[]), {x1:L, x2:W-Rr, y1:T-4, y2:Hh-Bm});
+    o.push(`<text x="${c.ax}" y="${c.ay}" fill="${C.d}" font-size="${fs.toFixed(1)}" text-anchor="end" stroke="${forPrint?'#fff':'#FFFFFF'}" stroke-width="3" paint-order="stroke">${svgTxt(t,fs)}</text>`); }
+  { const fs=10.5*FS, bx0=X(bal.phi*bal.Mn/TFM), by0=Y(bal.phi*bal.Pn/TF), w=txtW('平衡點',fs)+4;
+    const cs=[[9,4],[-9-w,4],[-w/2,-10],[-w/2,fs+10],[8,-8],[8,fs+6],[-8-w,-8],[-8-w,fs+6]].map(([dx,dy])=>({x1:bx0+dx, x2:bx0+dx+w, y1:by0+dy-fs, y2:by0+dy+2, ax:bx0+dx, ay:by0+dy}));
+    const c = pickBox(cs, OBS, [lgBox].concat(plBox?[plBox]:[]));
+    o.push(`<text x="${c.ax}" y="${c.ay}" fill="${C.ok}" font-size="${fs.toFixed(1)}" stroke="${forPrint?'#fff':'#FFFFFF'}" stroke-width="3" paint-order="stroke">平衡點</text>`); }
   // 圖例（螢幕版移到圖外的 HTML，見 render()；列印版仍畫在圖內）
   if(forPrint){
   // 圖例
   const lg=[['標稱 P_n – M_n',C.n,'1.7',''],['設計 φP_n – φM_n',C.d,'2.6',''],
             ['Mander 圍束核心（保護層剝落）'+(confClipped?'（已裁切）':''),C.mc,'1.7','8 4']];
   lg.forEach((g2,i)=>{
-    const yy=Hh-Bm-8*FS-(lg.length-1-i)*19*FS;
-    o.push(`<line x1="${W-Rr-286*FS}" y1="${yy}" x2="${W-Rr-254*FS}" y2="${yy}" stroke="${g2[1]}" stroke-width="${g2[2]}" ${g2[3]?`stroke-dasharray="${g2[3]}"`:''}/>`);
-    o.push(`<text x="${W-Rr-248*FS}" y="${yy+4*FS}" fill="${C.txt}" font-size="${(10.5*FS).toFixed(1)}">${svgTxt(g2[0],10.5*FS)}</text>`);
+    const yy=Hh-Bm+71*FS+(i>1?19*FS:0), x0=L+(i===1?(W-L-Rr)/2:0);
+    o.push(`<line x1="${x0}" y1="${yy}" x2="${x0+32*FS}" y2="${yy}" stroke="${g2[1]}" stroke-width="${g2[2]}" ${g2[3]?`stroke-dasharray="${g2[3]}"`:''}/>`);
+    o.push(`<text x="${x0+38*FS}" y="${yy+4*FS}" fill="${C.txt}" font-size="${(10.5*FS).toFixed(1)}">${svgTxt(g2[0],10.5*FS)}</text>`);
   });
   }
   o.push(`</svg>`);
@@ -3742,7 +3871,10 @@ async function exportXlsx(){
     btn.disabled=true; btn.textContent='產生中…';
     await ensureXlsxLib();
     const inp = TAB==='beam' ? beamXlsxInput() : colXlsxInput();
-    inp.devFigs = await devFigsPng(TAB==='beam' ? (BMODEL||renderBeam()) : (MODEL||render()));
+    { const MM = TAB==='beam' ? (BMODEL||renderBeam()) : (MODEL||render()), sel = devExpSel(MM.devPlan.mod, MM.devPlan);
+      inp.devFigs = await devFigsPng(MM);
+      inp.devSel = {f:[...sel.f], t:[...sel.t]};
+      inp.devSched = sel.t.has('sched') ? devSchedule(MM.devPlan, MM).map(q=>({id:q.id, where:q.where, size:q.size, shape:q.shape, st:q.st, tail:q.tail, len:q.len, n:q.n, kg:q.kg})) : []; }
     const out = TAB==='beam' ? RCXLSX.buildBeam(ExcelJS, inp) : RCXLSX.buildColumn(ExcelJS, inp);
     const buf = await RCXLSX.toBuffer(out, JSZip);
     const d=new Date(), p=n=>String(n).padStart(2,'0');
@@ -3888,7 +4020,7 @@ function render(){
   document.getElementById('elevWrap').innerHTML=svgColElev(M,false);
   document.getElementById('elevInfo').innerHTML=SB(elevInfoCol(M));
   document.getElementById('devInfo').innerHTML=SB(devTable(M.dev, {colNote: colDevNote(M)}));
-  devCardRender('col', M);
+  devCardRender('col', M); devExpRender('col', M);
   document.getElementById('devPlan').innerHTML=SB(devPlanHtml(M.devPlan));
   document.getElementById('devSched').innerHTML=SB(devScheduleHtml(M.devPlan, M));
   {   // 圖例移到圖外：圖面就不必為了容納它而放大
@@ -3919,34 +4051,34 @@ function colDevNote(M){
     : '橋梁墩柱：塑鉸區內主筋不得搭接（公路橋梁耐震設計規範），搭接或續接器應設於塑鉸區外。';
 }
 /* 計算書：伸展長度逐式代入（柱、梁共用） */
-function devReport(D, eq, d, note){
-  const o = [];
+function devReport(D, eq, d, note, sel){
+  const o = [], F = k => !sel || sel.f.has(k);
   for(const st of D.sets){
     const x = st.d;
     o.push(`<div class="rp-h3">${st.name}${st.face?`（${st.face}控制）`:''}：d_b = ${d(x.db,2)} cm，f_y = ${d(x.fy,0)}、f'_c = ${d(x.fc,0)} kgf/cm²</div>`);
-    o.push(eq(`\\psi_t=${d(x.psiT,1)},\\ \\psi_e=${d(x.psiE,1)}\\ (\\psi_t\\psi_e\\le1.7),\\ \\psi_s=${d(x.psiS,1)},\\ \\lambda=${d(x.lam,2)},\\ \\sqrt{f'_c}=${d(x.sq,2)}\\ (\\le 26.5)`));
-    o.push(eq(`c_b=${d(x.cb,2)}\\ \\text{cm},\\quad K_{tr}=${x.Ktr>0?`\\frac{40A_{tr}}{s\\,n}=\\frac{40\\times${d(x.Atr,3)}}{${d(x.s,1)}\\times${x.n}}=`:''}${d(x.Ktr,3)},\\quad
+    if(F('ld')) o.push(eq(`\\psi_t=${d(x.psiT,1)},\\ \\psi_e=${d(x.psiE,1)}\\ (\\psi_t\\psi_e\\le1.7),\\ \\psi_s=${d(x.psiS,1)},\\ \\lambda=${d(x.lam,2)},\\ \\sqrt{f'_c}=${d(x.sq,2)}\\ (\\le 26.5)`));
+    if(F('ld')) o.push(eq(`c_b=${d(x.cb,2)}\\ \\text{cm},\\quad K_{tr}=${x.Ktr>0?`\\frac{40A_{tr}}{s\\,n}=\\frac{40\\times${d(x.Atr,3)}}{${d(x.s,1)}\\times${x.n}}=`:''}${d(x.Ktr,3)},\\quad
       \\frac{c_b+K_{tr}}{d_b}=${d(x.confRaw,3)}${x.confRaw>2.5?'\\to 2.5':''}`));
-    o.push(eq(`l_d=\\frac{f_y}{3.5\\lambda\\sqrt{f'_c}}\\cdot\\frac{\\psi_t\\psi_e\\psi_s}{(c_b+K_{tr})/d_b}\\,d_b
+    if(F('ld')) o.push(eq(`l_d=\\frac{f_y}{3.5\\lambda\\sqrt{f'_c}}\\cdot\\frac{\\psi_t\\psi_e\\psi_s}{(c_b+K_{tr})/d_b}\\,d_b
       =\\frac{${d(x.fy,0)}}{3.5\\times${d(x.lam,2)}\\times${d(x.sq,2)}}\\cdot\\frac{${d(x.psiTE,2)}\\times${d(x.psiS,1)}}{${d(x.conf,3)}}\\times${d(x.db,2)}
       =${d(x.ld0,1)}\\ \\Rightarrow\\ l_d=\\max(${x.exc<1?`${d(x.exc,2)}\\times`:''}${d(x.ld0,1)},\\ 30)=\\mathbf{${d(x.ld,1)}}\\ \\text{cm}`));
-    if(x.ktrBad) o.push(note(`f_y ≥ 5600 且主筋中心距 ＜ 15 cm：K_tr = ${d(x.Ktr,2)} ＜ 0.5d_b = ${d(x.ktrNeed,2)}，不符 §25.4.2.2，須加密橫向鋼筋。`));
-    o.push(eq(`\\psi_c=${x.fc<420?`\\frac{f'_c}{1050}+0.6=`:''}${d(x.psiC,3)},\\quad
+    if(x.ktrBad && F('ld')) o.push(note(`f_y ≥ 5600 且主筋中心距 ＜ 15 cm：K_tr = ${d(x.Ktr,2)} ＜ 0.5d_b = ${d(x.ktrNeed,2)}，不符 §25.4.2.2，須加密橫向鋼筋。`));
+    if(F('ldh')) o.push(eq(`\\psi_c=${x.fc<420?`\\frac{f'_c}{1050}+0.6=`:''}${d(x.psiC,3)},\\quad
       l_{dh}=\\frac{f_y\\psi_e\\psi_r\\psi_o\\psi_c}{23\\lambda\\sqrt{f'_c}}d_b^{1.5}
       =\\frac{${d(x.fy,0)}\\times${d(x.psiEh,1)}\\times${d(x.psiR,1)}\\times${d(x.psiO,2)}\\times${d(x.psiC,3)}}{23\\times${d(x.lam,2)}\\times${d(x.sq,2)}}\\times${d(x.db,2)}^{1.5}
       =${d(x.ldh0,1)}\\ \\Rightarrow\\ l_{dh}=\\max(${d(x.ldh0,1)},\\ 8d_b,\\ 15)=\\mathbf{${d(x.ldh,1)}}\\ \\text{cm}`));
-    if(x.fcCap) o.push(eq(`\\text{前版式（§25.4.3.6）：}l_{dh}=\\frac{0.075\\psi_e f_y}{\\sqrt{f'_c}}d_b${x.lam<1?'\\times1.3':''}
+    if(x.fcCap && F('ldh')) o.push(eq(`\\text{前版式（§25.4.3.6）：}l_{dh}=\\frac{0.075\\psi_e f_y}{\\sqrt{f'_c}}d_b${x.lam<1?'\\times1.3':''}
       =\\frac{0.075\\times${d(x.psiEh,1)}\\times${d(x.fy,0)}}{\\sqrt{${d(Math.min(x.fc,x.fcCap),0)}}}\\times${d(x.db,2)}=${d(x.ldhA0,1)}\\ \\Rightarrow\\ \\mathbf{${d(x.ldhA,1)}}\\ \\text{cm}`));
-    o.push(note(`標準彎鉤：90° 延伸 12d_b = ${d(x.ext90,1)} cm、180° 延伸 max(4d_b, 6.5) = ${d(x.ext180,1)} cm，彎曲內徑 ${d(x.bendD,1)} cm（§25.3.1）。
+    if(F('ldh')) o.push(note(`標準彎鉤：90° 延伸 12d_b = ${d(x.ext90,1)} cm、180° 延伸 max(4d_b, 6.5) = ${d(x.ext180,1)} cm，彎曲內徑 ${d(x.bendD,1)} cm（§25.3.1）。
       前版式適用 f'c 上限依 §25.4.3.5（本筋 ${x.fcCap||'—'} kgf/cm²），並得乘表 25.4.3.8 之修正因數。`));
-    if(x.headOK) o.push(eq(`l_{dt}=\\frac{f_y\\psi_e\\psi_p\\psi_o\\psi_c}{32\\sqrt{f'_c}}d_b^{1.5}
+    if(x.headOK && F('ldt')) o.push(eq(`l_{dt}=\\frac{f_y\\psi_e\\psi_p\\psi_o\\psi_c}{32\\sqrt{f'_c}}d_b^{1.5}
       =\\frac{${d(x.fy,0)}\\times${d(x.psiEh,1)}\\times${d(x.psiR,1)}\\times${d(x.psiO,2)}\\times${d(x.psiC,3)}}{32\\times${d(x.sq,2)}}\\times${d(x.db,2)}^{1.5}
       =${d(x.ldt0,1)}\\ \\Rightarrow\\ l_{dt}=\\max(${d(x.ldt0,1)},\\ 8d_b,\\ 15)=\\mathbf{${d(x.ldt,1)}}\\ \\text{cm}`));
-    else o.push(note(`擴頭鋼筋不適用（§25.4.4.1）：${x.headFail.join('、')}。`));
-    o.push(eq(`l_{dc}=\\max\\left(\\frac{0.075f_y\\psi_r}{\\lambda\\sqrt{f'_c}},\\ 0.0044f_y\\psi_r\\right)d_b\\ (\\psi_r=${d(x.psiRc,2)})\\ \\Rightarrow\\ l_{dc}=\\mathbf{${d(x.ldc,1)}}\\ \\text{cm}`));
-    o.push(eq(`\\psi_g=${d(x.psiG,2)},\\quad \\text{乙級}=1.3\\psi_g l_d=\\mathbf{${d(x.lapB,1)}},\\quad \\text{甲級}=\\psi_g l_d=${d(x.lapA,1)},\\quad
+    else if(!x.headOK && F('ldt')) o.push(note(`擴頭鋼筋不適用（§25.4.4.1）：${x.headFail.join('、')}。`));
+    if(F('ldc')) o.push(eq(`l_{dc}=\\max\\left(\\frac{0.075f_y\\psi_r}{\\lambda\\sqrt{f'_c}},\\ 0.0044f_y\\psi_r\\right)d_b\\ (\\psi_r=${d(x.psiRc,2)})\\ \\Rightarrow\\ l_{dc}=\\mathbf{${d(x.ldc,1)}}\\ \\text{cm}`));
+    if(F('lap')) o.push(eq(`\\psi_g=${d(x.psiG,2)},\\quad \\text{乙級}=1.3\\psi_g l_d=\\mathbf{${d(x.lapB,1)}},\\quad \\text{甲級}=\\psi_g l_d=${d(x.lapA,1)},\\quad
       \\text{受壓搭接}=${x.fy<=4200?'0.0073f_yd_b':'(0.013f_y-24)d_b'}${x.fc<210?'\\times\\tfrac43':''}=\\mathbf{${d(x.lapC,1)}}\\ \\text{cm}`));
-    if(x.ldhS) o.push(eq(`\\text{耐震梁柱接頭（§18.5.5）：}l_{dh}=\\frac{0.06f_y d_b}{\\lambda\\sqrt{f'_c}}${x.psiEh>1?'\\times1.2':''}=\\mathbf{${d(x.ldhS,1)}},\\quad
+    if(x.ldhS && F('joint')) o.push(eq(`\\text{耐震梁柱接頭（§18.5.5）：}l_{dh}=\\frac{0.06f_y d_b}{\\lambda\\sqrt{f'_c}}${x.psiEh>1?'\\times1.2':''}=\\mathbf{${d(x.ldhS,1)}},\\quad
       l_d=${x.top?'3.25':'2.5'}l_{dh}${x.psiE>1?`\\times${d(x.psiE,1)}`:''}=\\mathbf{${d(x.ldS,1)}}\\ \\text{cm}`));
   }
   o.push(note(`依據土木401-112 第 25 章及 §18.5.5（kgf-cm 制公式）。ψ_g 僅用於搭接（表 25.5.2.1），不用於伸展長度；
@@ -4403,7 +4535,7 @@ function buildReport(M){
       \\(x=\\varepsilon/\\varepsilon_{cc}\\)，\\(r=E_c/(E_c-E_{sec})\\)），非等效應力塊，且已扣除保護層。`));
   }
   o.push(`<div class="rp-h2">${cf.MD?11:10}. 主筋伸展長度與搭接</div>`);
-  o.push(devReport(M.dev, eq, d, note));
+  o.push(devReport(M.dev, eq, d, note, devExpSel('col', M.devPlan)));
   o.push(devReportFigs(M, M.devPlan));
   if(M.opt.plastic) o.push(note(colDevNote(M)));
   o.push(`<div class="rp-h2">附註</div>`);
@@ -5066,7 +5198,7 @@ const envText = env => env==='water' ? '＋ 水工／環境結構加嚴（參考
 
 /* ---------- 梁：範本 ---------- */
 const BPRESETS = {
-  bldgBeam: {label:'建築 RC 大梁（耐震）', type:'T', bw:40, h:75, hf:15, L:800, sSpacing:400, sClear:360, edge:false,
+  bldgBeam: {lapTop:'none', label:'建築 RC 大梁（耐震）', type:'T', bw:40, h:75, hf:15, L:800, sSpacing:400, sClear:360, edge:false,
     fc:280, botSize:'#8', nBot:4, topSize:'#8', nTop:5, tieSize:'#4', nLegs:2, cover:4,
     seismic:true, ln:740, Vg:12, MD:16, ML:7, MDn:26, MLn:11, deflCase:'fixedUDL',
     loads:[{name:'1.2D+1.6L', Mpos:28, Mneg:46, Vu:30, Tu:0},
@@ -5081,12 +5213,12 @@ const BPRESETS = {
     seismic:false, ln:1450, Vg:0, MDn:0, MLn:0, MD:80, ML:45,
     loads:[{name:'跨中 1.2D+1.6L', Mpos:168, Mneg:0, Vu:52, Tu:3},
            {name:'跨中 D+L（含衝擊）', Mpos:150, Mneg:0, Vu:46, Tu:2}]},
-  capBeam: {hc:200, label:'橋墩蓋梁（耐震）', type:'rect', bw:150, h:180, hf:0, L:900, sSpacing:0, sClear:0, edge:false,
+  capBeam: {hc:200, lapTop:'none', label:'橋墩蓋梁（耐震）', type:'rect', bw:150, h:180, hf:0, L:900, sSpacing:0, sClear:0, edge:false,
     fc:280, botSize:'#11', nBot:12, topSize:'#11', nTop:16, tieSize:'#5', nLegs:6, cover:5,
     seismic:true, ln:850, Vg:120, MDn:420, MLn:180, MD:210, ML:95,
     loads:[{name:'柱面 地震 (1.2D+1.0E+0.5L)', Mpos:430, Mneg:880, Vu:340, Tu:22},
            {name:'重力 1.2D+1.6L', Mpos:400, Mneg:520, Vu:200, Tu:12}]},
-  pondTop: {hc:40, label:'滯洪池頂版（水工）', type:'slab', env:'water', bw:100, h:80, hf:0, L:600, sSpacing:0, sClear:0, edge:false,
+  pondTop: {hc:50, label:'滯洪池頂版（水工）', type:'slab', env:'water', bw:100, h:80, hf:0, L:600, sSpacing:0, sClear:0, edge:false,
     fc:280, botSize:'#8', nBot:10, topSize:'#8', nTop:10, spBot:10, spTop:10, rhoTs:0.003, tieSize:'#4', nLegs:2, cover:5,
     seismic:false, ln:600, Vg:0, MDn:18, MLn:12, MD:9, ML:6, deflCase:'fixedUDL', wLim:'0.20',
     loads:[{name:'跨中 1.2D+1.6L（覆土＋活載）', Mpos:20.5, Mneg:41, Vu:26, Tu:0}]},
@@ -5094,7 +5226,7 @@ const BPRESETS = {
     fc:280, botSize:'#7', nBot:8, topSize:'#7', nTop:7, spBot:12.5, spTop:15, rhoTs:0.003, tieSize:'#4', nLegs:2, cover:5,
     seismic:false, ln:650, Vg:0, MDn:0, MLn:0, MD:18, ML:4, deflCase:'cantUDL', wLim:'0.20',
     loads:[{name:'牆底 1.6H（土壓＋地下水；三角形分布 V = 3M/H）', Mpos:38, Mneg:0, Vu:17.5, Tu:0}]},
-  pondBeam: {hc:80, label:'滯洪池頂版大梁', type:'rect', env:'water', bw:80, h:130, hf:0, L:800, sSpacing:0, sClear:0, edge:false,
+  pondBeam: {hc:80, lapTop:'none', label:'滯洪池頂版大梁', type:'rect', env:'water', bw:80, h:130, hf:0, L:800, sSpacing:0, sClear:0, edge:false,
     fc:280, botSize:'#9', nBot:9, topSize:'#11', nTop:9, tieSize:'#4', nLegs:3, cover:5,
     seismic:false, ln:720, Vg:0, MDn:110, MLn:50, MD:62, ML:30, deflCase:'fixedUDL', wLim:'0.20',
     loads:[{name:'跨中 1.2D+1.6L', Mpos:122, Mneg:0, Vu:78, Tu:2},
@@ -5116,7 +5248,9 @@ function applyBPreset(k){
   if(P.spBot) s('bSpBot',P.spBot); if(P.spTop!==undefined) s('bSpTop',P.spTop);
   s('bRhoTs', P.rhoTs || 0.0018); if(P.wLim) s('bWlim',P.wLim);
   s('bDeflCase', P.deflCase || 'simpleUDL');
-  s('bdHc', P.hc || 60); s('bdAncCov', P.ancCov || 4);
+  s('bdHc', P.hc || 60); s('bdAncCov', P.ancCov || 4); s('bdAnc', P.anc || 'hook90');
+  s('bdSplice', P.splice || 'B'); s('bdLapTop', P.lapTop || 'mid'); s('bdLapBot', P.lapBot || 'none');
+  s('bdStagger', P.stagger ? '1' : '0'); s('bdLapGap', P.lapGap || 0); s('bdCut', '0'); s('bdNcont', 2);
   s('envWater', P.env || 'normal');
   if(P.type==='slab' && P.loads.some(l=>!l.Mpos && l.Mneg)) BSIGN='neg'; else if(P.type==='slab') BSIGN='pos';
   BLOADS = P.loads.map(l=>({...l}));
@@ -5272,7 +5406,7 @@ function beamLeg(S, sh){
 /* ---------- 梁立面：沿梁軸向箍筋配置 ---------- */
 function svgBeamElev(B, forPrint){
   const {S,R,lay} = B, L = S.ln;
-  const W=760, Hh=346, x0=90, x1=W-90;
+  const W=760, Hh=358, x0=90, x1=W-90;
   const C = forPrint
     ? {conc:'#ececec',line:'#000',bar:'#000',tie:'#000',tie2:'#666',hot:'#bdbdbd',txt:'#000',dim:'#333',stub:'#c8c8c8'}
     : {conc:'#DCE2E8',line:'#8A97A5',bar:'#151C24',tie:'#0F5F6B',tie2:'#6E9AA0',hot:'#E8B04B',txt:'#151C24',dim:'#5E6B7A',stub:'#B9C3CC'};
@@ -5356,54 +5490,62 @@ function svgBeam(B, forPrint){
   }else{
     o.push(`<rect x="${X(-S.bw/2)}" y="${Y(S.h)}" width="${S.bw*k}" height="${S.h*k}" fill="${C.conc}" stroke="${C.line}" stroke-width="2"/>`);
   }
-  // 受壓區網底
+  // 受壓區網底（負彎矩 T 梁之受壓區在腹板底面，寬取 b_w）
   const a = B.sol.a, top = S.sign==='pos';
   const yA = top ? S.h : a, yB = top ? S.h-a : 0;
-  o.push(`<rect x="${X(-wTot/2)}" y="${Y(yA)}" width="${wTot*k}" height="${(yA-yB)*k}"
+  const wC = (S.type==='T' && !top) ? S.bw : wTot;
+  o.push(`<rect x="${X(-wC/2)}" y="${Y(yA)}" width="${wC*k}" height="${(yA-yB)*k}"
     fill="${C.comp}" opacity="${forPrint?0.55:0.5}"/>`);
-  o.push(`<line x1="${X(-wTot/2)}" y1="${Y(yB)}" x2="${X(wTot/2)}" y2="${Y(yB)}" stroke="${C.ann}" stroke-width="1.4" stroke-dasharray="7 4"/>`);
-  o.push(`<text x="${X(wTot/2)-4}" y="${Y(yB)+(top?14:-6)}" fill="${C.ann}" font-size="10.5" text-anchor="end">${svgTxt(`a = ${f(a,1)} cm`,10.5)}</text>`);
+  o.push(`<line x1="${X(-wC/2)}" y1="${Y(yB)}" x2="${X(wC/2)}" y2="${Y(yB)}" stroke="${C.ann}" stroke-width="1.4" stroke-dasharray="7 4"/>`);
+  // 標註避讓用的障礙：斷面外框、箍筋、主筋、尺寸線（a 的標籤最後再放）
+  const OBS = [], OBB = [];
+  if(S.type==='T') OBS.push(...obsSample([[X(-S.be/2),Y(S.h)],[X(S.be/2),Y(S.h)],[X(S.be/2),Y(S.h-S.hf)],[X(S.bw/2),Y(S.h-S.hf)],[X(S.bw/2),Y(0)],[X(-S.bw/2),Y(0)],[X(-S.bw/2),Y(S.h-S.hf)],[X(-S.be/2),Y(S.h-S.hf)],[X(-S.be/2),Y(S.h)]],3));
+  else OBS.push(...obsSample([[X(-S.bw/2),Y(S.h)],[X(S.bw/2),Y(S.h)],[X(S.bw/2),Y(0)],[X(-S.bw/2),Y(0)],[X(-S.bw/2),Y(S.h)]],3));
 
   // 箍筋（版不配）
   const cc=S.cover, dt=R.dt;
-  if(!S.slab) o.push(`<rect x="${X(-S.bw/2+cc)}" y="${Y(S.h-cc)}" width="${(S.bw-2*cc)*k}" height="${(S.h-2*cc)*k}"
+  if(!S.slab){ o.push(`<rect x="${X(-S.bw/2+cc)}" y="${Y(S.h-cc)}" width="${(S.bw-2*cc)*k}" height="${(S.h-2*cc)*k}"
     rx="3" fill="none" stroke="${C.tie}" stroke-width="${forPrint?2:2.2}"/>`);
+    OBS.push(...obsSample([[X(-S.bw/2+cc),Y(S.h-cc)],[X(S.bw/2-cc),Y(S.h-cc)],[X(S.bw/2-cc),Y(cc)],[X(-S.bw/2+cc),Y(cc)],[X(-S.bw/2+cc),Y(S.h-cc)]],2.5)); }
   // 主筋
   const drawRow=(n,y,db,sp)=>{
     if(n<=0) return;
     if(S.slab){                                   // 版：依間距自寬度中心向兩側排列
       const half=Math.floor((S.bw/2 - db/2)/sp);
       for(let i=-half;i<=half;i++)
-        o.push(`<circle cx="${X(i*sp)}" cy="${Y(y)}" r="${Math.max(2.2,db/2*k)}" fill="${C.bar}" stroke="${forPrint?'#000':'#FFFFFF'}" stroke-width="0.7"/>`);
+        { o.push(`<circle cx="${X(i*sp)}" cy="${Y(y)}" r="${Math.max(2.2,db/2*k)}" fill="${C.bar}" stroke="${forPrint?'#000':'#FFFFFF'}" stroke-width="0.7"/>`);
+          const rr=Math.max(2.2,db/2*k); OBB.push({x1:X(i*sp)-rr,x2:X(i*sp)+rr,y1:Y(y)-rr,y2:Y(y)+rr}); }
       return;
     }
     const x0=-S.bw/2+cc+dt+db/2, x1=S.bw/2-cc-dt-db/2;
     for(let i=0;i<n;i++){
       const x = n===1?0:(x0+(x1-x0)*i/(n-1));
       o.push(`<circle cx="${X(x)}" cy="${Y(y)}" r="${Math.max(2.2,db/2*k)}" fill="${C.bar}" stroke="${forPrint?'#000':'#FFFFFF'}" stroke-width="0.7"/>`);
+      const rr=Math.max(2.2,db/2*k); OBB.push({x1:X(x)-rr,x2:X(x)+rr,y1:Y(y)-rr,y2:Y(y)+rr});
     }
   };
   R.layers.forEach((L,i)=> drawRow(L.n, L.y, L.db, i===0 ? S.spBot : S.spTop));
 
   // CAD 標註
   const cad=(p1,p2,dp,cfg)=>{
-    const {dir='h',color=C.ann,label='',gap=5,ext=7,fs=11.5,lw=1.15,arw=7,bold=false}=cfg||{};
-    const q=[]; const LN=(x1,y1,x2,y2)=>q.push(`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${color}" stroke-width="${lw}"/>`);
+    const {dir='h',color=C.ann,label='',gap=5,ext=7,fs=11.5,lw=1.15,arw=7,bold=false,landMin=0}=cfg||{};
+    const q=[]; const LN=(x1,y1,x2,y2)=>{ q.push(`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${color}" stroke-width="${lw}"/>`); OBS.push(...obsSample([[x1,y1],[x2,y2]],3)); };
+    const TB=(x,y,anchor)=>{ const w=txtW(label,fs); const x1=anchor==='middle'?x-w/2:x; OBB.push({x1, x2:x1+w, y1:y-fs, y2:y+2}); };
     const hh=arw*0.30, fw=bold?700:500;
     if(dir==='h'){
       const dy=dp, sg=Math.sign(dy-p1[1])||-1;
       LN(p1[0],p1[1]+sg*gap,p1[0],dy+sg*ext); LN(p2[0],p2[1]+sg*gap,p2[0],dy+sg*ext);
       const a1=Math.min(p1[0],p2[0]), b1=Math.max(p1[0],p2[0]);
-      if(b1-a1>3.6*arw){
+      if(b1-a1>3.6*arw && b1-a1>txtW(label,fs)+10){
         LN(a1,dy,b1,dy);
         q.push(`<path d="M${a1},${dy} L${a1+arw},${dy-hh} L${a1+arw},${dy+hh} Z" fill="${color}"/>`);
         q.push(`<path d="M${b1},${dy} L${b1-arw},${dy-hh} L${b1-arw},${dy+hh} Z" fill="${color}"/>`);
-        q.push(`<text x="${(a1+b1)/2}" y="${dy-ext-fs*0.95}" fill="${color}" font-size="${fs}" text-anchor="middle" font-weight="${fw}">${svgTxt(label,fs)}</text>`);
+        q.push(`<text x="${(a1+b1)/2}" y="${dy-ext-fs*0.95}" fill="${color}" font-size="${fs}" text-anchor="middle" font-weight="${fw}">${svgTxt(label,fs)}</text>`); TB((a1+b1)/2, dy-ext-fs*0.95, 'middle');
       }else{
-        const land=b1+2.6*arw+14; LN(a1-2.6*arw,dy,land,dy);
+        const land=Math.max(b1+2.6*arw+14, landMin); LN(a1-2.6*arw,dy,land,dy);
         q.push(`<path d="M${a1},${dy} L${a1-arw},${dy-hh} L${a1-arw},${dy+hh} Z" fill="${color}"/>`);
         q.push(`<path d="M${b1},${dy} L${b1+arw},${dy-hh} L${b1+arw},${dy+hh} Z" fill="${color}"/>`);
-        q.push(`<text x="${land+4}" y="${dy+fs*0.36}" fill="${color}" font-size="${fs}" font-weight="${fw}">${svgTxt(label,fs)}</text>`);
+        q.push(`<text x="${land+4}" y="${dy+fs*0.36}" fill="${color}" font-size="${fs}" font-weight="${fw}">${svgTxt(label,fs)}</text>`); TB(land+4, dy+fs*0.36);
       }
     }else{
       const dx=dp, sg=Math.sign(dx-p1[0])||1;
@@ -5415,12 +5557,13 @@ function svgBeam(B, forPrint){
         q.push(`<path d="M${dx},${b1} L${dx-hh},${b1-arw} L${dx+hh},${b1-arw} Z" fill="${color}"/>`);
         const my=(a1+b1)/2, tx=dx-ext*0.5-6;
         q.push(`<text x="${tx}" y="${my}" fill="${color}" font-size="${fs}" text-anchor="middle" font-weight="${fw}" transform="rotate(-90 ${tx} ${my})">${svgTxt(label,fs)}</text>`);
+        { const w=txtW(label,fs); OBB.push({x1:tx-fs, x2:tx+2, y1:my-w/2, y2:my+w/2}); }
       }else{
         const land=b1+2.6*arw+12; LN(dx,a1-2.6*arw,dx,land);
         q.push(`<path d="M${dx},${a1} L${dx-hh},${a1-arw} L${dx+hh},${a1-arw} Z" fill="${color}"/>`);
         q.push(`<path d="M${dx},${b1} L${dx-hh},${b1+arw} L${dx+hh},${b1+arw} Z" fill="${color}"/>`);
         LN(dx,land,dx+14,land);
-        q.push(`<text x="${dx+18}" y="${land+fs*0.36}" fill="${color}" font-size="${fs}" font-weight="${fw}">${svgTxt(label,fs)}</text>`);
+        q.push(`<text x="${dx+18}" y="${land+fs*0.36}" fill="${color}" font-size="${fs}" font-weight="${fw}">${svgTxt(label,fs)}</text>`); TB(dx+18, land+fs*0.36);
       }
     }
     o.push(q.join(''));
@@ -5430,16 +5573,16 @@ function svgBeam(B, forPrint){
   // 主筋淨距（底排中央兩根）
   if(S.slab){
     cad([X(0),Y(R.layers[0].y)],[X(S.spBot),Y(R.layers[0].y)], Y(0)+30,
-      {dir:'h', color:C.ann, label:`s = ${f(S.spBot,1)} cm`});
+      {dir:'h', color:C.ann, label:`s = ${f(S.spBot,1)} cm`, landMin: X(S.bw/2)+10});
   }else if(R.r1>1){
     const db=R.dbB, x0=-S.bw/2+cc+dt+db/2, x1=S.bw/2-cc-dt-db/2;
     const i=Math.max(0,Math.floor((R.r1-1)/2)-0), n=R.r1;
     const xa=(n===1?0:x0+(x1-x0)*(i)/(n-1))+db/2;
     const xb=(n===1?0:x0+(x1-x0)*(i+1)/(n-1))-db/2;
     if(i+1<n) cad([X(xa),Y(R.layers[0].y)],[X(xb),Y(R.layers[0].y)], Y(0)+30,
-      {dir:'h', color:C.ann, label:`主筋淨距 ${f(xb-xa,1)} cm`});
+      {dir:'h', color:C.ann, label:`主筋淨距 ${f(xb-xa,1)} cm`, landMin: X(S.bw/2)+10});
   }
-  cad([X(-S.bw/2),Y(0)],[X(S.bw/2),Y(0)], Y(0)+62, {dir:'h',color:C.dim,label:S.slab?`b = 100 cm（單位寬）`:`b_w = ${f(S.bw,0)} cm`,fs:13,arw:8});
+  cad([X(-S.bw/2),Y(0)],[X(S.bw/2),Y(0)], Y(0)+80, {dir:'h',color:C.dim,label:S.slab?`b = 100 cm（單位寬）`:`b_w = ${f(S.bw,0)} cm`,fs:13,arw:8});
   if(S.type==='T'){
     cad([X(-S.be/2),Y(S.h)],[X(S.be/2),Y(S.h)], topDim, {dir:'h',color:C.dim,label:`b_e = ${f(S.be,0)} cm`,fs:13,arw:8});
     cad([X(S.be/2),Y(S.h)],[X(S.be/2),Y(S.h-S.hf)], X(S.be/2)+40, {dir:'v',color:C.dim,label:`h_f = ${f(S.hf,0)}`,fs:11});
@@ -5450,6 +5593,15 @@ function svgBeam(B, forPrint){
       S.type==='T' ? X(S.bw/2)+38 : X(S.bw/2)+44,
       {dir:'v',color:C.ann,label:`d = ${f(B.d,1)} cm`,fs:11.5});
 
+  // 受壓區深度 a 的標籤：依序嘗試斷面外右側、尺寸線外、斷面內四角、斷面上下方，取不壓到任何線與鋼筋者
+  { const fs=10.5, t=`a = ${f(a,1)} cm`, w=txtW(t,fs)+4, yl=Y(yB), xr=X(wC/2), xl=X(-wC/2);
+    const cs=[];
+    for(const x1 of [xr+8, xr+56, xr+96]) cs.push({x1, x2:x1+w, y1:yl-fs*0.5, y2:yl+fs*0.6, ax:x1, ay:yl+fs*0.36, lead:true});
+    for(const [x1,dy] of [[xr-4-w,14],[xr-4-w,-6],[xl+4,14],[xl+4,-6]]) cs.push({x1, x2:x1+w, y1:yl+dy-fs, y2:yl+dy+2, ax:x1, ay:yl+dy});
+    cs.push({x1:X(wTot/2)-w, x2:X(wTot/2), y1:Y(S.h)-6-fs, y2:Y(S.h)-4, ax:X(wTot/2)-w, ay:Y(S.h)-6});
+    const c = pickBox(cs, OBS, OBB, {x1:2, x2:W-2, y1:band, y2:Hh-2});
+    if(c.lead) o.push(`<line x1="${xr}" y1="${yl}" x2="${c.x1-2}" y2="${yl}" stroke="${C.ann}" stroke-width="0.9" stroke-dasharray="2 2"/>`);
+    o.push(`<text x="${c.ax}" y="${c.ay}" fill="${C.ann}" font-size="${fs}">${svgTxt(t,fs)}</text>`); }
   // 圖例
   const lg = S.slab
     ? [['dot',`底層主筋 ${bBarTxt(S,'bot')}`,C.bar],
@@ -5516,7 +5668,7 @@ function renderBeam(){
     document.getElementById('bElevWrap').innerHTML=svgBeamElev(B,false);
     document.getElementById('bElevInfo').innerHTML=SB(elevInfoBeam(B));
   }
-  devCardRender('beam', B);
+  devCardRender('beam', B); devExpRender('beam', B);
   document.getElementById('bDevPlan').innerHTML=SB(devPlanHtml(B.devPlan));
   document.getElementById('bDevSched').innerHTML=SB(devScheduleHtml(B.devPlan, B));
   document.getElementById('bDevInfo').innerHTML=SB(devTable(B.dev, {colNote: S.seismic
@@ -5990,7 +6142,7 @@ function buildBeamReport(B){
       無法由單一斷面判斷，請另行檢核。`));
   }
   o.push(`<div class="rp-h2">${S.seismic?'8':'7'}. 主筋伸展長度與搭接</div>`);
-  o.push(devReport(B.dev, eq, d, note));
+  o.push(devReport(B.dev, eq, d, note, devExpSel('beam', B.devPlan)));
   o.push(devReportFigs(B, B.devPlan));
   o.push(`<div class="rp-h2">${S.seismic?'9':'8'}. 附註</div>`);
   o.push(note(`1. 本模組為<b>第一階段 RC 梁</b>，不含預力。預力梁之有效預力、施工/使用階段應力檢核、
@@ -6435,6 +6587,7 @@ function pinStatus(mod, map){
   document.getElementById('axX').onclick=()=>{AXIS='x';render();};
   document.getElementById('axY').onclick=()=>{AXIS='y';render();};
   document.getElementById('btnTest').onclick=()=>{
+    document.body.classList.add('has-test');
     wsShow(document.getElementById(TAB==='beam'?'wsB':'wsP'), 'test');
     TAB==='beam'?beamSelfTest():selfTest();
   };
@@ -6456,13 +6609,20 @@ function pinStatus(mod, map){
     drawLoads(); render();
   };
   const buildActive=()=> TAB==='beam' ? buildBeamReport(BMODEL||renderBeam()) : buildReport(MODEL||render());
-  document.getElementById('btnPreview').onclick=()=>{
-    const el=document.getElementById('report');
-    el.classList.toggle('preview');
-    const on=el.classList.contains('preview');
+  const setPreview = on => {
+    const el=document.getElementById('report'), b=document.getElementById('btnPreview');
+    el.classList.toggle('preview', on);
     document.body.classList.toggle('rp-open', on);
-    if(on){ buildActive(); el.scrollIntoView({behavior:'smooth'}); }
+    b.setAttribute('aria-pressed', String(on));
+    b.querySelector('.lbl').textContent = on ? '返回設計畫面' : '預覽報告';
+    b.title = on ? '關閉預覽，回到設計畫面（Esc）' : '在畫面上預覽 A4 計算書';
+    if(on){ buildActive(); window.scrollTo({top:0}); }
   };
+  window.setPreview = setPreview;
+  document.getElementById('btnPreview').onclick=()=>setPreview(!document.getElementById('report').classList.contains('preview'));
+  document.getElementById('rpBack').onclick=()=>setPreview(false);
+  document.getElementById('rpPrint').onclick=()=>document.getElementById('btnPrint').click();
+  document.addEventListener('keydown', e=>{ if(e.key==='Escape' && document.getElementById('report').classList.contains('preview')) setPreview(false); });
   document.getElementById('btnPrint').onclick=()=>{
     buildActive();
     // 存成 PDF 時預設檔名取自 document.title，暫時換成計算書名稱
@@ -6508,8 +6668,7 @@ function pinStatus(mod, map){
     document.getElementById('appBeam').style.display = t==='beam'?'':'none';
     document.getElementById('tabPylon').setAttribute('aria-pressed', String(t==='pylon'));
     document.getElementById('tabBeam').setAttribute('aria-pressed', String(t==='beam'));
-    document.getElementById('report').classList.remove('preview');
-    document.body.classList.remove('rp-open');
+    if(window.setPreview) window.setPreview(false);
     if(t==='beam') renderBeam(); else render();
   };
   document.getElementById('tabPylon').onclick=()=>setTab('pylon');

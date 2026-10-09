@@ -1283,19 +1283,23 @@ function buildA4Column(ws, S, R, inp, jRow, sumRows){
   ws.getRow(a.data('一般區配置','—','IF({full}=1,"—",{tie}&" @ "&TEXT({sUse2},"0.0")&" cm × "&{nMid}&" 組（均分 "&TEXT({sMid},"0.0")&"）")','—','中段以 s₂ 均分',null,true)).height = 30;
   a.data('全長合計','n','{totalL}','組','柱淨高 lu 範圍內（含搭接段加密）','0');
   a.sub('4.9 主筋伸展長度與搭接（土木401 第 25 章）'); a.thead();
-  a.data('直線受拉伸展長度','ld','{dvld}','cm',"fy/(3.5λ√f'c)·ψtψeψsψg/((cb+Ktr)/db)·db",'0');
-  a.data('標準彎鉤伸展長度','ldh','{dvldh}','cm',"fyψeψrψoψc/(23λ√f'c)·db^1.5",'0');
-  a.data('標準彎鉤（前版式，可擇用）','ldh','IF({dvfcH}>0,TEXT({dvldhA},"0")&" cm","不適用")','—','§25.4.3.6',null,true);
-  a.data('擴頭伸展長度','ldt','IF({dvhd}="適用",TEXT({dvldt},"0")&" cm","不適用")','—','§25.4.4',null,true);
-  a.data('受壓伸展長度','ldc','{dvldc}','cm','§25.4.9','0');
-  a.data('受拉搭接（乙級）／受壓搭接','—','TEXT({dvlapB},"0")&"／"&TEXT({dvlapC},"0")&" cm"','—','§25.5.2、§25.5.5',null,true);
+  const DS = inp.devSel || {f:['ld','ldh','ldt','ldc','lap','joint'], t:['checks','sched']}, df = k => DS.f.includes(k), dtb = k => DS.t.includes(k);
+  if(df('ld')) a.data('直線受拉伸展長度','ld','{dvld}','cm',"fy/(3.5λ√f'c)·ψtψeψsψg/((cb+Ktr)/db)·db",'0');
+  if(df('ldh')) a.data('標準彎鉤伸展長度','ldh','{dvldh}','cm',"fyψeψrψoψc/(23λ√f'c)·db^1.5",'0');
+  if(df('ldh')) a.data('標準彎鉤（前版式，可擇用）','ldh','IF({dvfcH}>0,TEXT({dvldhA},"0")&" cm","不適用")','—','§25.4.3.6',null,true);
+  if(df('ldt')) a.data('擴頭伸展長度','ldt','IF({dvhd}="適用",TEXT({dvldt},"0")&" cm","不適用")','—','§25.4.4',null,true);
+  if(df('ldc')) a.data('受壓伸展長度','ldc','{dvldc}','cm','§25.4.9','0');
+  if(df('lap')) a.data('受拉搭接（乙級）／受壓搭接','—','TEXT({dvlapB},"0")&"／"&TEXT({dvlapC},"0")&" cm"','—','§25.5.2、§25.5.5',null,true);
+  if(dtb('checks')){
   a.sub('4.10 錨定空間與續接配置（土木401 §25.4.1.2、§18.4.4.3、§18.2.7、§25.5.1.2）'); a.thead();
-  a.data('底端錨定','—','IF({dvAncB}="貫穿續接","貫穿續接",{dvAncB}&" "&TEXT({dvLenB},"0")&"／可用 "&TEXT({dvAvB},"0")&" cm")','—','長度／h − 保護層',null,true);
-  a.data('頂端錨定','—','IF({dvAncT}="貫穿續接","貫穿續接",{dvAncT}&" "&TEXT({dvLenT},"0")&"／可用 "&TEXT({dvAvT},"0")&" cm")','—','長度／h − 保護層',null,true);
+  ws.getRow(a.data('底端錨定','—','IF({dvAncB}="貫穿續接","貫穿續接",{dvAncB}&" "&TEXT({dvLenB},"0")&"／可用 "&TEXT({dvAvB},"0")&" cm")','—','長度／h − 保護層',null,true)).height = 30;
+  ws.getRow(a.data('頂端錨定','—','IF({dvAncT}="貫穿續接","貫穿續接",{dvAncT}&" "&TEXT({dvLenT},"0")&"／可用 "&TEXT({dvAvT},"0")&" cm")','—','長度／h − 保護層',null,true)).height = 30;
   a.data('受壓伸展（直段）','ldc','{dvldcU}','cm','彎鉤、擴頭不計入受壓','0');
   ws.getRow(a.data('續接方式與位置','—','{dvSp}&IF({dvStag}=1,"（錯開）","")&"："&TEXT({dvLa},"0")&"～"&TEXT({dvLe},"0")&" cm（可續接 "&TEXT({dvA0},"0")&"～"&TEXT({dvA1},"0")&"）"','—','距柱底',null,true)).height = 30;
   a.data('搭接處淨距','s','{dvClrL}','cm','需 ≧ 柱主筋淨距下限','0.00');
-  a.data('搭接段橫向筋','—','IF({lzOn1}=1,"加密 @ "&TEXT({lzS1},"0.0")&" cm","不需加密")','—','§18.4.4.3',null,true);
+  ws.getRow(a.data('搭接段橫向筋','—','IF({lzOn1}=1,"加密 @ "&TEXT({lzS1},"0.0")&" cm","不需加密")','—','§18.4.4.3',null,true)).height = 30;
+  }
+  if(dtb('sched')) a4Sched(ws, a, inp.devSched);
 
   ws.getRow(a.n).addPageBreak();
   a.chap('五、檢核彙總');
@@ -1833,17 +1837,21 @@ function buildA4Beam(ws, R, inp, jRow, sumRows){
   a.sub('4.3b 主筋伸展長度與搭接（土木401 第 25 章；底筋／頂筋）'); a.thead();
   const HASTOP = 'IF({isSlab}=1,{spT}>0,ROUND({nTop},0)>0)';
   const bt = (kb, kt) => `TEXT(${kb},"0")&"／"&IF(${HASTOP},TEXT(${kt},"0"),"—")&" cm"`;
-  a.data('直線受拉伸展長度','ld',bt('{bvldb}','{bvldt}'),'—','頂筋含 ψt = 1.3（下方混凝土 > 30 cm）',null,true);
-  a.data('標準彎鉤伸展長度','ldh',bt('{bvldhb}','{bvldht}'),'—',"fyψeψrψoψc/(23λ√f'c)·db^1.5",null,true);
-  a.data('擴頭伸展長度','ldt',`IF({bvhdb}="適用",TEXT({bvldtb},"0"),"不適用")&"／"&IF(${HASTOP},IF({bvhdt}="適用",TEXT({bvldtt},"0"),"不適用"),"—")`,'—','§25.4.4',null,true);
+  const DS = inp.devSel || {f:['ld','ldh','ldt','ldc','lap','joint'], t:['checks','sched']}, df = k => DS.f.includes(k), dtb = k => DS.t.includes(k);
+  if(df('ld')) a.data('直線受拉伸展長度','ld',bt('{bvldb}','{bvldt}'),'—','頂筋含 ψt = 1.3（下方混凝土 > 30 cm）',null,true);
+  if(df('ldh')) a.data('標準彎鉤伸展長度','ldh',bt('{bvldhb}','{bvldht}'),'—',"fyψeψrψoψc/(23λ√f'c)·db^1.5",null,true);
+  if(df('ldt')) a.data('擴頭伸展長度','ldt',`IF({bvhdb}="適用",TEXT({bvldtb},"0"),"不適用")&"／"&IF(${HASTOP},IF({bvhdt}="適用",TEXT({bvldtt},"0"),"不適用"),"—")`,'—','§25.4.4',null,true);
+  if(df('lap')) a.data('受拉搭接（乙級）','1.3ψgld',bt('{bvlapBb}','{bvlapBt}'),'—','表 25.5.2.1',null,true);
+  if(inp.seismic && !inp.slab && df('joint')) ws.getRow(a.data('耐震梁柱接頭內 彎鉤 ldh／直線 ld（底筋）','—','TEXT({bvldhSb},"0")&"／"&TEXT({bvldSb},"0")&" cm"','—','§18.5.5.1、§18.5.5.3',null,true)).height = 30;
+  if(dtb('checks')){
   a.sub('4.3c 錨定空間、續接與截斷點（土木401 §18.5.2.3、§18.3.3.3、§9.7.3）'); a.thead();
-  a.data('支承內錨定（底／頂）','—',`{bvAnc}&" "&TEXT({bvLenb},"0")&IF(${HASTOP},"／"&TEXT({bvLent},"0"),"")&"；可用 "&TEXT({bvAv},"0")&" cm"`,'—','hc − 保護層',null,true);
-  a.data('耐震接頭深度需求','h','IF({isS}=1,TEXT({bvJreq},"0.0")&" cm（柱寬 "&TEXT({bvHc},"0")&"）","—")','—','§18.5.2.3',null,true);
+  ws.getRow(a.data('支承內錨定（底／頂）','—',`{bvAnc}&" "&TEXT({bvLenb},"0")&IF(${HASTOP},"／"&TEXT({bvLent},"0"),"")&"；可用 "&TEXT({bvAv},"0")&" cm"`,'—','hc − 保護層',null,true)).height = 30;
+  ws.getRow(a.data('耐震接頭深度需求','h','IF({isS}=1,TEXT({bvJreq},"0.0")&" cm（柱寬 "&TEXT({bvHc},"0")&"）","—")','—','§18.5.2.3',null,true)).height = 30;
   ws.getRow(a.data('續接（頂／底）','—','{bvSp}&IF({bvStag}=1,"（錯開）","")&"：頂 "&IF({bvOnt}=1,TEXT({bvLat},"0")&"～"&TEXT({bvLet},"0"),"通長")&"；底 "&IF({bvOnb}=1,TEXT({bvLab},"0")&"～"&TEXT({bvLeb},"0"),"通長")&" cm"','—','距左支承面',null,true)).height = 30;
-  a.data('搭接段箍筋','—','IF({lzOn1}+{lzOn2}>0,"加密 @ "&TEXT(MAX({lzS1},{lzS2}),"0.0")&" cm","不需加密")','—','§18.3.3.3',null,true);
-  a.data('頂筋截斷點','—','IF({cNA}=1,"不分析／無截斷",TEXT({cxCut},"0")&" cm（反曲點 "&TEXT({cx0},"0")&"）")','—','§9.7.3',null,true);
-  a.data('受拉搭接（乙級）','1.3ψgld',bt('{bvlapBb}','{bvlapBt}'),'—','表 25.5.2.1',null,true);
-  if(inp.seismic && !inp.slab) a.data('耐震梁柱接頭內 彎鉤 ldh／直線 ld（底筋）','—','TEXT({bvldhSb},"0")&"／"&TEXT({bvldSb},"0")&" cm"','—','§18.5.5.1、§18.5.5.3',null,true);
+  ws.getRow(a.data('搭接段箍筋','—','IF({lzOn1}+{lzOn2}>0,"加密 @ "&TEXT(MAX({lzS1},{lzS2}),"0.0")&" cm","不需加密")','—','§18.3.3.3',null,true)).height = 30;
+  ws.getRow(a.data('頂筋截斷點','—','IF({cNA}=1,"不分析／無截斷",TEXT({cxCut},"0")&" cm（反曲點 "&TEXT({cx0},"0")&"）")','—','§9.7.3',null,true)).height = 30;
+  }
+  if(dtb('sched')) a4Sched(ws, a, inp.devSched);
   a.sub('4.4 使用性（土木401 §24.2、§24.3）'); a.thead();
   a.data('開裂慣性矩','Icr','{Icr}','cm⁴','轉換斷面','#,##0');
   a.data('即時活載撓度','ΔL','{dL}','cm','—','0.000');
@@ -2271,6 +2279,21 @@ function a4DevFigs(ws, a, title, figs){
     used += rows + 3;
   }
   return specs;
+}
+/* 鋼筋下料長度表（匯出當下之網頁值，靜態） */
+function a4Sched(ws, a, rows){
+  if(!rows || !rows.length) return;
+  a.sub('鋼筋下料長度表（匯出當下之值；未扣彎曲伸長、未含續接器）');
+  const hn = a.row(); ['編號／位置','號數／形狀','下料長 (cm)','支數','重量 (kg)'].forEach((h,j)=>{ const c=ws.getCell(hn,2+j); c.value=h;
+    c.font={name:FONT,size:9,bold:true}; c.fill={type:'pattern',pattern:'solid',fgColor:{argb:K.hdr}}; c.border=box(K.grid); c.alignment={horizontal:'center'}; });
+  let tot = 0;
+  for(const q of rows){
+    const n = a.row(); tot += q.kg; ws.getRow(n).height = 28;
+    [`${q.id} ${q.where}`, `${q.size} ${q.shape}`, q.len, +(+q.n).toFixed(2), +q.kg.toFixed(1)].forEach((v,j)=>{ const c=ws.getCell(n,2+j); c.value=v;
+      c.font={name:FONT,size:9}; c.border=box(K.grid); c.alignment={horizontal:j<2?'left':'center', wrapText:true}; });
+  }
+  const n = a.row(); ws.getCell(n,2).value='合計'; ws.getCell(n,6).value=+tot.toFixed(1);
+  [2,3,4,5,6].forEach(j=>{ const c=ws.getCell(n,j); c.font={name:FONT,size:9,bold:true}; c.border=box(K.grid); c.alignment={horizontal:j<4?'left':'center'}; });
 }
 /* 附圖頁：預留圖表列，回傳第一列（0 起算） */
 function a4Figures(ws, a, title, nPm){
