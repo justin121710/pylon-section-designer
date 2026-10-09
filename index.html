@@ -60,7 +60,9 @@ body button[aria-pressed=true]{background:var(--acc-soft);border-color:var(--acc
 #bSecWrap.tie-on .bar-hit,#secWrap.tie-on .bar-hit{cursor:pointer}
 #bSecWrap.tie-on .bar-hit:hover,#secWrap.tie-on .bar-hit:hover{opacity:.35}
 #secWrap.tie-on .bar-hit.dis{cursor:not-allowed}
-#bSecWrap.tie-del g[data-tie]{cursor:pointer}
+#bSecWrap.tie-del g[data-tie],#secWrap.tie-del g[data-hoop]{cursor:pointer}
+#secWrap.tie-del g[data-hoop]:hover rect,#secWrap.tie-del g[data-hoop]:hover line{stroke:#B03A2E}
+#secWrap.tie-del g[data-hoop]:hover rect[opacity="0"]{stroke:#000}
 #bSecWrap.tie-del g[data-tie]:hover path{stroke:#B03A2E}
 #bSecWrap.tie-del g[data-tie]:hover path[opacity="0"]{stroke:#000}
 @media print{.tie-bar{display:none}}
@@ -769,6 +771,8 @@ img,video{max-width:100%;height:auto}
       <div id="cTieBar" class="tie-bar" role="toolbar" aria-label="繫筋配置">
         <span class="tie-mode" id="cTieMode">繫筋：自動</span>
         <button type="button" data-tool="pick" title="點外圍主筋加設或取消繫筋">點選繫筋</button>
+        <button type="button" data-tool="hoop" title="點同一面上的 2 根主筋，建立貫穿全斷面的重疊閉合箍筋">＋重疊箍</button>
+        <button type="button" data-tool="del" title="點圖上的重疊閉合箍筋刪除">刪除</button>
         <button type="button" data-tool="auto" title="清除自訂，回到「規範最低（每隔一根）」">回復自動</button>
         <span class="tie-hint" id="cTieHint"></span>
       </div>
@@ -893,6 +897,7 @@ img,video{max-width:100%;height:auto}
       <div class="fld"><span>最小鋼筋比 ρ_min（版）</span><input id="bRhoTs" type="number" step="0.0002" value="0.0018"></div>
       <div class="fld"><span>箍筋號數</span><select id="bTieSize"></select></div>
       <div class="fld"><span>箍筋肢數 n<sub>legs</sub></span><input id="bNlegs" type="number" step="1" value="2"><input id="bTies" type="hidden" value=""></div>
+      <div class="fld"><span>外箍型式</span><select id="bHoop"><option value="closed">一體式閉合箍（兩端 135° 角隅搭接）</option><option value="cap">兩件式（U 形肋筋＋頂部繫筋封口）</option></select></div>
       <div class="text-[11.5px] mt-1" style="color:var(--dim)">
         d = <b id="bOutD" class="mono">—</b> cm ｜ A<sub>s</sub> = <b id="bOutAs" class="mono">—</b> cm²
         ｜ ρ = <b id="bOutRho" class="mono">—</b> %
@@ -1410,13 +1415,17 @@ function edgeTies(n,pitch,db,forceAll){
    自訂時另檢核土木401 §25.7.2.3：(a) 每隔一根須側撐 → 不得連續 2 根未撐；(b) 未撐筋距被撐筋淨距 ≤ 15 cm。
    hx = 相鄰受側撐主筋（角隅＋繫筋；箱型另含位於另一向牆片內、由該牆片箍筋支撐之角隅區主筋）之最大中心距。 */
 function colEdgeTies(n, pitch, db, opt, side, fixed){   // fixed：箱型角隅區（位於另一向牆片內）視為已受側撐之序號
-  if(!opt.ctie){ const e = edgeTies(n, pitch, db, opt.tieAll); e.custom = false; e.ok = true; e.gmax = e.everyBar ? 1 : 2; return e; }
+  if(!opt.ctie){ const e = edgeTies(n, pitch, db, opt.tieAll); e.custom = false; e.ok = true; e.gmax = e.everyBar ? 1 : 2; e.ctIdx = e.idx; e.hoops = []; return e; }
   n = Math.max(2, Math.round(n));
-  const idx = [...new Set(side==='B' ? opt.ctie.x : opt.ctie.y)].filter(i=>i>=1 && i<=n-2).sort((a,b)=>a-b);
+  const ctIdx = [...new Set(side==='B' ? opt.ctie.x : opt.ctie.y)].filter(i=>i>=1 && i<=n-2).sort((a,b)=>a-b);
+  /* 重疊閉合箍筋（僅實心）：沿此邊第 a～b 根之間、貫穿全斷面之閉合箍；兩肢各側撐上下（或左右）兩面之第 a、b 根，
+     肢數計 2（與兩支繫筋同），但兩端皆為 135° 角隅，圍束效果優於 90° 繫筋。 */
+  const hoops = ((side==='B' ? opt.ctie.hx : opt.ctie.hy) || []).filter(h=>Array.isArray(h) && h[0]>=0 && h[1]<=n-1 && h[0]<h[1]);
+  const idx = [...new Set([...ctIdx, ...hoops.flat()])].filter(i=>i>=1 && i<=n-2).sort((a,b)=>a-b);
   const sup = [...new Set([0, ...idx, ...(fixed||[]), n-1])].sort((a,b)=>a-b); let gmax = 1;
   for(let k=1;k<sup.length;k++) gmax = Math.max(gmax, sup[k]-sup[k-1]);
   const clear = pitch - db, everyBar = sup.length === n;
-  return {ties:idx.length, idx, clear, pitch, everyBar, hx: gmax*pitch, n, custom:true, gmax,
+  return {ties: ctIdx.length + 2*hoops.length, idx, ctIdx, hoops, clear, pitch, everyBar, hx: gmax*pitch, n, custom:true, gmax,
           ok: gmax<=2 && !(gmax===2 && clear>15.0)};
 }
 
@@ -1516,7 +1525,7 @@ function applyPreset(key){
   S('dbl', P.type==='box' ? '1' : '0');
   S('codeBasis', P.code || 'bridge'); S('ph', P.ph || '1'); S('lu', P.lu || 300);
   S('phEnds', P.phEnds || (P.code==='bldg' ? '2' : '1'));
-  S('tieLayout', P.tieAll ? 'all' : 'code'); S('cTies', ''); CTIE_TOOL = false;
+  S('tieLayout', P.tieAll ? 'all' : 'code'); S('cTies', ''); CTIE_TOOL = false; CHOOP_PICK = null;
   { const bl = (P.code||'bridge')==='bldg';
     S('dAncBot', P.ancBot || (bl ? 'through' : 'hook90')); S('dAncTop', P.ancTop || (bl ? 'through' : 'hook90'));
     S('dHBot', P.hBot || (bl ? 70 : 200)); S('dHTop', P.hTop || (bl ? 70 : 180)); S('dAncCov', P.ancCov || (bl ? 4 : 7.5));
@@ -1669,15 +1678,21 @@ function confinement(s,r,R,m,opt){
   // 繫筋實際可設位置：箱型須有內層主筋可勾（角隅區主筋由交叉之另一向箍筋支撐）
   // 箱型若無內層主筋，繫筋貫穿壁厚後沒有鋼筋可勾 → 不設、也不計入 A_sh（舊版仍計入，偏不保守）
   const noIn = s.type==='box' && !lim;
-  const tieX = noIn ? [] : eB.idx.map(i=>R.xsO[i]).filter(x=> !lim || Math.abs(x) < lim.hxI-1e-6);
-  const tieY = noIn ? [] : eH.idx.map(j=>R.ysO[j]).filter(y=> !lim || Math.abs(y) < lim.hyI-1e-6);
+  const tieX = noIn ? [] : eB.ctIdx.map(i=>R.xsO[i]).filter(x=> !lim || Math.abs(x) < lim.hxI-1e-6);
+  const tieY = noIn ? [] : eH.ctIdx.map(j=>R.ysO[j]).filter(y=> !lim || Math.abs(y) < lim.hyI-1e-6);
+  const solidR = s.type!=='box';
+  const hoopX = solidR ? eB.hoops.map(([a,b])=>[R.xsO[a], R.xsO[b]]) : [];     // 重疊閉合箍：x 範圍（貫穿 H 向）
+  const hoopY = solidR ? eH.hoops.map(([a,b])=>[R.ysO[a], R.ysO[b]]) : [];     // y 範圍（貫穿 B 向）
+  const legB = tieX.length + 2*hoopX.length, legH = tieY.length + 2*hoopY.length;   // 平行 Y／平行 X 之內部肢數
+  const supB = solidR ? eB.idx : eB.ctIdx.filter(i=> !lim || Math.abs(R.xsO[i]) < lim.hxI-1e-6);
+  const supH = solidR ? eH.idx : eH.ctIdx.filter(j=> !lim || Math.abs(R.ysO[j]) < lim.hyI-1e-6);
   const perp = opt.ashPair !== 'para';
 
   const walls=[];
   /* 建築柱 土木401 §18.4.5.4(c)：P_u > 0.3A_g f'c 或 f'c > 700 kgf/cm² 時另加
      A_sh/(s·b_c) ≥ 0.2 k_f k_n P_u/(f_yt A_ch)，k_f = f'c/1750 + 0.6 ≥ 1，k_n = n_l/(n_l − 2)。
      中空箱型無對應條文，僅適用實心斷面。 */
-  const nlSup = 4 + 2*(tieX.length + tieY.length);              // 受箍角或耐震彎鉤側撐之主筋數
+  const nlSup = 4 + 2*(supB.length + supH.length);              // 受箍角或耐震彎鉤側撐之主筋數
   const termC = opt.code==='bldg' && opt.plastic && s.type!=='box'
              && (opt.PuMax > 0.3*m.Ag*m.fc || m.fc > 700);
   const kf = Math.max(1, m.fc/1750 + 0.6), kn = nlSup/Math.max(1, nlSup-2);
@@ -1703,16 +1718,16 @@ function confinement(s,r,R,m,opt){
     const cx=Math.max(1,s.B-2*r.covO), cy=Math.max(1,s.H-2*r.covO);
     // 實心：每向皆為「閉合箍筋 2 肢 + 該向繫筋」——舊版漏計箍筋本身兩肢
     panel('實心全斷面', s.B, s.H, cx, cy,
-          (2+tieY.length)*At, (2+tieX.length)*At,
-          `平行 X 之肢：箍筋 ×2 + 繫筋 ×${tieY.length}`,
-          `平行 Y 之肢：箍筋 ×2 + 繫筋 ×${tieX.length}`);
+          (2+legH)*At, (2+legB)*At,
+          `平行 X 之肢：箍筋 ×2 + 繫筋 ×${tieY.length}${hoopY.length?` + 重疊箍 ×${2*hoopY.length}`:''}`,
+          `平行 Y 之肢：箍筋 ×2 + 繫筋 ×${tieX.length}${hoopX.length?` + 重疊箍 ×${2*hoopX.length}`:''}`);
   }
   const sAsh = Math.min(...walls.map(w=>w.sMax));
   const wc = walls.reduce((a,b)=> b.sMax<a.sMax?b:a, walls[0]);
   const rho_cc = Math.min(0.06, m.Ast/(m.Ag||1));
   const sumW2 = (Math.max(2,eB.n)-1)*2*eB.clear*eB.clear;
 
-  return {walls, sAsh, wc, At, dt, eB, eH, tieX, tieY, perp, termC, kf, kn, nlSup,
+  return {walls, sAsh, wc, At, dt, eB, eH, tieX, tieY, hoopX, hoopY, legB, legH, supB, supH, perp, termC, kf, kn, nlSup,
           nTieB:tieX.length, nTieH:tieY.length, pitchB, pitchH, sumW2, rho_cc,
           finalize(sUse){
             const w=this.wc, sp=Math.max(0.1,sUse-this.dt);
@@ -1745,7 +1760,7 @@ function confinementCircle(s,r,R,m,opt,At,dt){
   const rho_cc = Math.min(0.06, m.Ast/(m.Ag||1));
   const none = {hx:0, n:r.nCir, clear:0, everyBar:false, idx:[], ties:0};
   return {circ:{Dc,ds,Ach,t1,t2,t3,rhoReq,need,spiral:r.spiral},
-          walls:[], sAsh, wc:null, At, dt, eB:none, eH:none, tieX:[], tieY:[], perp:true,
+          walls:[], sAsh, wc:null, At, dt, eB:none, eH:none, tieX:[], tieY:[], hoopX:[], hoopY:[], legB:0, legH:0, supB:[], supH:[], perp:true,
           termC, kf, kn:1, nlSup:r.nCir, nTieB:0, nTieH:0, pitchB:R.pB, pitchH:R.pH, sumW2:0, rho_cc,
           finalize(sUse){
             const sp = Math.max(0.1, sUse-dt);
@@ -3554,6 +3569,24 @@ function svgSection(M,forPrint){
   const radT = Math.max(1.2, dbt/2*k);                  // 箍筋半徑（畫面）
   const off  = rad + radT;                              // 箍筋中心線離主筋中心的距離
 
+  // 重疊閉合箍筋（實心矩形，自訂）：貫穿全斷面，兩端 135° 於右上角隅搭接；網頁版可點選刪除
+  const drawOverlapHoops = () => {
+    const sw = Math.max(1.4,radT*2), clrH = forPrint ? C.tie : '#2F86A6';
+    const len = Math.max(8, Math.max(6*dbt, 7.5)*k);
+    const one = (x1, x2, y1, y2, id) => {     // 斷面座標：x1<x2、y1<y2（皆為主筋中心）
+      const L = X(x1)-off, Rr = X(x2)+off, T0 = Y(y2)-off, B0 = Y(y1)+off;
+      const q = [`<rect x="${L.toFixed(1)}" y="${T0.toFixed(1)}" width="${(Rr-L).toFixed(1)}" height="${(B0-T0).toFixed(1)}" rx="${Math.max(3,off*1.6).toFixed(1)}" fill="none" stroke="${clrH}" stroke-width="${sw}" stroke-linejoin="round"/>`];
+      const bx = X(x2), by = Y(y2), dx = -1/Math.SQRT2, dy = 1/Math.SQRT2;
+      for(const sg of [1,-1]){
+        const px = bx + (-dy)*sg*off*0.75 - dx*off*0.2, py = by + dx*sg*off*0.75 - dy*off*0.2;
+        q.push(`<line x1="${px.toFixed(1)}" y1="${py.toFixed(1)}" x2="${(px+dx*len).toFixed(1)}" y2="${(py+dy*len).toFixed(1)}" stroke="${clrH}" stroke-width="${sw}" stroke-linecap="round"/>`);
+      }
+      if(!forPrint) q.push(`<rect x="${L.toFixed(1)}" y="${T0.toFixed(1)}" width="${(Rr-L).toFixed(1)}" height="${(B0-T0).toFixed(1)}" fill="none" stroke="#000" stroke-width="12" opacity="0" pointer-events="stroke"/>`);
+      o.push(forPrint ? q.join('') : `<g data-hoop="${id}">${q.join('')}</g>`);
+    };
+    conf.hoopX.forEach(([a,b],i)=> one(a, b, -R.hyO, R.hyO, 'x:'+i));
+    conf.hoopY.forEach(([a,b],i)=> one(-R.hxO, R.hxO, a, b, 'y:'+i));
+  };
   // 箍筋（環）
   for(const rg of R.rings){
     o.push(`<rect x="${X(-rg.hx)-off}" y="${Y(rg.hy)-off}" width="${2*rg.hx*k+2*off}" height="${2*rg.hy*k+2*off}"
@@ -3580,6 +3613,7 @@ function svgSection(M,forPrint){
     }
   }
 
+  if(conf.hoopX && (conf.hoopX.length || conf.hoopY.length)) drawOverlapHoops();
   /* 繫筋：本體是一條「貼著兩端主筋側邊」通過的直線（與鋼筋相切），
      到了端點才從切點繞過鋼筋、再折出延伸段。
      不是對準鋼筋中心衝過去再繞 —— 那樣本體會壓在鋼筋上。
@@ -3660,10 +3694,10 @@ function svgSection(M,forPrint){
   // 點選繫筋：外圍非角隅主筋之命中區；編輯中另標示未受側撐之主筋
   if(!forPrint && s.type!=='circle' && typeof CTIE_TOOL!=='undefined'){
     const hxO = R.hxO, hyO = R.hyO, lim = R.inner;
-    const supX = new Set(conf.tieX.map(x=>R.xsO.findIndex(v=>Math.abs(v-x)<1e-6)));
-    const supY = new Set(conf.tieY.map(y=>R.ysO.findIndex(v=>Math.abs(v-y)<1e-6)));
+    const supX = new Set(conf.supB), supY = new Set(conf.supH);
     const hr = Math.max(9, rad+5);
     const one = (cx, cy, key, dis, sup) => {
+      if(CHOOP_PICK && CHOOP_PICK.key===key) o.push(`<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${(rad+4).toFixed(1)}" fill="none" stroke="#E07B1F" stroke-width="2.6" pointer-events="none"/>`);
       if(CTIE_TOOL && !sup) o.push(`<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${(rad+3.5).toFixed(1)}" fill="none" stroke="#E07B1F" stroke-width="1.8" stroke-dasharray="3 2" pointer-events="none"/>`);
       o.push(`<circle class="bar-hit${dis?' dis':''}" data-cbar="${key}" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${hr.toFixed(1)}" fill="#E07B1F" opacity="0"/>`);
     };
@@ -3762,6 +3796,7 @@ function svgSection(M,forPrint){
     ['dot',  `主筋 ${M.r.barSize} ×${R.bars.length}`, C.bar],
     ['solid',`外閉合箍筋 ${M.r.tieSize}（兩端 135° 耐震彎鉤，搭接角隅逐層輪替）`, C.tie],
     ...(R.rings[1]?[['dash',`內層閉合箍筋 ${M.r.tieSize}`, C.tie]]:[]),
+    ...(conf.hoopX && conf.hoopX.length+conf.hoopY.length ? [['solid',`重疊閉合箍筋 ${M.r.tieSize} ×${conf.hoopX.length+conf.hoopY.length}（兩端 135°，每個 2 肢）`, forPrint ? C.tie : '#2F86A6']] : []),
     ['thin', `繫筋 ${M.r.tieSize}（一端 135°、一端 90°；相鄰繫筋端對端交替）`, C.ct]
   ];
   lg.forEach((L,i)=>{
@@ -4075,7 +4110,9 @@ function colXlsxInput(){
     dbl:g('dbl')==='1', spiral:g('spiral')==='spiral', tieAll:g('tieLayout')==='all', ph:g('ph')==='1',
     tieCustom: (()=>{ const M = MODEL; if(!M || !M.opt.ctie) return null; const c = M.conf, L = M.legs||[];
       const fl = (xs, arr) => xs.map(v=>arr.some(a=>Math.abs(a-v)<1e-6) ? 1 : 0);
-      return {fB: fl(M.R.xsO, c.tieX), fH: fl(M.R.ysO, c.tieY), everyB: c.eB.everyBar?1:0, everyH: c.eH.everyBar?1:0,
+      return {fB: M.R.xsO.map((v,i)=> c.supB.includes(i) ? 1 : 0), fH: M.R.ysO.map((v,j)=> c.supH.includes(j) ? 1 : 0),
+              legB: c.legB, legH: c.legH, nlSup: c.nlSup, nHoop: c.hoopX.length + c.hoopY.length,
+              everyB: c.eB.everyBar?1:0, everyH: c.eH.everyBar?1:0,
               hxB: c.eB.hx, hxH: c.eH.hx, legGx: (L.find(g=>g.dir==='x')||{}).gap||0, legGy: (L.find(g=>g.dir==='y')||{}).gap||0}; })(),
     phio:num('phio',1.25), Lv:num('Lv',400), lu:num('lu',300), theta:num('theta',45), ashPerp:g('ashPair')!=='para',
     phEnds: g('phEnds')==='1' ? 1 : 2, layTotal: MODEL && MODEL.lay ? MODEL.lay.total : 60,
@@ -4095,7 +4132,7 @@ function beamXlsxInput(){
     MD:num('bMD',0), ML:num('bML',0), MDn:num('bMDn',0), MLn:num('bMLn',0), sustain:num('bSustain',0.2), xi:num('bXi',2), limLive:num('bLimLive',360), limTotal:num('bLimTotal',240),
     deflCase:g('bDeflCase'), wLim:g('bWlim'),
     layTotal: BMODEL && BMODEL.lay ? BMODEL.lay.total : 60,
-    legGap: BMODEL && BMODEL.leg ? BMODEL.leg.gap : 0, legPos: BMODEL && BMODEL.leg ? BMODEL.leg.pos : [], legPosT: BMODEL && BMODEL.leg ? BMODEL.leg.posT : [],
+    legGap: BMODEL && BMODEL.leg ? BMODEL.leg.gap : 0, hoop: g('bHoop'), legPos: BMODEL && BMODEL.leg ? BMODEL.leg.pos : [], legPosT: BMODEL && BMODEL.leg ? BMODEL.leg.posT : [],
     dev: devOpts('bd'), devX: devXBeam(),
     loads: BLOADS.map(L=>({name:L.name, Mpos:+(L.Mpos??L.Mu??0)||0, Mneg:+(L.Mneg??0)||0, Vu:+L.Vu||0, Tu:+L.Tu||0})),
     meta:{project:'', member:memName('bMemName')}};
@@ -4486,7 +4523,9 @@ function renderAlerts(M){
   }else
   if(M.opt.ctie){
     const eB = M.conf.eB, eH = M.conf.eH;
-    add('info',`繫筋排布（自訂）：B 邊每面 <b>${chk.tiesB}</b> 根、H 邊每面 <b>${chk.tiesH}</b> 根${M.s.type==='box'?'（箱型：該位置兩側牆片各一支）':''}。`, ['tieLayout','#cTieBar']);
+    { const nh = M.conf.hoopX.length + M.conf.hoopY.length;
+      add('info',`繫筋排布（自訂）：B 邊每面 <b>${chk.tiesB}</b> 根、H 邊每面 <b>${chk.tiesH}</b> 根${M.s.type==='box'?'（箱型：該位置兩側牆片各一支）':''}`
+        + (nh ? `；重疊閉合箍筋 <b>${nh}</b> 個（每個 2 肢，兩端 135°；土木401 §18.4.5.2(a) 之「重疊直線型閉合箍筋」）` : '') + '。', ['tieLayout','#cTieBar']); }
     if(M.opt.ctieReset) add('info','主筋根數或斷面型式已改變，原先點選的繫筋位置不再存在，<b>已以「規範最低（每隔一根）」重新起始自訂配置</b>。', ['#cTieBar']);
     for(const [side, e, nid] of [['B', eB, 'nB'], ['H', eH, 'nH']]) if(!e.ok)
       add('bad',`<b>${side} 邊繫筋不足（土木401 §25.7.2.3）</b>：`+(e.gmax>2
@@ -5536,7 +5575,7 @@ function applyBPreset(k){
   s('bdSplice', P.splice || 'B'); s('bdLapTop', P.lapTop || 'mid'); s('bdLapBot', P.lapBot || 'none');
   s('bdStagger', P.stagger ? '1' : '0'); s('bdLapGap', P.lapGap || 0); s('bdCut', '0'); s('bdNcont', 2);
   s('envWater', P.env || 'normal');
-  s('bTies', P.ties ? JSON.stringify(P.ties) : ''); TIE_TOOL = null; TIE_PICK.b = []; TIE_PICK.t = [];
+  s('bTies', P.ties ? JSON.stringify(P.ties) : ''); s('bHoop', P.hoop || 'closed'); TIE_TOOL = null; TIE_PICK.b = []; TIE_PICK.t = [];
   if(P.type==='slab' && P.loads.some(l=>!l.Mpos && l.Mneg)) BSIGN='neg'; else if(P.type==='slab') BSIGN='pos';
   BLOADS = P.loads.map(l=>({...l}));
   drawBLoads(); renderBeam();
@@ -5546,12 +5585,14 @@ function applyBPreset(k){
    cTies 隱藏欄存 JSON {type, nB, nH, x:[i…], y:[j…]}：x = 上下面（B 邊）第 i 根（自左 0 起）設繫筋，貫穿 H 向；
    y = 左右面（H 邊）第 j 根（自下 0 起）設繫筋，貫穿 B 向。箱型則為該位置兩側牆片各一支貫穿壁厚。
    「繫筋配置」選「自訂」時使用；隨案件檔與自動存檔保存。 */
-let CTIE_TOOL = false;
+let CTIE_TOOL = false, CHOOP_PICK = null;     // CTIE_TOOL：false | 'pick' | 'hoop' | 'del'
 function cTiesGet(){ try{ const v = document.getElementById('cTies').value; return v ? JSON.parse(v) : null; }catch(e){ return null; } }
 function cTiesSet(o){ document.getElementById('cTies').value = o ? JSON.stringify(o) : ''; }
 function cTiesValid(T, type, nB, nH){
   const ok = (a, n) => Array.isArray(a) && a.every(i=>Number.isInteger(i) && i>=1 && i<=n-2);
-  return !!T && typeof T==='object' && T.type===type && T.nB===nB && T.nH===nH && ok(T.x, nB) && ok(T.y, nH);
+  const okH = (a, n) => a==null || (Array.isArray(a) && (type==='box' ? a.length===0 : a.every(h=>Array.isArray(h) && h.length===2
+    && h.every(i=>Number.isInteger(i) && i>=0 && i<=n-1) && h[0]<h[1] && !(h[0]===0 && h[1]===n-1))));
+  return !!T && typeof T==='object' && T.type===type && T.nB===nB && T.nH===nH && ok(T.x, nB) && ok(T.y, nH) && okH(T.hx, nB) && okH(T.hy, nH);
 }
 function cTieBarSync(M){
   const bar = document.getElementById('cTieBar'); if(!bar) return;
@@ -5561,38 +5602,63 @@ function cTieBarSync(M){
   if(!M) return;
   const c = M.conf, mode = M.opt.tieMode;
   document.getElementById('cTieMode').textContent = circ ? '' :
-    `繫筋：${mode==='custom' ? '自訂' : mode==='all' ? '自動（每一根）' : '自動（規範最低）'}（B 邊每面 ${c.nTieB}、H 邊每面 ${c.nTieH} 根）`;
-  bar.querySelector('[data-tool=pick]').setAttribute('aria-pressed', String(CTIE_TOOL));
+    `繫筋：${mode==='custom' ? '自訂' : mode==='all' ? '自動（每一根）' : '自動（規範最低）'}（B 邊每面 ${c.nTieB}、H 邊每面 ${c.nTieH} 根${c.hoopX.length+c.hoopY.length ? `；重疊閉合箍 ${c.hoopX.length+c.hoopY.length} 個` : ''}）`;
+  for(const t of ['pick','hoop','del']) bar.querySelector(`[data-tool=${t}]`).setAttribute('aria-pressed', String(CTIE_TOOL===t));
+  const box = M.s.type==='box';
+  bar.querySelector('[data-tool=hoop]').disabled = box;
+  bar.querySelector('[data-tool=hoop]').title = box ? '箱型斷面不提供重疊閉合箍（牆片以繫筋貫穿壁厚）' : '點同一面上的 2 根主筋，建立貫穿全斷面的重疊閉合箍筋';
+  bar.querySelector('[data-tool=del]').disabled = !(c.hoopX.length + c.hoopY.length);
   bar.querySelector('[data-tool=auto]').disabled = mode!=='custom';
-  document.getElementById('cTieHint').textContent = CTIE_TOOL
-    ? `點外圍主筋（角隅除外）加設繫筋，再點一次取消；${M.s.type==='box' ? '箱型繫筋貫穿壁厚，同一位置兩側牆片各設一支，須有內層主筋可勾。' : '繫筋貫穿斷面勾住兩對面主筋。'}橘色虛圈 = 未受側撐之主筋。按 Esc 結束。`
-    : '按「點選繫筋」後直接在斷面圖上點主筋；點過之後「繫筋配置」自動改為「自訂」。';
-  document.getElementById('secWrap').classList.toggle('tie-on', CTIE_TOOL);
+  const H = {
+    pick: `點外圍主筋（角隅除外）加設繫筋，再點一次取消；${box ? '箱型繫筋貫穿壁厚，同一位置兩側牆片各設一支，須有內層主筋可勾。' : '繫筋貫穿斷面勾住兩對面主筋。'}橘色虛圈 = 未受側撐之主筋。按 Esc 結束。`,
+    hoop: '＋重疊箍：點同一面上的 2 根主筋（例如上面第 3 根與第 6 根），建立貫穿全斷面、四角包住這 4 根主筋的閉合箍筋（兩端 135°）。可與外箍、其他重疊箍或繫筋並用。',
+    del: '刪除：點圖上要刪除的重疊閉合箍筋（繫筋請用「點選繫筋」再點一次取消）。'};
+  document.getElementById('cTieHint').textContent = CTIE_TOOL ? H[CTIE_TOOL]
+    : '按「點選繫筋」或「＋重疊箍」後直接在斷面圖上點主筋；點過之後「繫筋配置」自動改為「自訂」。';
+  const w = document.getElementById('secWrap');
+  w.classList.toggle('tie-on', CTIE_TOOL==='pick' || CTIE_TOOL==='hoop');
+  w.classList.toggle('tie-del', CTIE_TOOL==='del');
 }
+function cTieCur(){
+  const M = MODEL, c = M.conf;
+  if(M.opt.ctie) return {...M.opt.ctie, x:[...M.opt.ctie.x], y:[...M.opt.ctie.y],
+                         hx:(M.opt.ctie.hx||[]).map(h=>[...h]), hy:(M.opt.ctie.hy||[]).map(h=>[...h])};
+  return {type:M.s.type, nB:M.r.nB, nH:M.r.nH, hx:[], hy:[],
+          x: c.tieX.map(x=>M.R.xsO.findIndex(v=>Math.abs(v-x)<1e-6)).filter(k=>k>0),
+          y: c.tieY.map(y=>M.R.ysO.findIndex(v=>Math.abs(v-y)<1e-6)).filter(k=>k>0)};
+}
+function cTieCommit(cur){ CHOOP_PICK = null; cTiesSet(cur); document.getElementById('tieLayout').value = 'custom'; render(); caseAutosave(); }
 function cTieClick(e){
   if(!CTIE_TOOL || !MODEL || MODEL.s.type==='circle') return;
+  if(CTIE_TOOL==='del'){
+    const g = e.target.closest('g[data-hoop]'); if(!g) return;
+    const [ax, i] = g.dataset.hoop.split(':'), cur = cTieCur();
+    cur['h'+ax].splice(+i, 1); cTieCommit(cur); return;
+  }
   const hit = e.target.closest('[data-cbar]'); if(!hit) return;
+  if(CTIE_TOOL==='hoop'){
+    const key = hit.dataset.cbar, [ax, si] = key.split(':'), i = +si;
+    if(!CHOOP_PICK || CHOOP_PICK.ax!==ax || CHOOP_PICK.i===i){ CHOOP_PICK = CHOOP_PICK && CHOOP_PICK.key===key ? null : {key, ax, i}; render(); return; }
+    const cur = cTieCur(), pr = [Math.min(CHOOP_PICK.i, i), Math.max(CHOOP_PICK.i, i)], arr = cur['h'+ax];
+    if(!arr.some(h=>h[0]===pr[0] && h[1]===pr[1])) arr.push(pr);
+    cTieCommit(cur); return;
+  }
   if(hit.classList.contains('dis')){ document.getElementById('cTieHint').textContent = '此主筋位於另一向牆片內（角隅區），沒有內層主筋可勾；它由該牆片的箍筋支撐，不需也不能設貫穿壁厚的繫筋。'; return; }
   const [ax, si] = hit.dataset.cbar.split(':'), i = +si;
-  const M = MODEL, c = M.conf;
-  const cur = M.opt.ctie ? {...M.opt.ctie, x:[...M.opt.ctie.x], y:[...M.opt.ctie.y]}
-    : {type:M.s.type, nB:M.r.nB, nH:M.r.nH,
-       x: c.tieX.map(x=>M.R.xsO.findIndex(v=>Math.abs(v-x)<1e-6)).filter(k=>k>0),
-       y: c.tieY.map(y=>M.R.ysO.findIndex(v=>Math.abs(v-y)<1e-6)).filter(k=>k>0)};
-  const a = cur[ax], at = a.indexOf(i);
+  const cur = cTieCur(), a = cur[ax], at = a.indexOf(i);
   if(at>=0) a.splice(at,1); else a.push(i);
   a.sort((p,q)=>p-q);
-  cTiesSet(cur); document.getElementById('tieLayout').value = 'custom';
-  render(); caseAutosave();
+  cTieCommit(cur);
 }
 function cTieSetup(){
   document.getElementById('secWrap').addEventListener('click', cTieClick);
   document.getElementById('cTieBar').addEventListener('click', e=>{
     const b = e.target.closest('button[data-tool]'); if(!b) return;
+    CHOOP_PICK = null;
     if(b.dataset.tool==='auto'){ CTIE_TOOL = false; cTiesSet(null); document.getElementById('tieLayout').value = 'code'; render(); caseAutosave(); return; }
-    CTIE_TOOL = !CTIE_TOOL; render();
+    CTIE_TOOL = CTIE_TOOL===b.dataset.tool ? false : b.dataset.tool; render();
   });
-  document.addEventListener('keydown', e=>{ if(e.key==='Escape' && CTIE_TOOL){ CTIE_TOOL = false; render(); } });
+  document.addEventListener('keydown', e=>{ if(e.key==='Escape' && CTIE_TOOL){ CTIE_TOOL = false; CHOOP_PICK = null; render(); } });
 }
 
 /* ---------- 梁：點選主筋配置肋筋／繫筋 ----------
@@ -5698,6 +5764,7 @@ function computeBeam(){
     topSize: document.getElementById('bTopSize').value, nTop: Math.max(0,Math.round(num('bNtop',4))),
     tieSize: document.getElementById('bTieSize').value, nLegs: Math.max(2,Math.round(pos('bNlegs',2))),
     cover: Math.max(0,num('bCover',4)), rowGap: 2.5, sClearBar: 2.5, dagg: Math.max(0.5,num('bDagg',2.5)),
+    hoop: document.getElementById('bHoop').value==='cap' ? 'cap' : 'closed',
     botRows: 'auto',
     seismic: document.getElementById('bSeismic').value==='1',
     ln: pos('bLn',1750), Vg: Math.max(0,num('bVg',0)),
@@ -6019,8 +6086,30 @@ function svgBeam(B, forPrint){
       for(const d of HIT) o.push(`<path d="${d}" fill="none" stroke="#000" stroke-width="12" opacity="0" pointer-events="stroke"/>`);
       HIT = null; o.push(`</g>`);
     };
-    /* 外箍（閉合）：xl/xr 為兩側肢所在主筋中心（畫面） */
+    /* 外箍：xl/xr 為兩側肢所在主筋中心（畫面）。
+       一體式 = 閉合箍筋，左上角隅兩端 135° 搭接；
+       兩件式（§18.3.4.3）= U 形肋筋兩肢上到頂部角隅筋後各以 135° 向內下方伸入核心，頂部再以繫筋封口
+       （左端 135°、右端 90°，相鄰箍交替）。 */
+    const hoopCap = (xl, xr) => {
+      const Lb = xl - oB, Rb = xr + oB, Lt = xl - oT, Rt = xr + oT, Bt = yb + oB, cr = Math.max(2.5, oB);
+      const c45 = Math.SQRT1_2;
+      put(`M${P(Lt)},${P(yt)} L${P(Lb)},${P(Bt-cr)} A${P(cr)},${P(cr)} 0 0 0 ${P(Lb+cr)},${P(Bt)} L${P(Rb-cr)},${P(Bt)} A${P(cr)},${P(cr)} 0 0 0 ${P(Rb)},${P(Bt-cr)} L${P(Rt)},${P(yt)}`,
+          [[Lt,yt],[Lb,Bt],[Rb,Bt],[Rt,yt]]);
+      { const e = [xl + oT*c45, yt - oT*c45];      // U 左肢：繞過左上角隅筋頂部，135° 向右下伸入核心
+        put(`M${P(Lt)},${P(yt)} A${P(oT)},${P(oT)} 0 0 1 ${P(e[0])},${P(e[1])} l${P(hookLen*c45)},${P(hookLen*c45)}`, [[e[0],e[1]],[e[0]+hookLen*c45,e[1]+hookLen*c45]]); }
+      { const e = [xr - oT*c45, yt - oT*c45];      // U 右肢：鏡射
+        put(`M${P(Rt)},${P(yt)} A${P(oT)},${P(oT)} 0 0 0 ${P(e[0])},${P(e[1])} l${P(-hookLen*c45)},${P(hookLen*c45)}`, [[e[0],e[1]],[e[0]-hookLen*c45,e[1]+hookLen*c45]]); }
+      // 封口繫筋：壓在 U 形肋筋彎鉤外側，沿頂筋上緣通過
+      const clr0 = clr, sw0 = sw; clr = C.ct; sw = Math.max(1.2, swT*0.8);
+      const rc = oT + swT*0.9, yc = yt - rc;
+      put(`M${P(xl)},${P(yc)} L${P(xr)},${P(yc)}`, [[xl,yc],[xr,yc]]);
+      { const e = [xl - rc*c45, yt + rc*c45];      // 左端 135°：繞過左角隅筋左側，向右下伸入核心
+        put(`M${P(xl)},${P(yc)} A${P(rc)},${P(rc)} 0 0 0 ${P(e[0])},${P(e[1])} l${P(hookLen*c45)},${P(hookLen*c45)}`, [[e[0],e[1]],[e[0]+hookLen*c45,e[1]+hookLen*c45]]); }
+      put(`M${P(xr)},${P(yc)} A${P(rc)},${P(rc)} 0 0 1 ${P(xr+rc)},${P(yt)} l0,${P(ext)}`, [[xr+rc,yt],[xr+rc,yt+ext]]);   // 右端 90°
+      clr = clr0; sw = sw0;
+    };
     const hoop = (xl, xr) => {
+      if(S.hoop==='cap'){ hoopCap(xl, xr); return; }
       const L = xl - oB, Rr = xr + oB, Tp = yt - oT, Bt = yb + oB, cr = Math.max(2.5, (oB+oT)/2);
       o.push(`<rect x="${P(L)}" y="${P(Tp)}" width="${P(Rr-L)}" height="${P(Bt-Tp)}" rx="${P(cr)}" ${strokeAttr()}/>`);
       pushPts(OBS, obsSample([[L,Tp],[Rr,Tp],[Rr,Bt],[L,Bt],[L,Tp]], 2.5));
@@ -6183,7 +6272,7 @@ function svgBeam(B, forPrint){
        ['dot',`頂層主筋 ${bBarTxt(S,'top')}`,C.bar],
        ['fill',aTxt,C.comp]]
     : [['dot',`底筋 ${S.botSize} ×${S.nBot}（${R.rows} 排）／頂筋 ${S.topSize} ×${S.nTop}`,C.bar],
-       ['solid',`箍筋 ${S.tieSize} 共 ${S.nLegs} 肢${tieInfo.custom?'（自訂）':''}：外箍 2 肢（閉合，兩端 135° 角隅搭接）`,C.tie],
+       ['solid',`箍筋 ${S.tieSize} 共 ${S.nLegs} 肢${tieInfo.custom?'（自訂）':''}：外箍 2 肢${S.hoop==='cap'?'（兩件式：U 形肋筋＋頂部繫筋封口）':'（閉合，兩端 135° 角隅搭接）'}`,C.tie],
        ...(tieInfo.nH ? [['solid',`肋筋 ×${tieInfo.nH}：ㄇ 形開口箍，頂部包 2 根、底端 135° 勾 2 根（${2*tieInfo.nH} 肢）`,C.tin]] : []),
        ...(tieInfo.nC ? [['solid',`繫筋 ×${tieInfo.nC}：勾上下 2 根，底 135°、頂 90°（沿梁長交替）`,C.ct]] : []),
        ['fill',aTxt,C.comp]];
@@ -6227,7 +6316,7 @@ function renderBeam(){
   const B=computeBeam(); if(!B) return null;
   const {S,m,R}=B;
   pinNA('beam', ['bhf','bSpacing','bEdge'], S.type!=='T');
-  pinNA('beam', ['bw','bSclear','bNbot','bNtop','bTieSize','bNlegs','bSeismic','bLn','bVg','bTheta'], S.slab);
+  pinNA('beam', ['bw','bSclear','bNbot','bNtop','bTieSize','bNlegs','bHoop','bSeismic','bLn','bVg','bTheta'], S.slab);
   pinNA('beam', ['bSpBot','bSpTop','bRhoTs'], !S.slab);
   pinNA('beam', ['bWlim'], S.env!=='water');
   if(S.type!=='T' && !S.slab) pinNA('beam', ['bSclear'], true);
@@ -6409,6 +6498,11 @@ function renderBeamAlerts(B){
     if(B.fin2) add(B.fin2.tooTight?'bad':'ok',`加密區（自柱面 2h）外採用 ${S.tieSize} @ ${f(B.fin2.sUse,1)} cm（控制：${B.fin2.gov.t}，需求 ≤ ${f(B.fin2.gov.v,2)} cm）。`, ['bTieSize']);
     add('info',`沿梁軸向配置（l_n = ${f(S.ln,0)} cm）：`+B.lay.zones.map(z=>`${z.tag} ${f(z.b-z.a,0)} cm @ ${f(z.s,1)} ×${z.n}`).join('、')+`，共 <b>${B.lay.total}</b> 支。`, ['bLn','bSeismic','#bElevInfo']);
     if(!B.leg.ok) add('bad',`<b>箍筋肢橫向間距過大</b>：${f(B.leg.gap,1)} cm ＞ ${f(B.leg.lim,1)} cm（${B.leg.rule}）。請增加箍筋肢數，或在斷面圖點選加設肋筋／繫筋。`, ['bNlegs','#bTieBar']);
+    if(S.hoop==='cap'){
+      add('info',`外箍採<b>兩件式</b>：兩端 135° 耐震彎鉤之 U 形肋筋，頂部以繫筋封口（一端 135°、一端 90°）。相鄰箍之 90° 端沿梁長交替；梁僅一側有樓板時，90° 端須置於樓板側（土木401 §18.3.4.3）。`, ['bHoop']);
+      if(B.sh && B.sh.tors && S.type!=='T')
+        add('warn',`<b>兩件式外箍承受扭力</b>：扭力所需閉合肋筋若以 U 形肋筋＋繫筋組成，繫筋 90° 彎鉤須受翼板、樓板或類似構材束制以免剝落（土木401 §25.7.1.6.1）。本斷面為矩形梁，請確認頂部有樓板，否則改用一體式閉合箍。`, ['bHoop','bType']);
+    }
     if(S.tiesReset) add('info','主筋根數或排數已改變，原先點選的肋筋／繫筋位置不再存在，<b>已回復為依肢數自動配置</b>。', ['#bTieBar']);
     if(B.leg.lay.skew > B.leg.lay.skewLim + 1e-9) add('warn',`<b>肋筋／繫筋上下所勾主筋未對齊</b>：水平偏差最大 ${f(B.leg.lay.skew,1)} cm ＞ d_b = ${f(B.leg.lay.skewLim,2)} cm，圖上肢呈傾斜。建議調整頂、底筋根數或位置使上下對齊，或改勾其他主筋。`, ['bNbot','bNtop','#bTieBar']);
   }
@@ -6859,7 +6953,9 @@ const PIN_META = {
       ['bRhoTs','ρ_min','最小鋼筋比（版）','無因次','版受拉側最少鋼筋 A_s,min = ρ_min·b·h（取代梁的 0.8√f\'_c/f_y 公式）。',
        'f_y = 4200：0.0018（ACI 24.4.3.2）　·　水工結構依伸縮縫間距約 0.003～0.005（ACI 350 7.12.2.1）',''],
       ['bTieSize','—','箍筋號數','','A_v 與扭矩 A_t 的單肢面積。','',''],
-      ['bNlegs','n_legs','箍筋肢數','肢','A_v = n_legs × A_t。','','']
+      ['bNlegs','n_legs','箍筋肢數','肢','A_v = n_legs × A_t。','',''],
+      ['bHoop','—','外箍型式','','一體式：一支閉合箍筋，兩端 135° 耐震彎鉤於角隅搭接。兩件式：兩端具 135° 耐震彎鉤之 U 形肋筋，於頂部以一支繫筋（一端 135°、一端 90°）封口；相鄰箍之 90° 端沿梁長交替，梁僅一側有樓板時 90° 端置於樓板側。不影響肢數與強度計算。',
+       '土木401 §18.3.4.3；承受扭力時 90° 端須受翼板或樓板束制（§25.7.1.6.1）','']
     ]],
     ['耐震 / 剪力', [
       ['bSeismic','—','耐震等級','','切到「特殊抗彎構材」會啟動容量設計剪力、加密區、b_w/l_n/ρ 限制與接頭面彎矩比查核。','',''],

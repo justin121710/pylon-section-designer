@@ -303,8 +303,8 @@ function buildColumn(ExcelJS, inp){
   S.item({key:'clH', label:'主筋淨距（H 邊）', sym:'s', f:'IF({isCirc}=1,{clB},{pH}-{db})', unit:'cm', fmt:'0.00', expr:'pH − db', ref:'—'});
   S.item({key:'everyB', label:'B 邊每根皆須側撐', f:'IF({tieAll}="自訂（點選）",'+(TC?TC.everyB:0)+',--OR({tieAll}="每一根主筋皆設",{clB}>15))', expr:'淨距 > 15 cm 或選「每一根」；自訂時為「是否每根皆已設」', crit:'1＝每根', ref:ref401('25.7.2.3')});
   S.item({key:'everyH', label:'H 邊每根皆須側撐', f:'IF({tieAll}="自訂（點選）",'+(TC?TC.everyH:0)+',--OR({tieAll}="每一根主筋皆設",{clH}>15))', ref:ref401('25.7.2.3')});
-  S.item({key:'nTieX', label:'B 邊繫筋根數（每面）', f:"IF({isCirc}=1,0,SUM('配筋座標'!D3:D"+(2+NMAX)+'))', unit:'根', expr:'詳「配筋座標」D 欄', ref:ref401('25.7.2.3')});
-  S.item({key:'nTieY', label:'H 邊繫筋根數（每面）', f:"IF({isCirc}=1,0,SUM('配筋座標'!E3:E"+(2+NMAX)+'))', unit:'根', expr:'詳「配筋座標」E 欄', ref:ref401('25.7.2.3')});
+  S.item({key:'nTieX', label:'B 邊繫筋根數（每面）', f:"IF({isCirc}=1,0,IF({tieAll}=\"自訂（點選）\","+(TC?TC.legB:0)+",SUM('配筋座標'!D3:D"+(2+NMAX)+')))', unit:'根', expr:'詳「配筋座標」D 欄；自訂時為內部肢數（繫筋＋重疊閉合箍 2 肢／個）'+(TC&&TC.nHoop?'，本案含重疊閉合箍 '+TC.nHoop+' 個':''), ref:ref401('25.7.2.3')});
+  S.item({key:'nTieY', label:'H 邊繫筋根數（每面）', f:"IF({isCirc}=1,0,IF({tieAll}=\"自訂（點選）\","+(TC?TC.legH:0)+",SUM('配筋座標'!E3:E"+(2+NMAX)+')))', unit:'根', expr:'詳「配筋座標」E 欄；自訂時同上', ref:ref401('25.7.2.3')});
   S.item({key:'hxB', label:'被支撐筋中心距 hx（B 邊）', sym:'hx', f:'IF({isCirc}=1,0,IF({tieAll}="自訂（點選）",'+(TC?TC.hxB:0)+',IF({everyB}=1,{pB},2*{pB})))', unit:'cm', fmt:'0.00', crit:'耐震 ≦ 35 cm', expr:'自訂：相鄰受側撐主筋最大中心距（匯出當下網頁值）', ref:ref401('18.4.5.2')});
   S.item({key:'hxH', label:'被支撐筋中心距 hx（H 邊）', sym:'hx', f:'IF({isCirc}=1,0,IF({tieAll}="自訂（點選）",'+(TC?TC.hxH:0)+',IF({everyH}=1,{pH},2*{pH})))', unit:'cm', fmt:'0.00', crit:'耐震 ≦ 35 cm', ref:ref401('18.4.5.2')});
 
@@ -391,7 +391,7 @@ function buildColumn(ExcelJS, inp){
   /* ---------------- 七、圍束鋼筋 ---------------- */
   S.section('【七、耐震圍束鋼筋 Ash／螺箍體積比 ρs】');
   S.item({key:'kf', label:'kf', sym:'kf', f:'MAX(1,{fc}/1750+0.6)', unit:'無因次', fmt:'0.000', expr:"f'c/1750 + 0.6 ≧ 1.0", ref:ref401('18.4.5.4')});
-  S.item({key:'nlS', label:'受側撐主筋數 nl', sym:'nl', f:'IF({isCirc}=1,{nC},4+2*({nTieX}+{nTieY}))', unit:'根', ref:ref401('18.4.5.4')});
+  S.item({key:'nlS', label:'受側撐主筋數 nl', sym:'nl', f:'IF({isCirc}=1,{nC},IF({tieAll}="自訂（點選）",'+(TC?TC.nlSup:0)+',4+2*({nTieX}+{nTieY})))', unit:'根', expr:'自訂：角隅 4 ＋ 受繫筋或重疊箍側撐之主筋', ref:ref401('18.4.5.4')});
   S.item({key:'kn', label:'kn', sym:'kn', f:'{nlS}/MAX(1,{nlS}-2)', unit:'無因次', fmt:'0.000', expr:'nl/(nl − 2)', ref:ref401('18.4.5.4')});
   S.item({key:'termC', label:'適用高軸力第三式', f:'--AND({isBldg}=1,{isPH}=1,{isBox}=0,OR({PuMax}>0.3*{Ag}*{fc},{fc}>700))',
     expr:"建築加密區且 Pu > 0.3Ag·f'c 或 f'c > 700", crit:'1＝適用；此時每根主筋皆須側撐', ref:ref401('18.4.5.4(c)、18.4.5.2(f)')});
@@ -1417,6 +1417,8 @@ function buildBeam(ExcelJS, inp){
   S.item({key:'nBot', label:'計算用底筋根數（每公尺或每梁）', f:'IF({isSlab}=1,100/{spB},MAX(1,ROUND({nBotIn},0)))', unit:'根', fmt:'0.00', expr:'版 100/s', ref:'—'});
   S.item({key:'nTop', label:'計算用頂筋根數', f:'IF({isSlab}=1,IF({spT}>0,100/{spT},0),MAX(0,ROUND({nTopIn},0)))', unit:'根', fmt:'0.00', ref:'—'});
   S.item({key:'nLegs', label:'箍筋肢數', sym:'nlegs', v:inp.nLegs, unit:'肢', kind:'in', ref:ref401('9.7.6.2')});
+  S.item({key:'hoopT', label:'外箍型式', v: inp.hoop==='cap' ? '兩件式（U 形肋筋＋繫筋封口）' : '一體式閉合箍', kind:'list', list:['一體式閉合箍','兩件式（U 形肋筋＋繫筋封口）'],
+    ref:ref401('18.3.4.3'), note:'兩件式：U 形肋筋兩端 135°，頂部繫筋一端 135°、一端 90°（相鄰箍交替；單側樓板時 90° 端置樓板側）。不影響肢數與強度。'});
   S.item({key:'perRow', label:'每排可排根數', f:'IF({isSlab}=1,{nBot},MAX(1,INT(({bw}-2*({cover}+{dt})+2.5)/({dbB}+2.5))))', unit:'根', expr:'淨距 2.5 cm', ref:ref401('25.2.1')});
   S.item({key:'rows', label:'底筋排數', f:'IF({isSlab}=1,1,MIN(2,ROUNDUP({nBot}/MAX(1,{perRow}),0)))', unit:'排', expr:'自動判斷，上限 2 排', ref:'—'});
   S.item({key:'r1', label:'第 1 排根數', f:'IF({rows}<=1,{nBot},ROUNDUP({nBot}/2,0))', unit:'根', fmt:'0.00', ref:'—'});
