@@ -479,6 +479,20 @@ function buildColumn(ExcelJS, inp){
     f:`IF(MAX('載重組合'!S4:S${3+NCB})*1000>1.06*SQRT({fc})*{bwy}*{dy},MIN({dy}/2,30),MIN({dy},60))`, ref:ref401('10.7.6.5.2')});
   layoutItems(S, '組', ref401('18.7.5.3'));
 
+  /* ---------------- 八之二、主筋伸展長度與搭接 ---------------- */
+  S.section('【八之二、主筋伸展長度與搭接（土木401 第 25 章；矩形逐面計算取大，圓形與箱型 Ktr 保守取 0）】');
+  devCommon(S, 'dv', inp.dev);
+  S.item({key:'dvCov', label:'主筋淨保護層', f:'{covO}+{dt}', unit:'cm', fmt:'0.00', expr:'外保護層 + 橫向筋直徑', ref:ref401('20.5.1.3')});
+  const cSpB = 'IF({isCirc}=1,2*PI()*{rb}/{nC},IF({isBox}=1,MIN({pB},{pH}),{pB}))', cSpH = 'IF(OR({isCirc}=1,{isBox}=1),'+cSpB+',{pH})';
+  S.item({key:'dvSpB', label:'B 邊（圓周）主筋中心距', f:cSpB, unit:'cm', fmt:'0.00', ref:'—'});
+  S.item({key:'dvSpH', label:'H 邊主筋中心距', f:cSpH, unit:'cm', fmt:'0.00', ref:'—'});
+  devStraight(S, 'dv', 'B', {label:'B 邊', top:'1', db:'{db}', ccov:'{dvCov}', cSp:'{dvSpB}', Atr:'IF(OR({isCirc}=1,{isBox}=1),0,{nly}*{At})', s:'{sUse2}', n:'{nB}'});
+  devStraight(S, 'dv', 'H', {label:'H 邊', top:'1', db:'{db}', ccov:'{dvCov}', cSp:'{dvSpH}', Atr:'IF(OR({isCirc}=1,{isBox}=1),0,{nlx}*{At})', s:'{sUse2}', n:'{nH}'});
+  S.item({key:'dvld0', label:'直線受拉基本長度（控制面）', sym:'ld', f:'MAX({dvld0B},{dvld0H})', unit:'cm', fmt:'0.0', ref:ref401('25.4.2.4')});
+  S.item({key:'dvSpG', label:'控制面主筋中心距', f:'IF({dvld0B}>={dvld0H},{dvSpB},{dvSpH})', unit:'cm', fmt:'0.00', ref:'—'});
+  devRest(S, 'dv', '', {db:'{db}', ld0:'{dvld0}', ccov:'{dvCov}', cSp:'{dvSpG}', seis:'{isPH}',
+    psiRc:'IF(OR({isSp}=1,AND({dt}>=1.27-1E-6,{sUse2}<=10)),0.75,1)'});
+
   /* ---------------- 九、檢核彙總 ---------------- */
   S.section('【九、檢核彙總】');
   S.sum({head:true, label:'檢核項目', need:'需求值', cap:'容量／限值', ratio:'比值', judge:'判定'});
@@ -628,6 +642,62 @@ function elevChart(info, vertical, a4From, rows, L){
       {name:'加密區邊界', x:rg('K',3,7), y:rg('L',3,7), line:{color:'B4711A', w:1, dash:'dash'}}
     ]});
   return {sheet:'結構計算書(A4)', name:'箍筋配置立面', from:[1,a4From], to:[6,a4From+rows], xml};
+}
+
+/* ---------- 伸展長度與搭接（土木401-112 第 25 章；與網頁 devLength() 相同） ---------- */
+const R401 = s => `土木401 §${s}（ACI 318 同條號）`;
+function devCommon(S, P, dev){
+  dev = dev || {};
+  S.item({key:P+'Epo', label:'鋼筋塗布環氧樹脂', v:dev.epoxy?'是':'否', kind:'list', list:['否','是'], ref:R401('25.4.2.5、25.4.3.2'),
+    note:'是：直線 ψe = 1.5（淨保護層 < 3db 或淨距 < 6db）或 1.2；彎鉤、T 頭 ψe = 1.2。'});
+  S.item({key:P+'Lam', label:'輕質混凝土修正', sym:'λ', v:dev.lambda||1, unit:'無因次', kind:'in', fmt:'0.00', crit:'常重 1.0；輕質 0.75（T 頭不適用輕質）', ref:R401('25.4.1.4')});
+  S.item({key:P+'Exc', label:'超量鋼筋折減 As,req/As,prov', v:dev.excess||1, unit:'無因次', kind:'in', fmt:'0.00', crit:'1＝不折減；耐震構材、搭接與 T 頭不適用', ref:R401('25.4.10')});
+  S.item({key:P+'PsiR', label:'彎鉤／T 頭圍束係數 ψr、ψp', sym:'ψr', v:dev.psiR||1, unit:'無因次', kind:'in', fmt:'0.0', crit:'#11 以下且有平行圍束筋（Ath ≧ 0.4Ahs、T 頭 Att ≧ 0.3Ahs）或 s ≧ 6db：1.0；否則 1.6', ref:R401('25.4.3.2、25.4.4.3')});
+  S.item({key:P+'PsiO', label:'彎鉤／T 頭位置係數 ψo', sym:'ψo', v:dev.psiO||1, unit:'無因次', kind:'in', fmt:'0.00', crit:'止於柱核心內且側保護層 ≧ 6.5 cm，或側保護層 ≧ 6db：1.0；否則 1.25', ref:R401('25.4.3.2、25.4.4.3')});
+  S.item({key:P+'sq', label:"√f'c（上限 26.5）", sym:"√f'c", f:'MIN(SQRT({fc}),26.5)', unit:'√(kgf/cm²)', fmt:'0.00', ref:R401('25.4.1.4')});
+  S.item({key:P+'psiC', label:'混凝土強度係數 ψc', sym:'ψc', f:'IF({fc}<420,{fc}/1050+0.6,1)', unit:'無因次', fmt:'0.000', expr:"f'c < 420：f'c/1050 + 0.6；否則 1.0", ref:R401('25.4.3.2')});
+  S.item({key:P+'psiEh', label:'彎鉤／T 頭塗布係數 ψe', sym:'ψe', f:`IF({${P}Epo}="是",1.2,1)`, unit:'無因次', fmt:'0.0', ref:R401('25.4.3.2')});
+  S.item({key:P+'psiG', label:'鋼筋等級係數 ψg', sym:'ψg', f:'IF({fy}<=4200,1,IF({fy}<=5600,1.15,1.3))', unit:'無因次', fmt:'0.00', expr:'fy ≦ 4200：1.0；≦ 5600：1.15；其他 1.3', ref:R401('25.4.2.5')});
+}
+/* 直線受拉基本長度 ld0（未乘超量折減、未取 30 cm 下限） */
+function devStraight(S, P, s, o){
+  const k = x => '{'+P+x+s+'}';
+  S.item({key:P+'psiT'+s, label:`${o.label}：位置係數 ψt`, sym:'ψt', f:o.top, unit:'無因次', fmt:'0.0', expr:'其下新澆混凝土 > 30 cm 之水平筋 1.3', ref:R401('25.4.2.5')});
+  S.item({key:P+'psiE'+s, label:`${o.label}：塗布係數 ψe`, sym:'ψe', f:`IF({${P}Epo}="是",IF(OR(${o.ccov}<3*${o.db},${o.cSp}-${o.db}<6*${o.db}),1.5,1.2),1)`, unit:'無因次', fmt:'0.0', ref:R401('25.4.2.5')});
+  S.item({key:P+'psiS'+s, label:`${o.label}：尺寸係數 ψs`, sym:'ψs', f:`IF(${o.db}<=1.91+1E-6,0.8,1)`, unit:'無因次', fmt:'0.0', expr:'#6 以下 0.8', ref:R401('25.4.2.5')});
+  S.item({key:P+'cb'+s, label:`${o.label}：cb`, sym:'cb', f:`MIN(${o.ccov}+${o.db}/2,${o.cSp}/2)`, unit:'cm', fmt:'0.00', expr:'min(至混凝土面距離, 中心距/2)', ref:R401('25.4.2.4')});
+  S.item({key:P+'Ktr'+s, label:`${o.label}：橫向鋼筋指標 Ktr`, sym:'Ktr', f:`IF(AND(${o.Atr}>0,${o.s}>0),40*${o.Atr}/(${o.s}*${o.n}),0)`, unit:'cm', fmt:'0.000', expr:'40Atr/(s·n)', ref:R401('25.4.2.4')});
+  S.item({key:P+'cf'+s, label:`${o.label}：(cb + Ktr)/db`, f:`MIN((${k('cb')}+${k('Ktr')})/${o.db},2.5)`, unit:'無因次', fmt:'0.000', crit:'≦ 2.5', ref:R401('25.4.2.4')});
+  S.item({key:P+'ld0'+s, label:`${o.label}：直線受拉基本長度`, sym:'ld', unit:'cm', fmt:'0.0',
+    f:`{fy}*MIN(${k('psiT')}*${k('psiE')},1.7)*${k('psiS')}*{${P}psiG}/(3.5*{${P}Lam}*{${P}sq}*${k('cf')})*${o.db}`,
+    expr:"fy/(3.5λ√f'c) · ψtψeψsψg/((cb+Ktr)/db) · db（ψtψe ≦ 1.7）", ref:R401('25.4.2.4')});
+}
+/* 其餘長度：o.ld0、o.db、o.ccov、o.cSp、o.seis、o.joint、o.topKey */
+function devRest(S, P, s, o){
+  const k = x => '{'+P+x+s+'}';
+  const L = o.label ? o.label+'：' : '';
+  S.item({key:P+'exc'+s, label:`${L}超量折減採用值`, f:`IF(OR(${o.seis}=1,{${P}Exc}<=0,{${P}Exc}>=1),1,{${P}Exc})`, unit:'無因次', fmt:'0.00', ref:R401('25.4.10')});
+  S.item({key:P+'ld'+s, label:`${L}直線受拉伸展長度`, sym:'ld', f:`MAX(${o.ld0}*${k('exc')},30)`, unit:'cm', fmt:'0.0', crit:'≧ 30 cm', ref:R401('25.4.2.1')});
+  S.item({key:P+'ldh'+s, label:`${L}標準彎鉤伸展長度`, sym:'ldh', unit:'cm', fmt:'0.0',
+    f:`MAX({fy}*{${P}psiEh}*{${P}PsiR}*{${P}PsiO}*{${P}psiC}/(23*{${P}Lam}*{${P}sq})*${o.db}^1.5*${k('exc')},8*${o.db},15)`,
+    expr:"fyψeψrψoψc/(23λ√f'c) · db^1.5 ≧ max(8db, 15)；常數 23 係 SI 式換算", ref:R401('25.4.3.1')});
+  S.item({key:P+'hd'+s, label:`${L}T 頭鋼筋適用條件`, unit:'',
+    f:`IF(AND(${o.db}<=3.58+1E-6,{fy}<=5600,{${P}Lam}=1,${o.ccov}>=2*${o.db},${o.cSp}-${o.db}>=3*${o.db}),"適用","不適用")`,
+    expr:'#11 以下、fy ≦ 5600、常重、淨保護層 ≧ 2db、淨距 ≧ 3db（另須 Abrg ≧ 4Ab）', ref:R401('25.4.4.1')});
+  S.item({key:P+'ldt'+s, label:`${L}T 頭伸展長度`, sym:'ldt', unit:'cm', fmt:'0.0',
+    f:`IF(${k('hd')}="適用",MAX({fy}*{${P}psiEh}*{${P}PsiR}*{${P}PsiO}*{${P}psiC}/(31*{${P}sq})*${o.db}^1.5,8*${o.db},15),0)`,
+    expr:"fyψeψpψoψc/(31√f'c) · db^1.5 ≧ max(8db, 15)；不適用時為 0", ref:R401('25.4.4.2')});
+  S.item({key:P+'psiRc'+s, label:`${L}受壓圍束係數 ψr`, f:o.psiRc, unit:'無因次', fmt:'0.00', expr:'螺箍或 #4 以上箍筋 @ ≦ 10 cm：0.75', ref:R401('25.4.9.3')});
+  S.item({key:P+'ldc'+s, label:`${L}受壓伸展長度`, sym:'ldc', unit:'cm', fmt:'0.0',
+    f:`MAX(MAX(0.075*{fy}*${k('psiRc')}/({${P}Lam}*SQRT({fc})),0.0043*{fy}*${k('psiRc')})*${o.db}*${k('exc')},20)`, expr:"max(0.075fyψr/(λ√f'c), 0.0043fyψr)·db ≧ 20", ref:R401('25.4.9.2')});
+  S.item({key:P+'lapB'+s, label:`${L}受拉搭接（B 級）`, sym:'1.3ld', f:`MAX(1.3*${o.ld0},30)`, unit:'cm', fmt:'0.0', expr:'1.3ld（不計超量折減）≧ 30 cm', ref:R401('25.5.2.1')});
+  S.item({key:P+'lapC'+s, label:`${L}受壓搭接`, unit:'cm', fmt:'0.0', f:`MAX(IF({fy}<=4200,0.0071*{fy},0.013*{fy}-24)*${o.db}*IF({fc}<210,4/3,1),30)`,
+    expr:"fy ≦ 4200：0.0071fy·db；否則 (0.013fy − 24)db；f'c < 210 加 1/3", ref:R401('25.5.5.1')});
+  if(o.joint){
+    S.item({key:P+'ldhS'+s, label:`${L}耐震梁柱接頭內彎鉤 ldh`, sym:'ldh', unit:'cm', fmt:'0.0',
+      f:`IF(AND(${o.joint}=1,${o.db}<=3.58+1E-6),MAX({fy}*${o.db}/(17.2*{${P}Lam}*SQRT({fc})),8*${o.db},15),0)`, expr:"fy·db/(17.2λ√f'c) ≧ max(8db, 15)；非耐震為 0", ref:R401('18.8.5.1')});
+    S.item({key:P+'ldS'+s, label:`${L}耐震梁柱接頭內直線 ld`, sym:'ld', unit:'cm', fmt:'0.0', f:`IF(${o.topKey}=1.3,3.25,2.5)*${k('ldhS')}`, expr:'2.5ldh（頂筋 3.25ldh）', ref:R401('18.8.5.3')});
+  }
 }
 
 /* ---------- 配筋座標：每邊主筋座標、繫筋位置旗標、圓周座標 ---------- */
@@ -1029,6 +1099,12 @@ function buildA4Column(ws, S, R, inp, jRow, sumRows){
   ws.getRow(a.data('加密區配置','—','IF({nEnds}=0,"—",IF({full}=1,"全長加密",{tie}&" @ "&TEXT({sUse},"0.0")&" cm × "&{n1}&" 組"&IF({nEnds}=2,"（每端）","")))','—','第一組距接頭面 e = min(5, s₁/2)',null,true)).height = 30;
   ws.getRow(a.data('一般區配置','—','IF({full}=1,"—",{tie}&" @ "&TEXT({sUse2},"0.0")&" cm × "&{nMid}&" 組（均分 "&TEXT({sMid},"0.0")&"）")','—','中段以 s₂ 均分',null,true)).height = 30;
   a.data('全長合計','n','{total}','組','柱淨高 lu 範圍內','0');
+  a.sub('4.9 主筋伸展長度與搭接（土木401 第 25 章）'); a.thead();
+  a.data('直線受拉伸展長度','ld','{dvld}','cm',"fy/(3.5λ√f'c)·ψtψeψsψg/((cb+Ktr)/db)·db",'0');
+  a.data('標準彎鉤伸展長度','ldh','{dvldh}','cm',"fyψeψrψoψc/(23λ√f'c)·db^1.5",'0');
+  a.data('T 頭伸展長度','ldt','IF({dvhd}="適用",TEXT({dvldt},"0")&" cm","不適用")','—','§25.4.4',null,true);
+  a.data('受壓伸展長度','ldc','{dvldc}','cm','§25.4.9','0');
+  a.data('受拉搭接（B 級）／受壓搭接','—','TEXT({dvlapB},"0")&"／"&TEXT({dvlapC},"0")&" cm"','—','§25.5.2、§25.5.5',null,true);
 
   ws.getRow(a.n).addPageBreak();
   a.chap('五、檢核彙總');
@@ -1260,6 +1336,19 @@ function buildBeam(ExcelJS, inp){
   S.item({key:'lo', label:'加密區長度 2h', sym:'2h', f:'2*{h}', unit:'cm', fmt:'0.0', ref:ref401('18.6.4.1')});
   S.item({key:'Lel', label:'沿軸向配置長度（淨跨）', sym:'ln', f:'{ln}', unit:'cm', fmt:'#,##0', ref:'—'});
   layoutItems(S, '支', ref401('18.6.4.4'));
+
+  /* ---------------- 五之二、主筋伸展長度與搭接 ---------------- */
+  S.section('【五之二、主筋伸展長度與搭接（土木401 第 25 章；耐震梁另含梁柱接頭 §18.8.5）】');
+  devCommon(S, 'bv', inp.dev);
+  S.item({key:'bvCov', label:'主筋淨保護層', f:'{cover}+{dt}', unit:'cm', fmt:'0.00', ref:ref401('20.5.1.3')});
+  S.item({key:'bvAtr', label:'跨越劈裂面之橫向筋面積 Atr', f:'IF({isSlab}=1,0,{nLegs}*{At})', unit:'cm²', fmt:'0.000', ref:ref401('25.4.2.4')});
+  S.item({key:'bvRc', label:'受壓圍束係數 ψr', f:'IF(AND({isSlab}=0,{dt}>=1.27-1E-6,{sUse2}<=10),0.75,1)', unit:'無因次', fmt:'0.00', ref:ref401('25.4.9.3')});
+  S.item({key:'bvSpb', label:'底筋中心距', f:'{clrB}+{dbB}', unit:'cm', fmt:'0.00', ref:'—'});
+  S.item({key:'bvSpt', label:'頂筋中心距', f:`IF({clrT}>=${BIG},1E9,{clrT}+{dbT})`, unit:'cm', fmt:FMT_SINF, ref:'—'});
+  devStraight(S, 'bv', 'b', {label:'底筋', top:'1', db:'{dbB}', ccov:'{bvCov}', cSp:'{bvSpb}', Atr:'{bvAtr}', s:'{sUse2}', n:'IF({isSlab}=1,1,MAX(1,ROUND({r1},0)))'});
+  devRest(S, 'bv', 'b', {label:'底筋', db:'{dbB}', ld0:'{bvld0b}', ccov:'{bvCov}', cSp:'{bvSpb}', seis:'{isS}', psiRc:'{bvRc}', joint:'{isS}', topKey:'{bvpsiTb}'});
+  devStraight(S, 'bv', 't', {label:'頂筋', top:'IF(({h}-({cover}+{dt}+{dbT}))>30,1.3,1)', db:'{dbT}', ccov:'{bvCov}', cSp:'{bvSpt}', Atr:'{bvAtr}', s:'{sUse2}', n:'IF({isSlab}=1,1,MAX(1,ROUND({nTop},0)))'});
+  devRest(S, 'bv', 't', {label:'頂筋', db:'{dbT}', ld0:'{bvld0t}', ccov:'{bvCov}', cSp:'{bvSpt}', seis:'{isS}', psiRc:'{bvRc}', joint:'{isS}', topKey:'{bvpsiTt}'});
 
   /* ---------------- 六、使用性 ---------------- */
   S.section('【六、使用性：裂縫控制、裂縫寬度與撓度】');
@@ -1530,6 +1619,14 @@ function buildA4Beam(ws, R, inp, jRow, sumRows){
     a.data('全長合計','n','{total}','支','淨跨 ln 範圍內','0');
     ws.getRow(a.data('箍筋肢橫向間距','s⊥','TEXT({legG},"0.0")&"（上限 "&TEXT({legL},"0.0")&"）"','cm','土木401 §9.7.6.2.2',null,true)).height = 30;
   }
+  a.sub('4.3b 主筋伸展長度與搭接（土木401 第 25 章；底筋／頂筋）'); a.thead();
+  const HASTOP = 'IF({isSlab}=1,{spT}>0,ROUND({nTop},0)>0)';
+  const bt = (kb, kt) => `TEXT(${kb},"0")&"／"&IF(${HASTOP},TEXT(${kt},"0"),"—")&" cm"`;
+  a.data('直線受拉伸展長度','ld',bt('{bvldb}','{bvldt}'),'—','頂筋含 ψt = 1.3（下方混凝土 > 30 cm）',null,true);
+  a.data('標準彎鉤伸展長度','ldh',bt('{bvldhb}','{bvldht}'),'—',"fyψeψrψoψc/(23λ√f'c)·db^1.5",null,true);
+  a.data('T 頭伸展長度','ldt',`IF({bvhdb}="適用",TEXT({bvldtb},"0"),"不適用")&"／"&IF(${HASTOP},IF({bvhdt}="適用",TEXT({bvldtt},"0"),"不適用"),"—")`,'—','§25.4.4',null,true);
+  a.data('受拉搭接（B 級）','1.3ld',bt('{bvlapBb}','{bvlapBt}'),'—','§25.5.2',null,true);
+  if(inp.seismic && !inp.slab) a.data('耐震梁柱接頭內 彎鉤 ldh／直線 ld（底筋）','—','TEXT({bvldhSb},"0")&"／"&TEXT({bvldSb},"0")&" cm"','—','§18.8.5',null,true);
   a.sub('4.4 使用性（土木401 §24.2、§24.3）'); a.thead();
   a.data('開裂慣性矩','Icr','{Icr}','cm⁴','轉換斷面','#,##0');
   a.data('即時活載撓度','ΔL','{dL}','cm','—','0.000');
