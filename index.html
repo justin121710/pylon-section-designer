@@ -2851,16 +2851,18 @@ function svgDevEnd(view, M, P, setIdx, forPrint){
 /* ---------- 搭接細部（受拉、錯開、受壓） ---------- */
 function svgDevLap(view, M, P, setIdx, forPrint){
   const C = devPal(forPrint), o = [], col = P.mod==='col';
-  let d, st, memW, lap, sTie, gap, nm;
-  if(col){ st = M.dev.sets[0]; d = st.d; memW = M.s.type==='circle' ? M.s.D : M.s.B; }
-  else{ const b = setIdx===1 && P.top ? P.top : P.bot; st = b===P.top ? M.dev.sets[1] : M.dev.sets[0]; d = b.d; memW = M.S.h; }
+  let d, st, memW, lap, sTie, gap, nm, la0 = null;     // la0：搭接起點之實際位置（沿構材軸向，供箍筋實際位置對齊）
+  if(col){ st = M.dev.sets[0]; d = st.d; memW = M.s.type==='circle' ? M.s.D : M.s.B; if(P.fits && !P.mech) la0 = P.la; }
+  else{ const b = setIdx===1 && P.top ? P.top : P.bot; st = b===P.top ? M.dev.sets[1] : M.dev.sets[0]; d = b.d; memW = M.S.h;
+        if(b.lapOn && b.fits && !P.mech) la0 = b.la; }
   const lapB = devUp(d.lapB), lapA = devUp(d.lapA), lapC = devUp(d.lapC);
   lap = view==='lapC' ? lapC : (P.sp==='A' ? lapA : lapB);
   gap = P.X.gap > 0 ? P.X.gap : d.db;
   const lz = P.lay && P.lay.lapZones && P.lay.lapZones[0];
   const gen = P.lay ? Math.max(...P.lay.zones.filter(z=>!z.hot && !z.lap).map(z=>z.act).concat([0])) : 0;
-  sTie = lz ? lz.act : (gen || (col ? (M.fin2 ? M.fin2.sUse : M.fin.sUse) : (M.fin2 ? M.fin2.sUse : (M.fin ? M.fin.sUse : 0))));
-  const nB = view==='stagger' ? 4 : 2, span = view==='stagger' ? 2*lap : lap;
+  sTie = (lz && la0 != null) ? lz.act : (gen || (col ? (M.fin2 ? M.fin2.sUse : M.fin.sUse) : (M.fin2 ? M.fin2.sUse : (M.fin ? M.fin.sUse : 0))));
+  // 與斷面小圖一致：一般搭接只畫「一根主筋」的搭接；錯開搭接畫相鄰兩根（第二根之搭接錯開 l_st）
+  const nB = view==='stagger' ? 2 : 1, span = view==='stagger' ? 2*lap : lap;
   const ext = Math.max(0.35*span, 25);
   const W = 760, avail = 600;
   const k = Math.max(0.35, Math.min(avail/(span + 2*ext), 6));
@@ -2871,9 +2873,15 @@ function svgDevLap(view, M, P, setIdx, forPrint){
   o.push(`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" font-family="ui-sans-serif,system-ui,sans-serif">`);
   o.push(`<rect width="${W}" height="${H}" fill="${forPrint?'#fff':'transparent'}"/>`);
   o.push(`<rect x="${_p(X(-ext))}" y="${_p(Y(0))}" width="${_p((span+2*ext)*k)}" height="${_p(band*kv)}" fill="${C.conc}" stroke="${C.line}" stroke-width="1.2"/>`);
-  if(!(col && M.r.spiral) && sTie > 0 && !(P.mod==='beam' && P.slab)){
-    for(let u = -ext + sTie/2; u <= span + ext + 1e-6; u += sTie)
-      o.push(`<line x1="${_p(X(u))}" y1="${_p(Y(0)+3)}" x2="${_p(X(u))}" y2="${_p(Y(band)-3)}" stroke="${C.tie}" stroke-width="1"/>`);
+  /* 箍筋：沿軸向為真實比例。有實際配置時取軸向配置之實際位置（搭接段加密、其外為一般間距）；
+     無法對位（搭接未放入、機械續接、受壓搭接示意）時才以單一間距均分。 */
+  const showTie = !(col && M.r.spiral) && sTie > 0 && !(P.mod==='beam' && P.slab);
+  let tieU = [];
+  if(showTie){
+    const pos = P.lay && P.lay.pos;
+    if(la0 != null && pos && pos.length && view!=='lapC') tieU = pos.map(p => p - la0).filter(u => u >= -ext - 1e-6 && u <= span + ext + 1e-6);
+    else for(let u = -ext + sTie/2; u <= span + ext + 1e-6; u += sTie) tieU.push(u);
+    for(const u of tieU) o.push(`<line x1="${_p(X(u))}" y1="${_p(Y(0)+3)}" x2="${_p(X(u))}" y2="${_p(Y(band)-3)}" stroke="${C.tie}" stroke-width="1"/>`);
   }
   // 鋼筋
   const bw = Math.max(2, d.db*kv*0.9);
@@ -2900,11 +2908,15 @@ function svgDevLap(view, M, P, setIdx, forPrint){
   }
   // 箍筋間距、心距
   const yB = Y(band) + 26;
-  if(sTie > 0 && !(P.mod==='beam' && P.slab) && !(col && M.r.spiral)){
-    const u1 = -ext + sTie/2 + Math.ceil((lap*0.25 + ext - sTie/2)/sTie)*sTie, u2 = u1 + sTie;
+  if(showTie && tieU.length >= 2){
+    // 標註搭接段內相鄰兩支之實際間距（約在搭接長度 1/4 處）
+    let i = tieU.findIndex(u => u >= lap*0.25 - 1e-6); if(i < 0 || i >= tieU.length-1) i = Math.max(0, tieU.length-2);
+    const u1 = tieU[i], u2 = tieU[i+1], sAct = u2 - u1;
     dimLine(o, X(u1), yB, X(u2), yB, C.dim);
-    const req = P.sLapReq;
-    T(o, X(u2) + 8, yB + 4, `${col?'橫向筋':'箍筋'} @ ${f(sTie,1)} cm${req?`（搭接段需 ≤ ${f(req,1)}）`:''}`, 11, req && sTie > req + 1e-6 ? C.bad : C.txt, 'start');
+    const real = la0 != null && view!=='lapC', req = real ? P.sLapReq : null;   // 本案未設此搭接時僅示意，不套搭接段間距需求
+    const tl = `${col?'橫向筋':'箍筋'} @ ${f(sAct,1)} cm${req?`（搭接段需 ≤ ${f(req,1)}）`:''}${real?'（實際位置）':view==='lapC'?'（受壓搭接示意）':'（此筋未設搭接，示意）'}`;
+    const fitR = X(u2) + 8 + txtW(tl, 11) <= W - 8;          // 右側放不下時改放在尺寸線左側
+    T(o, fitR ? X(u2) + 8 : X(u1) - 8, yB + 4, tl, 11, req && sAct > req + 1e-6 ? C.bad : C.txt, fitR ? 'start' : 'end');
   }
   let ny = Y(band) + 64;
   ny = 15 + wrapT(o, 16, ny, `${P.X.gap>0?`非接觸搭接，心距 ${f(P.X.gap,1)} cm${P.mod==='beam'?`（受撓構材 ≤ min(l_st/5, 15) = ${f(Math.min(lap/5,15),1)}，§25.5.1.3）`:''}`:'接觸搭接（兩筋並靠）'}；搭接處與相鄰鋼筋淨距依 §25.2.1`, 11, C.dim, 500);
@@ -2914,7 +2926,7 @@ function svgDevLap(view, M, P, setIdx, forPrint){
   devInset(o, W - 214, Y(band) + 50, 200, 140, M, P, setIdx, C);
   nm = st.name + (st.face ? `（${st.face}控制）` : '');
   T(o, 16, 22, `${view==='stagger'?'錯開搭接':view==='lapC'?'受壓搭接':'受拉搭接'}：${nm}`, 13.5, C.txt, null, true);
-  T(o, 16, 40, `${col?'沿柱軸向':'沿梁軸向'}展開；橫向（筋距）放大示意`, 11, C.dim);
+  T(o, 16, 40, `${col?'沿柱軸向':'沿梁軸向'}展開（沿軸向真實比例）；${view==='stagger'?'相鄰兩根主筋，':'單根主筋，'}橫向（筋距）放大示意`, 11, C.dim);
   o.push(`</svg>`);
   return o.join('');
 }
