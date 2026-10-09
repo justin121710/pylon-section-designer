@@ -418,6 +418,7 @@ img,video{max-width:100%;height:auto}
   <button id="btnImport" style="background:var(--acc);border-color:var(--acc);color:#fff">從圖說匯入</button>
   <button id="btnCaseOpen" title="開啟先前儲存的案件檔（.json）">開啟案件</button>
   <button id="btnCaseSave" title="把目前所有輸入與載重下載成 .json；本機也會自動保存">儲存案件</button>
+  <button id="btnXlsx" title="匯出附公式的 Excel 計算書（檢核表＋A4 結構計算書），數值皆為公式、可在 Excel 內修改重算">匯出 Excel</button>
   <input id="caseFile" type="file" accept=".json,application/json" style="display:none">
   <button id="btnTest">內部自測</button>
   <button id="btnPreview">預覽報告</button>
@@ -1409,7 +1410,10 @@ function shearDesign(s,r,R,m,opt,cv,res,dir,cvPr){
   const ph  = circ ? Math.PI*Dh : 2*((s.B-2*cHoop)+(s.H-2*cHoop));
   const cot = 1/Math.tan(opt.theta*Math.PI/180);
   const pcp = circ ? Math.PI*s.D : 2*(s.B+s.H);
-  const Tthr = m.phiv*1.06*Math.sqrt(m.fc)*(m.Ag*m.Ag/Math.max(1,pcp));
+  /* 可忽略扭矩門檻 φT_th = φ·0.265√f'c·A_cp²/p_cp（ACI 22.7.4.1，即 1√f'c psi）。
+     舊版誤用開裂扭矩 T_cr 的係數 1.06（4√f'c psi），門檻高估 4 倍、偏不保守。
+     未計軸壓增益 √(1 + N_u/(4A_g·0.265√f'c))，保守。箱型以 A_g 取代 A_cp。 */
+  const Tthr = m.phiv*0.265*Math.sqrt(m.fc)*(m.Ag*m.Ag/Math.max(1,pcp));
   const Ao = 0.85*Aoh;
   const s_minAv = Math.min(Av*m.fyt/(0.2*Math.sqrt(m.fc)*bw), Av*m.fyt/(3.5*bw));
   // 塑鉸區／柱端加密區間距：橋梁 min(b/4, 6d_b, 15)；建築 min(b/4, 6d_b, s_o)
@@ -2041,6 +2045,58 @@ function caseRestore(){
   try{ const raw = localStorage.getItem(CASE_KEY); if(raw) caseApply(JSON.parse(raw)); }catch(e){}
   CASE_READY = true;
 }
+/* ---------- 匯出附公式 Excel ----------
+   ExcelJS 與 calc-xlsx.js 只在按下時才載入；輸入取網頁「原始輸入值」，
+   夾制、查表與所有導出量都在 Excel 內以公式重算。 */
+function loadScript(src){
+  return new Promise((ok,bad)=>{ const s=document.createElement('script'); s.src=src; s.onload=ok; s.onerror=()=>bad(new Error('無法載入 '+src)); document.head.appendChild(s); });
+}
+async function ensureXlsxLib(){
+  if(!window.ExcelJS) await loadScript('https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js');
+  if(!window.RCXLSX) await loadScript('calc-xlsx.js?v=1');
+}
+function colXlsxInput(){
+  const g=id=>document.getElementById(id).value;
+  return {code: g('codeBasis')==='bridge'?'bridge':'bldg', env:g('envWater'), type:g('secType'),
+    B:num('B',600), H:num('H',800), D:num('Dia',100), tw:num('tw',90), covO:num('covO',7.5), covI:num('covI',5), dagg:num('dagg',2.5),
+    fc:num('fc',280), fy:+g('fy'), fyt:+g('fyt'), Es:num('Es',2.04e6), ecu:num('ecu',0.003),
+    phic:num('phic',0.65), phit:num('phit',0.9), phiv:num('phiv',0.75), pmaxf:num('pmaxf',0.8), alpha:num('alpha',1),
+    barSize:g('barSize'), tieSize:g('tieSize'), nB:num('nB',4), nH:num('nH',4), nCir:num('nCir',12),
+    dbl:g('dbl')==='1', spiral:g('spiral')==='spiral', tieAll:g('tieLayout')==='all', ph:g('ph')==='1',
+    phio:num('phio',1.25), Lv:num('Lv',400), lu:num('lu',300), theta:num('theta',45), ashPerp:g('ashPair')!=='para',
+    loads: LOADS.map(L=>({name:L.name, Pu:+L.Pu||0, Mux:+L.Mux||0, Muy:+L.Muy||0, Vux:+L.Vux||0, Vuy:+L.Vuy||0, Tu:+L.Tu||0})),
+    meta:{project:'', member: document.getElementById('preset').selectedOptions[0]?.text || ''}};
+}
+function beamXlsxInput(){
+  const g=id=>document.getElementById(id).value, ty=g('bType');
+  return {type: ty==='T'?'T':'rect', slab: ty==='slab', sign: BSIGN, env: g('envWater'),
+    bw:num('bw',45), h:num('bh',110), hf:num('bhf',22), L:num('bL',1800), sSpacing:num('bSpacing',250), edge:g('bEdge')==='1', sClear:num('bSclear',205),
+    cover:num('bCover',4), dagg:num('bDagg',2.5), fc:num('bfc',280), fy:+g('bfy'), fyt:+g('bfyt'), Es:num('bEs',2.04e6), ecu:num('becu',0.003),
+    phic:num('bphic',0.65), phit:num('bphit',0.9), phiv:num('bphiv',0.75),
+    botSize:g('bBotSize'), topSize:g('bTopSize'), tieSize:g('bTieSize'), nBot:num('bNbot',4), nTop:num('bNtop',2),
+    spBot:num('bSpBot',15), spTop:num('bSpTop',15), nLegs:num('bNlegs',2), rhoTs:num('bRhoTs',0.0018),
+    seismic:g('bSeismic')==='1', ln:num('bLn',1750), Vg:num('bVg',0), theta:num('bTheta',45),
+    MD:num('bMD',0), ML:num('bML',0), sustain:num('bSustain',0.2), xi:num('bXi',2), limLive:num('bLimLive',360), limTotal:num('bLimTotal',240),
+    deflCase:g('bDeflCase'), wLim:g('bWlim'),
+    loads: BLOADS.map(L=>({name:L.name, Mpos:+(L.Mpos??L.Mu??0)||0, Mneg:+(L.Mneg??0)||0, Vu:+L.Vu||0, Tu:+L.Tu||0})),
+    meta:{project:'', member: document.getElementById('bPreset').selectedOptions[0]?.text || ''}};
+}
+async function exportXlsx(){
+  const btn=document.getElementById('btnXlsx'), t0=btn.textContent;
+  try{
+    btn.disabled=true; btn.textContent='產生中…';
+    await ensureXlsxLib();
+    const out = TAB==='beam' ? RCXLSX.buildBeam(ExcelJS, beamXlsxInput()) : RCXLSX.buildColumn(ExcelJS, colXlsxInput());
+    const buf = await out.wb.xlsx.writeBuffer();
+    const d=new Date(), p=n=>String(n).padStart(2,'0');
+    const name = (TAB==='beam'?'RC梁版計算書':'RC柱計算書') + `_${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}.xlsx`;
+    const url=URL.createObjectURL(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
+    const a=Object.assign(document.createElement('a'),{href:url,download:name}); document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),2000);
+  }catch(e){ alert('匯出失敗：'+e.message); }
+  finally{ btn.disabled=false; btn.textContent=t0; }
+}
+
 function caseDownload(){
   const c = caseSnapshot(), d = new Date(), p = n=>String(n).padStart(2,'0');
   const name = `RC斷面設計_${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}.json`;
@@ -2696,7 +2752,7 @@ function shearReport(M,sh){
     o.push(eq(`\\frac{V_{des}}{b_wd}+\\frac{T_up_h}{1.7A_{oh}^2}=${d(sh.lhs,2)}\\ \\le\\
       \\phi_v\\left(\\frac{V_c}{b_wd}+2.12\\sqrt{f'_c}\\right)=${d(sh.rhs,2)}\\ \\text{kgf/cm}^2
       \\ \\ ${sh.sectOver?'\\;\\textbf{✗}':'\\;\\checkmark'}`));
-  }else o.push(`<div class="rp-note">T_u = ${d(sh.Tu/TFM,1)} tf·m ≤ 門檻 ${d(sh.Tthr/TFM,1)} tf·m，扭矩可忽略。</div>`);
+  }else o.push(`<div class="rp-note">T_u = ${d(sh.Tu/TFM,1)} tf·m ≤ 門檻 φT_th = φ·0.265√f'c·A_cp²/p_cp = ${d(sh.Tthr/TFM,1)} tf·m，扭矩可忽略（ACI 22.7.4.1）。</div>`);
   o.push(eq(`\\frac{A_v}{s}\\bigg|_{tot}=\\frac{V_s}{f_{yt}d}+2\\frac{A_t}{s}=${d(sh.AvS_shear,5)}+${d(2*sh.AtS,5)}
     =${d(sh.AvS_tot,5)}\\ \\Rightarrow\\ s\\le\\frac{A_v}{(A_v/s)_{tot}}=${d(sh.s_str,2)}\\ \\text{cm}`));
   o.push(`<table class="no-break"><thead><tr><th class="l">${t} 向間距上限</th><th>值 (cm)</th></tr></thead><tbody>
@@ -3023,7 +3079,7 @@ function beamShearDesign(S, R, m, ctx, res, MnPos, MnNeg){
   const ph = 2*((bw-2*cc)+(S.h-2*cc));
   const Ao = 0.85*Aoh, cot = 1/Math.tan(S.theta*Math.PI/180);
   const Acp = bw*S.h, pcp = 2*(bw+S.h);
-  const Tthr = m.phiv*1.06*Math.sqrt(m.fc)*(Acp*Acp/pcp);
+  const Tthr = m.phiv*0.265*Math.sqrt(m.fc)*(Acp*Acp/pcp);   // ACI 22.7.4.1（舊版誤用 T_cr 係數 1.06）
   const tors = Tu > Tthr;
   const AtS = tors ? Tu/(2*m.phiv*Ao*m.fyt*cot) : 0;
   const Al  = tors ? AtS*ph*(m.fyt/m.fy)*cot*cot : 0;
@@ -3867,7 +3923,7 @@ function buildBeamReport(B){
     \\qquad \\frac{A_v}{s}\\bigg|_{tot}=\\frac{V_s}{f_{yt}d}+2\\frac{A_t}{s}=${d(sh.AvStot,5)}`));
   if(sh.tors){
     o.push(`<div class="rp-h3">5.${S.seismic?'3':'2'} 扭矩</div>`);
-    o.push(eq(`T_u=${d(sh.Tu/TFM,1)}\\gt T_{thr}=\\phi_v\\,1.06\\sqrt{f'_c}\\frac{A_{cp}^2}{p_{cp}}=${d(sh.Tthr/TFM,1)}\\ \\text{tf}\\cdot\\text{m}\\ \\Rightarrow\\ \\text{須設計扭矩鋼筋}`));
+    o.push(eq(`T_u=${d(sh.Tu/TFM,1)}\\gt T_{thr}=\\phi_v\\,0.265\\sqrt{f'_c}\\frac{A_{cp}^2}{p_{cp}}=${d(sh.Tthr/TFM,1)}\\ \\text{tf}\\cdot\\text{m}\\ \\Rightarrow\\ \\text{須設計扭矩鋼筋}`));
     o.push(eq(`\\frac{A_t}{s}=\\frac{T_u}{2\\phi_v A_o f_{yt}\\cot\\theta}=${d(sh.AtS,5)}\\ \\text{cm}^2/\\text{cm}
       \\qquad A_l=\\frac{A_t}{s}p_h\\frac{f_{yt}}{f_y}\\cot^2\\theta=${d(sh.Al,2)}\\ \\text{cm}^2`));
     o.push(eq(`\\sqrt{\\left(\\frac{V_{des}}{b_w d}\\right)^2+\\left(\\frac{T_u p_h}{1.7A_{oh}^2}\\right)^2}=${d(sh.lhs,2)}
@@ -4462,6 +4518,7 @@ function pinStatus(mod, map){
     rerender();
   });
   document.getElementById('btnCaseSave').onclick = caseDownload;
+  document.getElementById('btnXlsx').onclick = exportXlsx;
   document.getElementById('btnCaseOpen').onclick = ()=>document.getElementById('caseFile').click();
   document.getElementById('caseFile').onchange = e=>{ caseOpenFile(e.target.files[0]); e.target.value=''; };
   caseRestore();
