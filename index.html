@@ -676,6 +676,8 @@ img,video{max-width:100%;height:auto}
           <option value="cantUDL">懸臂・均佈</option>
         </select></div>
       <div class="fld"><span>靜載彎矩 M<sub>D</sub> (tf·m)</span><input id="bMD" type="number" step="5" value="180"></div>
+      <div class="fld"><span>支承負彎矩使用靜載 M<sub>D</sub><sup>−</sup> (tf·m)</span><input id="bMDn" type="number" step="5" value="0"></div>
+      <div class="fld"><span>支承負彎矩使用活載 M<sub>L</sub><sup>−</sup> (tf·m)</span><input id="bMLn" type="number" step="5" value="0"></div>
       <div class="fld"><span>活載彎矩 M<sub>L</sub> (tf·m)</span><input id="bML" type="number" step="5" value="120"></div>
       <div class="fld"><span>持續活載比例</span><input id="bSustain" type="number" step="0.05" value="0.2"></div>
       <div class="fld"><span>長期係數 ξ</span><input id="bXi" type="number" step="0.1" value="2.0"></div>
@@ -1122,7 +1124,7 @@ const PRESETS = {
            {name:'1.2D+L+E (Y)',Pu:335,Mux:20,Muy:76,Vux:9,Vuy:39,Tu:0},
            {name:'0.9D+E',Pu:150,Mux:70,Muy:18,Vux:36,Vuy:8,Tu:0}]},
   pierC180: {label:'橋墩 圓柱 D180（螺箍）', code:'bridge', ph:'1', lu:1000,
-    type:'circle', D:180, nCir:32, spiral:'spiral', B:180, H:180, tw:40, fc:350, bar:'#10', nB:9, nH:9, tie:'#5',
+    type:'circle', D:180, nCir:32, spiral:'spiral', B:180, H:180, tw:40, fc:350, bar:'#10', nB:9, nH:9, tie:'#7',
     covO:7.5, covI:5, Lv:1000, dagg:2.5,
     loads:[{name:'D+L',Pu:1300,Mux:250,Muy:100,Vux:40,Vuy:18,Tu:10},
            {name:'地震 X',Pu:1150,Mux:1000,Muy:200,Vux:120,Vuy:28,Tu:20},
@@ -1143,7 +1145,7 @@ const PRESETS = {
            {name:'地震 Y',Pu:1300,Mux:400,Muy:1750,Vux:60,Vuy:240,Tu:60},
            {name:'最小軸力',Pu:600,Mux:2150,Muy:350,Vux:290,Vuy:55,Tu:50}]},
   box300: {label:'中跨徑橋塔 中空箱型 300×400×40', code:'bridge', ph:'1', lu:2500,
-    type:'box', B:300, H:400, tw:40, fc:350, bar:'#8', nB:19, nH:25, tie:'#5',
+    type:'box', B:300, H:400, tw:40, fc:350, bar:'#8', nB:19, nH:25, tie:'#6', tieAll:true,
     covO:7.5, covI:5, Lv:2500, dagg:2.5,
     loads:[{name:'D+L',Pu:2200,Mux:900,Muy:400,Vux:120,Vuy:60,Tu:40},
            {name:'地震 X',Pu:1900,Mux:6300,Muy:1100,Vux:520,Vuy:110,Tu:150},
@@ -1165,6 +1167,7 @@ function applyPreset(key){
   S('covO',P.covO); S('covI',P.covI); S('Lv',P.Lv); S('dagg',P.dagg);
   S('dbl', P.type==='box' ? '1' : '0');
   S('codeBasis', P.code || 'bridge'); S('ph', P.ph || '1'); S('lu', P.lu || 300);
+  S('tieLayout', P.tieAll ? 'all' : 'code');
   if(P.type==='circle'){ S('Dia',P.D); S('nCir',P.nCir); S('spiral',P.spiral||'spiral'); }
   LOADS = P.loads.map(l=>({...l}));
   drawLoads(); render();
@@ -1926,9 +1929,10 @@ function svgPM(M,axis,forPrint){
     const isC = R2===M.ctrlFlex;
     const mx=mOf(R2.L), py=R2.L.Pu;
     if(isC && Number.isFinite(R2.dc) && R2.dc>1e-9){
-      const t=1/R2.dc;                        // 容量點 = 載重點 ÷ D/C
-      o.push(`<line x1="${X(0)}" y1="${Y(0)}" x2="${X(mx/t)}" y2="${Y(py/t)}" stroke="${C.ptc}" stroke-width="1.1" stroke-dasharray="3 3" opacity=".85"/>`);
-      o.push(`<circle cx="${X(mx/t)}" cy="${Y(py/t)}" r="3.4" fill="none" stroke="${C.ptc}" stroke-width="1.6"/>`);
+      // 容量點 = 載重點 ÷ D/C（舊版誤寫成 × D/C，容量點落在載重點內側）
+      const cx = mx/R2.dc, cy = py/R2.dc;
+      o.push(`<line x1="${X(0)}" y1="${Y(0)}" x2="${X(cx)}" y2="${Y(cy)}" stroke="${C.ptc}" stroke-width="1.1" stroke-dasharray="3 3" opacity=".85"/>`);
+      o.push(`<circle cx="${X(cx)}" cy="${Y(cy)}" r="3.4" fill="none" stroke="${C.ptc}" stroke-width="1.6"/>`);
     }else if(isC){                            // 無交點：僅由原點朝載重點畫延伸線
       o.push(`<line x1="${X(0)}" y1="${Y(0)}" x2="${X(mx)}" y2="${Y(py)}" stroke="${C.ptc}" stroke-width="1.1" stroke-dasharray="3 3" opacity=".5"/>`);
     }
@@ -2054,7 +2058,14 @@ function loadScript(src){
 async function ensureXlsxLib(){
   if(!window.ExcelJS) await loadScript('https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js');
   if(!window.JSZip) await loadScript('https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js');   // 注入 Excel 原生圖表
-  if(!window.RCXLSX) await loadScript('calc-xlsx.js?v=3');
+  if(!window.RCXLSX){
+    // 以 no-cache 重新驗證（ETag），部署新版後不會拿到瀏覽器快取的舊匯出模組；file:// 無法 fetch 時退回一般載入
+    try{
+      const r = await fetch('calc-xlsx.js', {cache:'no-cache'});
+      if(!r.ok) throw new Error(r.status);
+      const s = document.createElement('script'); s.textContent = await r.text(); document.head.appendChild(s);
+    }catch(e){ await loadScript('calc-xlsx.js'); }
+  }
 }
 function colXlsxInput(){
   const g=id=>document.getElementById(id).value;
@@ -2066,7 +2077,7 @@ function colXlsxInput(){
     dbl:g('dbl')==='1', spiral:g('spiral')==='spiral', tieAll:g('tieLayout')==='all', ph:g('ph')==='1',
     phio:num('phio',1.25), Lv:num('Lv',400), lu:num('lu',300), theta:num('theta',45), ashPerp:g('ashPair')!=='para',
     loads: LOADS.map(L=>({name:L.name, Pu:+L.Pu||0, Mux:+L.Mux||0, Muy:+L.Muy||0, Vux:+L.Vux||0, Vuy:+L.Vuy||0, Tu:+L.Tu||0})),
-    meta:{project:'', member: document.getElementById('preset').selectedOptions[0]?.text || ''}};
+    meta:{project:'', member:''}};
 }
 function beamXlsxInput(){
   const g=id=>document.getElementById(id).value, ty=g('bType');
@@ -2077,10 +2088,10 @@ function beamXlsxInput(){
     botSize:g('bBotSize'), topSize:g('bTopSize'), tieSize:g('bTieSize'), nBot:num('bNbot',4), nTop:num('bNtop',2),
     spBot:num('bSpBot',15), spTop:num('bSpTop',15), nLegs:num('bNlegs',2), rhoTs:num('bRhoTs',0.0018),
     seismic:g('bSeismic')==='1', ln:num('bLn',1750), Vg:num('bVg',0), theta:num('bTheta',45),
-    MD:num('bMD',0), ML:num('bML',0), sustain:num('bSustain',0.2), xi:num('bXi',2), limLive:num('bLimLive',360), limTotal:num('bLimTotal',240),
+    MD:num('bMD',0), ML:num('bML',0), MDn:num('bMDn',0), MLn:num('bMLn',0), sustain:num('bSustain',0.2), xi:num('bXi',2), limLive:num('bLimLive',360), limTotal:num('bLimTotal',240),
     deflCase:g('bDeflCase'), wLim:g('bWlim'),
     loads: BLOADS.map(L=>({name:L.name, Mpos:+(L.Mpos??L.Mu??0)||0, Mneg:+(L.Mneg??0)||0, Vu:+L.Vu||0, Tu:+L.Tu||0})),
-    meta:{project:'', member: document.getElementById('bPreset').selectedOptions[0]?.text || ''}};
+    meta:{project:'', member:''}};
 }
 async function exportXlsx(){
   const btn=document.getElementById('btnXlsx'), t0=btn.textContent;
@@ -3124,16 +3135,18 @@ function beamCrack(S, R, m, ctx){
   const s1 = 38*(2855/fs) - 2.5*cc;
   const s2 = 30*(2855/fs);
   const sLim = Math.min(s1, s2);
-  const nRow = R.r1;
-  const sAct = S.slab ? S.spBot
-             : nRow>1 ? (S.bw - 2*(S.cover+R.dt) - nRow*R.dbB)/(nRow-1) + R.dbB : S.bw;
+  // 受拉側鋼筋中心距：正彎矩取底筋第 1 排、負彎矩取頂筋
+  const pos = S.sign!=='neg';
+  const nRow = pos ? R.r1 : Math.round(S.nTop), dbT = pos ? R.dbB : R.dbT;
+  const sAct = S.slab ? (pos ? S.spBot : (S.spTop || S.spBot))
+             : nRow>1 ? (S.bw - 2*(S.cover+R.dt) - nRow*dbT)/(nRow-1) + dbT : S.bw;
   return {fs, cc, s1, s2, sLim, sAct, nRow, ok:sAct<=sLim};
 }
 /* 裂縫寬度（Gergely-Lutz，ACI 224R）：w = 1.1×10⁻⁵ β f_s ∛(d_c A)（SI：MPa、mm、mm²）
    f_s 取使用載重 M_s = M_D + M_L 下開裂轉換斷面之鋼筋應力；
    A = 受拉鋼筋周圍與其同形心之混凝土面積 ÷ 根數 = 2d_c × 間距。 */
 function beamCrackWidth(S, R, m, ctx, icr){
-  const Ms = (S.MD + S.ML)*TFM;
+  const Ms = (S.sign==='neg' ? S.MDn + S.MLn : S.MD + S.ML)*TFM;   // 依檢核斷面取使用彎矩
   const d = ctxDepth(ctx), x = icr.x, n = icr.n;
   const fs = d>x ? n*Ms*(d-x)/Math.max(1e-9,icr.Icr) : 0;
   const ten = S.sign==='pos' ? R.layers[0] : R.layers[R.layers.length-1];
@@ -3250,30 +3263,30 @@ const envText = env => env==='water' ? '＋ 水工／環境結構加嚴（參考
 const BPRESETS = {
   deckT: {label:'橋面板 T 梁（內梁）', type:'T', bw:45, h:110, hf:22, L:1500, sSpacing:250, sClear:205, edge:false,
     fc:280, botSize:'#9', nBot:8, topSize:'#7', nTop:5, tieSize:'#4', nLegs:2, cover:4,
-    seismic:false, ln:1450, Vg:0, MD:80, ML:45,
+    seismic:false, ln:1450, Vg:0, MDn:0, MLn:0, MD:80, ML:45,
     loads:[{name:'跨中 1.2D+1.6L', Mpos:168, Mneg:0, Vu:52, Tu:3},
            {name:'跨中 D+L（含衝擊）', Mpos:150, Mneg:0, Vu:46, Tu:2}]},
   capBeam: {label:'蓋梁（矩形・耐震）', type:'rect', bw:150, h:180, hf:0, L:900, sSpacing:0, sClear:0, edge:false,
     fc:280, botSize:'#11', nBot:12, topSize:'#11', nTop:16, tieSize:'#5', nLegs:4, cover:5,
-    seismic:true, ln:850, Vg:120, MD:210, ML:95,
+    seismic:true, ln:850, Vg:120, MDn:420, MLn:180, MD:210, ML:95,
     loads:[{name:'柱面 地震 (1.2D+1.0E+0.5L)', Mpos:430, Mneg:880, Vu:340, Tu:22},
            {name:'重力 1.2D+1.6L', Mpos:400, Mneg:520, Vu:200, Tu:12}]},
-  pondTop: {label:'地下滯洪池頂版（單位寬・水工）', type:'slab', env:'water', bw:100, h:50, hf:0, L:600, sSpacing:0, sClear:0, edge:false,
-    fc:280, botSize:'#6', nBot:8, topSize:'#6', nTop:7, spBot:12.5, spTop:15, rhoTs:0.003, tieSize:'#4', nLegs:2, cover:5,
-    seismic:false, ln:600, Vg:0, MD:9, ML:6, deflCase:'fixedUDL', wLim:'0.20',
+  pondTop: {label:'地下滯洪池頂版（單位寬・水工）', type:'slab', env:'water', bw:100, h:60, hf:0, L:600, sSpacing:0, sClear:0, edge:false,
+    fc:280, botSize:'#6', nBot:7, topSize:'#7', nTop:10, spBot:15, spTop:10, rhoTs:0.003, tieSize:'#4', nLegs:2, cover:5,
+    seismic:false, ln:600, Vg:0, MDn:18, MLn:12, MD:9, ML:6, deflCase:'fixedUDL', wLim:'0.20',
     loads:[{name:'跨中 1.2D+1.6L（覆土＋活載）', Mpos:20.5, Mneg:41, Vu:26, Tu:0}]},
   pondWall: {label:'滯洪池側牆（單位寬・土水壓）', type:'slab', env:'water', bw:100, h:60, hf:0, L:650, sSpacing:0, sClear:0, edge:false,
     fc:280, botSize:'#7', nBot:8, topSize:'#6', nTop:7, spBot:12.5, spTop:15, rhoTs:0.003, tieSize:'#4', nLegs:2, cover:5,
-    seismic:false, ln:650, Vg:0, MD:18, ML:4, deflCase:'cantUDL', wLim:'0.20',
+    seismic:false, ln:650, Vg:0, MDn:0, MLn:0, MD:18, ML:4, deflCase:'cantUDL', wLim:'0.20',
     loads:[{name:'牆底 1.6H（土壓＋地下水）', Mpos:38, Mneg:0, Vu:32, Tu:0}]},
-  pondBeam: {label:'滯洪池頂版大梁（矩形・水工）', type:'rect', env:'water', bw:60, h:110, hf:0, L:800, sSpacing:0, sClear:0, edge:false,
-    fc:280, botSize:'#9', nBot:9, topSize:'#9', nTop:4, tieSize:'#4', nLegs:2, cover:5,
-    seismic:false, ln:720, Vg:0, MD:62, ML:30, deflCase:'fixedUDL', wLim:'0.20',
+  pondBeam: {label:'滯洪池頂版大梁（矩形・水工）', type:'rect', env:'water', bw:70, h:130, hf:0, L:800, sSpacing:0, sClear:0, edge:false,
+    fc:280, botSize:'#9', nBot:9, topSize:'#11', nTop:9, tieSize:'#4', nLegs:2, cover:5,
+    seismic:false, ln:720, Vg:0, MDn:110, MLn:50, MD:62, ML:30, deflCase:'fixedUDL', wLim:'0.20',
     loads:[{name:'跨中 1.2D+1.6L', Mpos:122, Mneg:0, Vu:78, Tu:2},
            {name:'支承 1.2D+1.6L', Mpos:0, Mneg:228, Vu:96, Tu:2}]},
   gradeBeam: {label:'地梁（矩形）', type:'rect', bw:60, h:90, hf:0, L:800, sSpacing:0, sClear:0, edge:false,
     fc:280, botSize:'#8', nBot:5, topSize:'#7', nTop:5, tieSize:'#4', nLegs:2, cover:5,
-    seismic:false, ln:750, Vg:0, MD:32, ML:16,
+    seismic:false, ln:750, Vg:0, MDn:15, MLn:8, MD:32, ML:16,
     loads:[{name:'1.2D+1.6L', Mpos:64, Mneg:30, Vu:42, Tu:2}]}
 };
 function applyBPreset(k){
@@ -3284,7 +3297,7 @@ function applyBPreset(k){
   s('bfc',P.fc); s('bBotSize',P.botSize); s('bNbot',P.nBot);
   s('bTopSize',P.topSize); s('bNtop',P.nTop); s('bTieSize',P.tieSize); s('bNlegs',P.nLegs);
   s('bCover',P.cover); s('bSeismic',P.seismic?'1':'0'); s('bLn',P.ln); s('bVg',P.Vg);
-  s('bMD',P.MD); s('bML',P.ML);
+  s('bMD',P.MD); s('bML',P.ML); s('bMDn',P.MDn||0); s('bMLn',P.MLn||0);
   if(P.spBot) s('bSpBot',P.spBot); if(P.spTop!==undefined) s('bSpTop',P.spTop);
   s('bRhoTs', P.rhoTs || 0.0018); if(P.wLim) s('bWlim',P.wLim);
   if(P.deflCase) s('bDeflCase',P.deflCase);
@@ -3314,6 +3327,7 @@ function computeBeam(){
     ln: pos('bLn',1750), Vg: Math.max(0,num('bVg',0)),
     theta: pos('bTheta',45),
     MD: Math.max(0,num('bMD',0)), ML: Math.max(0,num('bML',0)),
+    MDn: Math.max(0,num('bMDn',0)), MLn: Math.max(0,num('bMLn',0)),
     sustain: Math.min(1,Math.max(0,num('bSustain',0.2))), xi: pos('bXi',2.0),
     deflCase: document.getElementById('bDeflCase').value,
     limLive: pos('bLimLive',360), limTotal: pos('bLimTotal',240),
@@ -3365,6 +3379,8 @@ function computeBeam(){
   const gross = beamGross(S);
   const icr = beamIcr(ctx);
   const defl = beamDeflection(S,m,ctx,gross,icr);
+  // 撓度為跨度性質，以跨中正彎矩斷面檢核；檢核支承負彎矩斷面時不判定
+  if(S.sign==='neg'){ defl.na = true; defl.okL = defl.okT = true; }
   const crack = beamCrack(S,R,m,ctx);
   const cw = beamCrackWidth(S,R,m,ctx,icr);
   const sug = (ctrl && ctrl.k.Mu>1e-6) ? beamSuggest(S,m,ctrl.k.Mu) : [];
@@ -3604,8 +3620,11 @@ function renderBeam(){
   }
   h+=kv('裂縫控制 s 實際／上限', `${f(B.crack.sAct,1)} / ${f(B.crack.sLim,1)} cm`, B.crack.ok?'style="color:var(--ok)"':'style="color:var(--bad)"');
   if(S.env==='water') h+=kv('裂縫寬度 w（使用載重）', `${f(B.cw.w,3)} / ${f(B.cw.wLim,2)} mm`, B.cw.ok?'style="color:var(--ok)"':'style="color:var(--bad)"');
-  h+=kv('即時活載撓度 Δ_L', `${f(B.defl.dL,3)} / ${f(B.defl.limL,3)} cm`, B.defl.okL?'style="color:var(--ok)"':'style="color:var(--bad)"');
-  h+=kv('長期總撓度 Δ_LT', `${f(B.defl.dLT,3)} / ${f(B.defl.limT,3)} cm`, B.defl.okT?'style="color:var(--ok)"':'style="color:var(--bad)"');
+  if(B.defl.na) h+=kv('撓度', '— 以跨中正彎矩斷面檢核');
+  else{
+    h+=kv('即時活載撓度 Δ_L', `${f(B.defl.dL,3)} / ${f(B.defl.limL,3)} cm`, B.defl.okL?'style="color:var(--ok)"':'style="color:var(--bad)"');
+    h+=kv('長期總撓度 Δ_LT', `${f(B.defl.dLT,3)} / ${f(B.defl.limT,3)} cm`, B.defl.okT?'style="color:var(--ok)"':'style="color:var(--bad)"');
+  }
   h+=`</div></div>`;
 
   if(B.res.length){
@@ -3639,7 +3658,7 @@ function renderBeam(){
            [F.tooTight?'bad':'ok','箍筋',bTieTxt(S,F),`需 ≤ ${f(F.gov.v,2)}`,'bSummary']]),
       ...(S.env==='water' ? [[B.cw.ok?'ok':'bad','裂縫寬度',`${f(B.cw.w,3)} mm`,`≤ ${f(B.cw.wLim,2)}`,'bSummary']] : []),
       [B.crack.ok?'ok':'bad','裂縫',`${f(B.crack.sAct,1)} / ${f(B.crack.sLim,1)} cm`,'','bSummary'],
-      [B.defl.okL&&B.defl.okT?'ok':'warn','撓度',`Δ_LT ${f(B.defl.dLT,2)} / ${f(B.defl.limT,2)} cm`,'','bSummary'],
+      ...(B.defl.na ? [] : [[B.defl.okL&&B.defl.okT?'ok':'warn','撓度',`Δ_LT ${f(B.defl.dLT,2)} / ${f(B.defl.limT,2)} cm`,'','bSummary']]),
     ],'bAlerts');
   }
   stampCalc();
@@ -3688,7 +3707,8 @@ function renderBeamAlerts(B){
     add('info',`「任一斷面 M_n ≥ 25% 端部最大值」需整根梁的彎矩包絡線，<b>本工具無法由單一斷面判斷</b>，請另行檢核。`);
   }
   add(B.crack.ok?'ok':'bad',`裂縫控制（ACI 24.3.2）：底排鋼筋中心距 ${f(B.crack.sAct,1)} cm ${B.crack.ok?'≤':'＞'} 上限 min(38·(2855/f_s) − 2.5c_c, 30·(2855/f_s)) = ${f(B.crack.sLim,1)} cm　（f_s = ⅔f_y = ${f(B.crack.fs,0)} kgf/cm²）`);
-  add(B.defl.okL&&B.defl.okT?'ok':'warn',
+  if(B.defl.na) add('info','撓度以跨中正彎矩斷面檢核；目前檢核支承負彎矩斷面，不判定撓度。');
+  else add(B.defl.okL&&B.defl.okT?'ok':'warn',
     `撓度：即時活載 Δ_L = ${f(B.defl.dL,3)} cm ${B.defl.okL?'≤':'＞'} L/${f(S.limLive,0)} = ${f(B.defl.limL,3)} cm；`+
     `長期總撓度 Δ_LT = ${f(B.defl.dLT,3)} cm ${B.defl.okT?'≤':'＞'} L/${f(S.limTotal,0)} = ${f(B.defl.limT,3)} cm。`+
     `<br>M_cr = ${f(B.defl.Mcr/TFM,1)} tf·m，I_g = ${f(B.defl.Ig,0)}、I_cr = ${f(B.defl.Icr,0)}、I_e = ${f(B.defl.Ie,0)} cm⁴，λ_Δ = ${f(B.defl.lam,3)}。`);
@@ -3953,13 +3973,14 @@ function buildBeamReport(B){
   if(S.env==='water'){
     const c=B.cw;
     o.push(`<div class="rp-h3">6.1a 水工裂縫寬度（Gergely-Lutz，ACI 224R）</div>`);
-    o.push(eq(`M_s=M_D+M_L=${d(S.MD,1)}+${d(S.ML,1)}=${d(c.Ms/TFM,1)}\\ \\text{tf}\\cdot\\text{m},\\qquad
+    o.push(eq(`M_s=${pos?`M_D+M_L=${d(S.MD,1)}+${d(S.ML,1)}`:`M_D^-+M_L^-=${d(S.MDn,1)}+${d(S.MLn,1)}`}=${d(c.Ms/TFM,1)}\\ \\text{tf}\\cdot\\text{m},\\qquad
       f_s=\\frac{n\\,M_s\\,(d-x)}{I_{cr}}=\\frac{${d(B.defl.n,2)}\\times${d(c.Ms,0)}\\times(${d(B.d,2)}-${d(c.x,2)})}{${d(B.defl.Icr,0)}}=${d(c.fs,0)}\\ \\text{kgf/cm}^2`));
     o.push(eq(`\\beta=\\frac{h-x}{d-x}=${d(c.beta,3)},\\quad d_c=${d(c.dc,2)}\\ \\text{cm},\\quad A=2d_c\\times${d(c.pitch,1)}=${d(c.A,1)}\\ \\text{cm}^2`));
     o.push(eq(`w=1.1\\times10^{-5}\\,\\beta\\,f_s\\sqrt[3]{d_cA}=${d(c.w,3)}\\ \\text{mm}\\ ${c.ok?'\\le':'\\gt'}\\ w_{lim}=${d(c.wLim,2)}\\ \\text{mm}\\ \\ ${c.ok?'\\checkmark':'\\textbf{✗}'}`));
     o.push(note(`公式以 SI 單位代入（f_s：MPa、d_c：mm、A：mm²）。水工加嚴未包含 ACI 350 環境耐久係數 S_d。`));
   }
   o.push(`<div class="rp-h3">6.2 撓度</div>`);
+  if(defl.na) o.push(note(`撓度為跨度性質，以跨中正彎矩斷面檢核；本頁檢核支承負彎矩斷面，以下數值僅供參考、不判定。`));
   o.push(eq(`f_r=2\\sqrt{f'_c}=${d(defl.fr,2)}\\ \\text{kgf}/\\text{cm}^2
     \\qquad M_{cr}=\\frac{f_r I_g}{y_t}=\\frac{${d(defl.fr,2)}\\times${d(defl.Ig,0)}}{${d(defl.yt,2)}}=${d(defl.Mcr/TFM,2)}\\ \\text{tf}\\cdot\\text{m}`));
   o.push(eq(`n=\\frac{E_s}{E_c}=${d(defl.n,2)}\\quad\\Rightarrow\\quad x_{NA}=${d(defl.xNA,2)}\\ \\text{cm},
@@ -4119,6 +4140,8 @@ const PIN_META = {
        'ACI 224R 建議：水密結構 0.10 mm；一般戶外潮濕 0.15～0.30 mm。請依設計準則選定。',''],
       ['bMD','M_D','靜載彎矩','tf·m','I_e 與持續載重撓度 Δ_sus。','',''],
       ['bML','M_L','活載彎矩','tf·m','即時活載撓度 Δ_L。','',''],
+      ['bMDn','M_D⁻','支承負彎矩使用靜載','tf·m','負彎矩斷面（支承）之裂縫寬度用；撓度一律以跨中正彎矩斷面檢核。','',''],
+      ['bMLn','M_L⁻','支承負彎矩使用活載','tf·m','同上。','',''],
       ['bSustain','—','持續活載比例','','M_sus = M_D + 比例 × M_L。','',''],
       ['bXi','ξ','長期係數','',"λ_Δ = ξ/(1+50ρ')。",'5 年以上取 2.0',''],
       ['bLimLive','—','活載限值 L/','','Δ_L 的允許值。','',''],

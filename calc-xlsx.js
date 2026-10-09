@@ -117,9 +117,14 @@ function writeCalcSheet(ws, cs, resolve){
     }
     if(row.t==='sum'){
       const cells=[row.label,row.need,row.cap,row.ratio,row.judge];
+      const isRow = !row.head && !row.total;
       cells.forEach((v,j)=>{
         const c=R.getCell(j+1);
-        if(v && typeof v==='object' && v.f) c.value={formula: resolve(j===3?`IFERROR(${v.f},0)`:v.f, cs.name)}; else if(v!==undefined) c.value=v;
+        // 判定為 N/A 時，需求／容量／比值改顯示「—」，避免無意義的數字
+        const wrap = f => (isRow && j>=1 && j<=3) ? `IF($E$${row.r}="N/A","—",${j===3?`IFERROR(${f},0)`:f})` : f;
+        if(v && typeof v==='object' && v.f) c.value={formula: resolve(wrap(v.f), cs.name)};
+        else if(v!==undefined && isRow && j>=1 && j<=3 && typeof v==='number') c.value={formula: resolve(wrap(String(v)), cs.name)};
+        else if(v!==undefined) c.value=v;
         plain(c,{font:row.head||row.total?{bold:true}:{}, align:{horizontal:j?'center':'left'},
                  fill: row.head?K.hdr : row.total?K.amber : undefined});
         if(j>0 && j<4 && !row.head) c.numFmt = j===3?FMT_INF:(row.fmt||FMT_SINF);
@@ -430,8 +435,8 @@ function buildColumn(ExcelJS, inp){
   const sumRows = [];
   const addSum = (o) => { sumRows.push(S.sum(o)); };
   addSum({key:'jDC', label:'撓曲＋軸力 D/C', need:{f:'{DCmax}'}, cap:1, ratio:{f:'{DCmax}'}, judge:J('{DCmax}<=1'), ref:ref401('22.4、10.5.1'), fmt:'0.000'});
-  addSum({label:'X 向剪力斷面（Vs ≦ Vs,max）', need:{f:'{failx}'}, cap:0, ratio:{f:'{failx}'}, judge:J('{failx}=0'), note:'不足組合數', ref:ref401('22.5.1.2')});
-  addSum({label:'Y 向剪力斷面（Vs ≦ Vs,max）', need:{f:'{faily}'}, cap:0, ratio:{f:'{faily}'}, judge:J('{faily}=0'), note:'不足組合數', ref:ref401('22.5.1.2')});
+  addSum({label:'X 向剪力 Vs／Vs,max（tf）', need:{f:"MAX('載重組合'!P4:P"+(3+NCB)+')'}, cap:{f:'{VsMaxx}'}, ratio:{f:"MAX('載重組合'!P4:P"+(3+NCB)+')/{VsMaxx}'}, judge:J('{failx}=0'), note:'各組合最大 Vs；並檢核剪扭斷面應力', ref:ref401('22.5.1.2、22.7.7.1')});
+  addSum({label:'Y 向剪力 Vs／Vs,max（tf）', need:{f:"MAX('載重組合'!S4:S"+(3+NCB)+')'}, cap:{f:'{VsMaxy}'}, ratio:{f:"MAX('載重組合'!S4:S"+(3+NCB)+')/{VsMaxy}'}, judge:J('{faily}=0'), note:'各組合最大 Vs；並檢核剪扭斷面應力', ref:ref401('22.5.1.2、22.7.7.1')});
   addSum({label:'橫向筋間距 s 採用／需求', need:{f:'{sUse}'}, cap:{f:'{sGov}'}, ratio:{f:'{sUse}/{sGov}'}, judge:J('{sUse}<={sGov}'), note:{f:'"控制："&{sGovTag}'}, ref:'—'});
   addSum({label:'主筋比 ρg（%）', need:{f:'{rho}'}, cap:4, ratio:{f:'{rho}/4'}, judge:J('AND({rho}>=1,{rho}<=4)'), note:'下限 1%；4% 為施工性上限（規範 8%）', ref:ref401('10.6.1.1')});
   addSum({label:'主筋淨距（cm）', need:{f:'{need}'}, cap:{f:'MIN({clB},{clH})'}, ratio:{f:'{need}/MIN({clB},{clH})'}, judge:J('MIN({clB},{clH})>={need}'), ref:ref401('25.2.3')});
@@ -776,6 +781,18 @@ class A4 {
     ws.getRow(n).height = note && note.length>34 ? 28 : 16;
     return n;
   }
+  /* 逐組合表：NCB 列，公式回傳空字串時整列留白 */
+  ctable(heads, rowFn, fmts){
+    const ws=this.ws, hn=this.row();
+    heads.forEach((h,j)=>{ const c=ws.getCell(hn,2+j); c.value=h; c.font={name:FONT,size:9,bold:true};
+      c.fill={type:'pattern',pattern:'solid',fgColor:{argb:K.hdr}}; c.border=box(K.grid); c.alignment={horizontal:'center',vertical:'middle',shrinkToFit:true}; });
+    for(let i=0;i<NCB;i++){
+      const n=this.row(), fs=rowFn(i);
+      fs.forEach((f,j)=>{ const c=ws.getCell(n,2+j); c.value={formula:this.R(f,ws.name)}; c.font={name:FONT,size:8.5,color:{argb:K.link}};
+        c.border=box(K.grid); c.alignment={horizontal:j?'center':'left',vertical:'middle',shrinkToFit:true}; if(j>0 && fmts && fmts[j-1]) c.numFmt=fmts[j-1]; });
+      ws.getRow(n).height=14;
+    }
+  }
   input(label, v){ const n=this.row(), ws=this.ws; ws.getCell(n,2).value=label; ws.getCell(n,2).font={name:FONT,size:9,bold:true};
     ws.mergeCells(n,3,n,6); const c=ws.getCell(n,3); c.value=v; styleInput(c,false); c.font={name:FONT,size:9,bold:true,color:{argb:K.inFont}}; return n; }
   blank(){ return this.row(); }
@@ -802,8 +819,8 @@ function buildA4Column(ws, S, R, inp, jRow, sumRows){
   a.chap('二、設計條件');
   a.sub('2.1 幾何形狀'); a.thead();
   a.data('斷面型式','—','{type}','—','實心矩形／中空箱型／圓形',null,true);
-  a.data('外寬 × 外高（矩形、箱型）','B × H','TEXT({Be},"0")&" × "&TEXT({He},"0")','cm','圓形時為直徑',null,true);
-  a.data('壁厚','tw','{tw}','cm','僅中空箱型','0.0');
+  a.data('斷面尺寸','B × H／D','IF({isCirc}=1,"D = "&TEXT({Din},"0"),TEXT({Be},"0")&" × "&TEXT({He},"0"))','cm','圓形為直徑',null,true);
+  a.data('壁厚','tw','IF({isBox}=1,TEXT({tw},"0.0"),"—")','cm','僅中空箱型',null,true);
   a.data('全斷面積','Ag','{Ag}','cm²','—','#,##0');
   a.data('外側保護層','co','{covO}','cm','土木401 §20.5.1.3','0.0');
   a.sub('2.2 材料與強度折減因數'); a.thead();
@@ -835,6 +852,13 @@ function buildA4Column(ws, S, R, inp, jRow, sumRows){
   a.sub('4.2 P-M 互制與雙軸（土木401 §22.4、§10.5）'); a.thead();
   a.data('撓曲＋軸力應力比','D/C','{DCmax}','—','定偏心射線法；逐點詳 P-M 工作表',FMT_INF);
   a.data('控制組合','—','{DCctrl}','—',null,null,true);
+  a.sub('4.2a 各載重組合撓曲檢核（Pu 壓為正）');
+  a.ctable(['組合','Pu (tf)','Mux (tf·m)','Muy (tf·m)','D/C（方法）'], i=>{ const r=4+i, L=`'載重組合'!`;
+    return [`${L}A${r}&""`, `IF(${L}H${r}=1,${L}B${r},"")`, `IF(${L}H${r}=1,${L}C${r},"")`, `IF(${L}H${r}=1,${L}D${r},"")`,
+            `IF(${L}H${r}=1,IF(${L}M${r}>=1E9,"∞",TEXT(${L}M${r},"0.000"))&"（"&${L}K${r}&"）","")`]; }, ['#,##0.0','#,##0.0','#,##0.0',null]);
+  a.sub('4.2b 各載重組合剪力（tf）');
+  a.ctable(['組合','X：Vdes','X：Vs 需求','Y：Vdes','Y：Vs 需求'], i=>{ const r=4+i, L=`'載重組合'!`;
+    return [`${L}A${r}&""`, `${L}N${r}`, `${L}P${r}`, `${L}Q${r}`, `${L}S${r}`]; }, ['#,##0.0','#,##0.0','#,##0.0','#,##0.0']);
   a.sub('4.3 剪力（土木401 §22.5、§18.7.6）'); a.thead();
   a.data('X 向容量設計剪力','Ve','{Vex}','tf','建築 2Mpr/lu；橋梁 φo·Mn/Lv','#,##0.0');
   a.data('Y 向容量設計剪力','Ve','{Vey}','tf','同上','#,##0.0');
@@ -1058,9 +1082,12 @@ function buildBeam(ExcelJS, inp){
   S.section('【六、使用性：裂縫控制、裂縫寬度與撓度】');
   S.item({key:'fs23', label:'裂縫控制 fs = ⅔fy', sym:'fs', f:'2/3*{fy}', unit:'kgf/cm²', fmt:'#,##0', ref:ref401('24.3.2.1')});
   S.item({key:'sLim', label:'鋼筋中心距上限', sym:'s', f:'MIN(38*(2855/{fs23})-2.5*{cover},30*(2855/{fs23}))', unit:'cm', fmt:'0.0', expr:'min(38(2855/fs) − 2.5cc, 30(2855/fs))', ref:ref401('24.3.2')});
-  S.item({key:'sAct', label:'實際鋼筋中心距', sym:'s', f:'IF({isSlab}=1,{spB},IF({r1}>1,({bw}-2*({cover}+{dt})-{r1}*{dbB})/({r1}-1)+{dbB},{bw}))', unit:'cm', fmt:'0.0', ref:'—'});
+  S.item({key:'sAct', label:'受拉側鋼筋中心距', sym:'s', unit:'cm', fmt:'0.0', ref:'—', expr:'正彎矩取底筋第 1 排、負彎矩取頂筋',
+    f:'IF({isSlab}=1,IF({isPos}=1,{spB},IF({spT}>0,{spT},{spB})),IF({isPos}=1,IF({r1}>1,({bw}-2*({cover}+{dt})-{r1}*{dbB})/({r1}-1)+{dbB},{bw}),IF(ROUND({nTop},0)>1,({bw}-2*({cover}+{dt})-ROUND({nTop},0)*{dbT})/(ROUND({nTop},0)-1)+{dbT},{bw})))'});
   S.item({key:'MD', label:'使用靜載彎矩 MD', sym:'MD', v:inp.MD, unit:'tf·m', kind:'in', fmt:'0.00', ref:ref401('24.2')});
   S.item({key:'ML', label:'使用活載彎矩 ML', sym:'ML', v:inp.ML, unit:'tf·m', kind:'in', fmt:'0.00', ref:ref401('24.2')});
+  S.item({key:'MDn', label:'支承負彎矩使用靜載 MD⁻', sym:'MD⁻', v:inp.MDn||0, unit:'tf·m', kind:'in', fmt:'0.00', crit:'負彎矩斷面之裂縫寬度用', ref:ref401('24.3')});
+  S.item({key:'MLn', label:'支承負彎矩使用活載 ML⁻', sym:'ML⁻', v:inp.MLn||0, unit:'tf·m', kind:'in', fmt:'0.00', crit:'同上', ref:ref401('24.3')});
   S.item({key:'x', label:'開裂斷面中性軸 x', sym:'x', f:"'開裂斷面'!B3", unit:'cm', fmt:'0.000', kind:'link', expr:'轉換斷面 Q(x) = 0 二分求解', ref:ref401('24.2.3.5')});
   S.item({key:'Acx', label:'x 深度受壓面積', f:'IF(OR({hfc}=0,{x}<={hfc}),{b1c}*{x},{b1c}*{hfc}+{bw}*({x}-{hfc}))', unit:'cm²', fmt:'#,##0.0', ref:'—'});
   S.item({key:'Scx', label:'x 深度一次矩', f:'IF(OR({hfc}=0,{x}<={hfc}),{b1c}*{x}^2/2,{b1c}*{hfc}^2/2+{bw}*({x}-{hfc})*({hfc}+({x}-{hfc})/2))', unit:'cm³', fmt:'#,##0', ref:'—'});
@@ -1089,7 +1116,7 @@ function buildBeam(ExcelJS, inp){
   S.item({key:'rhoP', label:"受壓鋼筋比 ρ'", sym:"ρ'", f:'(({d1}<{h}/2)*{A1}+({d2}<{h}/2)*{A2}+({dT}<{h}/2)*{AT})/({bw}*{d})', unit:'無因次', fmt:'0.00000', ref:ref401('24.2.4.1.1')});
   S.item({key:'lam', label:'長期乘數 λΔ', sym:'λΔ', f:"{xi}/(1+50*{rhoP})", unit:'無因次', fmt:'0.000', ref:ref401('24.2.4.1.1')});
   S.item({key:'dLT', label:'長期總撓度 ΔLT', sym:'ΔLT', unit:'cm', fmt:'0.000', f:`${dl(Ms,Ie(Ms))}*{lam}+{dL}`, expr:'Δsus·λΔ + ΔL', ref:ref401('24.2.4')});
-  S.item({key:'Ms', label:'裂縫寬度：使用彎矩 Ms', sym:'Ms', f:'{MD}+{ML}', unit:'tf·m', fmt:'0.00', ref:'—'});
+  S.item({key:'Ms', label:'裂縫寬度：使用彎矩 Ms', sym:'Ms', f:'IF({isPos}=1,{MD}+{ML},{MDn}+{MLn})', unit:'tf·m', fmt:'0.00', expr:'依檢核斷面取正或負彎矩使用彎矩', ref:'—'});
   S.item({key:'fsS', label:'裂縫寬度：使用鋼筋應力 fs', sym:'fs', f:'IF({d}>{x},{n}*{Ms}*100000*({d}-{x})/{Icr},0)', unit:'kgf/cm²', fmt:'#,##0', ref:'非規範明列條文，係開裂轉換斷面彈性分析'});
   S.item({key:'dc', label:'裂縫寬度：dc', sym:'dc', f:'{cover}+{dt}+IF({isPos}=1,{dbB},{dbT})/2', unit:'cm', fmt:'0.00', ref:'—'});
   S.item({key:'pit', label:'裂縫寬度：受拉筋間距', f:'IF({isSlab}=1,IF({isPos}=1,{spB},IF({spT}>0,{spT},{spB})),{bw}/MAX(1,IF({isPos}=1,{r1},{nTop})))', unit:'cm', fmt:'0.00', ref:'—'});
@@ -1114,8 +1141,8 @@ function buildBeam(ExcelJS, inp){
   addSum({label:'裂縫控制 鋼筋中心距（cm）', need:{f:'{sAct}'}, cap:{f:'{sLim}'}, ratio:{f:'{sAct}/{sLim}'}, judge:J('{sAct}<={sLim}'), ref:ref401('24.3.2')});
   addSum({label:'水工裂縫寬度（mm）', need:{f:'{w}'}, cap:{f:'{wLim}'}, ratio:{f:'{w}/{wLim}'}, judge:{f:'IF({isW}=0,"N/A",IF({w}<={wLim},"PASS","FAIL"))'}, fmt:'0.000', ref:'ACI 224R（參考）'});
   addSum({label:'水工保護層（cm）', need:5, cap:{f:'{cover}'}, ratio:{f:'5/{cover}'}, judge:{f:'IF({isW}=0,"N/A",IF({cover}>=5,"PASS","FAIL"))'}, ref:'ACI 350（參考）'});
-  addSum({label:'即時活載撓度（cm）', need:{f:'{dL}'}, cap:{f:'{L}/{limL}'}, ratio:{f:'{dL}/({L}/{limL})'}, judge:J('{dL}<={L}/{limL}'), fmt:'0.000', ref:ref401('24.2.2')});
-  addSum({label:'長期總撓度（cm）', need:{f:'{dLT}'}, cap:{f:'{L}/{limT}'}, ratio:{f:'{dLT}/({L}/{limT})'}, judge:J('{dLT}<={L}/{limT}'), fmt:'0.000', ref:ref401('24.2.2')});
+  addSum({label:'即時活載撓度（cm）', need:{f:'{dL}'}, cap:{f:'{L}/{limL}'}, ratio:{f:'{dL}/({L}/{limL})'}, judge:{f:'IF({isPos}=0,"N/A",IF({dL}<={L}/{limL},"PASS","FAIL"))'}, fmt:'0.000', note:'撓度以跨中正彎矩斷面檢核', ref:ref401('24.2.2')});
+  addSum({label:'長期總撓度（cm）', need:{f:'{dLT}'}, cap:{f:'{L}/{limT}'}, ratio:{f:'{dLT}/({L}/{limT})'}, judge:{f:'IF({isPos}=0,"N/A",IF({dLT}<={L}/{limT},"PASS","FAIL"))'}, fmt:'0.000', note:'同上', ref:ref401('24.2.2')});
   addSum({label:'耐震：bw ≧ max(0.3h, 25)（cm）', need:{f:'MAX(0.3*{h},25)'}, cap:{f:'{bw}'}, ratio:{f:'MAX(0.3*{h},25)/{bw}'}, judge:{f:'IF({isS}=0,"N/A",IF({bw}>=MAX(0.3*{h},25),"PASS","FAIL"))'}, ref:ref401('18.6.2.1')});
   addSum({label:'耐震：ln ≧ 4d（cm）', need:{f:'4*{d}'}, cap:{f:'{ln}'}, ratio:{f:'4*{d}/{ln}'}, judge:{f:'IF({isS}=0,"N/A",IF({ln}>=4*{d},"PASS","FAIL"))'}, ref:ref401('18.6.2.1')});
   addSum({label:'耐震：ρ ≦ 0.025', need:{f:'{rho}'}, cap:0.025, ratio:{f:'{rho}/0.025'}, judge:{f:'IF({isS}=0,"N/A",IF({rho}<=0.025,"PASS","FAIL"))'}, fmt:'0.0000', ref:ref401('18.6.3.1')});
@@ -1290,6 +1317,10 @@ function buildA4Beam(ws, R, inp, jRow, sumRows){
   a.data('最外受拉筋應變','εt','{et}','—','≧ 0.004','0.00000');
   a.data('設計彎矩強度','φMn','{phiMn}','tf·m','—','#,##0.00');
   a.data('撓曲應力比','D/C','{DC}','—','Mu/φMn',FMT_INF);
+  a.sub('4.1a 各載重組合');
+  a.ctable(['組合','Mu⁺ (tf·m)','Mu⁻ (tf·m)','Vu (tf)','檢核 D/C'], i=>{ const r=4+i, L=`'載重組合'!`;
+    return [`${L}A${r}&""`, `IF(${L}A${r}="","",${L}B${r})`, `IF(${L}A${r}="","",${L}C${r})`, `IF(${L}A${r}="","",${L}D${r})`,
+            `IF(${L}A${r}="","",IF(${L}I${r}>=1E9,"∞",TEXT(${L}I${r},"0.000")))`]; }, ['#,##0.00','#,##0.00','#,##0.00',null]);
   a.sub('4.2 最小鋼筋（土木401 §9.6.1.2、§7.6.1.1）'); a.thead();
   a.data('受拉鋼筋','As','{AsT}','cm²','—','0.00');
   a.data('最少鋼筋','As,min','{AsMin}','cm²','梁 max(0.8√f\'c/fy, 14/fy)·bw·d；版 ρmin·b·h','0.00');
@@ -1519,6 +1550,23 @@ function buildColumnChartData(ws, R){
   for(let i=0;i<5;i++){ put(ws,'W'+(3+i),{f:`A${3+i}`},{fmt:'0.0'}); put(ws,'X'+(3+i),{f:`B${3+i}`},{fmt:'0.0'}); }
   put(ws,'W8',{f:NA}); put(ws,'X8',{f:NA});
   for(let i=0;i<5;i++){ put(ws,'W'+(9+i),{f:`E${3+i}`},{fmt:'0.0'}); put(ws,'X'+(9+i),{f:`F${3+i}`},{fmt:'0.0'}); }
+  // 標稱曲線補純拉、純壓端點（X：Y、Z 欄；Y：AA、AB 欄），列 3 ~ NPM+4
+  for(const [ax,cM,cP] of [['x','Y','Z'],['y','AA','AB']]){
+    const P = ax==='x'?'P-M_X':'P-M_Y';
+    put(ws,cM+'2',`標稱 M（${ax.toUpperCase()}）`,{head:true}); put(ws,cP+'2',`標稱 P（${ax.toUpperCase()}）`,{head:true});
+    put(ws,cM+'3',0); put(ws,cP+'3', r('{Pnt}'),{fmt:'#,##0.0'});
+    for(let k=1;k<=NPM;k++){ put(ws,cM+(3+k),{f:`'${P}'!G${PM_H+k}`},{fmt:'#,##0.0'}); put(ws,cP+(3+k),{f:`'${P}'!F${PM_H+k}`},{fmt:'#,##0.0'}); }
+    put(ws,cM+(4+NPM),0); put(ws,cP+(4+NPM), r('{Po}'),{fmt:'#,##0.0'});
+  }
+  // 控制組合之定偏心射線：原點 → 容量點（載重點 ÷ D/C）；X：AC、AD，Y：AE、AF
+  const ci = `MATCH({DCmax},'載重組合'!$M$4:$M$${3+NCB},0)`;
+  for(const [ax,cM,cP,src] of [['x','AC','AD','S'],['y','AE','AF','U']]){
+    put(ws,cM+'2',`射線 M（${ax.toUpperCase()}）`,{head:true}); put(ws,cP+'2',`射線 P（${ax.toUpperCase()}）`,{head:true});
+    put(ws,cM+'3',0); put(ws,cP+'3',0);
+    const mu = `INDEX($${src}$3:$${src}$${2+NCB},${ci})`, pu = `INDEX($${src==='S'?'T':'V'}$3:$${src==='S'?'T':'V'}$${2+NCB},${ci})`;
+    put(ws,cM+'4', r(`IFERROR(IF({DCmax}>=1E9,${NA},${mu}/{DCmax}),${NA})`),{fmt:'#,##0.0'});
+    put(ws,cP+'4', r(`IFERROR(IF({DCmax}>=1E9,${NA},${pu}/{DCmax}),${NA})`),{fmt:'#,##0.0'});
+  }
   return {tieEnd, barEnd};
 }
 
@@ -1526,7 +1574,7 @@ function buildColumnChartData(ws, R){
 const LOAD_MK = [['diamond','B03A2E'],['square','1F5FA8'],['triangle','2E7D32'],['circle','EF6C00'],['x','6B4FA8'],['star','C2185B'],
                  ['plus','00838F'],['dash','5D4037'],['diamond','7CB342'],['square','3949AB'],['triangle','8A5A12'],['circle','455A64']];
 function loadSeries(inp, ax){
-  const n = Math.max(1, Math.min(NCB, inp.loads.length));
+  const n = NCB;          // 預留全部列：在 Excel 新增組合也會畫出（空白列不繪點）
   const [cx, cy] = ax==='x' ? ['S','T'] : ['U','V'];
   return Array.from({length:n}, (_,i)=>{
     const [sym, col] = LOAD_MK[i % LOAD_MK.length];
@@ -1567,8 +1615,10 @@ function columnCharts(inp, info, a4Start){
       xTitle: circle ? 'Mr = √(Mx² + My²) (tf·m)' : `M${ax} (tf·m)`, yTitle:'P (tf)，壓為正',
       xAxis:{fmt:'#,##0'}, yAxis:{fmt:'#,##0'},
       series:[
-        ser('標稱 Pn–Mn', [rng('G',PM_H+1,PM_H+NPM), rng('F',PM_H+1,PM_H+NPM)], {color:'8A97A5', w:1.25}),
+        ser('標稱 Pn–Mn', ax==='x' ? [`${qs(CD)}!$Y$3:$Y$${4+NPM}`, `${qs(CD)}!$Z$3:$Z$${4+NPM}`] : [`${qs(CD)}!$AA$3:$AA$${4+NPM}`, `${qs(CD)}!$AB$3:$AB$${4+NPM}`], {color:'8A97A5', w:1.25}),
         ser('設計 φPn–φMn', [rng('Q',PM_H+1,PM_H+POLY_N), rng('R',PM_H+1,PM_H+POLY_N)], {color:'0F5F6B', w:2.25}),
+        {name:'控制組合 D/C 射線（雙軸時僅示意）', x: ax==='x'?`${qs(CD)}!$AC$3:$AC$4`:`${qs(CD)}!$AE$3:$AE$4`, y: ax==='x'?`${qs(CD)}!$AD$3:$AD$4`:`${qs(CD)}!$AF$3:$AF$4`,
+         line:{color:'B03A2E', w:1, dash:'dash'}, marker:{symbol:'circle', size:6, color:'B03A2E', fill:'FFFFFF'}},
         ...loadSeries(inp, ax)
       ]});
   };
