@@ -993,6 +993,14 @@ function buildBeam(ExcelJS, inp){
   S.item({key:'y1', label:'底筋第 1 排中心高', f:'IF({isSlab}=1,{cover}+{dbB}/2,{cover}+{dt}+{dbB}/2)', unit:'cm', fmt:'0.00', ref:'—'});
   S.item({key:'y2', label:'底筋第 2 排中心高', f:'{y1}+{dbB}+2.5', unit:'cm', fmt:'0.00', expr:'排距 2.5 cm', ref:ref401('25.2.2')});
   S.item({key:'yT', label:'頂筋中心高', f:'{h}-({cover}+{dt}+{dbT}/2)', unit:'cm', fmt:'0.00', ref:'—'});
+  S.item({key:'clrB', label:'底筋淨距（第 1 排）', sym:'s', unit:'cm', fmt:FMT_SINF,
+    f:`IF({isSlab}=1,{spB}-{dbB},IF(ROUND({r1},0)>1,({bw}-2*({cover}+{dt})-ROUND({r1},0)*{dbB})/(ROUND({r1},0)-1),${BIG}))`,
+    expr:'(bw − 2(cc + dt) − n·db)/(n − 1)；版為 s − db', ref:ref401('25.2.1')});
+  S.item({key:'clrT', label:'頂筋淨距（單排）', sym:'s', unit:'cm', fmt:FMT_SINF,
+    f:`IF({isSlab}=1,IF({spT}>0,{spT}-{dbT},${BIG}),IF(ROUND({nTop},0)>1,({bw}-2*({cover}+{dt})-ROUND({nTop},0)*{dbT})/(ROUND({nTop},0)-1),${BIG}))`,
+    expr:'同上（頂筋單排）', ref:ref401('25.2.1')});
+  S.item({key:'needB', label:'底筋淨距需求', sym:'smin', f:'MAX(2.5,{dbB},4/3*{dagg})', unit:'cm', fmt:'0.00', expr:'max(2.5, db, 4/3·dagg)', ref:ref401('25.2.1')});
+  S.item({key:'needT', label:'頂筋淨距需求', sym:'smin', f:'MAX(2.5,{dbT},4/3*{dagg})', unit:'cm', fmt:'0.00', expr:'max(2.5, db, 4/3·dagg)', ref:ref401('25.2.1')});
   S.item({key:'A1', label:'第 1 排面積', f:'{r1}*{AbB}', unit:'cm²', fmt:'0.00', ref:'—'});
   S.item({key:'A2', label:'第 2 排面積', f:'{r2}*{AbB}', unit:'cm²', fmt:'0.00', ref:'—'});
   S.item({key:'AT', label:'頂筋面積', f:'{nTop}*{AbT}', unit:'cm²', fmt:'0.00', ref:'—'});
@@ -1138,6 +1146,8 @@ function buildBeam(ExcelJS, inp){
   addSum({label:'梁箍筋間距 採用／需求（cm）', need:{f:'{sUse}'}, cap:{f:'{sGov}'}, ratio:{f:'{sUse}/{sGov}'}, judge:{f:'IF({isSlab}=1,"N/A",IF({sUse}<={sGov},"PASS","FAIL"))'}, ref:'—'});
   addSum({label:'版剪力：Vu ≦ φVc（tf）', need:{f:'{Vdes}'}, cap:{f:'{phiVc}'}, ratio:{f:'{Vdes}/{phiVc}'}, judge:{f:'IF({isSlab}=0,"N/A",IF({Vdes}<={phiVc},"PASS","FAIL"))'}, ref:ref401('7.6.3.1')});
   addSum({label:'版主筋間距（cm）', need:{f:'{sSlabUse}'}, cap:{f:'{sSlab}'}, ratio:{f:'{sSlabUse}/{sSlab}'}, judge:{f:'IF({isSlab}=0,"N/A",IF({sSlabUse}<={sSlab},"PASS","FAIL"))'}, ref:ref401('7.7.2.3')});
+  addSum({label:'底筋淨距（cm）', need:{f:'{needB}'}, cap:{f:'{clrB}'}, ratio:{f:'{needB}/{clrB}'}, judge:{f:`IF({clrB}>=${BIG},"N/A",IF({clrB}>={needB},"PASS","FAIL"))`}, ref:ref401('25.2.1')});
+  addSum({label:'頂筋淨距（cm）', need:{f:'{needT}'}, cap:{f:'{clrT}'}, ratio:{f:'{needT}/{clrT}'}, judge:{f:`IF({clrT}>=${BIG},"N/A",IF({clrT}>={needT},"PASS","FAIL"))`}, ref:ref401('25.2.1')});
   addSum({label:'裂縫控制 鋼筋中心距（cm）', need:{f:'{sAct}'}, cap:{f:'{sLim}'}, ratio:{f:'{sAct}/{sLim}'}, judge:J('{sAct}<={sLim}'), ref:ref401('24.3.2')});
   addSum({label:'水工裂縫寬度（mm）', need:{f:'{w}'}, cap:{f:'{wLim}'}, ratio:{f:'{w}/{wLim}'}, judge:{f:'IF({isW}=0,"N/A",IF({w}<={wLim},"PASS","FAIL"))'}, fmt:'0.000', ref:'ACI 224R（參考）'});
   addSum({label:'水工保護層（cm）', need:5, cap:{f:'{cover}'}, ratio:{f:'5/{cover}'}, judge:{f:'IF({isW}=0,"N/A",IF({cover}>=5,"PASS","FAIL"))'}, ref:'ACI 350（參考）'});

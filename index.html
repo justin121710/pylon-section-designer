@@ -3128,6 +3128,20 @@ function ctxDepth(ctx){
   return sa>0 ? sad/sa : 0.8*g.h;
 }
 
+/* ---------- 主筋淨距（土木401 §25.2.1）：s_clear ≧ max(2.5 cm, d_b, 4/3·d_agg) ----------
+   底筋取第 1 排（第 2 排根數不多於第 1 排）、頂筋單排；版以「間距 − d_b」計。
+   舊版只在排數判斷時以 2.5 cm 估算底筋，頂筋完全未檢核。 */
+function beamClear(S, R){
+  const needOf = db => Math.max(2.5, db, (4/3)*S.dagg);
+  const inner = S.bw - 2*(S.cover + R.dt);
+  const row = (n, db) => n>1 ? (inner - n*db)/(n-1) : null;
+  const nT = Math.round(S.nTop);
+  const bot = S.slab ? S.spBot - R.dbB : row(Math.round(R.r1), R.dbB);
+  const top = S.slab ? (S.spTop>0 ? S.spTop - R.dbT : null) : row(nT, R.dbT);
+  const needB = needOf(R.dbB), needT = needOf(R.dbT);
+  return {bot, top, needB, needT, okB: bot===null || bot>=needB-1e-9, okT: top===null || top>=needT-1e-9};
+}
+
 /* ---------- 裂縫控制（ACI 24.3.2） ---------- */
 function beamCrack(S, R, m, ctx){
   const fs = (2/3)*m.fy;         // ACI 24.3.2 允許以 (2/3)f_y 代替由使用載重算得之鋼筋應力
@@ -3279,7 +3293,7 @@ const BPRESETS = {
     fc:280, botSize:'#7', nBot:8, topSize:'#6', nTop:7, spBot:12.5, spTop:15, rhoTs:0.003, tieSize:'#4', nLegs:2, cover:5,
     seismic:false, ln:650, Vg:0, MDn:0, MLn:0, MD:18, ML:4, deflCase:'cantUDL', wLim:'0.20',
     loads:[{name:'牆底 1.6H（土壓＋地下水）', Mpos:38, Mneg:0, Vu:32, Tu:0}]},
-  pondBeam: {label:'滯洪池頂版大梁（矩形・水工）', type:'rect', env:'water', bw:70, h:130, hf:0, L:800, sSpacing:0, sClear:0, edge:false,
+  pondBeam: {label:'滯洪池頂版大梁（矩形・水工）', type:'rect', env:'water', bw:80, h:130, hf:0, L:800, sSpacing:0, sClear:0, edge:false,
     fc:280, botSize:'#9', nBot:9, topSize:'#11', nTop:9, tieSize:'#4', nLegs:2, cover:5,
     seismic:false, ln:720, Vg:0, MDn:110, MLn:50, MD:62, ML:30, deflCase:'fixedUDL', wLim:'0.20',
     loads:[{name:'跨中 1.2D+1.6L', Mpos:122, Mneg:0, Vu:78, Tu:2},
@@ -3383,6 +3397,7 @@ function computeBeam(){
   if(S.sign==='neg'){ defl.na = true; defl.okL = defl.okT = true; }
   const crack = beamCrack(S,R,m,ctx);
   const cw = beamCrackWidth(S,R,m,ctx,icr);
+  const clr = beamClear(S,R);
   const sug = (ctrl && ctrl.k.Mu>1e-6) ? beamSuggest(S,m,ctrl.k.Mu) : [];
 
   // 箍筋間距彙整
@@ -3404,7 +3419,7 @@ function computeBeam(){
   }
 
   BMODEL = {S,m,R,EF,gross,icr,ctxPos,ctxNeg,ctx,solPos,solNeg,sol,phi,phiMn,phiPos,phiNeg,
-            d,AsTen,AsCom,AsMin,rho,res,ctrl,sh,defl,crack,cw,sug,
+            d,AsTen,AsCom,AsMin,rho,res,ctrl,sh,defl,crack,cw,clr,sug,
             fin:{cands,gov,sUse,tooTight}};
   return BMODEL;
 }
@@ -3601,6 +3616,8 @@ function renderBeam(){
   h+=kv('ε_t（最外拉力筋）', f(B.sol.eps_t,5)+`　φ = ${f(B.phi,3)}`);
   h+=kv(S.slab?'A_s（受拉）／A_s,min（每公尺寬）':'A_s（受拉）／A_s,min', `${f(B.AsTen,1)} / ${f(B.AsMin,1)} cm²`);
   h+=kv('A_s（受壓）', f(B.AsCom,1)+' cm²');
+  { const c=B.clr, t=(v,need)=> v===null ? '—' : `${f(v,1)}（需 ≥ ${f(need,1)}）`;
+    h+=kv('主筋淨距 底／頂', `${t(c.bot,c.needB)}／${t(c.top,c.needT)} cm`, c.okB&&c.okT?'style="color:var(--ok)"':'style="color:var(--bad)"'); }
   h+=kv('ρ = A_s/(b_w·d)', f(B.rho*100,3)+' %');
   h+=`</div><div>`;
   if(S.slab){
@@ -3658,6 +3675,8 @@ function renderBeam(){
            [F.tooTight?'bad':'ok','箍筋',bTieTxt(S,F),`需 ≤ ${f(F.gov.v,2)}`,'bSummary']]),
       ...(S.env==='water' ? [[B.cw.ok?'ok':'bad','裂縫寬度',`${f(B.cw.w,3)} mm`,`≤ ${f(B.cw.wLim,2)}`,'bSummary']] : []),
       [B.crack.ok?'ok':'bad','裂縫',`${f(B.crack.sAct,1)} / ${f(B.crack.sLim,1)} cm`,'','bSummary'],
+      (()=>{ const c=B.clr, vals=[c.bot,c.top].filter(v=>v!==null), mn=vals.length?Math.min(...vals):null;
+        return [c.okB&&c.okT?'ok':'bad','主筋淨距', mn===null?'—':`${f(mn,1)} cm`, `需 ≥ ${f(Math.max(c.needB,c.needT),1)}`,'bSummary']; })(),
       ...(B.defl.na ? [] : [[B.defl.okL&&B.defl.okT?'ok':'warn','撓度',`Δ_LT ${f(B.defl.dLT,2)} / ${f(B.defl.limT,2)} cm`,'','bSummary']]),
     ],'bAlerts');
   }
@@ -3684,6 +3703,11 @@ function renderBeamAlerts(B){
   else if(B.AsTen < B.AsMin) add('bad',`<b>受拉鋼筋量不足</b>：A_s = ${f(B.AsTen,2)} < A_s,min = ${S.slab?`ρ_min·b·h = ${f(S.rhoTs,4)}×100×${f(S.h,0)}`:"max(0.8√f'_c/f_y, 14/f_y)·b_w·d"} = ${f(B.AsMin,2)} cm²。`);
   else add('ok',`A_s = ${f(B.AsTen,2)} ≥ A_s,min = ${f(B.AsMin,2)} cm²。`);
 
+  { const c=B.clr;
+    if(!c.okB) add('bad',`<b>底筋淨距不足</b>：${f(c.bot,2)} cm ＜ max(2.5, d_b, 4/3·d_agg) = ${f(c.needB,2)} cm（土木401 §25.2.1）。${S.slab?'請加大間距或改用較細鋼筋。':'請減少單排根數（改兩排）、改用較細鋼筋或加寬腹板。'}`);
+    if(!c.okT) add('bad',`<b>頂筋淨距不足</b>：${f(c.top,2)} cm ＜ max(2.5, d_b, 4/3·d_agg) = ${f(c.needT,2)} cm（土木401 §25.2.1）。${S.slab?'請加大間距或改用較細鋼筋。':'頂筋為單排，請減少根數、改用較粗號數減少根數或加寬腹板。'}`);
+    if(c.okB && c.okT) add('ok',`主筋淨距：底 ${c.bot===null?'—':f(c.bot,2)}、頂 ${c.top===null?'—':f(c.top,2)} cm，皆 ≥ max(2.5, d_b, 4/3·d_agg)。`);
+  }
   if(B.sol.eps_t < 0.004) add('bad',`<b>鋼筋量過多</b>：ε_t = ${f(B.sol.eps_t,5)} < 0.004。梁為受撓構材，須維持足夠韌性（土木401 / ACI 9.3.3.1）。`);
   else if(B.sol.eps_t < 0.005) add('warn',`ε_t = ${f(B.sol.eps_t,5)} 落在過渡區，φ = ${f(B.phi,3)} < 0.90。`);
   else add('ok',`ε_t = ${f(B.sol.eps_t,5)} ≥ 0.005，拉力控制，φ = 0.90。`);
@@ -3835,6 +3859,12 @@ function buildBeamReport(B){
   </tbody></table>`);
   o.push(eq(`\\beta_1=\\max\\!\\left(0.65,\\min\\!\\left(0.85,\\;0.85-0.05\\frac{f'_c-280}{70}\\right)\\right)=${d(m.b1,4)}
     \\qquad E_c=15000\\sqrt{f'_c}=${d(m.Ec,0)}\\ \\text{kgf}/\\text{cm}^2`));
+  { const c=B.clr, line=(lab,v,need,n,db,sp)=> v===null ? '' :
+      eq(S.slab ? `s_{clear,${lab}}=s-d_b=${d(sp,1)}-${d(db,2)}=${d(v,2)}\\ ${v>=need-1e-9?'\\ge':'\\lt'}\\ \\max(2.5,\\ d_b,\\ \\tfrac43 d_{agg})=${d(need,2)}\\ \\text{cm}`
+                : `s_{clear,${lab}}=\\frac{b_w-2(c_c+d_t)-n\\,d_b}{n-1}=\\frac{${d(S.bw,1)}-2(${d(S.cover,1)}+${d(R.dt,2)})-${n}\\times${d(db,2)}}{${n}-1}=${d(v,2)}\\ ${v>=need-1e-9?'\\ge':'\\lt'}\\ ${d(need,2)}\\ \\text{cm}`);
+    o.push(`<div class="rp-h3">1.0 主筋淨距（土木401 §25.2.1：≥ max(2.5 cm, d_b, 4/3·d_agg)）</div>`);
+    o.push(line('底',c.bot,c.needB,Math.round(R.r1),R.dbB,S.spBot) + line('頂',c.top,c.needT,Math.round(S.nTop),R.dbT,S.spTop));
+  }
   if(S.type==='T'){
     o.push(`<div class="rp-h3">1.1 有效翼緣寬 b_e</div>`);
     o.push(eq(`b_e=\\min\\left\\{${EF.cand.map(c=>`${c.t.replace(/_/g,'_')}=${d(c.v,1)}`).join(',\\ ')}\\right\\}=${d(S.be,1)}\\ \\text{cm}`));
@@ -4346,8 +4376,12 @@ function pinMapBeam(B){
   const s = {}, OK = {state:'ok',chip:'✓'}, C = B.ctrl;
   const noM = !C || C.k.Mu < 1e-6;
   const asBad = !noM && B.AsTen < B.AsMin;
-  s.bNbot = (B.S.sign==='pos' && asBad) ? {state:'bad',chip:'A_s'} : OK;
-  s.bNtop = (B.S.sign==='neg' && asBad) ? {state:'bad',chip:'A_s'} : OK;
+  s.bNbot = !B.clr.okB ? {state:'bad',chip:'淨距',msg:`底筋淨距 ${f(B.clr.bot,2)} cm ＜ ${f(B.clr.needB,2)} cm。`}
+          : (B.S.sign==='pos' && asBad) ? {state:'bad',chip:'A_s'} : OK;
+  s.bNtop = !B.clr.okT ? {state:'bad',chip:'淨距',msg:`頂筋淨距 ${f(B.clr.top,2)} cm ＜ ${f(B.clr.needT,2)} cm（頂筋單排）。`}
+          : (B.S.sign==='neg' && asBad) ? {state:'bad',chip:'A_s'} : OK;
+  s.bSpBot = !B.clr.okB ? {state:'bad',chip:'淨距'} : OK;
+  s.bSpTop = !B.clr.okT ? {state:'bad',chip:'淨距'} : OK;
   s.bBotSize = B.sol.eps_t < 0.004 ? {state:'bad',chip:'ε_t'} : {state:'ok',chip:f(B.rho*100,2)+'%'};
   s.bTopSize = OK;
   s.bTieSize = {state:'ok',chip:'@'+f(B.fin.sUse,1)};
