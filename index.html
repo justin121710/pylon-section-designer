@@ -1887,28 +1887,39 @@ function constructability(s,r,R,m,opt,conf){
 
 /* ---------- 沿構材軸向箍筋配置 ----------
    加密區長 l_o 內以 s₁ 配置，第一支距接頭面 e = min(5 cm, s₁/2)（土木401 §18.4.5.3、§18.3.4.4：≤ 5 cm）；
-   中段以 s₂ 均分（實際間距 ≤ s₂）。兩端加密區重疊或中段不足一個 s₁ 時改為全長加密。
+   中段以 s₂ 排列、餘數置於中央（fillPlan）。兩端加密區重疊或中段不足一個 s₁ 時改為全長加密。
    nEnds：0＝不分區（全長同一間距）、1＝僅底端、2＝兩端。 */
+/* 施工性：間距一律採實務值（不均分成 28.8、9.7 之類的零碎值）。區段 a→b（兩端已有箍筋）以間距 s 排列，
+   餘數 r（≤ s）置於區段中央一處；若 r < s/2（太短不好綁），改與相鄰一格合併後拆成兩格 i₁、i₂（≈ (s + r)/2，取整數 cm）。
+   at(k) = 第 k 支（k = 1…n）之位置，at(n) = b。Excel 之「gA…gI2」項目為同一規則。 */
+function fillPlan(a, b, s){
+  const n = Math.max(1, Math.ceil((b-a)/s - 1e-9)), r = (b-a) - (n-1)*s;
+  const pair = n >= 2 && r < s/2 - 1e-9, m = Math.floor((n-1)/2), p = Math.max(0, Math.min(m, n-2));
+  const i1 = Math.floor((s+r)/2 + 1e-9), i2 = s + r - i1;
+  const at = k => a + k*s + (pair ? (k>p ? i1-s : 0) + (k>p+1 ? i2-s : 0) : (k>m ? r-s : 0));
+  return {n, r, pair, i1, i2, s, at};
+}
+const fillNote = F => F.pair ? `中央兩格 ${f(F.i1,1)}、${f(F.i2,1)} cm` : Math.abs(F.r - F.s) > 0.05 ? `中央一格 ${f(F.r,1)} cm` : '';
 function layoutAlong(L, lo, nEnds, s1, s2){
-  const e = Math.min(5, s1/2);
+  const e = Math.min(5, Math.floor(s1/2 + 1e-9));          // 第一支距接頭面：≤ 5 cm，取整數
   const uni = (s, tag, hot) => {
-    const n = Math.max(2, Math.ceil((L-2*e)/s - 1e-9) + 1), act = (L-2*e)/(n-1);
-    return {full:true, e, lo, nEnds, s1, s2, n1:0, nMid:0, total:n,
-            pos:Array.from({length:n}, (_,i)=> e + i*act),
-            zones:[{a:0, b:L, s, act, n, tag, hot}]};
+    const F = fillPlan(e, L-e, s), pos = [e];
+    for(let k=1;k<=F.n;k++) pos.push(F.at(k));
+    return {full:true, e, lo, nEnds, s1, s2, n1:0, nMid:0, total:pos.length, pos,
+            zones:[{a:0, b:L, s, act:s, n:pos.length, tag, hot, note:fillNote(F)}]};
   };
   if(!nEnds || !(s2>0)) return uni(s1, '全長', false);
   const n1 = Math.floor((lo - e)/s1 + 1e-9) + 1, z1 = e + (n1-1)*s1;
   const G = (nEnds===2 ? L - z1 : L - e) - z1;
   if(G < s1 - 1e-9) return uni(s1, '全長加密', true);
-  const nMid = nEnds===2 ? Math.max(0, Math.ceil(G/s2 - 1e-9) - 1) : Math.ceil(G/s2 - 1e-9);
-  const act = G/(nEnds===2 ? nMid+1 : nMid);
+  const F = fillPlan(z1, nEnds===2 ? L - z1 : L - e, s2);
+  const nMid = nEnds===2 ? F.n - 1 : F.n;
   const pos = [];
   for(let i=0;i<n1;i++) pos.push(e + i*s1);
-  for(let k=1;k<=nMid;k++) pos.push(z1 + k*act);
+  for(let k=1;k<=nMid;k++) pos.push(F.at(k));
   if(nEnds===2) for(let i=n1-1;i>=0;i--) pos.push(L - e - i*s1);
   const zones = [{a:0, b:lo, s:s1, act:s1, n:n1, tag:'加密區', hot:true},
-                 {a:lo, b:nEnds===2 ? L-lo : L, s:s2, act, n:nMid, tag:'一般區', hot:false}];
+                 {a:lo, b:nEnds===2 ? L-lo : L, s:s2, act:s2, n:nMid, tag:'一般區', hot:false, note:fillNote(F)}];
   if(nEnds===2) zones.push({a:L-lo, b:L, s:s1, act:s1, n:n1, tag:'加密區', hot:true});
   return {full:false, e, lo, nEnds, s1, s2, n1, nMid, total:nEnds*n1 + nMid, pos, zones, z1, G};
 }
@@ -1988,8 +1999,8 @@ function svgColElev(M, forPrint){
   const {s,r,R,lay} = M, L = M.opt.lu;
   const W=760, Hh=640, top=86, bot=58;
   const C = forPrint
-    ? {conc:'#ececec',line:'#000',bar:'#000',tie:'#000',tie2:'#666',hot:'#bdbdbd',txt:'#000',dim:'#333',stub:'#c8c8c8'}
-    : {conc:'#DCE2E8',line:'#8A97A5',bar:'#151C24',tie:'#0F5F6B',tie2:'#6E9AA0',hot:'#E8B04B',txt:'#151C24',dim:'#5E6B7A',stub:'#B9C3CC'};
+    ? {conc:'#ececec',line:'#000',bar:'#000',tie:'#000',tie2:'#666',hot:'#bdbdbd',txt:'#000',dim:'#333',stub:'#c8c8c8',lapz:'#d6d6d6'}
+    : {conc:'#DCE2E8',line:'#8A97A5',bar:'#151C24',tie:'#0F5F6B',tie2:'#6E9AA0',hot:'#E8B04B',txt:'#151C24',dim:'#5E6B7A',stub:'#B9C3CC',lapz:'#BFDCE0'};
   const k = (Hh-top-bot)/L;
   const wReal = s.type==='circle' ? s.D : s.B;
   let wpx = wReal*k, schematic = false;
@@ -2007,6 +2018,14 @@ function svgColElev(M, forPrint){
   o.push(`<rect x="${xl}" y="${Y(L)}" width="${wpx}" height="${L*k}" fill="${C.conc}" stroke="${C.line}" stroke-width="1.6"/>`);
   for(const z of lay.zones) if(z.hot)
     o.push(`<rect x="${xl}" y="${Y(z.b)}" width="${wpx}" height="${(z.b-z.a)*k}" fill="${C.hot}" opacity="${forPrint?0.35:0.22}"/>`);
+  // 搭接區（含未加密者）：底色標示，橫向筋依實際位置（軸向配置）
+  for(const z of (M.devPlan ? devLapRegions(M.devPlan) : [])){
+    o.push(`<rect x="${xl}" y="${Y(z.b)}" width="${wpx}" height="${(z.b-z.a)*k}" fill="${C.lapz}" opacity="${forPrint?0.55:0.5}"/>`);
+    if(!lay.zones.some(q => q.lap && Math.abs(q.a - z.a) < 1e-6))
+    { const ym = (Y(z.a)+Y(z.b))/2;   // 置於 l_u 尺寸線及其直書標字之外側
+      o.push(`<text x="${xl-48}" y="${(ym-2).toFixed(1)}" font-size="10.5" fill="${C.dim}" text-anchor="end">${svgTxt(`搭接區 ${f(z.b-z.a,0)} cm`,10.5)}</text>`);
+      o.push(`<text x="${xl-48}" y="${(ym+11).toFixed(1)}" font-size="10" fill="${C.dim}" text-anchor="end">（沿用該區間距）</text>`); }
+  }
   // 主筋（立面僅示外側兩根與中間一根）
   const cvx = Math.max(5, (r.covO + R.dt + R.db/2)*kx);
   for(const x of [xl+cvx, cx, xr-cvx])
@@ -2015,7 +2034,7 @@ function svgColElev(M, forPrint){
   const hx0 = xl + Math.max(3, r.covO*kx), hx1 = xr - Math.max(3, r.covO*kx);
   const pxMin = Math.min(...lay.zones.map(z=>z.act)) * k;
   const lw = pxMin < 2.5 ? 0.7 : pxMin < 5 ? 1.0 : 1.5;
-  const hotAt = z => lay.zones.some(q=>q.hot && z>=q.a-1e-6 && z<=q.b+1e-6);
+  const hotAt = z => lay.zones.some(q=>(q.hot || q.lap) && z>=q.a-1e-6 && z<=q.b+1e-6);
   for(const z of lay.pos)
     o.push(`<line x1="${hx0.toFixed(1)}" y1="${Y(z).toFixed(1)}" x2="${hx1.toFixed(1)}" y2="${Y(z).toFixed(1)}" stroke="${hotAt(z)?C.tie:C.tie2}" stroke-width="${lw}"/>`);
   // 右側：各區尺寸與標示
@@ -2027,7 +2046,7 @@ function svgColElev(M, forPrint){
     o.push(`<line x1="${xr+4}" y1="${Y(z.b)}" x2="${dx+8}" y2="${Y(z.b)}" stroke="${C.dim}" stroke-width="0.7"/>`);
     const ym = (Y(z.a)+Y(z.b))/2, hpx = (z.b-z.a)*k;
     const l1 = `${z.tag}${z.hot&&!lay.full?' l_o':''} = ${f(z.b-z.a,0)} cm`;
-    const l2 = `${r.tieSize} @ ${f(z.s,1)} cm${Math.abs(z.act-z.s)>0.05?`（均分 ${f(z.act,1)}）`:''}`;
+    const l2 = `${r.tieSize} @ ${f(z.s,1)} cm${z.note?`（${z.note}）`:''}`;
     const l3 = `${z.n} ${unit}${z.hot&&lay.nEnds===2&&!lay.full?'（每端）':''}`;
     const col = z.hot ? (forPrint?'#000':'#8A5A12') : C.txt;
     if(hpx >= 46){
@@ -2279,29 +2298,38 @@ function ancReq(d, type, joint){
   if(type==='straight') return {type, len: devUp(joint ? d.ldS : d.ld), sym:'l_d', to:'鋼筋端', ok:true, bendLoss:0, ref: joint ? '§18.5.5.3' : '§25.4.2'};
   return null;
 }
-/* 搭接段箍筋加密：移除搭接段內原有之箍筋，改以 s_lap 均分（含兩端各一支）。與 Excel 公式相同。 */
+/* 搭接段箍筋加密：區段起點取搭接起點以前最近之既有箍筋、終點取搭接終點以後最近之既有箍筋（與原配置無縫接合），
+   移除其間原有箍筋，改以實務間距 s_lap 排列（fillPlan，餘數置中）。重疊之區段合併。與 Excel 公式相同。 */
 function lapTieLayout(lay, laps, sReq){
   if(!lay || !laps.length) return lay;
   const host = z => lay.zones.find(q => (z.a+z.b)/2 >= q.a-1e-6 && (z.a+z.b)/2 <= q.b+1e-6);
-  const need = laps.filter(z => { const h = host(z); return h && h.act > sReq + 1e-9; });
+  const need = laps.filter(z => { const h = host(z); return h && h.s > sReq + 1e-9; });
   if(!need.length) return Object.assign({}, lay, {lapZones:[], sLapReq:sReq});
-  const sL = practS(sReq);
-  const inside = p => need.some(z => p > z.a + 1e-6 && p < z.b - 1e-6);
-  const pos = lay.pos.filter(p => !inside(p));
-  for(const z of need){
-    z.nL = Math.max(1, Math.ceil((z.b - z.a)/sL - 1e-9)); z.act = (z.b - z.a)/z.nL;
-    for(let k=0;k<=z.nL;k++) pos.push(z.a + k*z.act);
+  const sL = practS(sReq), P0 = lay.pos;
+  const snap = need.map(z => {
+    const lo = P0.filter(p => p <= z.a + 1e-6), hi = P0.filter(p => p >= z.b - 1e-6);
+    return {a: lo.length ? Math.max(...lo) : z.a, b: hi.length ? Math.min(...hi) : z.b, newA: !lo.length, newB: !hi.length, la:z.a, lb:z.b};
+  }).sort((x,y)=>x.a-y.a);
+  const Z = [];
+  for(const z of snap){ const q = Z[Z.length-1]; if(q && z.a < q.b - 1e-6){ q.b = Math.max(q.b, z.b); q.newB = q.newB || z.newB; q.lb = Math.max(q.lb, z.lb); } else Z.push({...z}); }
+  const inside = p => Z.some(z => p > z.a + 1e-6 && p < z.b - 1e-6);
+  const pos = P0.filter(p => !inside(p));
+  for(const z of Z){
+    const F = fillPlan(z.a, z.b, sL);
+    z.nL = F.n; z.act = sL; z.note = fillNote(F);
+    for(let k=1;k<F.n;k++) pos.push(F.at(k));
+    if(z.newA) pos.push(z.a); if(z.newB) pos.push(z.b);
   }
   pos.sort((a,b)=>a-b);
   const zones = [];
   for(const q of lay.zones){
     let cur = q.a;
-    for(const z of need.slice().sort((a,b)=>a.a-b.a)) if(z.a < q.b - 1e-6 && z.b > q.a + 1e-6){
-      if(z.a > cur + 1e-6) zones.push(Object.assign({}, q, {a:cur, b:z.a}));
-      zones.push({a:z.a, b:z.b, s:sL, act:z.act, tag:'搭接區', hot:false, lap:true});
-      cur = z.b;
+    for(const z of Z) if(z.a < q.b - 1e-6 && z.b > q.a + 1e-6){
+      if(z.a > cur + 1e-6) zones.push(Object.assign({}, q, {a:cur, b:z.a, note:''}));   // 被切開之區段：餘數位置已改變，不沿用說明
+      if(!zones.some(w => w.lap && Math.abs(w.a - z.a) < 1e-6)) zones.push({a:z.a, b:z.b, s:sL, act:sL, tag:'搭接區', hot:false, lap:true, note:z.note});
+      cur = Math.max(cur, z.b);
     }
-    if(q.b > cur + 1e-6) zones.push(Object.assign({}, q, {a:cur, b:q.b}));
+    if(q.b > cur + 1e-6) zones.push(Object.assign({}, q, {a:cur, b:q.b}, cur > q.a + 1e-6 ? {note:''} : {}));
   }
   const gen = zones.filter(q => !q.lap);
   for(const z of zones) z.n = 0;
@@ -2310,7 +2338,10 @@ function lapTieLayout(lay, laps, sReq){
       || gen.find(q => p >= q.a - 1e-6 && p < q.b - 1e-6) || gen[gen.length-1];
     z.n++;
   }
-  return Object.assign({}, lay, {pos, total: pos.length, zones, lapZones: need, sLap: sL, sLapReq: sReq});
+  // 無箍筋之殘段（短於該區間距）併入相鄰區段，不另列
+  const zs = zones.filter(z => z.n > 0 || z.lap || z.hot || (z.b - z.a) >= z.s - 1e-6);
+  for(let i=1;i<zs.length;i++) if(zs[i].a > zs[i-1].b + 1e-6) zs[i-1].b = zs[i].a;
+  return Object.assign({}, lay, {pos, total: pos.length, zones: zs, lapZones: Z, sLap: sL, sLapReq: sReq});
 }
 
 /* ---------- 柱：配置計畫 ---------- */
@@ -2939,13 +2970,16 @@ function devLapRegions(P){
     : [P.top, P.bot].filter(b => b && b.lapOn && b.fits).map(b => [b.la, P.stag ? b.lb2 : b.lb]);
   const rs = raw.filter(r => Number.isFinite(r[0]) && Number.isFinite(r[1]) && r[1] > r[0]).sort((x,y)=>x[0]-y[0]), out = [];
   for(const r of rs){ const q = out[out.length-1]; if(q && r[0] <= q[1] + 1e-6) q[1] = Math.max(q[1], r[1]); else out.push([...r]); }
-  return out.map(([a,b]) => ({a, b, pos: (P.lay.pos||[]).filter(p => p >= a - 1e-6 && p <= b + 1e-6)}));
+  // 已加密者以加密區段（起訖對齊既有箍筋）為準
+  const LZ = P.lay.lapZones || [];
+  const ext = out.map(([a,b]) => { const z = LZ.find(q => q.a <= a + 1e-6 && q.b >= b - 1e-6); return z ? [z.a, z.b] : [a,b]; }).sort((x,y)=>x[0]-y[0]), mg = [];
+  for(const r of ext){ const q = mg[mg.length-1]; if(q && r[0] <= q[1] + 1e-6) q[1] = Math.max(q[1], r[1]); else mg.push([...r]); }
+  return mg.map(([a,b]) => ({a, b, pos: (P.lay.pos||[]).filter(p => p >= a - 1e-6 && p <= b + 1e-6)}));
 }
 const devLapNote = (P, nm) => {
   const rg = devLapRegions(P); if(!rg.length) return '';
   const dens = P.lay && P.lay.lapZones && P.lay.lapZones.length;
-  const act = dens ? Math.max(...P.lay.lapZones.map(z => z.act)) : 0;      // 實際均分間距（≤ 實務間距 sLap）
-  return `；搭接段${nm}依實際位置繪製（${dens ? `加密 @ ${f(act,1)} cm${P.mod==='beam'?'，§18.3.3.3':''}` : '沿用該區間距'}）`;
+  return `；搭接段${nm}依實際位置繪製（${dens ? `加密 @ ${f(P.lay.sLap,1)} cm${P.mod==='beam'?'，§18.3.3.3':''}` : '沿用該區間距'}）`;
 };
 /* ---------- 總覽：柱 ---------- */
 function svgColDev(M, forPrint, mechView){
@@ -4391,8 +4425,8 @@ function devReport(D, eq, d, note, sel){
 function elevInfoCol(M){
   const {lay,r} = M, unit = r.spiral ? '圈' : '組';
   const rows = lay.zones.map(z=>`<tr><td class="l">${z.tag}</td><td>${f(z.a,0)}～${f(z.b,0)}</td><td>${f(z.b-z.a,0)}</td>
-    <td>${r.tieSize} @ ${f(z.s,1)}</td><td>${f(z.act,1)}</td><td>${z.n}</td></tr>`).join('');
-  let h = `<table style="width:100%"><thead><tr><th class="l">區段</th><th>範圍 (cm)</th><th>長度 (cm)</th><th>配置</th><th>實際間距 (cm)</th><th>數量 (${unit})</th></tr></thead>
+    <td>${r.tieSize} @ ${f(z.s,1)}</td><td>${z.note||'—'}</td><td>${z.n}</td></tr>`).join('');
+  let h = `<table style="width:100%"><thead><tr><th class="l">區段</th><th>範圍 (cm)</th><th>長度 (cm)</th><th>配置</th><th>餘數（置於中央）</th><th>數量 (${unit})</th></tr></thead>
     <tbody>${rows}<tr style="font-weight:700"><td class="l">合計</td><td></td><td>${f(M.opt.lu,0)}</td><td></td><td></td><td>${lay.total}</td></tr></tbody></table>`;
   if(M.opt.plastic && !lay.full) h += `<div style="margin-top:6px">加密區長度 l<sub>o</sub> = max(h = ${f(lay.hMax,0)}, l<sub>u</sub>/6 = ${f(M.opt.lu/6,0)}, 45) = <b>${f(lay.lo,0)} cm</b>（土木401 §18.4.5.1）；
     一般區間距由「${esc(M.fin2.gov.tag)}」控制（≤ ${f(M.fin2.gov.v,2)} cm）。</div>`;
@@ -5869,8 +5903,8 @@ function svgBeamElev(B, forPrint){
   const {S,R,lay} = B, L = S.ln;
   const W=760, Hh=358, x0=90, x1=W-90;
   const C = forPrint
-    ? {conc:'#ececec',line:'#000',bar:'#000',tie:'#000',tie2:'#666',hot:'#bdbdbd',txt:'#000',dim:'#333',stub:'#c8c8c8'}
-    : {conc:'#DCE2E8',line:'#8A97A5',bar:'#151C24',tie:'#0F5F6B',tie2:'#6E9AA0',hot:'#E8B04B',txt:'#151C24',dim:'#5E6B7A',stub:'#B9C3CC'};
+    ? {conc:'#ececec',line:'#000',bar:'#000',tie:'#000',tie2:'#666',hot:'#bdbdbd',txt:'#000',dim:'#333',stub:'#c8c8c8',lapz:'#d6d6d6'}
+    : {conc:'#DCE2E8',line:'#8A97A5',bar:'#151C24',tie:'#0F5F6B',tie2:'#6E9AA0',hot:'#E8B04B',txt:'#151C24',dim:'#5E6B7A',stub:'#B9C3CC',lapz:'#BFDCE0'};
   const k = (x1-x0)/L;
   let hpx = S.h*k, schematic=false;
   if(hpx < 44){ hpx = 44; schematic = true; }
@@ -5888,13 +5922,22 @@ function svgBeamElev(B, forPrint){
   o.push(`<rect x="${x0}" y="${yT}" width="${x1-x0}" height="${hpx}" fill="${C.conc}" stroke="${C.line}" stroke-width="1.6"/>`);
   for(const z of lay.zones) if(z.hot)
     o.push(`<rect x="${X(z.a)}" y="${yT}" width="${(z.b-z.a)*k}" height="${hpx}" fill="${C.hot}" opacity="${forPrint?0.35:0.22}"/>`);
+  // 搭接區（含未加密者）：底色標示，箍筋依實際位置（軸向配置）
+  const LR = B.devPlan ? devLapRegions(B.devPlan) : [];
+  const lapLab = [];
+  for(const z of LR){
+    o.push(`<rect x="${X(z.a)}" y="${yT}" width="${(z.b-z.a)*k}" height="${hpx}" fill="${C.lapz}" opacity="${forPrint?0.55:0.5}"/>`);
+    if(!lay.zones.some(q => q.lap && Math.abs(q.a - z.a) < 1e-6)){ const t = `搭接區 ${f(z.b-z.a,0)} cm（沿用該區間距）`; lapLab.push({want:(X(z.a)+X(z.b))/2, size:txtW(t,10.5), t}); }
+  }
+  for(const q of spreadLabels(lapLab, x0, x1, 10))
+    o.push(`<text x="${q.at.toFixed(1)}" y="${yT-6}" font-size="10.5" fill="${C.dim}" text-anchor="middle">${svgTxt(q.t,10.5)}</text>`);
   const cv = Math.max(5, (S.cover + R.dt + 1)*ky);
   for(const y of [yT+cv, yB-cv])
     o.push(`<line x1="${x0-30}" y1="${y}" x2="${x1+30}" y2="${y}" stroke="${C.bar}" stroke-width="1.6" opacity="0.75"/>`);
   const v0 = yT + Math.max(3, S.cover*ky), v1 = yB - Math.max(3, S.cover*ky);
   const pxMin = Math.min(...lay.zones.map(z=>z.act)) * k;
   const lw = pxMin < 2.5 ? 0.7 : pxMin < 5 ? 1.0 : 1.5;
-  const hotAt = z => lay.zones.some(q=>q.hot && z>=q.a-1e-6 && z<=q.b+1e-6);
+  const hotAt = z => lay.zones.some(q=>(q.hot || q.lap) && z>=q.a-1e-6 && z<=q.b+1e-6);
   for(const z of lay.pos)
     o.push(`<line x1="${X(z).toFixed(1)}" y1="${v0.toFixed(1)}" x2="${X(z).toFixed(1)}" y2="${v1.toFixed(1)}" stroke="${hotAt(z)?C.tie:C.tie2}" stroke-width="${lw}"/>`);
   const dy = yB + 26;
@@ -5906,7 +5949,7 @@ function svgBeamElev(B, forPrint){
     const col = z.hot ? (forPrint?'#000':'#8A5A12') : C.txt;
     const l1 = z.hot && !lay.full ? `加密 2h = ${f(z.b-z.a,0)}` : `${z.tag} ${f(z.b-z.a,0)} cm`;
     o.push(`<text x="${xm}" y="${dy+20}" font-size="${fs}" font-weight="700" fill="${col}" text-anchor="middle">${l1}</text>`);
-    o.push(`<text x="${xm}" y="${dy+35}" font-size="${fs}" fill="${C.txt}" text-anchor="middle">@ ${f(z.s,1)}${Math.abs(z.act-z.s)>0.05?`（均分 ${f(z.act,1)}）`:''}</text>`);
+    o.push(`<text x="${xm}" y="${dy+35}" font-size="${fs}" fill="${C.txt}" text-anchor="middle">@ ${f(z.s,1)}${z.note?`（${z.note}）`:''}</text>`);
     o.push(`<text x="${xm}" y="${dy+50}" font-size="${fs}" fill="${C.txt}" text-anchor="middle">${z.n} 支</text>`);
   }
   elevDim(o, C, X(0), X(L), dy+76, false);
@@ -5917,8 +5960,8 @@ function svgBeamElev(B, forPrint){
 function elevInfoBeam(B){
   const {S,lay,leg} = B;
   const rows = lay.zones.map(z=>`<tr><td class="l">${z.tag}</td><td>${f(z.a,0)}～${f(z.b,0)}</td><td>${f(z.b-z.a,0)}</td>
-    <td>${S.tieSize} @ ${f(z.s,1)}</td><td>${f(z.act,1)}</td><td>${z.n}</td></tr>`).join('');
-  let h = `<table style="width:100%"><thead><tr><th class="l">區段</th><th>範圍 (cm)</th><th>長度 (cm)</th><th>配置</th><th>實際間距 (cm)</th><th>數量 (支)</th></tr></thead>
+    <td>${S.tieSize} @ ${f(z.s,1)}</td><td>${z.note||'—'}</td><td>${z.n}</td></tr>`).join('');
+  let h = `<table style="width:100%"><thead><tr><th class="l">區段</th><th>範圍 (cm)</th><th>長度 (cm)</th><th>配置</th><th>餘數（置於中央）</th><th>數量 (支)</th></tr></thead>
     <tbody>${rows}<tr style="font-weight:700"><td class="l">合計</td><td></td><td>${f(S.ln,0)}</td><td></td><td></td><td>${lay.total}</td></tr></tbody></table>`;
   if(S.seismic && !lay.full) h += `<div style="margin-top:6px">耐震梁：自柱面 2h = ${f(2*S.h,0)} cm 內加密（土木401 §18.3.4.1），第一支距柱面 ≤ 5 cm；
     加密區外由「${esc(B.fin2.gov.t)}」控制（≤ ${f(B.fin2.gov.v,2)} cm）。</div>`;
