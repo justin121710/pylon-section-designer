@@ -514,6 +514,8 @@ img,video{max-width:100%;height:auto}
       <div class="fld"><span>圓柱橫向筋型式</span><select id="spiral"><option value="spiral">螺旋箍筋（連續）</option><option value="hoop">圓形箍筋（單圈搭接）</option></select></div>
       <div class="fld"><span>此斷面為塑鉸區</span>
         <select id="ph"><option value="1">是（塑鉸區／柱端加密區）</option><option value="0">否（一般斷面）</option></select></div>
+      <div class="fld"><span>塑鉸區位置</span>
+        <select id="phEnds"><option value="2">兩端（雙曲率，柱端皆加密）</option><option value="1">僅底端（懸臂墩柱／橋塔）</option></select></div>
       <div class="fld"><span>柱淨高 l<sub>u</sub> (cm)</span><input id="lu" type="number" step="10" value="300"></div>
       <div class="fld"><span>超強係數 φ<sub>o</sub></span><input id="phio" type="number" step="0.05" value="1.25"></div>
       <div class="fld"><span>剪力跨度 L<sub>v</sub> (cm)</span><input id="Lv" type="number" step="10" value="4000"></div>
@@ -569,6 +571,14 @@ img,video{max-width:100%;height:auto}
       </div>
       <div id="pmWrap" class="pm-box"></div>
       <div id="pmLegend" class="fig-legend"></div>
+    </div>
+    <div class="card">
+      <div class="flex items-center justify-between mb-1">
+        <h2 class="!mb-0">箍筋配置（沿柱軸向立面）</h2>
+        <div class="text-[11.5px]" style="color:var(--dim)">加密區／一般區之間距與數量</div>
+      </div>
+      <div id="elevWrap" class="pm-box"></div>
+      <div id="elevInfo" class="text-[12.5px] mt-2" style="overflow-x:auto"></div>
     </div>
     </div>
 
@@ -704,6 +714,14 @@ img,video{max-width:100%;height:auto}
         </div>
       </div>
       <div id="bSecWrap"></div>
+    </div>
+    <div class="card" id="bElevCard">
+      <div class="flex items-center justify-between mb-1">
+        <h2 class="!mb-0">箍筋配置（沿梁軸向立面）</h2>
+        <div class="text-[11.5px]" style="color:var(--dim)">加密區／一般區之間距與數量</div>
+      </div>
+      <div id="bElevWrap" class="pm-box"></div>
+      <div id="bElevInfo" class="text-[12.5px] mt-2" style="overflow-x:auto"></div>
     </div>
 
     <div class="card">
@@ -1126,7 +1144,7 @@ let TAB = 'pylon';      /* 'pylon' 橋塔／柱　'beam' 梁 */
 const PRESETS = {
   bldg60: {label:'建築 RC 方柱', code:'bldg', ph:'1', lu:320,
     type:'solid', B:60, H:60, tw:15, fc:280, bar:'#8', nB:4, nH:4, tie:'#4',
-    covO:4, covI:4, Lv:160, dagg:2.5,
+    covO:4, covI:4, Lv:160, dagg:2.5, tieAll:true,
     loads:[{name:'1.2D+1.6L',Pu:260,Mux:18,Muy:10,Vux:8,Vuy:5,Tu:0},
            {name:'1.2D+L+E (X)',Pu:210,Mux:42,Muy:12,Vux:24,Vuy:6,Tu:0},
            {name:'1.2D+L+E (Y)',Pu:205,Mux:12,Muy:40,Vux:6,Vuy:23,Tu:0},
@@ -1189,6 +1207,7 @@ function applyPreset(key){
   S('covO',P.covO); S('covI',P.covI); S('Lv',P.Lv); S('dagg',P.dagg);
   S('dbl', P.type==='box' ? '1' : '0');
   S('codeBasis', P.code || 'bridge'); S('ph', P.ph || '1'); S('lu', P.lu || 300);
+  S('phEnds', P.phEnds || (P.code==='bldg' ? '2' : '1'));
   S('tieLayout', P.tieAll ? 'all' : 'code');
   if(P.type==='circle'){ S('Dia',P.D); S('nCir',P.nCir); S('spiral',P.spiral||'spiral'); }
   LOADS = P.loads.map(l=>({...l}));
@@ -1231,6 +1250,7 @@ function compute(){
     code: document.getElementById('codeBasis').value==='bridge' ? 'bridge' : 'bldg',
     lu: pos('lu',300),
     plastic: document.getElementById('ph').value==='1',
+    phEnds: document.getElementById('phEnds').value==='1' ? 1 : 2,
     phio: pos('phio',1.25), Lv: pos('Lv',4000),
     theta: pos('theta',45), dagg: Math.max(0.5,num('dagg',2.5)),
     ashPair: document.getElementById('ashPair').value,
@@ -1274,11 +1294,21 @@ function compute(){
   const shX = shearDesign(s,r,R,m,opt,cvX,res,'x',cvXpr);
   const shY = shearDesign(s,r,R,m,opt,cvY,res,'y',cvYpr);
 
+  /* --- 加密區（塑鉸區）以外：V_c 不折減、仍取容量設計剪力；圓柱螺箍僅需非耐震 ρ_s --- */
+  let shX2 = null, shY2 = null, conf2 = null;
+  if(opt.plastic){
+    const o2 = {...opt, plastic:false, capShear:true};
+    shX2 = shearDesign(s,r,R,m,o2,cvX,res,'x',cvXpr);
+    shY2 = shearDesign(s,r,R,m,o2,cvY,res,'y',cvYpr);
+    if(type==='circle') conf2 = confinementCircle(s,r,R,m,o2,BAR[r.tieSize].A,BAR[r.tieSize].d);
+  }
+
   /* --- 施工性 / 配筋查核 --- */
   const chk = constructability(s,r,R,m,opt,conf);
 
   MODEL = {s,r,R,m,opt,Ast,Ag,ctxX,ctxY,cvX,cvY,pX,pY,cvXc:null,cvYc:null,conf,cvXpr,cvYpr,noLoads,
-           coreGeoX,coreGeoY,res,ctrlFlex,ctrlAxial,shX,shY,chk};
+           coreGeoX,coreGeoY,res,ctrlFlex,ctrlAxial,shX,shY,shX2,shY2,conf2,chk};
+  MODEL.legs = legGaps(MODEL);
   return MODEL;
 }
 
@@ -1453,7 +1483,7 @@ function shearDesign(s,r,R,m,opt,cv,res,dir,cvPr){
   // 最大 V_u 的組合未必控制 —— 低軸壓組合常因 V_c = 0 而需最多箍筋
   const one = ctrl => {
     const Nu = ctrl.Lk.Pu, Vu = ctrl.Lk[Vukey], Tu = ctrl.Lk.Tu;
-    const Vdes = opt.plastic ? Math.max(Ve,Vu) : Vu;
+    const Vdes = (opt.plastic || opt.capShear) ? Math.max(Ve,Vu) : Vu;   // capShear：加密區外仍取容量設計剪力
     const V = VcCalc(m,bw,d,Nu,opt.plastic,opt.code);
     const VsReq = Math.max(0, Vdes/m.phiv - V.vc);
     const sectionFail = VsReq > VsMax;
@@ -1523,6 +1553,169 @@ function constructability(s,r,R,m,opt,conf){
           hxMaxB:conf.eB.hx, hxMaxH:conf.eH.hx,
           tiesB:conf.nTieB, tiesH:conf.nTieH,
           everyB:conf.eB.everyBar, everyH:conf.eH.everyBar};
+}
+
+/* ---------- 沿構材軸向箍筋配置 ----------
+   加密區長 l_o 內以 s₁ 配置，第一支距接頭面 e = min(5 cm, s₁/2)（土木401 §18.7.5.3、§18.6.4.4：≤ 5 cm）；
+   中段以 s₂ 均分（實際間距 ≤ s₂）。兩端加密區重疊或中段不足一個 s₁ 時改為全長加密。
+   nEnds：0＝不分區（全長同一間距）、1＝僅底端、2＝兩端。 */
+function layoutAlong(L, lo, nEnds, s1, s2){
+  const e = Math.min(5, s1/2);
+  const uni = (s, tag, hot) => {
+    const n = Math.max(2, Math.ceil((L-2*e)/s - 1e-9) + 1), act = (L-2*e)/(n-1);
+    return {full:true, e, lo, nEnds, s1, s2, n1:0, nMid:0, total:n,
+            pos:Array.from({length:n}, (_,i)=> e + i*act),
+            zones:[{a:0, b:L, s, act, n, tag, hot}]};
+  };
+  if(!nEnds || !(s2>0)) return uni(s1, '全長', false);
+  const n1 = Math.floor((lo - e)/s1 + 1e-9) + 1, z1 = e + (n1-1)*s1;
+  const G = (nEnds===2 ? L - z1 : L - e) - z1;
+  if(G < s1 - 1e-9) return uni(s1, '全長加密', true);
+  const nMid = nEnds===2 ? Math.max(0, Math.ceil(G/s2 - 1e-9) - 1) : Math.ceil(G/s2 - 1e-9);
+  const act = G/(nEnds===2 ? nMid+1 : nMid);
+  const pos = [];
+  for(let i=0;i<n1;i++) pos.push(e + i*s1);
+  for(let k=1;k<=nMid;k++) pos.push(z1 + k*act);
+  if(nEnds===2) for(let i=n1-1;i>=0;i--) pos.push(L - e - i*s1);
+  const zones = [{a:0, b:lo, s:s1, act:s1, n:n1, tag:'加密區', hot:true},
+                 {a:lo, b:nEnds===2 ? L-lo : L, s:s2, act, n:nMid, tag:'一般區', hot:false}];
+  if(nEnds===2) zones.push({a:L-lo, b:L, s:s1, act:s1, n:n1, tag:'加密區', hot:true});
+  return {full:false, e, lo, nEnds, s1, s2, n1, nMid, total:nEnds*n1 + nMid, pos, zones, z1, G};
+}
+
+/* ---------- 箍筋肢橫向間距（土木401 §10.7.6.5.2、§9.7.6.2.2：沿斷面寬度方向 ≤ d 及 60 cm；
+   V_s > 1.06√f'c·b_w·d 時 ≤ d/2 及 30 cm）。矩形：每根皆設肢時取主筋間距，否則取 2 倍；
+   箱型：內外層箍筋肢跨壁厚；圓形不適用。 */
+function legGaps(M){
+  const {s,r,R,conf} = M;
+  if(s.type==='circle') return [];
+  return [M.shX, M.shY].map(sh=>{
+    let gap, how;
+    if(s.type==='box'){
+      gap = R.inner ? Math.max(1, s.tw - r.covO - r.covI - conf.dt) : s.tw;
+      how = R.inner ? '內外層箍筋肢（跨壁厚）' : '單層：每片牆僅 1 肢，取壁厚';
+    }else{
+      const e = sh.dir==='x' ? conf.eH : conf.eB, p = sh.dir==='x' ? conf.pitchH : conf.pitchB;
+      gap = (e.everyBar || e.n<=2) ? p : 2*p;
+      how = (e.everyBar || e.n<=2) ? '每根主筋皆有肢' : '每隔一根主筋設肢';
+    }
+    const VsAll = Math.max(0, ...sh.all.map(a=>a.VsReq));
+    const tight = VsAll > sh.VsTight;
+    const lim = tight ? Math.min(sh.d/2, 30) : Math.min(sh.d, 60);
+    // 箱型：條文係針對柱，厚壁牆片以此檢核偏保守 → 僅警示（soft），不列入 NG
+    return {dir:sh.dir, gap, lim, tight, how, ok: gap <= lim + 1e-9, soft: s.type==='box'};
+  });
+}
+
+/* ---------- 加密區（塑鉸區）以外之箍筋間距 ----------
+   V_c 不折減但仍取容量設計剪力 V_e；不受 A_sh 控制（圓柱螺箍仍需非耐震 ρ_s）。
+   建築：§18.7.5.5 加密區外 s ≤ min(6d_b, 15 cm)；
+   橋梁：塑鉸區外橫向筋量不少於塑鉸區之 50%（s ≤ 2s₁），係 AASHTO 耐震細則慣例，非我國規範明列條文。 */
+function finalSpacing2(M){
+  if(!M.opt.plastic) return null;
+  const cands = [];
+  const push=(v,tag)=>{ if(Number.isFinite(v)&&v>0&&v<1e8) cands.push({v,tag}); };
+  for(const sh of [M.shX2, M.shY2]){
+    const X = sh.dir.toUpperCase();
+    push(sh.s_str,   `剪力+扭矩強度需求 (${X} 向，V_c 不折減)`);
+    push(sh.s_minAv, `最小剪力鋼筋量 (${X} 向)`);
+    push(sh.s_code,  `規範間距上限 (${X} 向)`);
+    push(sh.s_tors,  `扭矩間距上限 (${X} 向)`);
+  }
+  if(M.conf2 && M.r.spiral) push(M.conf2.sAsh, '螺箍體積比 ρ_s（0.45 式）');
+  if(M.r.spiral) push(7.5 + M.conf.dt, '螺箍淨距上限 7.5 cm');
+  push(M.chk.sTie, M.conf.circ ? '圓箍間距通則 min(16d_b, 48d_t, D)' : '柱箍筋間距通則 min(16d_b, 48d_t, 最小邊)');
+  if(M.opt.code==='bldg') push(Math.min(6*M.R.db, 15), '柱端加密區外 min(6d_b, 15 cm)');
+  else push(2*M.fin.sUse, '塑鉸區外不少於塑鉸區之 50%（s ≤ 2s₁）');
+  const gov = cands.reduce((a,b)=> b.v<a.v?b:a, cands[0]);
+  const list = M.r.spiral ? PRACTICAL_S.concat([6,5]) : PRACTICAL_S;
+  const sUse = list.find(v=>v<=gov.v) || list[list.length-1];
+  return {cands, gov, sUse, tooTight: sUse > gov.v};
+}
+
+/* 柱加密區長度 l_o = max(h, l_u/6, 45 cm)（土木401 §18.7.5.1；公路橋梁耐震設計規範塑鉸區範圍同式） */
+function colLayout(M){
+  const {s,opt} = M;
+  const hMax = s.type==='circle' ? s.D : Math.max(s.B, s.H);
+  const lo = Math.max(hMax, opt.lu/6, 45);
+  const lay = layoutAlong(opt.lu, lo, opt.plastic ? opt.phEnds : 0, M.fin.sUse, M.fin2 ? M.fin2.sUse : null);
+  lay.hMax = hMax;
+  return lay;
+}
+
+/* ---------- 立面圖共用：垂直／水平尺寸線 ---------- */
+function elevDim(o, C, a, b, at, vertical, label, side){
+  const q = (x1,y1,x2,y2)=>o.push(`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${C.dim}" stroke-width="1"/>`);
+  if(vertical){
+    q(at, a, at, b); q(at-5, a+5, at+5, a-5); q(at-5, b+5, at+5, b-5);
+  }else{
+    q(a, at, b, at); q(a-5, at+5, a+5, at-5); q(b-5, at+5, b+5, at-5);
+  }
+}
+
+/* ---------- 柱立面：沿柱軸向箍筋配置 ---------- */
+function svgColElev(M, forPrint){
+  const {s,r,R,lay} = M, L = M.opt.lu;
+  const W=760, Hh=640, top=86, bot=58;
+  const C = forPrint
+    ? {conc:'#ececec',line:'#000',bar:'#000',tie:'#000',tie2:'#666',hot:'#bdbdbd',txt:'#000',dim:'#333',stub:'#c8c8c8'}
+    : {conc:'#DCE2E8',line:'#8A97A5',bar:'#151C24',tie:'#0F5F6B',tie2:'#6E9AA0',hot:'#E8B04B',txt:'#151C24',dim:'#5E6B7A',stub:'#B9C3CC'};
+  const k = (Hh-top-bot)/L;
+  const wReal = s.type==='circle' ? s.D : s.B;
+  let wpx = wReal*k, schematic = false;
+  if(wpx < 70){ wpx = 70; schematic = true; }
+  if(wpx > 220){ wpx = 220; schematic = true; }
+  const kx = wpx/wReal, cx = 260, xl = cx-wpx/2, xr = cx+wpx/2;
+  const Y = z => Hh-bot - z*k;
+  const o=[`<svg viewBox="0 0 ${W} ${Hh}" xmlns="http://www.w3.org/2000/svg" font-family="ui-sans-serif,system-ui,sans-serif">`];
+  o.push(`<rect width="${W}" height="${Hh}" fill="${forPrint?'#fff':'transparent'}"/>`);
+  // 端部接頭（示意）
+  o.push(`<rect x="${xl-46}" y="${Y(0)}" width="${wpx+92}" height="24" fill="${C.stub}"/>`);
+  o.push(`<rect x="${xl-46}" y="${Y(L)-24}" width="${wpx+92}" height="24" fill="${C.stub}"/>`);
+  o.push(`<text x="${xl-50}" y="${Y(0)+16}" font-size="10.5" fill="${C.dim}" text-anchor="end">${M.opt.code==='bldg'?'下層梁柱接頭':'基礎'}</text>`);
+  o.push(`<text x="${xl-50}" y="${Y(L)-8}" font-size="10.5" fill="${C.dim}" text-anchor="end">${M.opt.code==='bldg'?'上層梁柱接頭':'帽梁／上部結構'}</text>`);
+  o.push(`<rect x="${xl}" y="${Y(L)}" width="${wpx}" height="${L*k}" fill="${C.conc}" stroke="${C.line}" stroke-width="1.6"/>`);
+  for(const z of lay.zones) if(z.hot)
+    o.push(`<rect x="${xl}" y="${Y(z.b)}" width="${wpx}" height="${(z.b-z.a)*k}" fill="${C.hot}" opacity="${forPrint?0.35:0.22}"/>`);
+  // 主筋（立面僅示外側兩根與中間一根）
+  const cvx = Math.max(5, (r.covO + R.dt + R.db/2)*kx);
+  for(const x of [xl+cvx, cx, xr-cvx])
+    o.push(`<line x1="${x}" y1="${Y(L)-12}" x2="${x}" y2="${Y(0)+12}" stroke="${C.bar}" stroke-width="${forPrint?1.4:1.6}" opacity="0.75"/>`);
+  // 箍筋
+  const hx0 = xl + Math.max(3, r.covO*kx), hx1 = xr - Math.max(3, r.covO*kx);
+  const pxMin = Math.min(...lay.zones.map(z=>z.act)) * k;
+  const lw = pxMin < 2.5 ? 0.7 : pxMin < 5 ? 1.0 : 1.5;
+  const hotAt = z => lay.zones.some(q=>q.hot && z>=q.a-1e-6 && z<=q.b+1e-6);
+  for(const z of lay.pos)
+    o.push(`<line x1="${hx0.toFixed(1)}" y1="${Y(z).toFixed(1)}" x2="${hx1.toFixed(1)}" y2="${Y(z).toFixed(1)}" stroke="${hotAt(z)?C.tie:C.tie2}" stroke-width="${lw}"/>`);
+  // 右側：各區尺寸與標示
+  const unit = r.spiral ? '圈' : '組';
+  const dx = xr + 46;
+  for(const z of lay.zones){
+    elevDim(o, C, Y(z.a), Y(z.b), dx, true);
+    o.push(`<line x1="${xr+4}" y1="${Y(z.a)}" x2="${dx+8}" y2="${Y(z.a)}" stroke="${C.dim}" stroke-width="0.7"/>`);
+    o.push(`<line x1="${xr+4}" y1="${Y(z.b)}" x2="${dx+8}" y2="${Y(z.b)}" stroke="${C.dim}" stroke-width="0.7"/>`);
+    const ym = (Y(z.a)+Y(z.b))/2, hpx = (z.b-z.a)*k;
+    const l1 = `${z.tag}${z.hot&&!lay.full?' l_o':''} = ${f(z.b-z.a,0)} cm`;
+    const l2 = `${r.tieSize} @ ${f(z.s,1)} cm${Math.abs(z.act-z.s)>0.05?`（均分 ${f(z.act,1)}）`:''}`;
+    const l3 = `${z.n} ${unit}${z.hot&&lay.nEnds===2&&!lay.full?'（每端）':''}`;
+    const col = z.hot ? (forPrint?'#000':'#8A5A12') : C.txt;
+    if(hpx >= 46){
+      o.push(`<text x="${dx+14}" y="${ym-10}" font-size="12.5" font-weight="700" fill="${col}">${svgTxt(l1,12.5)}</text>`);
+      o.push(`<text x="${dx+14}" y="${ym+6}" font-size="12" fill="${C.txt}">${svgTxt(l2,12)}</text>`);
+      o.push(`<text x="${dx+14}" y="${ym+21}" font-size="12" fill="${C.txt}">${l3}</text>`);
+    }else{
+      o.push(`<text x="${dx+14}" y="${ym+4}" font-size="11" fill="${col}">${svgTxt(`${l1}｜${l2}｜${l3}`,11)}</text>`);
+    }
+  }
+  // 左側：總長
+  elevDim(o, C, Y(0), Y(L), xl-20, true);
+  o.push(`<text x="${xl-28}" y="${(Y(0)+Y(L))/2}" font-size="12" fill="${C.txt}" text-anchor="middle" transform="rotate(-90 ${xl-28} ${(Y(0)+Y(L))/2})">${svgTxt(`l_u = ${f(L,0)} cm`,12)}</text>`);
+  // 標題列
+  o.push(`<text x="16" y="22" font-size="13.5" font-weight="700" fill="${C.txt}">${r.spiral?'螺箍':'箍筋'} ${r.tieSize}：全長共 ${lay.total} ${unit}</text>`);
+  o.push(`<text x="16" y="40" font-size="11" fill="${C.dim}">${svgTxt(`第一${unit}距接頭面 ${f(lay.e,1)} cm${schematic?'　｜　柱寬為示意（非等比例）':''}`,11)}</text>`);
+  o.push(`</svg>`);
+  return o.join('');
 }
 
 /* ---------- 最終箍筋間距（彙整所有上限，向下取實務值） ---------- */
@@ -2106,6 +2299,7 @@ function colXlsxInput(){
     barSize:g('barSize'), tieSize:g('tieSize'), nB:num('nB',4), nH:num('nH',4), nCir:num('nCir',12),
     dbl:g('dbl')==='1', spiral:g('spiral')==='spiral', tieAll:g('tieLayout')==='all', ph:g('ph')==='1',
     phio:num('phio',1.25), Lv:num('Lv',400), lu:num('lu',300), theta:num('theta',45), ashPerp:g('ashPair')!=='para',
+    phEnds: g('phEnds')==='1' ? 1 : 2, layTotal: MODEL && MODEL.lay ? MODEL.lay.total : 60,
     loads: LOADS.map(L=>({name:L.name, Pu:+L.Pu||0, Mux:+L.Mux||0, Muy:+L.Muy||0, Vux:+L.Vux||0, Vuy:+L.Vuy||0, Tu:+L.Tu||0})),
     meta:{project:'', member:memName('memName')}};
 }
@@ -2120,6 +2314,7 @@ function beamXlsxInput(){
     seismic:g('bSeismic')==='1', ln:num('bLn',1750), Vg:num('bVg',0), theta:num('bTheta',45),
     MD:num('bMD',0), ML:num('bML',0), MDn:num('bMDn',0), MLn:num('bMLn',0), sustain:num('bSustain',0.2), xi:num('bXi',2), limLive:num('bLimLive',360), limTotal:num('bLimTotal',240),
     deflCase:g('bDeflCase'), wLim:g('bWlim'),
+    layTotal: BMODEL && BMODEL.lay ? BMODEL.lay.total : 60,
     loads: BLOADS.map(L=>({name:L.name, Mpos:+(L.Mpos??L.Mu??0)||0, Mneg:+(L.Mneg??0)||0, Vu:+L.Vu||0, Tu:+L.Tu||0})),
     meta:{project:'', member:memName('bMemName')}};
 }
@@ -2186,6 +2381,8 @@ function verdictPylon(M){
     [shBad?'bad':'ok','剪力 V_s/V_s,max',f(shW.VsReq/shW.VsMax,2),`${shW.dir.toUpperCase()} 向 · ${shW.ctrl.L.name}`,'summary'],
     [F.tooTight?'bad':'ok','箍筋',`${M.r.tieSize} @ ${f(F.sUse,1)} cm`,`需 ≤ ${f(F.gov.v,2)}（${F.gov.tag.replace(/ \(.*\)$/,'')}）`,'summary'],
     [(c.rho<1||c.rho>4)?'warn':'ok','ρ_g',f(c.rho,2)+'%','','summary'],
+    [(M.fin2&&M.fin2.tooTight)||M.legs.some(g=>!g.ok&&!g.soft)?'bad':M.legs.some(g=>!g.ok)?'warn':'ok','軸向配置',`${M.lay.total} ${M.r.spiral?'圈':'組'}`,
+      M.fin2&&!M.lay.full?`加密 @${f(M.fin.sUse,1)} · 一般 @${f(M.fin2.sUse,1)}`:`全長 @${f(M.fin.sUse,1)}`,'elevInfo'],
     [clrBad||hxBad?'bad':'ok','主筋淨距',Math.min(c.clB,c.clH)<0?'放不下':f(Math.min(c.clB,c.clH),1)+' cm',`需 ≥ ${f(c.need,1)}${hxBad?' · h_x 超限':''}`,'alerts'],
   ],'alerts');
 }
@@ -2209,6 +2406,8 @@ function render(){
   const M=compute();
   const fin=finalSpacing(M);
   M.fin=fin;
+  M.fin2=finalSpacing2(M);
+  M.lay=colLayout(M);
   const cf=M.conf.finalize(fin.sUse);
   M.cf=cf; M.MD=cf.MD;
   // 用實際間距重算圍束曲線
@@ -2232,12 +2431,14 @@ function render(){
   pinNA('pylon', ['B','H','nB','nH','tieLayout','ashPair'], isC);
   pinNA('pylon', ['Dia','nCir','spiral'], !isC);
   pinNA('pylon', ['phio','Lv'], M.opt.code==='bldg');
-  pinNA('pylon', ['lu'], M.opt.code!=='bldg');
+  pinNA('pylon', ['phEnds'], !M.opt.plastic);
   document.getElementById('rowTw').style.display = M.s.type==='box'?'':'none';
   document.getElementById('rowDbl').style.display = M.s.type==='box'?'':'none';
 
   document.getElementById('secWrap').innerHTML=svgSection(M,false);
   document.getElementById('pmWrap').innerHTML=svgPM(M,AXIS,false);
+  document.getElementById('elevWrap').innerHTML=svgColElev(M,false);
+  document.getElementById('elevInfo').innerHTML=SB(elevInfoCol(M));
   {   // 圖例移到圖外：圖面就不必為了容納它而放大
     const L=[['標稱 P_n – M_n','#8A97A5','1.7',''],
              ['設計 φP_n – φM_n','#0F5F6B','2.6',''],
@@ -2258,6 +2459,21 @@ function render(){
   return M;
 }
 
+/* 立面圖下方的配置說明與肢距檢核（網頁與計算書共用） */
+function elevInfoCol(M){
+  const {lay,r} = M, unit = r.spiral ? '圈' : '組';
+  const rows = lay.zones.map(z=>`<tr><td class="l">${z.tag}</td><td>${f(z.a,0)}～${f(z.b,0)}</td><td>${f(z.b-z.a,0)}</td>
+    <td>${r.tieSize} @ ${f(z.s,1)}</td><td>${f(z.act,1)}</td><td>${z.n}</td></tr>`).join('');
+  let h = `<table style="width:100%"><thead><tr><th class="l">區段</th><th>範圍 (cm)</th><th>長度 (cm)</th><th>配置</th><th>實際間距 (cm)</th><th>數量 (${unit})</th></tr></thead>
+    <tbody>${rows}<tr style="font-weight:700"><td class="l">合計</td><td></td><td>${f(M.opt.lu,0)}</td><td></td><td></td><td>${lay.total}</td></tr></tbody></table>`;
+  if(M.opt.plastic && !lay.full) h += `<div style="margin-top:6px">加密區長度 l<sub>o</sub> = max(h = ${f(lay.hMax,0)}, l<sub>u</sub>/6 = ${f(M.opt.lu/6,0)}, 45) = <b>${f(lay.lo,0)} cm</b>（土木401 §18.7.5.1）；
+    一般區間距由「${esc(M.fin2.gov.tag)}」控制（≤ ${f(M.fin2.gov.v,2)} cm）。</div>`;
+  else if(M.opt.plastic) h += `<div style="margin-top:6px">加密區長度 l<sub>o</sub> = ${f(lay.lo,0)} cm，兩端加密區相接或中段不足一個間距，<b>全長以加密區間距配置</b>。</div>`;
+  else h += `<div style="margin-top:6px">本斷面設為「一般斷面」（非塑鉸區），全長以同一間距配置。若為耐震柱，請將「塑鉸區／柱端加密區」切為「是」以分區配置。</div>`;
+  for(const g of M.legs)
+    h += `<div style="margin-top:3px;color:var(--${g.ok?'ok':g.soft?'warn':'bad'})">${g.dir.toUpperCase()} 向剪力之箍筋肢橫向間距 ${f(g.gap,1)} cm ${g.ok?'≤':'＞'} ${g.tight?'min(d/2, 30)':'min(d, 60)'} = ${f(g.lim,1)} cm（${g.how}；土木401 §10.7.6.5.2）</div>`;
+  return h;
+}
 function renderSummary(M){
   const F=M.fin, cf=M.cf, C=M.ctrlFlex;
   const kv=(k,v,cls='')=>`<div class="kv"><span>${k}</span><b class="${cls}">${v}</b></div>`;
@@ -2394,6 +2610,16 @@ function renderAlerts(M){
   if(M.conf.termC) add('warn',`P_u,max = ${f(M.opt.PuMax/TF,0)} tf ${M.opt.PuMax>0.3*M.m.Ag*M.m.fc?"＞ 0.3A_g·f'c":"（f'c ＞ 700）"}：A_sh 另加第三式 0.2k_f k_n P_u/(f_yt A_ch)，且<b>每一根主筋都須側撐</b>（ACI 18.7.5.2(f)、18.7.5.4(c)）。`);
   if(M.fin.tooTight) add('bad',`<b>實務間距無解</b>：需求 s = ${f(M.fin.gov.v,2)} cm（${M.fin.gov.tag}）已小於最小實務間距 ${M.fin.sMin} cm。`);
   else add('ok',`採用 ${M.r.tieSize} @ ${f(M.fin.sUse,1)} cm（控制項：${M.fin.gov.tag}，需求 ≤ ${f(M.fin.gov.v,2)} cm）。`);
+  if(M.fin2){
+    if(M.fin2.tooTight) add('bad',`<b>加密區外實務間距無解</b>：需求 s = ${f(M.fin2.gov.v,2)} cm（${M.fin2.gov.tag}）。`);
+    else add('ok',`${M.opt.code==='bldg'?'柱端加密區':'塑鉸區'}外採用 ${M.r.tieSize} @ ${f(M.fin2.sUse,1)} cm（控制項：${M.fin2.gov.tag}，需求 ≤ ${f(M.fin2.gov.v,2)} cm）。`);
+  }
+  { const L=M.lay, u=M.r.spiral?'圈':'組';
+    add('info',`沿柱軸向配置（l_u = ${f(M.opt.lu,0)} cm）：`+L.zones.map(z=>`${z.tag} ${f(z.b-z.a,0)} cm @ ${f(z.s,1)} ×${z.n}`).join('、')+`，共 <b>${L.total}</b> ${u}。`); }
+  for(const g of M.legs) if(!g.ok)
+    add(g.soft?'warn':'bad', g.soft
+      ? `${g.dir.toUpperCase()} 向箱壁內外層箍筋肢相距 ${f(g.gap,1)} cm ＞ ${g.tight?'min(d/2, 30)':'min(d, 60)'} = ${f(g.lim,1)} cm（土木401 §10.7.6.5.2 係針對柱；厚壁箱型以此檢核偏保守，僅供參考）。厚壁可於壁中加設一層箍筋或壁內繫筋。`
+      : `<b>${g.dir.toUpperCase()} 向箍筋肢橫向間距過大</b>：${f(g.gap,1)} cm ＞ ${g.tight?'min(d/2, 30)':'min(d, 60)'} = ${f(g.lim,1)} cm（土木401 §10.7.6.5.2）。請增設繫筋或改為每根主筋皆設。`);
 
   if(M.conf.sAsh===M.fin.gov.v) add('info',`<b>圍束筋量 A_sh 為控制項</b> —— 橋塔塑鉸區常見情形，箍筋間距由圍束需求而非剪力強度決定。`);
   if(M.cf.MD) add('info',`Mander 圍束：f'_cc = ${f(M.cf.MD.fcc,0)} kgf/cm²（提升 ${f((M.cf.MD.fcc/M.m.fc-1)*100,1)}%）、ε_cu,c = ${f(M.cf.MD.ecu,4)}、k_e = ${f(M.cf.ke,3)}、ρ_s = ${f(M.cf.rho_s*100,3)}%。虛線即為保護層剝落後之圍束核心容量。`);
@@ -2642,6 +2868,19 @@ function buildReport(M){
   o.push(`</tbody></table>`);
   o.push(`<div style="font-size:14px;font-weight:800;padding:8px;border:2px solid #060;display:inline-block;margin-top:8px">
     採用 ${r.tieSize} @ ${d(F.sUse,1)} cm　（控制：${esc(F.gov.tag)}，需求 ≤ ${d(F.gov.v,2)} cm）</div>`);
+  if(M.fin2){
+    const F2=M.fin2;
+    o.push(`<div class="rp-h3">9.1 ${M.opt.code==='bldg'?'柱端加密區':'塑鉸區'}外箍筋間距（V_c 不折減，仍取容量設計剪力）</div>`);
+    o.push(`<table class="no-break"><thead><tr><th class="l">控制項</th><th>容許 s (cm)</th></tr></thead><tbody>`);
+    for(const c2 of F2.cands.slice().sort((a,b)=>a.v-b.v))
+      o.push(`<tr${c2===F2.gov?' style="font-weight:800;background:#f0f0f0"':''}><td class="l">${esc(c2.tag)}</td><td>${d(c2.v,2)}</td></tr>`);
+    o.push(`</tbody></table>`);
+    o.push(note(M.opt.code==='bldg' ? '加密區外間距上限 min(6d_b, 15 cm) 依土木401 §18.7.5.5。'
+      : '塑鉸區外「橫向筋量不少於塑鉸區之 50%」係 AASHTO 耐震細則慣例，<b>非我國規範明列條文</b>，請依主管機關核定之設計準則確認。'));
+  }
+  o.push(`<div class="rp-h3">9.${M.fin2?2:1} 沿柱軸向箍筋配置</div>`);
+  o.push(`<div class="rp-fig">${svgColElev(M,true)}</div>`);
+  o.push(`<div style="font-size:12px">${elevInfoCol(M)}</div>`);
 
   if(cf.MD){
     o.push(`<div class="rp-h2">10. Mander 圍束混凝土</div>`);
@@ -3320,7 +3559,7 @@ const BPRESETS = {
     loads:[{name:'跨中 1.2D+1.6L', Mpos:168, Mneg:0, Vu:52, Tu:3},
            {name:'跨中 D+L（含衝擊）', Mpos:150, Mneg:0, Vu:46, Tu:2}]},
   capBeam: {label:'橋墩蓋梁（耐震）', type:'rect', bw:150, h:180, hf:0, L:900, sSpacing:0, sClear:0, edge:false,
-    fc:280, botSize:'#11', nBot:12, topSize:'#11', nTop:16, tieSize:'#5', nLegs:4, cover:5,
+    fc:280, botSize:'#11', nBot:12, topSize:'#11', nTop:16, tieSize:'#5', nLegs:6, cover:5,
     seismic:true, ln:850, Vg:120, MDn:420, MLn:180, MD:210, ML:95,
     loads:[{name:'柱面 地震 (1.2D+1.0E+0.5L)', Mpos:430, Mneg:880, Vu:340, Tu:22},
            {name:'重力 1.2D+1.6L', Mpos:400, Mneg:520, Vu:200, Tu:12}]},
@@ -3333,7 +3572,7 @@ const BPRESETS = {
     seismic:false, ln:650, Vg:0, MDn:0, MLn:0, MD:18, ML:4, deflCase:'cantUDL', wLim:'0.20',
     loads:[{name:'牆底 1.6H（土壓＋地下水）', Mpos:38, Mneg:0, Vu:32, Tu:0}]},
   pondBeam: {label:'滯洪池頂版大梁', type:'rect', env:'water', bw:80, h:130, hf:0, L:800, sSpacing:0, sClear:0, edge:false,
-    fc:280, botSize:'#9', nBot:9, topSize:'#11', nTop:9, tieSize:'#4', nLegs:2, cover:5,
+    fc:280, botSize:'#9', nBot:9, topSize:'#11', nTop:9, tieSize:'#4', nLegs:3, cover:5,
     seismic:false, ln:720, Vg:0, MDn:110, MLn:50, MD:62, ML:30, deflCase:'fixedUDL', wLim:'0.20',
     loads:[{name:'跨中 1.2D+1.6L', Mpos:122, Mneg:0, Vu:78, Tu:2},
            {name:'支承 1.2D+1.6L', Mpos:0, Mneg:228, Vu:96, Tu:2}]},
@@ -3462,10 +3701,109 @@ function computeBeam(){
     tooTight = sUse > gov.v;
   }
 
+  // 沿梁軸向：耐震梁兩端 2h 加密、其外另算；一般梁全長同一間距
+  const fin2 = (!S.slab && S.seismic) ? beamZone2(S,m,sh) : null;
+  const lay  = S.slab ? null : layoutAlong(S.ln, 2*S.h, S.seismic?2:0, sUse, fin2?fin2.sUse:null);
+  const leg  = S.slab ? null : beamLeg(S,sh);
+
   BMODEL = {S,m,R,EF,gross,icr,ctxPos,ctxNeg,ctx,solPos,solNeg,sol,phi,phiMn,phiPos,phiNeg,
             d,AsTen,AsCom,AsMin,rho,res,ctrl,sh,defl,crack,cw,clr,sug,noTen,noLoads,
-            fin:{cands,gov,sUse,tooTight}};
+            fin:{cands,gov,sUse,tooTight}, fin2, lay, leg};
   return BMODEL;
+}
+
+/* ---------- 耐震梁：加密區（自柱面 2h）以外之箍筋間距 ----------
+   V_c 不折減（§18.6.5.2 只在 2h 內歸零），設計剪力仍取 V_e；另 s ≤ d/2（§18.6.4.6）。 */
+function beamZone2(S, m, sh){
+  const Vc = 0.53*Math.sqrt(m.fc)*sh.bw*sh.d;
+  const VsReq = Math.max(0, sh.Vdes/m.phiv - Vc);
+  const tot = (VsReq>1e-9 ? VsReq/(m.fyt*sh.d) : 0) + 2*sh.AtS;
+  const cands=[];
+  const push=(v,t)=>{ if(Number.isFinite(v)&&v>0&&v<1e8) cands.push({v,t}); };
+  push(tot>1e-9 ? sh.Av/tot : 1e9, '剪力+扭矩強度需求（V_c 不折減）');
+  push(sh.sMin, '最小剪力鋼筋量 A_v,min');
+  push(VsReq>sh.VsTight ? Math.min(sh.d/4,30) : Math.min(sh.d/2,60), '規範間距上限');
+  push(sh.d/2, '耐震梁加密區外 d/2');
+  push(sh.sTors, '扭矩 min(p_h/8, 30)');
+  const gov = cands.reduce((a,b)=> b.v<a.v?b:a, cands[0]);
+  const sUse = PRACTICAL_S.find(v=>v<=gov.v) || PRACTICAL_S[PRACTICAL_S.length-1];
+  return {cands, gov, sUse, tooTight: sUse>gov.v, Vc, VsReq};
+}
+/* 梁箍筋肢橫向間距（§9.7.6.2.2）：≤ d 及 60 cm；V_s > 1.06√f'c·b_w·d 時 ≤ d/2 及 30 cm。
+   耐震梁另以肢距估「受側撐主筋間距 ≤ 35 cm」（§18.6.4.2）。 */
+function beamLeg(S, sh){
+  const dt = BAR[S.tieSize].d;
+  const gap = (S.bw - 2*(S.cover + dt/2))/Math.max(1, S.nLegs-1);
+  const tight = sh.VsReq > sh.VsTight;
+  const lim0 = tight ? Math.min(sh.d/2,30) : Math.min(sh.d,60);
+  const seis = S.seismic && 35 < lim0;
+  const lim = seis ? 35 : lim0;
+  return {gap, lim, tight, seis, ok: gap <= lim + 1e-9,
+          rule: seis ? '耐震梁受側撐主筋間距 ≤ 35 cm（§18.6.4.2，以肢距估）' : `${tight?'min(d/2, 30)':'min(d, 60)'}（§9.7.6.2.2）`};
+}
+
+/* ---------- 梁立面：沿梁軸向箍筋配置 ---------- */
+function svgBeamElev(B, forPrint){
+  const {S,R,lay} = B, L = S.ln;
+  const W=760, Hh=346, x0=90, x1=W-90;
+  const C = forPrint
+    ? {conc:'#ececec',line:'#000',bar:'#000',tie:'#000',tie2:'#666',hot:'#bdbdbd',txt:'#000',dim:'#333',stub:'#c8c8c8'}
+    : {conc:'#DCE2E8',line:'#8A97A5',bar:'#151C24',tie:'#0F5F6B',tie2:'#6E9AA0',hot:'#E8B04B',txt:'#151C24',dim:'#5E6B7A',stub:'#B9C3CC'};
+  const k = (x1-x0)/L;
+  let hpx = S.h*k, schematic=false;
+  if(hpx < 44){ hpx = 44; schematic = true; }
+  if(hpx > 120){ hpx = 120; schematic = true; }
+  const ky = hpx/S.h, yT = 104, yB = yT + hpx;
+  const X = z => x0 + z*k;
+  const o=[`<svg viewBox="0 0 ${W} ${Hh}" xmlns="http://www.w3.org/2000/svg" font-family="ui-sans-serif,system-ui,sans-serif">`];
+  o.push(`<rect width="${W}" height="${Hh}" fill="${forPrint?'#fff':'transparent'}"/>`);
+  o.push(`<text x="16" y="22" font-size="13.5" font-weight="700" fill="${C.txt}">箍筋 ${S.tieSize} ${S.nLegs} 肢：全長共 ${lay.total} 支</text>`);
+  o.push(`<text x="16" y="40" font-size="11" fill="${C.dim}">${svgTxt(`第一支距柱面 ${f(lay.e,1)} cm${schematic?'　｜　梁深為示意（非等比例）':''}`,11)}</text>`);
+  o.push(`<rect x="${x0-44}" y="${yT-34}" width="44" height="${hpx+68}" fill="${C.stub}"/>`);
+  o.push(`<rect x="${x1}" y="${yT-34}" width="44" height="${hpx+68}" fill="${C.stub}"/>`);
+  o.push(`<text x="${x0-22}" y="${yT-40}" font-size="10.5" fill="${C.dim}" text-anchor="middle">柱</text>`);
+  o.push(`<text x="${x1+22}" y="${yT-40}" font-size="10.5" fill="${C.dim}" text-anchor="middle">柱</text>`);
+  o.push(`<rect x="${x0}" y="${yT}" width="${x1-x0}" height="${hpx}" fill="${C.conc}" stroke="${C.line}" stroke-width="1.6"/>`);
+  for(const z of lay.zones) if(z.hot)
+    o.push(`<rect x="${X(z.a)}" y="${yT}" width="${(z.b-z.a)*k}" height="${hpx}" fill="${C.hot}" opacity="${forPrint?0.35:0.22}"/>`);
+  const cv = Math.max(5, (S.cover + R.dt + 1)*ky);
+  for(const y of [yT+cv, yB-cv])
+    o.push(`<line x1="${x0-30}" y1="${y}" x2="${x1+30}" y2="${y}" stroke="${C.bar}" stroke-width="1.6" opacity="0.75"/>`);
+  const v0 = yT + Math.max(3, S.cover*ky), v1 = yB - Math.max(3, S.cover*ky);
+  const pxMin = Math.min(...lay.zones.map(z=>z.act)) * k;
+  const lw = pxMin < 2.5 ? 0.7 : pxMin < 5 ? 1.0 : 1.5;
+  const hotAt = z => lay.zones.some(q=>q.hot && z>=q.a-1e-6 && z<=q.b+1e-6);
+  for(const z of lay.pos)
+    o.push(`<line x1="${X(z).toFixed(1)}" y1="${v0.toFixed(1)}" x2="${X(z).toFixed(1)}" y2="${v1.toFixed(1)}" stroke="${hotAt(z)?C.tie:C.tie2}" stroke-width="${lw}"/>`);
+  const dy = yB + 26;
+  for(const z of lay.zones){
+    elevDim(o, C, X(z.a), X(z.b), dy, false);
+    o.push(`<line x1="${X(z.a)}" y1="${yB+4}" x2="${X(z.a)}" y2="${dy+8}" stroke="${C.dim}" stroke-width="0.7"/>`);
+    o.push(`<line x1="${X(z.b)}" y1="${yB+4}" x2="${X(z.b)}" y2="${dy+8}" stroke="${C.dim}" stroke-width="0.7"/>`);
+    const xm = (X(z.a)+X(z.b))/2, fs = (z.b-z.a)*k < 110 ? 10.5 : 12;
+    const col = z.hot ? (forPrint?'#000':'#8A5A12') : C.txt;
+    const l1 = z.hot && !lay.full ? `加密 2h = ${f(z.b-z.a,0)}` : `${z.tag} ${f(z.b-z.a,0)} cm`;
+    o.push(`<text x="${xm}" y="${dy+20}" font-size="${fs}" font-weight="700" fill="${col}" text-anchor="middle">${l1}</text>`);
+    o.push(`<text x="${xm}" y="${dy+35}" font-size="${fs}" fill="${C.txt}" text-anchor="middle">@ ${f(z.s,1)}${Math.abs(z.act-z.s)>0.05?`（均分 ${f(z.act,1)}）`:''}</text>`);
+    o.push(`<text x="${xm}" y="${dy+50}" font-size="${fs}" fill="${C.txt}" text-anchor="middle">${z.n} 支</text>`);
+  }
+  elevDim(o, C, X(0), X(L), dy+76, false);
+  o.push(`<text x="${(X(0)+X(L))/2}" y="${dy+92}" font-size="12" fill="${C.txt}" text-anchor="middle">${svgTxt(`l_n = ${f(L,0)} cm（柱面至柱面）`,12)}</text>`);
+  o.push(`</svg>`);
+  return o.join('');
+}
+function elevInfoBeam(B){
+  const {S,lay,leg} = B;
+  const rows = lay.zones.map(z=>`<tr><td class="l">${z.tag}</td><td>${f(z.a,0)}～${f(z.b,0)}</td><td>${f(z.b-z.a,0)}</td>
+    <td>${S.tieSize} @ ${f(z.s,1)}</td><td>${f(z.act,1)}</td><td>${z.n}</td></tr>`).join('');
+  let h = `<table style="width:100%"><thead><tr><th class="l">區段</th><th>範圍 (cm)</th><th>長度 (cm)</th><th>配置</th><th>實際間距 (cm)</th><th>數量 (支)</th></tr></thead>
+    <tbody>${rows}<tr style="font-weight:700"><td class="l">合計</td><td></td><td>${f(S.ln,0)}</td><td></td><td></td><td>${lay.total}</td></tr></tbody></table>`;
+  if(S.seismic && !lay.full) h += `<div style="margin-top:6px">耐震梁：自柱面 2h = ${f(2*S.h,0)} cm 內加密（土木401 §18.6.4.1），第一支距柱面 ≤ 5 cm；
+    加密區外由「${esc(B.fin2.gov.t)}」控制（≤ ${f(B.fin2.gov.v,2)} cm）。</div>`;
+  else if(S.seismic) h += `<div style="margin-top:6px">兩端 2h 加密區相接，<b>全長以加密區間距配置</b>。</div>`;
+  else h += `<div style="margin-top:6px">一般梁：以最大設計剪力決定之間距配置全長（保守；剪力較小的跨中可另行放寬）。</div>`;
+  h += `<div style="margin-top:3px;color:var(--${leg.ok?'ok':'bad'})">箍筋肢橫向間距 ${f(leg.gap,1)} cm ${leg.ok?'≤':'＞'} ${f(leg.lim,1)} cm（${leg.rule}）</div>`;
+  return h;
 }
 
 /* ---------- 梁：斷面 SVG ---------- */
@@ -3646,6 +3984,11 @@ function renderBeam(){
   document.getElementById('bSignPos').style.outline = S.sign==='pos'?'2px solid var(--acc)':'none';
   document.getElementById('bSignNeg').style.outline = S.sign==='neg'?'2px solid var(--acc)':'none';
   document.getElementById('bSecWrap').innerHTML=svgBeam(B,false);
+  document.getElementById('bElevCard').style.display = S.slab ? 'none' : '';
+  if(!S.slab){
+    document.getElementById('bElevWrap').innerHTML=svgBeamElev(B,false);
+    document.getElementById('bElevInfo').innerHTML=SB(elevInfoBeam(B));
+  }
 
   const kv=(k,v,cls='')=>`<div class="kv"><span>${k}</span><b class="${cls}">${v}</b></div>`;
   const C=B.ctrl, F=B.fin;
@@ -3717,7 +4060,9 @@ function renderBeam(){
         ? [[sh.slabFail?'bad':'ok','剪力 V_u/φV_c',f(sh.Vdes/Math.max(1e-9,sh.phiVc),2),'不配剪力筋','bSummary'],
            [F.tooTight?'bad':'ok','主筋',`底 ${bBarTxt(S,'bot')}`,`間距 ≤ ${f(F.gov.v,1)}`,'bSummary']]
         : [[sh.fail||sh.over?'bad':'ok','剪力 V_s/V_s,max',f(sh.VsReq/sh.VsMax,2),'','bSummary'],
-           [F.tooTight?'bad':'ok','箍筋',bTieTxt(S,F),`需 ≤ ${f(F.gov.v,2)}`,'bSummary']]),
+           [F.tooTight?'bad':'ok','箍筋',bTieTxt(S,F),`需 ≤ ${f(F.gov.v,2)}`,'bSummary'],
+           [(B.fin2&&B.fin2.tooTight)||!B.leg.ok?'bad':'ok','軸向配置',`${B.lay.total} 支`,
+             B.fin2&&!B.lay.full?`加密 @${f(F.sUse,1)} · 一般 @${f(B.fin2.sUse,1)}`:`全長 @${f(F.sUse,1)}`,'bElevInfo']]),
       ...(S.env==='water' ? [[B.cw.ok?'ok':'bad','裂縫寬度',`${f(B.cw.w,3)} mm`,`≤ ${f(B.cw.wLim,2)}`,'bSummary']] : []),
       [B.crack.ok?'ok':'bad','裂縫',`${f(B.crack.sAct,1)} / ${f(B.crack.sLim,1)} cm`,'','bSummary'],
       (()=>{ const c=B.clr, vals=[c.bot,c.top].filter(v=>v!==null), mn=vals.length?Math.min(...vals):null;
@@ -3793,6 +4138,11 @@ function renderBeamAlerts(B){
       : `版剪力 V_u = ${f(B.sh.Vdes/TF,1)} ≤ φV_c = ${f(B.sh.phiVc/TF,1)} tf（每公尺寬），不需剪力筋。`);
   }else if(B.fin.tooTight) add('bad',`<b>實務間距無解</b>：需求 s = ${f(B.fin.gov.v,2)} cm 已小於最小實務間距 ${PRACTICAL_S[PRACTICAL_S.length-1]} cm。`);
   else add('ok',`採用 ${S.tieSize} ${S.nLegs} 肢 @ ${f(B.fin.sUse,1)} cm（控制：${B.fin.gov.t}）。`);
+  if(!S.slab){
+    if(B.fin2) add(B.fin2.tooTight?'bad':'ok',`加密區（自柱面 2h）外採用 ${S.tieSize} @ ${f(B.fin2.sUse,1)} cm（控制：${B.fin2.gov.t}，需求 ≤ ${f(B.fin2.gov.v,2)} cm）。`);
+    add('info',`沿梁軸向配置（l_n = ${f(S.ln,0)} cm）：`+B.lay.zones.map(z=>`${z.tag} ${f(z.b-z.a,0)} cm @ ${f(z.s,1)} ×${z.n}`).join('、')+`，共 <b>${B.lay.total}</b> 支。`);
+    if(!B.leg.ok) add('bad',`<b>箍筋肢橫向間距過大</b>：${f(B.leg.gap,1)} cm ＞ ${f(B.leg.lim,1)} cm（${B.leg.rule}）。請增加箍筋肢數（加繫筋或內箍）。`);
+  }
   if(S.env==='water'){
     const c=B.cw;
     add(c.ok?'ok':'bad',`${c.ok?'':'<b>'}水工裂縫寬度${c.ok?'':'超限</b>'}：使用載重 M_s = M_D + M_L = ${f(c.Ms/TFM,1)} tf·m，f_s = ${f(c.fs,0)} kgf/cm²，`
@@ -4038,6 +4388,16 @@ function buildBeamReport(B){
   o.push(`</tbody></table>`);
   o.push(`<div style="font-size:14px;font-weight:800;padding:8px;border:2px solid #060;display:inline-block;margin-top:8px">
     採用 ${S.tieSize} ${S.nLegs} 肢 @ ${d(fin.sUse,1)} cm${S.seismic?`　（自柱面 2h = ${d(sh.confLen,0)} cm 範圍內加密）`:''}</div>`);
+  if(B.fin2){
+    o.push(`<div class="rp-h3">加密區外箍筋間距（V_c 不折減，仍取 V_e）</div>`);
+    o.push(`<table class="no-break"><thead><tr><th class="l">控制項</th><th>容許 s (cm)</th></tr></thead><tbody>`);
+    for(const c of B.fin2.cands.slice().sort((a,b)=>a.v-b.v))
+      o.push(`<tr${c===B.fin2.gov?' style="font-weight:800;background:#f0f0f0"':''}><td class="l">${esc(c.t)}</td><td>${d(c.v,2)}</td></tr>`);
+    o.push(`</tbody></table>`);
+  }
+  o.push(`<div class="rp-h3">沿梁軸向箍筋配置</div>`);
+  o.push(`<div class="rp-fig">${svgBeamElev(B,true)}</div>`);
+  o.push(`<div style="font-size:12px">${elevInfoBeam(B)}</div>`);
   }
   o.push(`</div>`);
 
@@ -4155,7 +4515,8 @@ const PIN_META = {
       ['ph','—','塑鉸區／柱端加密區','','開啟後啟動容量設計剪力、V_c 依軸壓歸零、加密區箍筋間距與 A_sh 圍束檢核。',
        '橋梁：s ≤ min(b/4, 6d_b, 15 cm)　·　建築：s ≤ min(b/4, 6d_b, s_o)，s_o = 10 + (35 − h_x)/3 介於 10～15 cm',
        "V_c 取 0 的門檻：橋梁 N_u < 0.1f'_c·A_g；建築 N_u < A_g·f'_c/20。"],
-      ['lu','l_u','柱淨高','cm','建築柱容量設計剪力 V_e = 2M_pr / l_u 的分母（M_pr 以 1.25f_y、φ = 1 計）。','僅「建築物」設計依據使用',''],
+      ['phEnds','—','塑鉸區位置','','決定沿柱軸向配置時，哪幾端要設加密區（塑鉸區）。建築柱兩端皆設；懸臂墩柱、橋塔通常僅底端。','',''],
+      ['lu','l_u','柱淨高','cm','沿柱軸向配置的總長，並決定加密區長度 l_o = max(h, l_u/6, 45 cm)；建築柱另為 V_e = 2M_pr/l_u 的分母（M_pr 以 1.25f_y、φ = 1 計）。','l_o 依土木401 §18.7.5.1；橋梁同公路橋梁耐震設計規範塑鉸區範圍',''],
       ['phio','φ_o','超強係數','','塑鉸超強彎矩 M_o = φ_o·M_n，用來反算設計剪力。','V_e = φ_o·M_n / L_v　（僅「橋梁」設計依據使用）',''],
       ['Lv','L_v','剪力跨度','cm','V_e 的分母。','設計剪力取 max(V_e, V_u)　（僅「橋梁」設計依據使用）',''],
       ['theta','θ','扭矩桁架角','°','A_t/s 與扭矩縱筋 A_l。','',''],
@@ -4210,7 +4571,7 @@ const PIN_META = {
     ]],
     ['耐震 / 剪力', [
       ['bSeismic','—','耐震等級','','切到「特殊抗彎構材」會啟動容量設計剪力、加密區、b_w/l_n/ρ 限制與接頭面彎矩比查核。','',''],
-      ['bLn','l_n','淨跨','cm','V_e 的分母。','耐震：l_n ≥ 4d',''],
+      ['bLn','l_n','淨跨','cm','V_e 的分母；也是沿梁軸向配置箍筋的總長（耐震梁兩端 2h 加密）。','耐震：l_n ≥ 4d',''],
       ['bVg','V_g','重力剪力','tf','V_e = (M_pr⁺+M_pr⁻)/l_n + V_g。','',''],
       ['bTheta','θ','扭矩桁架角','°','A_t/s 與扭矩縱筋 A_l。','',''],
       ['bphit','φ_t','拉力控制','','φM_n = φ·M_n。','ε_t ≥ 0.005 時 φ = 0.90',''],

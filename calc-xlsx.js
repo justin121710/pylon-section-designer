@@ -441,6 +441,44 @@ function buildColumn(ExcelJS, inp){
   S.item({key:'spClr', label:'螺箍淨距', sym:'s − dt', f:`IF({isSp}=1,{sUse}-{dt},${BIG})`, unit:'cm', fmt:FMT_SINF, crit:'≧ max(2.5, 4/3·dagg)', ref:ref401('25.7.3.1')});
   S.item({key:'spMin', label:'螺箍最小淨距', f:'MAX(2.5,4/3*{dagg})', unit:'cm', fmt:'0.00', ref:ref401('25.7.3.1')});
 
+  /* ---------------- 八之一、加密區外間距、肢距與沿柱軸向配置 ---------------- */
+  S.section('【八之一、加密區（塑鉸區）外箍筋間距、箍筋肢距與沿柱軸向配置】');
+  S.item({key:'phEnds', label:'塑鉸區位置', v:inp.phEnds===1?'僅底端':'兩端', kind:'list', list:['兩端','僅底端'],
+    crit:'建築柱兩端；懸臂墩柱、橋塔通常僅底端', ref:ref401('18.7.5.1')+'；公路橋梁耐震設計規範', note:'決定沿柱軸向配置時哪幾端設加密區（塑鉸區）。'});
+  S.item({key:'nEnds', label:'加密區端數', f:'IF({isPH}=1,IF({phEnds}="僅底端",1,2),0)', unit:'端', expr:'非加密區斷面＝0（全長同一間距）', ref:'—'});
+  S.item({key:'Lel', label:'沿軸向配置長度（柱淨高）', sym:'lu', f:'{lu}', unit:'cm', fmt:'#,##0', ref:ref401('18.7.5.1')});
+  S.item({key:'hMax', label:'斷面最大尺寸', sym:'h', f:'IF({isCirc}=1,{Din},MAX({Be},{He}))', unit:'cm', fmt:'0.0', ref:'—'});
+  S.item({key:'lo', label:'加密區長度', sym:'lo', f:'MAX({hMax},{lu}/6,45)', unit:'cm', fmt:'0.0', expr:'max(h, lu/6, 45 cm)',
+    ref:ref401('18.7.5.1')+'；公路橋梁耐震設計規範塑鉸區範圍同式'});
+  S.item({key:'sStr2x', label:'加密區外 X 向強度需求間距', sym:'s', f:`MIN('載重組合'!AK4:AK${3+NCB})`, unit:'cm', fmt:FMT_SINF, expr:'Vc 不折減，設計剪力仍含 Ve', ref:ref401('18.7.6.2.1、22.5.10.5.3')});
+  S.item({key:'sStr2y', label:'加密區外 Y 向強度需求間距', sym:'s', f:`MIN('載重組合'!AL4:AL${3+NCB})`, unit:'cm', fmt:FMT_SINF, ref:ref401('22.5.10.5.3')});
+  S.item({key:'sCode2x', label:'加密區外 X 向規範間距上限', sym:'s', f:`MIN('載重組合'!AM4:AM${3+NCB})`, unit:'cm', fmt:'0.00', ref:ref401('10.7.6.5.2')});
+  S.item({key:'sCode2y', label:'加密區外 Y 向規範間距上限', sym:'s', f:`MIN('載重組合'!AN4:AN${3+NCB})`, unit:'cm', fmt:'0.00', ref:ref401('10.7.6.5.2')});
+  S.item({key:'sAsh2', label:'加密區外螺箍 ρs 需求間距', sym:'s', unit:'cm', fmt:FMT_SINF,
+    f:`IF({isSp}=1,4*{At}*{ds}/({Dc}^2*0.45*({Ag}/{Ach}-1)*{fc}/{fyt}),${BIG})`, expr:"螺箍恆需 0.45(Ag/Ach − 1)f'c/fyt", ref:ref401('25.7.3.3')});
+  S.item({key:'sOut', label:'加密區外間距上限', sym:'s', unit:'cm', fmt:'0.00', f:'IF({isBldg}=1,MIN(6*{db},15),2*{sUse})',
+    expr:'建築 min(6db, 15 cm)；橋梁 2s₁（不少於塑鉸區之 50%）',
+    ref:ref401('18.7.5.5')+'；橋梁 50% 係 AASHTO 耐震細則慣例，非我國規範明列條文'});
+  const cands2 = [['sStr2x','剪力＋扭矩強度需求（X 向，Vc 不折減）'],['sStr2y','剪力＋扭矩強度需求（Y 向，Vc 不折減）'],
+    ['sMinx','最小剪力鋼筋量（X 向）'],['sMiny','最小剪力鋼筋量（Y 向）'],['sCode2x','規範間距上限（X 向）'],['sCode2y','規範間距上限（Y 向）'],
+    ['sTors','扭矩間距上限'],['sAsh2','螺箍體積比 ρs（0.45 式）'],['sSpMax','螺箍淨距上限 7.5 cm'],['sTie','橫箍間距通則'],['sOut','加密區外間距上限']];
+  S.item({key:'sGov2', label:'加密區外控制需求間距', sym:'s,req', unit:'cm', fmt:'0.00',
+    f:'IF({isPH}=1,MIN('+cands2.map(c=>'{'+c[0]+'}').join(',')+'),{sGov})', expr:'上列各上限之最小值；非加密區斷面同 sGov', ref:'—'});
+  S.item({key:'sGov2Tag', label:'加密區外控制項', f:'IF({isPH}=1,INDEX({rng:candName2},MATCH({sGov2},{rng:candVal2},0)),"（同加密區）")', ref:'—'});
+  S.item({key:'sUse2', label:'加密區外採用間距', sym:'s₂', unit:'cm', fmt:'0.0',
+    f:'IF({isPH}=1,IFERROR(_xlfn.AGGREGATE(14,6,{rng:sList}/(({rng:sList}<={sGov2})*((({rng:sFlag}=0)+{isSp})>0)),1),IF({isSp}=1,5,7.5)),{sUse})',
+    expr:'實務間距表中 ≦ 需求之最大值', ref:'非規範明列條文，係施工慣用間距'});
+  S.item({key:'legGx', label:'X 向剪力之箍筋肢橫向間距', sym:'s⊥', unit:'cm', fmt:'0.0',
+    f:'IF({isCirc}=1,0,IF({isBox}=1,IF({inOK}=1,MAX(1,{tw}-{covO}-{covI}-{dt}),{tw}),IF(OR({everyH}=1,{nH}<=2),{pH},2*{pH})))',
+    expr:'矩形：每根皆設肢取 pH，否則 2pH；箱型：內外層肢跨壁厚', ref:ref401('10.7.6.5.2')});
+  S.item({key:'legGy', label:'Y 向剪力之箍筋肢橫向間距', sym:'s⊥', unit:'cm', fmt:'0.0',
+    f:'IF({isCirc}=1,0,IF({isBox}=1,IF({inOK}=1,MAX(1,{tw}-{covO}-{covI}-{dt}),{tw}),IF(OR({everyB}=1,{nB}<=2),{pB},2*{pB})))', expr:'同上（B 邊）', ref:ref401('10.7.6.5.2')});
+  S.item({key:'legLx', label:'X 向肢距上限', sym:'s⊥,max', unit:'cm', fmt:'0.0',
+    f:`IF(MAX('載重組合'!P4:P${3+NCB})*1000>1.06*SQRT({fc})*{bwx}*{dx},MIN({dx}/2,30),MIN({dx},60))`, expr:"Vs ≦ 1.06√f'c·bw·d：min(d, 60)；否則 min(d/2, 30)", ref:ref401('10.7.6.5.2')});
+  S.item({key:'legLy', label:'Y 向肢距上限', sym:'s⊥,max', unit:'cm', fmt:'0.0',
+    f:`IF(MAX('載重組合'!S4:S${3+NCB})*1000>1.06*SQRT({fc})*{bwy}*{dy},MIN({dy}/2,30),MIN({dy},60))`, ref:ref401('10.7.6.5.2')});
+  layoutItems(S, '組', ref401('18.7.5.3'));
+
   /* ---------------- 九、檢核彙總 ---------------- */
   S.section('【九、檢核彙總】');
   S.sum({head:true, label:'檢核項目', need:'需求值', cap:'容量／限值', ratio:'比值', judge:'判定'});
@@ -456,6 +494,9 @@ function buildColumn(ExcelJS, inp){
   addSum({label:'耐震 hx（cm）', need:{f:'MAX({hxB},{hxH})'}, cap:35, ratio:{f:'MAX({hxB},{hxH})/35'}, judge:{f:'IF({isCirc}=1,"N/A",IF(MAX({hxB},{hxH})<=35,"PASS","FAIL"))'}, ref:ref401('18.7.5.2')});
   addSum({label:'螺箍淨距（cm）', need:{f:'{spMin}'}, cap:{f:'{spClr}'}, ratio:{f:`IF({isSp}=1,{spMin}/{spClr},0)`}, judge:{f:'IF({isSp}=0,"N/A",IF({spClr}>={spMin},"PASS","FAIL"))'}, ref:ref401('25.7.3.1')});
   addSum({label:'主筋最少根數', need:{f:'IF({isSp}=1,6,4)'}, cap:{f:'{nBars}'}, ratio:{f:'IF({isSp}=1,6,4)/{nBars}'}, judge:J('{nBars}>=IF({isSp}=1,6,4)'), ref:ref401('10.7.3.1')});
+  addSum({label:'加密區外橫向筋間距 採用／需求', need:{f:'{sUse2}'}, cap:{f:'{sGov2}'}, ratio:{f:'{sUse2}/{sGov2}'}, judge:{f:'IF({isPH}=0,"N/A",IF({sUse2}<={sGov2},"PASS","FAIL"))'}, note:{f:'"控制："&{sGov2Tag}'}, ref:ref401('18.7.5.5')});
+  addSum({label:'X 向箍筋肢橫向間距（cm）', need:{f:'{legGx}'}, cap:{f:'{legLx}'}, ratio:{f:'{legGx}/{legLx}'}, judge:{f:'IF(OR({isCirc}=1,{isBox}=1),"N/A",IF({legGx}<={legLx},"PASS","FAIL"))'}, note:'箱型壁以柱條文檢核偏保守，僅供參考（N/A）', ref:ref401('10.7.6.5.2')});
+  addSum({label:'Y 向箍筋肢橫向間距（cm）', need:{f:'{legGy}'}, cap:{f:'{legLy}'}, ratio:{f:'{legGy}/{legLy}'}, judge:{f:'IF(OR({isCirc}=1,{isBox}=1),"N/A",IF({legGy}<={legLy},"PASS","FAIL"))'}, note:'同上', ref:ref401('10.7.6.5.2')});
   S.sum({key:'jAll', total:true, label:'總判定', judge:{f:`IF(COUNTIF($E$${'{SUMR1}'}:$E$${'{SUMR2}'},"FAIL")=0,"PASS","NG")`}, note:'僅計 FAIL；N/A 不計', ref:'—'});
 
   /* ---------------- 十、注意事項 ---------------- */
@@ -477,6 +518,9 @@ function buildColumn(ExcelJS, inp){
   S.blank();
   S.table({cols:[{h:'間距候選項目',key:'candName'},{h:'值 (cm)',key:'candVal',fmt:FMT_SINF}],
            data:cands.map(c=>[c[1],{f:'{'+c[0]+'}'}])});
+  S.blank();
+  S.table({cols:[{h:'加密區外間距候選項目',key:'candName2'},{h:'值 (cm)',key:'candVal2',fmt:FMT_SINF}],
+           data:cands2.map(c=>[c[1],{f:'{'+c[0]+'}'}])});
 
   S.layout();
   // 總判定的範圍：彙總列
@@ -486,7 +530,7 @@ function buildColumn(ExcelJS, inp){
 
   /* ---------------- 輔助工作表（先建立名稱以供解析） ---------------- */
   const resolve = makeResolver([S]);
-  const order = ['檢核表','結構計算書(A4)','載重組合','P-M_X','P-M_Y','射線交點','雙軸迭代','鋼筋層','配筋座標','圖表資料'];
+  const order = ['檢核表','結構計算書(A4)','載重組合','P-M_X','P-M_Y','射線交點','雙軸迭代','鋼筋層','配筋座標','圖表資料',EL];
   const W = {}; for(const nm of order) W[nm] = wb.addWorksheet(nm, nm==='檢核表'?{views:[{state:'frozen', ySplit:2}]}:{});
   const ws = W['檢核表'];
   writeCalcSheet(ws, S, resolve);
@@ -501,8 +545,89 @@ function buildColumn(ExcelJS, inp){
   buildRaySheet(W['射線交點'], resolve);
   buildBisectSheet(W['雙軸迭代'], resolve);
   const cinfo = buildColumnChartData(W['圖表資料'], resolve);
-  const a4Start = buildA4Column(W['結構計算書(A4)'], S, resolve, inp, jt.r, sumRows);
-  return {wb, keys:S.keys, judgeRow:jt.r, charts: columnCharts(inp, cinfo, a4Start)};
+  const einfo = buildElevSheet(W[EL], resolve, true, elevRows(inp));
+  const a4 = buildA4Column(W['結構計算書(A4)'], S, resolve, inp, jt.r, sumRows);
+  return {wb, keys:S.keys, judgeRow:jt.r,
+          charts: columnCharts(inp, cinfo, a4.fig).concat([elevChart(einfo, true, a4.elev, FIG_EL_ROWS, inp.lu)])};
+}
+
+/* ---------- 沿構材軸向配置（柱、梁共用；需先定義 nEnds、lo、Lel、sUse、sUse2） ----------
+   第一支距接頭面 e = min(5, s₁/2)；加密區 n₁ = INT((lo − e)/s₁) + 1；中段以 s₂ 均分；
+   兩端加密區相接或中段不足一個 s₁ 時全長以 s₁ 配置。與網頁 layoutAlong() 相同。 */
+function layoutItems(S, unit, refLo){
+  S.item({key:'eF', label:'第一支距接頭面 e', sym:'e', f:'MIN(5,{sUse}/2)', unit:'cm', fmt:'0.00', expr:'min(5, s₁/2)', ref:refLo+'（第一支 ≦ 5 cm）'});
+  S.item({key:'n1', label:'加密區數量（每端）', sym:'n₁', f:'IF({nEnds}=0,0,INT(({lo}-{eF})/{sUse}+1E-9)+1)', unit, expr:'INT((lo − e)/s₁) + 1', ref:refLo});
+  S.item({key:'z1', label:'加密區最後一支位置', f:'{eF}+MAX(0,{n1}-1)*{sUse}', unit:'cm', fmt:'0.0', expr:'e + (n₁ − 1)·s₁', ref:'—'});
+  S.item({key:'Gm', label:'中段長度', f:'IF({nEnds}=2,{Lel}-{z1},{Lel}-{eF})-{z1}', unit:'cm', fmt:'0.0', expr:'兩端：L − 2z₁；僅一端：L − e − z₁', ref:'—'});
+  S.item({key:'full', label:'全長同一間距', f:'--OR({nEnds}=0,{Gm}<{sUse}-1E-9)', expr:'不分區，或中段不足一個 s₁', crit:'1＝全長以 s₁ 配置', ref:'非規範明列條文，係配置判別'});
+  S.item({key:'nMid', label:'一般區數量', sym:'n₂', unit,
+    f:'IF({full}=1,0,IF({nEnds}=2,MAX(0,ROUNDUP({Gm}/{sUse2}-1E-9,0)-1),ROUNDUP({Gm}/{sUse2}-1E-9,0)))', expr:'中段以 s₂ 均分（實際間距 ≦ s₂）', ref:'—'});
+  S.item({key:'sMid', label:'一般區實際均分間距', f:'IF({full}=1,0,{Gm}/IF({nEnds}=2,{nMid}+1,{nMid}))', unit:'cm', fmt:'0.0', ref:'—'});
+  S.item({key:'nFull', label:'全長配置時數量', f:'MAX(2,ROUNDUP(({Lel}-2*{eF})/{sUse}-1E-9,0)+1)', unit, ref:'—'});
+  S.item({key:'total', label:'全長合計數量', sym:'n', f:'IF({full}=1,{nFull},{nEnds}*{n1}+{nMid})', unit, crit:'沿構材軸向全長之箍筋（組）數', ref:'—'});
+}
+
+/* ---------- 配置立面圖資料（3 列一支：兩端點＋#N/A 斷開；全部公式） ---------- */
+const EL = '配置立面';
+function buildElevSheet(ws, R, vertical, NH){
+  const r = f => ({f:R(f,EL)});
+  ws.columns = Array(14).fill(0).map((_,j)=>({width: j<3?9:11}));
+  put(ws,'A1', vertical ? '沿柱軸向箍筋配置立面資料（y 自底端起算 cm；x 為示意寬度）' : '沿梁軸向箍筋配置立面資料（x 自柱面起算 cm；y 為示意梁深）', {sec:true});
+  ['i','位置 (cm)','加密區','x','y（加密）','y（一般）','外框 x','外框 y','主筋 x','主筋 y','分區線 x','分區線 y'].forEach((h,j)=>put(ws,colL(j)+'2',h,{head:true}));
+  for(let i=1;i<=NH;i++){
+    const n = 3 + 3*(i-1);
+    put(ws,'A'+n, i);
+    put(ws,'B'+n, r(`IF(OR(A${n}>{total},{total}<1),${NA},IF({full}=1,{eF}+(A${n}-1)*({Lel}-2*{eF})/({nFull}-1),IF(A${n}<={n1},{eF}+(A${n}-1)*{sUse},IF(A${n}<={n1}+{nMid},{z1}+(A${n}-{n1})*{sMid},{Lel}-{eF}-({total}-A${n})*{sUse}))))`),{fmt:'0.0'});
+    put(ws,'C'+n, r(`--AND(A${n}<={total},{nEnds}>0,OR({full}=1,A${n}<={n1},A${n}>{n1}+{nMid}))`));
+    for(let k=0;k<3;k++){
+      const m = n+k, pos = `$B$${n}`, hot = `$C$${n}`;
+      if(k===2){ put(ws,'D'+m,{f:NA}); put(ws,'E'+m,{f:NA}); put(ws,'F'+m,{f:NA}); continue; }
+      if(vertical){
+        put(ws,'D'+m, k===0 ? -0.42 : 0.42);
+        put(ws,'E'+m, {f:`IF(${hot}=1,${pos},${NA})`},{fmt:'0.0'});
+        put(ws,'F'+m, {f:`IF(${hot}=0,${pos},${NA})`},{fmt:'0.0'});
+      }else{
+        put(ws,'D'+m, {f:pos},{fmt:'0.0'});
+        put(ws,'E'+m, {f:`IF(${hot}=1,${k===0?0.1:0.9},${NA})`});
+        put(ws,'F'+m, {f:`IF(${hot}=0,${k===0?0.1:0.9},${NA})`});
+      }
+    }
+  }
+  // 外框
+  const box = vertical ? [[-0.5,'0'],[0.5,'0'],[0.5,'{Lel}'],[-0.5,'{Lel}'],[-0.5,'0']] : [['0',0],['{Lel}',0],['{Lel}',1],['0',1],['0',0]];
+  box.forEach(([x,y],i)=>{ put(ws,'G'+(3+i), typeof x==='string'?r(x):x); put(ws,'H'+(3+i), typeof y==='string'?r(y):y); });
+  // 主筋（柱：三根縱向線；梁：上下兩根）
+  const bars = vertical ? [[-0.38,'0'],[-0.38,'{Lel}'],null,[0,'0'],[0,'{Lel}'],null,[0.38,'0'],[0.38,'{Lel}']]
+                        : [['0',0.12],['{Lel}',0.12],null,['0',0.88],['{Lel}',0.88]];
+  bars.forEach((pt,i)=>{ const m=3+i;
+    if(!pt){ put(ws,'I'+m,{f:NA}); put(ws,'J'+m,{f:NA}); return; }
+    put(ws,'I'+m, typeof pt[0]==='string'?r(pt[0]):pt[0]); put(ws,'J'+m, typeof pt[1]==='string'?r(pt[1]):pt[1]); });
+  // 分區線（加密區邊界）
+  const L1 = `IF(AND({nEnds}>0,{full}=0),{lo},${NA})`, L2 = `IF(AND({nEnds}=2,{full}=0),{Lel}-{lo},${NA})`;
+  const zl = vertical ? [[-1.2,L1],[1.6,L1],null,[-1.2,L2],[1.6,L2]] : [[L1,-0.35],[L1,1.35],null,[L2,-0.35],[L2,1.35]];
+  zl.forEach((pt,i)=>{ const m=3+i;
+    if(!pt){ put(ws,'K'+m,{f:NA}); put(ws,'L'+m,{f:NA}); return; }
+    put(ws,'K'+m, typeof pt[0]==='string'?r(pt[0]):pt[0]); put(ws,'L'+m, typeof pt[1]==='string'?r(pt[1]):pt[1]); });
+  put(ws,'N1', r(vertical
+    ? `"箍筋配置立面　"&{tie}&"：加密區 @ "&TEXT({sUse},"0.0")&IF({full}=1,""," ／ 一般區 @ "&TEXT({sUse2},"0.0"))&" cm，全長共 "&{total}&" 組"`
+    : `"箍筋配置立面　"&{tieS}&" "&{nLegs}&" 肢："&IF({full}=1,"全長 @ "&TEXT({sUse},"0.0"),"加密 @ "&TEXT({sUse},"0.0")&" ／ 一般 @ "&TEXT({sUse2},"0.0"))&" cm，全長共 "&{total}&" 支"`));
+  return {end: 2 + 3*NH};
+}
+function elevChart(info, vertical, a4From, rows, L){
+  const rg = (c,a,b)=>`${qs(EL)}!$${c}$${a}:$${c}$${b}`;
+  const xml = scatterChartXml({
+    title:'箍筋配置立面', titleRef:`${qs(EL)}!$N$1`, legend:true, legendPos:'b',
+    xAxis: vertical ? {min:-2.4, max:2.4, hidden:true} : {min:0, max:Math.ceil(L), fmt:'#,##0', grid:false},
+    yAxis: vertical ? {min:0, max:Math.ceil(L), fmt:'#,##0'} : {min:-1.2, max:2.2, hidden:true},
+    xTitle: vertical ? null : '自柱面距離 (cm)', yTitle: vertical ? '自底端高度 (cm)' : null,
+    series:[
+      {name:'混凝土', x:rg('G',3,7), y:rg('H',3,7), line:{color:'8A97A5', w:1.5}},
+      {name:'主筋', x:rg('I',3,10), y:rg('J',3,10), line:{color:'151C24', w:1}},
+      {name:'加密區箍筋', x:rg('D',3,info.end), y:rg('E',3,info.end), line:{color:'0F5F6B', w:1}},
+      {name:'一般區箍筋', x:rg('D',3,info.end), y:rg('F',3,info.end), line:{color:'6E9AA0', w:0.75}},
+      {name:'加密區邊界', x:rg('K',3,7), y:rg('L',3,7), line:{color:'B4711A', w:1, dash:'dash'}}
+    ]});
+  return {sheet:'結構計算書(A4)', name:'箍筋配置立面', from:[1,a4From], to:[6,a4From+rows], xml};
 }
 
 /* ---------- 配筋座標：每邊主筋座標、繫筋位置旗標、圓周座標 ---------- */
@@ -635,13 +760,14 @@ const POLY_N = NPM + 2;     // 多邊形點數
 /* ---------- 載重組合：輸入＋逐組合 D/C、剪力 ---------- */
 function buildLoadSheet(ws, R, loads){
   const name='載重組合', r = f => ({f:R(f,name)});
-  ws.columns = Array(36).fill(0).map((_,j)=>({width: j===0?22:11}));
+  ws.columns = Array(40).fill(0).map((_,j)=>({width: j===0?22:11}));
   put(ws,'A1','載重組合（已乘載重因數之設計值；Pu 壓為正）',{sec:true});
   const heads = {A:'組合名稱',B:'Pu (tf)',C:'Mux (tf·m)',D:'Muy (tf·m)',E:'Vux (tf)',F:'Vuy (tf)',G:'Tu (tf·m)',
     H:'有效：1',I:'X 射線 D/C',J:'Y 射線 D/C',K:'方法',L:'Bresler D/C',M:'D/C',
     N:'X:Vdes (tf)',O:'X:Vc (tf)',P:'X:Vs 需求 (tf)',Q:'Y:Vdes (tf)',R:'Y:Vc (tf)',S:'Y:Vs 需求 (tf)',
     T:'扭矩須設計',U:'At/s (cm²/cm)',V:'X:(Av/s)tot',W:'Y:(Av/s)tot',X:'X:s 強度 (cm)',Y:'Y:s 強度 (cm)',Z:'X:s 規範 (cm)',AA:'Y:s 規範 (cm)',
-    AB:'X:Mn@Pu (tf·m)',AC:'Y:Mn@Pu (tf·m)',AD:'X:Mpr@Pu (tf·m)',AE:'Y:Mpr@Pu (tf·m)',AF:'X 斷面不足',AG:'Y 斷面不足',AH:'s 扭矩 (cm)'};
+    AB:'X:Mn@Pu (tf·m)',AC:'Y:Mn@Pu (tf·m)',AD:'X:Mpr@Pu (tf·m)',AE:'Y:Mpr@Pu (tf·m)',AF:'X 斷面不足',AG:'Y 斷面不足',AH:'s 扭矩 (cm)',
+    AI:'一般區 X:Vc (tf)',AJ:'一般區 Y:Vc (tf)',AK:'一般區 X:s 強度',AL:'一般區 Y:s 強度',AM:'一般區 X:s 規範',AN:'一般區 Y:s 規範'};
   Object.entries(heads).forEach(([c,h])=>put(ws,c+'3',h,{head:true}));
   const pmLook = (sheet, Pcol, Mcol, P) => {
     const rng = c => `'${sheet}'!$${c}$${PM_H+1}:$${c}$${PM_H+NPM}`;
@@ -685,6 +811,13 @@ function buildLoadSheet(ws, R, loads){
       put(ws,col+n, r(`IF(${on},--OR(${cVs}${n}>{VsMax${ax}},${cVd}${n}*1000/({bw${ax}}*{d${ax}})+T${n}*ABS(G${n})*100000*{phh}/(1.7*{Aoh}^2)>{phiv}*(${cVc}${n}*1000/({bw${ax}}*{d${ax}})+2.12*SQRT({fc}))),"")`));
     }
     put(ws,'AH'+n, r(`IF(${on},IF(T${n}=1,MIN({phh}/8,30),${BIG}),"")`),{fmt:FMT_SINF});
+    // 加密區（塑鉸區）外：V_c 不折減，設計剪力同 N／Q 欄（加密區時已含 V_e）
+    for(const [ax,cVd,cVc,cS,cC] of [['x','N','AI','AK','AM'],['y','Q','AJ','AL','AN']]){
+      const Nu=`B${n}*1000`, vs=`MAX(0,${cVd}${n}/{phiv}-${cVc}${n})`;
+      put(ws,cVc+n, r(`IF(${on},MAX(0,0.53*SQRT({fc})*{bw${ax}}*{d${ax}}*IF(${Nu}>=0,1+${Nu}/(140*{Ag}),1+${Nu}/(35*{Ag})))/1000,"")`),{fmt:'#,##0.0'});
+      put(ws,cS+n, r(`IF(${on},IF(${vs}*1000/({fyt}*{d${ax}})+2*U${n}>1E-9,{Av${ax}}/(${vs}*1000/({fyt}*{d${ax}})+2*U${n}),${BIG}),"")`),{fmt:FMT_SINF});
+      put(ws,cC+n, r(`IF(${on},IF(${vs}*1000>1.06*SQRT({fc})*{bw${ax}}*{d${ax}},MIN({d${ax}}/4,30),MIN({d${ax}}/2,60)),"")`),{fmt:'0.00'});
+    }
   }
 }
 
@@ -889,6 +1022,13 @@ function buildA4Column(ws, S, R, inp, jRow, sumRows){
   a.sub('4.7 施工性（土木401 §25.2.3、§10.6.1.1）'); a.thead();
   a.data('主筋淨距（最小）','s','MIN({clB},{clH})','cm',"需求 max(4.0, 1.5db, 4/3·dagg)",'0.00');
   a.data('主筋比','ρg','{rho}','%','1%～4%','0.000');
+  ws.getRow(a.data('箍筋肢橫向間距 X／Y','s⊥','IF({isCirc}=1,"—",TEXT({legGx},"0.0")&"／"&TEXT({legGy},"0.0")&"（上限 "&TEXT({legLx},"0.0")&"／"&TEXT({legLy},"0.0")&"）")','cm','土木401 §10.7.6.5.2',null,true)).height = 30;
+  a.sub('4.8 沿柱軸向箍筋配置（土木401 §18.7.5.1、§18.7.5.5）'); a.thead();
+  a.data('加密區長度','lo','IF({nEnds}=0,"—（非加密區斷面）",TEXT({lo},"0")&" cm")','—','max(h, lu/6, 45 cm)',null,true);
+  ws.getRow(a.data('加密區外控制項','—','{sGov2Tag}','—',null,null,true)).height = 30;
+  ws.getRow(a.data('加密區配置','—','IF({nEnds}=0,"—",IF({full}=1,"全長加密",{tie}&" @ "&TEXT({sUse},"0.0")&" cm × "&{n1}&" 組"&IF({nEnds}=2,"（每端）","")))','—','第一組距接頭面 e = min(5, s₁/2)',null,true)).height = 30;
+  ws.getRow(a.data('一般區配置','—','IF({full}=1,"—",{tie}&" @ "&TEXT({sUse2},"0.0")&" cm × "&{nMid}&" 組（均分 "&TEXT({sMid},"0.0")&"）")','—','中段以 s₂ 均分',null,true)).height = 30;
+  a.data('全長合計','n','{total}','組','柱淨高 lu 範圍內','0');
 
   ws.getRow(a.n).addPageBreak();
   a.chap('五、檢核彙總');
@@ -921,8 +1061,9 @@ function buildA4Column(ws, S, R, inp, jRow, sumRows){
   [[2,'設計'],[3,'校核'],[5,'審核']].forEach(([j,h])=>{ const c=ws.getCell(sg,j); c.value=h; c.font={name:FONT,size:9,bold:true}; c.alignment={horizontal:'center'};
     ws.getCell(sl,j).border={bottom:side(K.black)}; });
   const fig = a4Figures(ws, a, '附圖　斷面配筋圖與 P-M 互制曲線（Excel 圖表，隨輸入自動更新）', inp.type==='circle'?1:2);
+  const elev = a4Elev(ws, a, '附圖　沿柱軸向箍筋配置立面（柱寬為示意）', FIG_EL_ROWS);
   ws.pageSetup.printArea = `A1:F${a.n}`;
-  return fig;
+  return {fig, elev};
 }
 
 /* ======================================================================
@@ -1100,6 +1241,26 @@ function buildBeam(ExcelJS, inp){
   S.item({key:'sSlab', label:'版主筋最大間距', sym:'s', f:'MIN(3*{h},45)', unit:'cm', fmt:'0.0', ref:ref401('7.7.2.3')});
   S.item({key:'sSlabUse', label:'版主筋採用間距（取大）', sym:'s', f:'MAX({spB},{spT})', unit:'cm', fmt:'0.0', ref:'—'});
 
+  /* ---------------- 五之一、加密區外間距、肢距與沿梁軸向配置 ---------------- */
+  S.section('【五之一、加密區外箍筋間距、箍筋肢距與沿梁軸向配置（版不適用）】');
+  S.item({key:'Vc2', label:'加密區外 Vc（不折減）', sym:'Vc', f:'0.53*SQRT({fc})*{bw}*{d}/1000', unit:'tf', fmt:'#,##0.00', expr:'Vc 僅在自柱面 2h 內歸零', ref:ref401('18.6.5.2')});
+  S.item({key:'VsReq2', label:'加密區外箍筋需求 Vs', sym:'Vs', f:'MAX(0,{Vdes}/{phiv}-{Vc2})', unit:'tf', fmt:'#,##0.00', expr:'設計剪力仍取 Ve', ref:ref401('18.6.5.1')});
+  S.item({key:'sStr2', label:'加密區外強度需求間距', sym:'s', f:`IF(({VsReq2}*1000/({fyt}*{d})+2*{AtS})>1E-9,{Av}/({VsReq2}*1000/({fyt}*{d})+2*{AtS}),${BIG})`, unit:'cm', fmt:FMT_SINF, ref:ref401('22.5.10.5.3')});
+  S.item({key:'sCode2', label:'加密區外規範間距上限', sym:'s', f:'IF({VsReq2}*1000>1.06*SQRT({fc})*{bw}*{d},MIN({d}/4,30),MIN({d}/2,60))', unit:'cm', fmt:'0.00', ref:ref401('9.7.6.2.2')});
+  S.item({key:'sSeis2', label:'耐震梁加密區外上限', sym:'s', f:'{d}/2', unit:'cm', fmt:'0.00', expr:'d/2', ref:ref401('18.6.4.6')});
+  const cands2 = [['sStr2','剪力＋扭矩強度需求（Vc 不折減）'],['sMin','最小剪力鋼筋量 Av,min'],['sCode2','規範間距上限'],['sSeis2','耐震梁加密區外 d/2'],['sTors','扭矩 min(ph/8, 30)']];
+  S.item({key:'sGov2', label:'加密區外控制需求間距', sym:'s', unit:'cm', fmt:'0.00', f:'IF({isS}=1,MIN('+cands2.map(c=>'{'+c[0]+'}').join(',')+'),{sGov})', expr:'非耐震梁同 sGov', ref:'—'});
+  S.item({key:'sGov2Tag', label:'加密區外控制項', f:'IF({isS}=1,INDEX({rng:candName2},MATCH({sGov2},{rng:candVal2},0)),"（全長同一間距）")', ref:'—'});
+  S.item({key:'sUse2', label:'加密區外採用間距', sym:'s₂', unit:'cm', fmt:'0.0', f:'IF({isS}=1,IFERROR(_xlfn.AGGREGATE(14,6,{rng:sList}/(({rng:sList}<={sGov2})*({rng:sFlag}=0)),1),7.5),{sUse})', ref:'非規範明列條文，係施工慣用間距'});
+  S.item({key:'legG', label:'箍筋肢橫向間距', sym:'s⊥', unit:'cm', fmt:'0.0', f:'IF({isSlab}=1,0,({bw}-2*({cover}+{dt}/2))/MAX(1,{nLegs}-1))', expr:'(bw − 2(cc + dt/2))/(nlegs − 1)', ref:ref401('9.7.6.2.2')});
+  S.item({key:'legL', label:'肢距上限', sym:'s⊥,max', unit:'cm', fmt:'0.0',
+    f:'MIN(IF({VsReq}*1000>1.06*SQRT({fc})*{bw}*{d},MIN({d}/2,30),MIN({d},60)),IF({isS}=1,35,1E9))',
+    expr:"Vs ≦ 1.06√f'c·bw·d：min(d, 60)；否則 min(d/2, 30)；耐震梁另 ≦ 35（以肢距估受側撐主筋間距）", ref:ref401('9.7.6.2.2、18.6.4.2')});
+  S.item({key:'nEnds', label:'加密區端數', f:'IF({isS}=1,2,0)', unit:'端', expr:'耐震梁兩端；一般梁 0（全長同一間距）', ref:ref401('18.6.4.1')});
+  S.item({key:'lo', label:'加密區長度 2h', sym:'2h', f:'2*{h}', unit:'cm', fmt:'0.0', ref:ref401('18.6.4.1')});
+  S.item({key:'Lel', label:'沿軸向配置長度（淨跨）', sym:'ln', f:'{ln}', unit:'cm', fmt:'#,##0', ref:'—'});
+  layoutItems(S, '支', ref401('18.6.4.4'));
+
   /* ---------------- 六、使用性 ---------------- */
   S.section('【六、使用性：裂縫控制、裂縫寬度與撓度】');
   S.item({key:'fs23', label:'裂縫控制 fs = ⅔fy', sym:'fs', f:'2/3*{fy}', unit:'kgf/cm²', fmt:'#,##0', ref:ref401('24.3.2.1')});
@@ -1157,6 +1318,8 @@ function buildBeam(ExcelJS, inp){
   addSum({label:'受拉鋼筋 As ≧ As,min（cm²）', need:{f:'{AsMin}'}, cap:{f:'{AsT}'}, ratio:{f:'{AsMin}/{AsT}'}, judge:{f:'IF({MuMax}<1E-6,"N/A",IF({AsT}>={AsMin},"PASS","FAIL"))'}, note:'Mu = 0 時不適用', ref:ref401('9.6.1.2、7.6.1.1')});
   addSum({label:'εt ≧ 0.004', need:0.004, cap:{f:'{et}'}, ratio:{f:'0.004/{et}'}, judge:J('{et}>=0.004'), fmt:'0.00000', ref:ref401('9.3.3.1')});
   addSum({label:'梁剪力：Vs ≦ Vs,max（tf）', need:{f:'{VsReq}'}, cap:{f:'{VsMax}'}, ratio:{f:'{VsReq}/{VsMax}'}, judge:{f:'IF({isSlab}=1,"N/A",IF(AND({VsReq}<={VsMax},{over}=0),"PASS","FAIL"))'}, ref:ref401('22.5.1.2')});
+  addSum({label:'加密區外箍筋間距 採用／需求（cm）', need:{f:'{sUse2}'}, cap:{f:'{sGov2}'}, ratio:{f:'{sUse2}/{sGov2}'}, judge:{f:'IF({isS}=0,"N/A",IF({sUse2}<={sGov2},"PASS","FAIL"))'}, note:{f:'"控制："&{sGov2Tag}'}, ref:ref401('18.6.4.6')});
+  addSum({label:'箍筋肢橫向間距（cm）', need:{f:'{legG}'}, cap:{f:'{legL}'}, ratio:{f:'{legG}/{legL}'}, judge:{f:'IF({isSlab}=1,"N/A",IF({legG}<={legL},"PASS","FAIL"))'}, ref:ref401('9.7.6.2.2')});
   addSum({label:'梁箍筋間距 採用／需求（cm）', need:{f:'{sUse}'}, cap:{f:'{sGov}'}, ratio:{f:'{sUse}/{sGov}'}, judge:{f:'IF({isSlab}=1,"N/A",IF({sUse}<={sGov},"PASS","FAIL"))'}, ref:'—'});
   addSum({label:'版剪力：Vu ≦ φVc（tf）', need:{f:'{Vdes}'}, cap:{f:'{phiVc}'}, ratio:{f:'{Vdes}/{phiVc}'}, judge:{f:'IF({isSlab}=0,"N/A",IF({Vdes}<={phiVc},"PASS","FAIL"))'}, ref:ref401('7.6.3.1')});
   addSum({label:'版主筋間距（cm）', need:{f:'{sSlabUse}'}, cap:{f:'{sSlab}'}, ratio:{f:'{sSlabUse}/{sSlab}'}, judge:{f:'IF({isSlab}=0,"N/A",IF({sSlabUse}<={sSlab},"PASS","FAIL"))'}, ref:ref401('7.7.2.3')});
@@ -1184,20 +1347,25 @@ function buildBeam(ExcelJS, inp){
   S.blank();
   S.table({cols:[{h:'實務箍筋間距 (cm)',key:'sList',input:true,fmt:'0.0'},{h:'螺箍專用 (1＝是)',key:'sFlag',input:true}],
            data:PRACTICAL_S.map(v=>[v,0]).concat([[6,1],[5,1]])});
+  S.blank();
+  S.table({cols:[{h:'加密區外間距候選項目',key:'candName2'},{h:'值 (cm)',key:'candVal2',fmt:FMT_SINF}],
+           data:cands2.map(c=>[c[1],{f:'{'+c[0]+'}'}])});
   S.layout();
   const r1=sumRows[0].r, r2=sumRows[sumRows.length-1].r;
   const jt=S.rows.find(r=>r.key==='jAll'); jt.judge={f:`IF(COUNTIF($E$${r1}:$E$${r2},"FAIL")=0,"PASS","NG")`};
 
   const R = makeResolver([S]);
-  const order=['檢核表','結構計算書(A4)','載重組合','撓曲求解','開裂斷面','圖表資料'];
+  const order=['檢核表','結構計算書(A4)','載重組合','撓曲求解','開裂斷面','圖表資料',EL];
   const W={}; for(const nm of order) W[nm]=wb.addWorksheet(nm, nm==='檢核表'?{views:[{state:'frozen',ySplit:2}]}:{});
   writeCalcSheet(W['檢核表'], S, R);
   buildBeamLoads(W['載重組合'], R, inp.loads);
   buildBeamSolve(W['撓曲求解'], R);
   buildBeamIcr(W['開裂斷面'], R);
   const binfo = buildBeamChartData(W['圖表資料'], R);
-  const a4Start = buildA4Beam(W['結構計算書(A4)'], R, inp, jt.r, sumRows);
-  return {wb, keys:S.keys, judgeRow:jt.r, charts: beamCharts(inp, binfo, a4Start)};
+  const einfo = buildElevSheet(W[EL], R, false, elevRows(inp));
+  const a4 = buildA4Beam(W['結構計算書(A4)'], R, inp, jt.r, sumRows);
+  return {wb, keys:S.keys, judgeRow:jt.r,
+          charts: beamCharts(inp, binfo, a4.fig).concat(inp.slab ? [] : [elevChart(einfo, false, a4.elev, FIG_ELB_ROWS, inp.ln)])};
 }
 
 function buildBeamLoads(ws, R, loads){
@@ -1354,6 +1522,14 @@ function buildA4Beam(ws, R, inp, jRow, sumRows){
   a.data('混凝土剪力強度','Vc','{Vc}','tf',"0.53√f'c·bw·d",'#,##0.00');
   a.data('箍筋採用間距（梁）','s','IF({isSlab}=1,"不配剪力筋",{tieS}&" "&{nLegs}&" 肢 @ "&TEXT({sUse},"0.0")&" cm")','—',null,null,true);
   a.data('可忽略扭矩門檻','φTth','{Tth}','tf·m',"φ·0.265√f'c·Acp²/pcp",'#,##0.00');
+  if(!inp.slab){
+    a.sub('4.3a 沿梁軸向箍筋配置（土木401 §18.6.4、§9.7.6.2.2）'); a.thead();
+    ws.getRow(a.data('加密區外控制項','—','{sGov2Tag}','—',null,null,true)).height = 30;
+    ws.getRow(a.data('加密區配置（自柱面 2h）','—','IF({nEnds}=0,"—（一般梁）",IF({full}=1,"全長加密",{tieS}&" @ "&TEXT({sUse},"0.0")&" cm × "&{n1}&" 支（每端，2h = "&TEXT({lo},"0")&" cm）"))','—','第一支距柱面 e = min(5, s₁/2)',null,true)).height = 30;
+    ws.getRow(a.data('一般區配置','—','IF({full}=1,"全長 @ "&TEXT({sUse},"0.0")&" cm",{tieS}&" @ "&TEXT({sUse2},"0.0")&" cm × "&{nMid}&" 支（均分 "&TEXT({sMid},"0.0")&"）")','—',null,null,true)).height = 30;
+    a.data('全長合計','n','{total}','支','淨跨 ln 範圍內','0');
+    ws.getRow(a.data('箍筋肢橫向間距','s⊥','TEXT({legG},"0.0")&"（上限 "&TEXT({legL},"0.0")&"）"','cm','土木401 §9.7.6.2.2',null,true)).height = 30;
+  }
   a.sub('4.4 使用性（土木401 §24.2、§24.3）'); a.thead();
   a.data('開裂慣性矩','Icr','{Icr}','cm⁴','轉換斷面','#,##0');
   a.data('即時活載撓度','ΔL','{dL}','cm','—','0.000');
@@ -1378,8 +1554,9 @@ function buildA4Beam(ws, R, inp, jRow, sumRows){
   ws.mergeCells(sg,3,sg,4); ws.mergeCells(sg,5,sg,6); ws.mergeCells(sl,3,sl,4); ws.mergeCells(sl,5,sl,6);
   [[2,'設計'],[3,'校核'],[5,'審核']].forEach(([j,h])=>{ const c=ws.getCell(sg,j); c.value=h; c.font={name:FONT,size:9,bold:true}; c.alignment={horizontal:'center'}; ws.getCell(sl,j).border={bottom:side(K.black)}; });
   const fig = a4Figures(ws, a, '附圖　斷面圖（Excel 圖表，隨輸入自動更新）', 0);
+  const elev = inp.slab ? null : a4Elev(ws, a, '附圖　沿梁軸向箍筋配置立面（梁深為示意）', FIG_ELB_ROWS);
   ws.pageSetup.printArea=`A1:F${a.n}`;
-  return fig;
+  return {fig, elev};
 }
 
 /* ======================================================================
@@ -1719,6 +1896,16 @@ function beamCharts(inp, info, a4Start){
   return [{sheet:'結構計算書(A4)', name:'斷面圖', from:[1,a4Start], to:[6,a4Start+FIG_SEC_ROWS], xml}];
 }
 
+/* 立面圖資料列數：依匯出時之總數留餘裕（在 Excel 內改小間距致數量超過時，多出者不繪） */
+const elevRows = inp => Math.min(2500, Math.max(80, Math.ceil((inp.layTotal||60)*1.6) + 20));
+const FIG_EL_ROWS = 44, FIG_ELB_ROWS = 20;
+function a4Elev(ws, a, title, rows){
+  ws.getRow(a.n).addPageBreak();
+  a.chap(title);
+  const start = a.n;
+  for(let i=0;i<rows+1;i++){ const n=a.row(); ws.getRow(n).height=ROW_PT; }
+  return start;
+}
 /* 附圖頁：預留圖表列，回傳第一列（0 起算） */
 function a4Figures(ws, a, title, nPm){
   ws.getRow(a.n).addPageBreak();
