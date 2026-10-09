@@ -2054,7 +2054,7 @@ function loadScript(src){
 async function ensureXlsxLib(){
   if(!window.ExcelJS) await loadScript('https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js');
   if(!window.JSZip) await loadScript('https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js');   // 注入 Excel 原生圖表
-  if(!window.RCXLSX) await loadScript('calc-xlsx.js?v=2');
+  if(!window.RCXLSX) await loadScript('calc-xlsx.js?v=3');
 }
 function colXlsxInput(){
   const g=id=>document.getElementById(id).value;

@@ -1348,7 +1348,8 @@ function scatterChartXml(o){
     const mk = s.marker
       ? `<c:marker><c:symbol val="${s.marker.symbol||'circle'}"/><c:size val="${Math.max(2,Math.min(72,Math.round(s.marker.size||5)))}"/><c:spPr>${s.marker.fill===false?'<a:noFill/>':`<a:solidFill><a:srgbClr val="${s.marker.fill||s.marker.color}"/></a:solidFill>`}<a:ln w="9525"><a:solidFill><a:srgbClr val="${s.marker.color}"/></a:solidFill></a:ln></c:spPr></c:marker>`
       : `<c:marker><c:symbol val="none"/></c:marker>`;
-    return `<c:ser><c:idx val="${i}"/><c:order val="${i}"/><c:tx><c:v>${xmlEsc(s.name)}</c:v></c:tx>`
+    const tx = s.nameRef ? `<c:tx><c:strRef><c:f>${xmlEsc(s.nameRef)}</c:f></c:strRef></c:tx>` : `<c:tx><c:v>${xmlEsc(s.name)}</c:v></c:tx>`;
+    return `<c:ser><c:idx val="${i}"/><c:order val="${i}"/>${tx}`
       + `<c:spPr>${ln}</c:spPr>${mk}`
       + `<c:xVal><c:numRef><c:f>${xmlEsc(s.x)}</c:f></c:numRef></c:xVal>`
       + `<c:yVal><c:numRef><c:f>${xmlEsc(s.y)}</c:f></c:numRef></c:yVal><c:smooth val="0"/></c:ser>`;
@@ -1513,7 +1514,26 @@ function buildColumnChartData(ws, R){
     put(ws,'U'+(3+i), {f:`IF(${on},ABS('載重組合'!D${lr}),${NA})`},{fmt:'#,##0.0'});
     put(ws,'V'+(3+i), {f:`IF(${on},'載重組合'!B${lr},${NA})`},{fmt:'#,##0.0'});
   }
+  // 混凝土表面：外緣 5 點、#N/A 斷開、中空內緣 5 點（非箱型時內緣為 #N/A）
+  put(ws,'W2','混凝土 x',{head:true}); put(ws,'X2','混凝土 y',{head:true});
+  for(let i=0;i<5;i++){ put(ws,'W'+(3+i),{f:`A${3+i}`},{fmt:'0.0'}); put(ws,'X'+(3+i),{f:`B${3+i}`},{fmt:'0.0'}); }
+  put(ws,'W8',{f:NA}); put(ws,'X8',{f:NA});
+  for(let i=0;i<5;i++){ put(ws,'W'+(9+i),{f:`E${3+i}`},{fmt:'0.0'}); put(ws,'X'+(9+i),{f:`F${3+i}`},{fmt:'0.0'}); }
   return {tieEnd, barEnd};
+}
+
+/* 載重點：每組合一個數列，圖標與顏色各異；名稱連結「載重組合」A 欄 */
+const LOAD_MK = [['diamond','B03A2E'],['square','1F5FA8'],['triangle','2E7D32'],['circle','EF6C00'],['x','6B4FA8'],['star','C2185B'],
+                 ['plus','00838F'],['dash','5D4037'],['diamond','7CB342'],['square','3949AB'],['triangle','8A5A12'],['circle','455A64']];
+function loadSeries(inp, ax){
+  const n = Math.max(1, Math.min(NCB, inp.loads.length));
+  const [cx, cy] = ax==='x' ? ['S','T'] : ['U','V'];
+  return Array.from({length:n}, (_,i)=>{
+    const [sym, col] = LOAD_MK[i % LOAD_MK.length];
+    return {name:(inp.loads[i]||{}).name||('組合 '+(i+1)), nameRef:`${qs('載重組合')}!$A$${4+i}`,
+      x:`${qs(CD)}!$${cx}$${3+i}`, y:`${qs(CD)}!$${cy}$${3+i}`, line:null,
+      marker:{symbol:sym, size:sym==='x'||sym==='plus'||sym==='star'?9:8, color:col, fill:(sym==='x'||sym==='plus'||sym==='star'||sym==='dash')?col:col}};
+  });
 }
 
 /* 柱圖表規格（依匯出當下尺寸定座標軸範圍與主筋標記大小） */
@@ -1528,11 +1548,11 @@ function columnCharts(inp, info, a4Start){
   const sec = scatterChartXml({
     title:'斷面配筋圖', titleRef:`${qs(CD)}!$R$1`, legend:true, plot:SEC_PLOT,
     xAxis:{min:-eq.hx, max:eq.hx, hidden:true}, yAxis:{min:-eq.hy, max:eq.hy, hidden:true},
-    legendDel: [circle?0:1, ...(box?[]:[2]), circle?3:4, ...(box&&inp.dbl?[]:[5]), ...(circle?[6]:[])],
+    legendDel: [circle?0:1, 2, circle?3:4, ...(box&&inp.dbl?[]:[5]), ...(circle?[6]:[])],
     series:[
-      ser('混凝土', s('A','B',7), {color:'8A97A5', w:1.75}),
-      ser('混凝土（圓）', s('C','D',75), {color:'8A97A5', w:1.75}),
-      ser('中空區', s('E','F',7), {color:'8A97A5', w:1.25, dash:'dash'}),
+      ser('混凝土', s('W','X',13), {color:'8A97A5', w:1.75}),
+      ser('混凝土', s('C','D',75), {color:'8A97A5', w:1.75}),
+      ser('（保留）', s('E','F',7), null),
       ser('外閉合箍筋', s('G','H',7), {color:'0F5F6B', w:2}),
       ser(inp.spiral?'螺旋箍筋':'圓形箍筋', s('I','J',75), {color:'0F5F6B', w:2}),
       ser('內層閉合箍筋', s('K','L',7), {color:'0F5F6B', w:1.5, dash:'dash'}),
@@ -1549,7 +1569,7 @@ function columnCharts(inp, info, a4Start){
       series:[
         ser('標稱 Pn–Mn', [rng('G',PM_H+1,PM_H+NPM), rng('F',PM_H+1,PM_H+NPM)], {color:'8A97A5', w:1.25}),
         ser('設計 φPn–φMn', [rng('Q',PM_H+1,PM_H+POLY_N), rng('R',PM_H+1,PM_H+POLY_N)], {color:'0F5F6B', w:2.25}),
-        ser('載重組合', ax==='x' ? [`${qs(CD)}!$S$3:$S$${2+NCB}`, `${qs(CD)}!$T$3:$T$${2+NCB}`] : [`${qs(CD)}!$U$3:$U$${2+NCB}`, `${qs(CD)}!$V$3:$V$${2+NCB}`], null, {symbol:'diamond', size:7, color:'B03A2E', fill:'B03A2E'})
+        ...loadSeries(inp, ax)
       ]});
   };
   const A4 = '結構計算書(A4)';
