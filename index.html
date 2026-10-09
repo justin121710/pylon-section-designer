@@ -5664,8 +5664,8 @@ function svgBeam(B, forPrint){
   const cy = band + (Hh-band)/2;
   const X = x=>W/2 + x*k, Y = y=>cy + (S.h/2 - y)*k;   // y 自底面
   const C = forPrint
-    ? {conc:'#dcdcdc',line:'#000',bar:'#000',tie:'#000',txt:'#000',dim:'#333',ann:'#000',annBad:'#000',comp:'#bbb'}
-    : {conc:'#DCE2E8',line:'#8A97A5',bar:'#151C24',tie:'#0F5F6B',txt:'#151C24',dim:'#5E6B7A',ann:'#8A5A12',annBad:'#B03A2E',comp:'#D6E4EA'};
+    ? {conc:'#dcdcdc',line:'#000',bar:'#000',tie:'#000',txt:'#000',dim:'#333',ann:'#000',annBad:'#000',comp:'#9a9a9a',tin:'#000',ct:'#000'}
+    : {conc:'#DCE2E8',line:'#8A97A5',bar:'#151C24',tie:'#0F5F6B',txt:'#151C24',dim:'#5E6B7A',ann:'#8A5A12',annBad:'#B03A2E',comp:'#F2C14E',tin:'#2F86A6',ct:'#B0407A'};
   const o=[`<svg viewBox="0 0 ${W} ${Hh}" xmlns="http://www.w3.org/2000/svg" font-family="ui-sans-serif,system-ui,sans-serif">`];
   o.push(`<rect width="${W}" height="${Hh}" fill="${forPrint?'#fff':'transparent'}"/>`);
 
@@ -5683,9 +5683,9 @@ function svgBeam(B, forPrint){
   const yA = top ? S.h : a, yB = top ? S.h-a : 0;
   const wC = (S.type==='T' && !top) ? S.bw : wTot;
   const yEdge = top ? yB : yA;   // 受壓區邊界（中性軸側）：正彎矩在 h − a，負彎矩在 a（自底面）
+  const yFace = top ? S.h : 0;      // 量測起點：最外受壓纖維
   o.push(`<rect x="${X(-wC/2)}" y="${Y(yA)}" width="${wC*k}" height="${(yA-yB)*k}"
-    fill="${C.comp}" opacity="${forPrint?0.55:0.5}"/>`);
-  o.push(`<line x1="${X(-wC/2)}" y1="${Y(yEdge)}" x2="${X(wC/2)}" y2="${Y(yEdge)}" stroke="${C.ann}" stroke-width="1.4" stroke-dasharray="7 4"/>`);
+    fill="${C.comp}" opacity="${forPrint?0.35:0.38}"/>`);
   // 標註避讓用的障礙：斷面外框、箍筋、主筋、尺寸線（a 的標籤最後再放）
   const OBS = [], OBB = [];
   if(S.type==='T') pushPts(OBS, obsSample([[X(-S.be/2),Y(S.h)],[X(S.be/2),Y(S.h)],[X(S.be/2),Y(S.h-S.hf)],[X(S.bw/2),Y(S.h-S.hf)],[X(S.bw/2),Y(0)],[X(-S.bw/2),Y(0)],[X(-S.bw/2),Y(S.h-S.hf)],[X(-S.be/2),Y(S.h-S.hf)],[X(-S.be/2),Y(S.h)]],3));
@@ -5693,9 +5693,65 @@ function svgBeam(B, forPrint){
 
   // 箍筋（版不配）
   const cc=S.cover, dt=R.dt;
-  if(!S.slab){ o.push(`<rect x="${X(-S.bw/2+cc)}" y="${Y(S.h-cc)}" width="${(S.bw-2*cc)*k}" height="${(S.h-2*cc)*k}"
-    rx="3" fill="none" stroke="${C.tie}" stroke-width="${forPrint?2:2.2}"/>`);
-    pushPts(OBS, obsSample([[X(-S.bw/2+cc),Y(S.h-cc)],[X(S.bw/2-cc),Y(S.h-cc)],[X(S.bw/2-cc),Y(cc)],[X(-S.bw/2+cc),Y(cc)],[X(-S.bw/2+cc),Y(S.h-cc)]],2.5)); }
+  /* 橫向鋼筋綁法（依肢數）：
+     外箍 = 閉合箍筋 2 肢，兩端 135° 耐震彎鉤於頂部角隅搭接；
+     多出的肢：每 2 肢用一個內箍（肋筋，閉合，勾住上下各 2 根共 4 根主筋，兩端 135°），
+     奇數多出的 1 肢用繫筋（勾住上下各 1 根，一端 135°、一端 90°；90° 端置頂部版側，相鄰繫筋沿梁長交替）。
+     肢位一律對齊第 1 排底筋，箍筋中心線距主筋中心 = (d_b + d_t)/2，即包在主筋外側。 */
+  const rowX = (n, db) => { const x0=-S.bw/2+cc+dt+db/2, x1=S.bw/2-cc-dt-db/2;
+    return Array.from({length:Math.max(0,n)}, (_,i)=> n===1 ? 0 : x0+(x1-x0)*i/(n-1)); };
+  const tieInfo = {nH:0, nC:0};
+  if(!S.slab){
+    const LB = R.layers[0], LT = R.layers[R.layers.length-1];
+    const swT = Math.max(1.4, dt*k);
+    const oB = (LB.db+dt)/2*k, oT = (LT.db+dt)/2*k;            // 箍筋中心線 ↔ 主筋中心（畫面）
+    const yb = Y(LB.y), yt = Y(LT.y);
+    const hookLen = Math.max(8, Math.max(6*dt, 7.5)*k);
+    let clr = C.tie, sw = swT;
+    const strokeAttr = () => `fill="none" stroke="${clr}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"`;
+    const put = (d, pts) => { o.push(`<path d="${d}" ${strokeAttr()}/>`); if(pts) pushPts(OBS, obsSample(pts, 2.5)); };
+    /* 閉合箍：xl/xr 為兩側肢所在主筋中心；corner = 搭接角隅（-1 左上、+1 右上） */
+    const hoop = (xl, xr, corner) => {
+      const L = xl - oB, Rr = xr + oB, Tp = yt - oT, Bt = yb + oB, cr = Math.max(2.5, (oB+oT)/2);
+      o.push(`<rect x="${L.toFixed(1)}" y="${Tp.toFixed(1)}" width="${(Rr-L).toFixed(1)}" height="${(Bt-Tp).toFixed(1)}" rx="${cr.toFixed(1)}" ${strokeAttr()}/>`);
+      pushPts(OBS, obsSample([[L,Tp],[Rr,Tp],[Rr,Bt],[L,Bt],[L,Tp]], 2.5));
+      const bx = corner < 0 ? xl : xr, by = yt;                 // 角隅主筋中心
+      const dx = -corner/Math.SQRT2, dy = 1/Math.SQRT2;         // 45° 伸入核心
+      for(const sg of [1,-1]){
+        const px = bx + (-dy)*sg*oT*0.75 - dx*oT*0.2, py = by + dx*sg*oT*0.75 - dy*oT*0.2;
+        put(`M${px.toFixed(1)},${py.toFixed(1)} l${(dx*hookLen).toFixed(1)},${(dy*hookLen).toFixed(1)}`,
+            [[px,py],[px+dx*hookLen,py+dy*hookLen]]);
+      }
+    };
+    /* 繫筋：本體貼主筋右側通過（相切），兩端繞過主筋後折出 6d_b 延伸段 */
+    const crosstie = (x) => {
+      const rc = Math.max(oB, oT), ext = Math.max(6, 6*dt*k*0.6);
+      const xs = x + rc;
+      put(`M${xs.toFixed(1)},${yt.toFixed(1)} L${xs.toFixed(1)},${yb.toFixed(1)}`, [[xs,yt],[xs,yb]]);
+      // 底端 135°：自右側切點繞過主筋下緣，向左上 45° 伸入核心
+      { const a1 = Math.PI*0.75, p1 = [x + Math.cos(a1)*rc, yb + Math.sin(a1)*rc];   // 畫面座標 y 向下
+        put(`M${xs.toFixed(1)},${yb.toFixed(1)} A${rc.toFixed(1)},${rc.toFixed(1)} 0 0 1 ${p1[0].toFixed(1)},${p1[1].toFixed(1)} l${(-ext*Math.SQRT1_2).toFixed(1)},${(-ext*Math.SQRT1_2).toFixed(1)}`,
+            [[p1[0],p1[1]],[p1[0]-ext*Math.SQRT1_2,p1[1]-ext*Math.SQRT1_2]]); }
+      // 頂端 90°：自右側切點繞過主筋上緣，水平向左伸出
+      { const p1 = [x, yt - rc];
+        put(`M${xs.toFixed(1)},${yt.toFixed(1)} A${rc.toFixed(1)},${rc.toFixed(1)} 0 0 0 ${p1[0].toFixed(1)},${p1[1].toFixed(1)} l${(-ext).toFixed(1)},0`,
+            [[p1[0],p1[1]],[p1[0]-ext,p1[1]]]); }
+    };
+    const xb = rowX(LB.n, LB.db).map(X);
+    const nL = Math.max(2, S.nLegs);
+    // 肢位：自第 1 排底筋中平均挑選；肢數多於主筋根數時（實務上不應發生）改為平均分布
+    let legX;
+    if(LB.n >= nL){ legX = []; for(let j=0;j<nL;j++) legX.push(xb[Math.round(j*(LB.n-1)/(nL-1))]); }
+    else { const a0 = xb[0], a1 = xb[xb.length-1] ?? a0; legX = Array.from({length:nL}, (_,j)=> a0+(a1-a0)*j/(nL-1)); }
+    hoop(legX[0], legX[nL-1], -1);
+    clr = C.tin;
+    const inner = legX.slice(1, nL-1);
+    let tieAt = [];
+    if(inner.length % 2){ const m = (inner.length-1)/2; tieAt.push(inner[m]); inner.splice(m, 1); }
+    for(let j=0; j+1<inner.length; j+=2){ hoop(inner[j], inner[j+1], 1); tieInfo.nH++; }
+    clr = C.ct; sw = Math.max(1.2, swT*0.8);
+    for(const x of tieAt){ crosstie(x); tieInfo.nC++; }
+  }
   // 主筋
   const drawRow=(n,y,db,sp)=>{
     if(n<=0) return;
@@ -5782,29 +5838,41 @@ function svgBeam(B, forPrint){
       S.type==='T' ? X(S.bw/2)+38 : X(S.bw/2)+44,
       {dir:'v',color:C.ann,label:`d = ${f(B.d,1)} cm`,fs:11.5});
 
-  // 受壓區深度 a 的標籤：依序嘗試斷面外右側、尺寸線外、斷面內四角、斷面上下方，取不壓到任何線與鋼筋者
-  { const fs=10.5, t=`a = ${f(a,1)} cm`, w=txtW(t,fs)+4, yl=Y(yEdge), xr=X(wC/2), xl=X(-wC/2);
+  // 受壓區深度 a：自最外受壓纖維（圓點）量到受壓區邊界（箭頭），量測線置於受壓區左外側
+  { const xm = X(-wC/2) - 16, y0 = Y(yFace), y1 = Y(yEdge), ym = (y0+y1)/2;
+    for(const yy of [y0, y1]){ o.push(`<line x1="${(X(-wC/2)-3).toFixed(1)}" y1="${yy.toFixed(1)}" x2="${(xm-6).toFixed(1)}" y2="${yy.toFixed(1)}" stroke="${C.ann}" stroke-width="0.9"/>`);
+      pushPts(OBS, obsSample([[X(-wC/2)-3,yy],[xm-6,yy]],3)); }
+    measArrow(o, xm, y0, xm, y1, C.ann, 1.2);
+    pushPts(OBS, obsSample([[xm,y0],[xm,y1]],2));
+    const fs=10.5, t=`a = ${f(a,1)} cm`, w=txtW(t,fs)+4, xr=X(wC/2), xl=X(-wC/2);
     const cs=[];
-    for(const x1 of [xr+8, xr+56, xr+96]) cs.push({x1, x2:x1+w, y1:yl-fs*0.5, y2:yl+fs*0.6, ax:x1, ay:yl+fs*0.36, lead:true});
-    for(const [x1,dy] of [[xr-4-w,14],[xr-4-w,-6],[xl+4,14],[xl+4,-6]]) cs.push({x1, x2:x1+w, y1:yl+dy-fs, y2:yl+dy+2, ax:x1, ay:yl+dy});
+    cs.push({x1:xl+5, x2:xl+5+w, y1:ym-fs*0.6, y2:ym+fs*0.5, ax:xl+5, ay:ym+fs*0.36});            // 受壓區內、緊鄰量測線
+    cs.push({x1:xr-5-w, x2:xr-5, y1:ym-fs*0.6, y2:ym+fs*0.5, ax:xr-5-w, ay:ym+fs*0.36});
+    for(const x1 of [xr+8, xr+56, xr+96]) cs.push({x1, x2:x1+w, y1:ym-fs*0.5, y2:ym+fs*0.6, ax:x1, ay:ym+fs*0.36, lead:true});
+    const yl = y1, ins = top ? 1 : -1;                       // 受壓區邊界外側（中性軸側）
+    for(const x1 of [xl+4, xr-4-w]) cs.push({x1, x2:x1+w, y1: ins>0 ? yl+3 : yl-fs-5, y2: ins>0 ? yl+fs+5 : yl-3, ax:x1, ay: ins>0 ? yl+fs+2 : yl-6});
     cs.push({x1:X(wTot/2)-w, x2:X(wTot/2), y1:Y(S.h)-6-fs, y2:Y(S.h)-4, ax:X(wTot/2)-w, ay:Y(S.h)-6});
     const c = pickBox(cs, OBS, OBB, {x1:2, x2:W-2, y1:band, y2:Hh-2});
-    if(c.lead) o.push(`<line x1="${xr}" y1="${yl}" x2="${c.x1-2}" y2="${yl}" stroke="${C.ann}" stroke-width="0.9" stroke-dasharray="2 2"/>`);
-    o.push(`<text x="${c.ax}" y="${c.ay}" fill="${C.ann}" font-size="${fs}">${svgTxt(t,fs)}</text>`); }
-  // 圖例
+    if(c.lead) o.push(`<line x1="${xr}" y1="${ym}" x2="${c.x1-2}" y2="${ym}" stroke="${C.ann}" stroke-width="0.9" stroke-dasharray="2 2"/>`);
+    o.push(`<text x="${c.ax}" y="${c.ay}" fill="${C.ann}" font-size="${fs}" font-weight="600">${svgTxt(t,fs)}</text>`); }
+  // 圖例（超過 3 項時分兩欄）
+  const aTxt = `受壓區 a（${S.slab ? (S.sign==='pos'?'正彎矩・頂面受壓':'負彎矩・底面受壓') : (S.sign==='pos'?'正彎矩・頂部受壓':'負彎矩・底部受壓')}；● 起點 ▶ 終點）`;
   const lg = S.slab
     ? [['dot',`底層主筋 ${bBarTxt(S,'bot')}`,C.bar],
        ['dot',`頂層主筋 ${bBarTxt(S,'top')}`,C.bar],
-       ['dash',`受壓區 a（${S.sign==='pos'?'正彎矩・頂面受壓':'負彎矩・底面受壓'}）`,C.ann]]
-    : [['dot',`底筋 ${S.botSize} ×${S.nBot}（${R.rows} 排）`,C.bar],
-       ['dot',`頂筋 ${S.topSize} ×${S.nTop}`,C.bar],
-       ['solid',`箍筋 ${S.tieSize} ${S.nLegs} 肢`,C.tie],
-       ['dash',`受壓區 a（${S.sign==='pos'?'翼緣受壓':'翼緣受拉・退化矩形'}）`,C.ann]];
+       ['fill',aTxt,C.comp]]
+    : [['dot',`底筋 ${S.botSize} ×${S.nBot}（${R.rows} 排）／頂筋 ${S.topSize} ×${S.nTop}`,C.bar],
+       ['solid',`箍筋 ${S.tieSize} 共 ${S.nLegs} 肢：外箍 2 肢（閉合，兩端 135° 角隅搭接）`,C.tie],
+       ...(tieInfo.nH ? [['solid',`內箍（肋筋）×${tieInfo.nH}：勾住 4 根主筋，兩端 135°（${2*tieInfo.nH} 肢）`,C.tin]] : []),
+       ...(tieInfo.nC ? [['solid',`繫筋 ×${tieInfo.nC}：勾住上下 2 根，一端 135°、一端 90°（沿梁長交替）`,C.ct]] : []),
+       ['fill',aTxt,C.comp]];
+  const perCol = lg.length > 3 ? Math.ceil(lg.length/2) : 3;
   lg.forEach((Lg,i)=>{
-    const yy=15+i*15;
-    if(Lg[0]==='dot') o.push(`<circle cx="15" cy="${yy}" r="4.2" fill="${Lg[2]}"/>`);
-    else o.push(`<line x1="7" y1="${yy}" x2="24" y2="${yy}" stroke="${Lg[2]}" stroke-width="2" ${Lg[0]==='dash'?'stroke-dasharray="6 3"':''}/>`);
-    o.push(`<text x="30" y="${yy+4}" fill="${C.txt}" font-size="11">${svgTxt(Lg[1],11)}</text>`);
+    const col = Math.floor(i/perCol), xx = col ? W/2 - 10 : 0, yy = 15 + (i%perCol)*15;
+    if(Lg[0]==='dot') o.push(`<circle cx="${xx+15}" cy="${yy}" r="4.2" fill="${Lg[2]}"/>`);
+    else if(Lg[0]==='fill') o.push(`<rect x="${xx+7}" y="${yy-5}" width="17" height="10" fill="${Lg[2]}" opacity="${forPrint?0.35:0.5}" stroke="${C.ann}" stroke-width="0.6"/>`);
+    else o.push(`<line x1="${xx+7}" y1="${yy}" x2="${xx+24}" y2="${yy}" stroke="${Lg[2]}" stroke-width="2"/>`);
+    o.push(`<text x="${xx+30}" y="${yy+4}" fill="${C.txt}" font-size="11">${svgTxt(Lg[1],11)}</text>`);
   });
   o.push(`</svg>`);
   return o.join('');
