@@ -572,6 +572,7 @@ function buildColumn(ExcelJS, inp){
   const einfo = buildElevSheet(W[EL], resolve, true, elevRows(inp));
   const a4 = buildA4Column(W['結構計算書(A4)'], S, resolve, inp, jt.r, sumRows);
   const figPics = W[DEVFIG] ? buildDevFigSheet(W[DEVFIG], inp.devFigs) : [];
+  fitRowHeights(W['檢核表']); fitRowHeights(W['結構計算書(A4)']);
   return {wb, keys:S.keys, judgeRow:jt.r,
           charts: columnCharts(inp, cinfo, a4.fig).concat([elevChart(einfo, true, a4.elev, FIG_EL_ROWS, inp.lu)], a4.devPics, figPics)};
 }
@@ -1307,7 +1308,7 @@ function buildA4Column(ws, S, R, inp, jRow, sumRows){
     c.font={name:FONT,size:9,bold:true}; c.fill={type:'pattern',pattern:'solid',fgColor:{argb:K.hdr}}; c.border=box(K.grid); c.alignment={horizontal:'center'}; });
   for(const sr of sumRows){
     const n=a.row();
-    ['A','B','C','D','E'].forEach((col,j)=>{ const c=ws.getCell(n,2+j); c.value={formula:`'檢核表'!${col}${sr.r}`};
+    ['A','B','C','D','E'].forEach((col,j)=>{ const c=ws.getCell(n,2+j); c.value= j===0 && typeof sr.label==='string' ? {formula:`'檢核表'!${col}${sr.r}`, result:sr.label} : {formula:`'檢核表'!${col}${sr.r}`};
       c.font={name:FONT,size:9,color:{argb:K.link}}; c.border=box(K.grid); c.alignment={horizontal:j?'center':'left',wrapText:true};
       if(j>0&&j<4) c.numFmt = j===3?FMT_INF:(sr.fmt||FMT_SINF); });
   }
@@ -1668,6 +1669,7 @@ function buildBeam(ExcelJS, inp){
   const einfo = buildElevSheet(W[EL], R, false, elevRows(inp));
   const a4 = buildA4Beam(W['結構計算書(A4)'], R, inp, jt.r, sumRows);
   const figPics = W[DEVFIG] ? buildDevFigSheet(W[DEVFIG], inp.devFigs) : [];
+  fitRowHeights(W['檢核表']); fitRowHeights(W['結構計算書(A4)']);
   return {wb, keys:S.keys, judgeRow:jt.r,
           charts: beamCharts(inp, binfo, a4.fig).concat(inp.slab ? [] : [elevChart(einfo, false, a4.elev, FIG_ELB_ROWS, inp.ln)], a4.devPics, figPics)};
 }
@@ -1860,7 +1862,7 @@ function buildA4Beam(ws, R, inp, jRow, sumRows){
   ws.getRow(a.n).addPageBreak();
   a.chap('五、檢核彙總');
   const hn=a.row(); ['檢核項目','需求值','容量／限值','比值','判定'].forEach((h,j)=>{ const c=ws.getCell(hn,2+j); c.value=h; c.font={name:FONT,size:9,bold:true}; c.fill={type:'pattern',pattern:'solid',fgColor:{argb:K.hdr}}; c.border=box(K.grid); c.alignment={horizontal:'center'}; });
-  for(const sr of sumRows){ const n=a.row(); ['A','B','C','D','E'].forEach((col,j)=>{ const c=ws.getCell(n,2+j); c.value={formula:`'檢核表'!${col}${sr.r}`}; c.font={name:FONT,size:9,color:{argb:K.link}}; c.border=box(K.grid); c.alignment={horizontal:j?'center':'left',wrapText:true}; if(j>0&&j<4) c.numFmt=j===3?FMT_INF:(sr.fmt||FMT_SINF); }); }
+  for(const sr of sumRows){ const n=a.row(); ['A','B','C','D','E'].forEach((col,j)=>{ const c=ws.getCell(n,2+j); c.value= j===0 && typeof sr.label==='string' ? {formula:`'檢核表'!${col}${sr.r}`, result:sr.label} : {formula:`'檢核表'!${col}${sr.r}`}; c.font={name:FONT,size:9,color:{argb:K.link}}; c.border=box(K.grid); c.alignment={horizontal:j?'center':'left',wrapText:true}; if(j>0&&j<4) c.numFmt=j===3?FMT_INF:(sr.fmt||FMT_SINF); }); }
   const tn=a.row(); ws.mergeCells(tn,2,tn,5); ws.getCell(tn,2).value='整體結構判定';
   [2,3,4,5,6].forEach(j=>{ const c=ws.getCell(tn,j); c.fill={type:'pattern',pattern:'solid',fgColor:{argb:K.amber}}; c.border=box(K.grid); c.font={name:FONT,size:10,bold:true}; });
   const tj=ws.getCell(tn,6); tj.value={formula:`'檢核表'!E${jRow}`}; tj.alignment={horizontal:'center'};
@@ -2279,6 +2281,34 @@ function a4DevFigs(ws, a, title, figs){
     used += rows + 3;
   }
   return specs;
+}
+
+/* ---------- 列高自動加高：自動換行之固定文字，依合併儲存格寬度估算所需行數（公式結果長度未知，不處理） ---------- */
+function fitRowHeights(ws){
+  const colPt = c => { const w = (ws.getColumn(c).width || 8.43); return (w*7 + 5)*0.75; };
+  const merges = {};
+  for(const m of (ws.model.merges || [])){
+    const [a, b] = m.split(':'); const A = ws.getCell(a), B = ws.getCell(b);
+    merges[A.address] = {top:A.row, left:A.col, bottom:B.row, right:B.col};
+  }
+  const tw = (t, fs) => [...String(t)].reduce((w, ch) => w + (ch.charCodeAt(0) > 0x2e80 ? fs*1.02 : 0.62*fs), 0);
+  ws.eachRow({includeEmpty:false}, (row, r) => {
+    let need = 0;
+    row.eachCell({includeEmpty:false}, (cell, c) => {
+      const v0 = cell.value, v = typeof v0 === 'string' ? v0 : (v0 && typeof v0.result === 'string' ? v0.result : null);
+      if(!v) return;
+      if(cell.isMerged && cell.master && cell.master.address !== cell.address) return;
+      const al = cell.alignment || {};
+      if(!al.wrapText) return;
+      const m = merges[cell.address];
+      if(m && m.bottom !== m.top) return;
+      let width = 0; for(let k = (m ? m.left : c); k <= (m ? m.right : c); k++) width += colPt(k);
+      const fs = (cell.font && cell.font.size) || 10;
+      let lines = 0; for(const para of v.split('\n')) lines += Math.max(1, Math.ceil(tw(para, fs) / Math.max(1, width - 10)));
+      need = Math.max(need, lines*fs*1.32 + 4);
+    });
+    if(need > (row.height || 15) + 0.5) row.height = Math.ceil(need);
+  });
 }
 /* 鋼筋下料長度表（匯出當下之網頁值，靜態） */
 function a4Sched(ws, a, rows){
