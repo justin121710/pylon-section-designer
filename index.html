@@ -2931,6 +2931,22 @@ function svgDevLap(view, M, P, setIdx, forPrint){
   return o.join('');
 }
 
+/* 總覽圖用：搭接區段（沿構材軸向 [a, b]，已合併重疊）與區段內箍筋之實際位置（取軸向配置 lay.pos） */
+function devLapRegions(P){
+  if(P.mech || !P.lay) return [];
+  const raw = P.mod==='col'
+    ? (P.fits ? [[P.la, P.stag ? P.lb2 : P.lb]] : [])
+    : [P.top, P.bot].filter(b => b && b.lapOn && b.fits).map(b => [b.la, P.stag ? b.lb2 : b.lb]);
+  const rs = raw.filter(r => Number.isFinite(r[0]) && Number.isFinite(r[1]) && r[1] > r[0]).sort((x,y)=>x[0]-y[0]), out = [];
+  for(const r of rs){ const q = out[out.length-1]; if(q && r[0] <= q[1] + 1e-6) q[1] = Math.max(q[1], r[1]); else out.push([...r]); }
+  return out.map(([a,b]) => ({a, b, pos: (P.lay.pos||[]).filter(p => p >= a - 1e-6 && p <= b + 1e-6)}));
+}
+const devLapNote = (P, nm) => {
+  const rg = devLapRegions(P); if(!rg.length) return '';
+  const dens = P.lay && P.lay.lapZones && P.lay.lapZones.length;
+  const act = dens ? Math.max(...P.lay.lapZones.map(z => z.act)) : 0;      // 實際均分間距（≤ 實務間距 sLap）
+  return `；搭接段${nm}依實際位置繪製（${dens ? `加密 @ ${f(act,1)} cm${P.mod==='beam'?'，§18.3.3.3':''}` : '沿用該區間距'}）`;
+};
 /* ---------- 總覽：柱 ---------- */
 function svgColDev(M, forPrint, mechView){
   const {s,r,R} = M, P = M.devPlan, {L, lap, la, lb, bldg, D} = P;
@@ -2966,10 +2982,10 @@ function svgColDev(M, forPrint, mechView){
       T(o, xl-8, (Y(a)+Y(b))/2+4, showMech ? '不得設第一、二類' : '不得搭接', 10.5, C.dim, 'end');
     }
   }
-  // 搭接段加密箍筋（示意）
-  if(P.lay && P.lay.lapZones) for(const z of P.lay.lapZones){
+  // 搭接段橫向筋：實際位置（軸向配置；搭接段加密時即加密後位置），沿軸向真實比例
+  for(const z of devLapRegions(P)){
     o.push(`<rect x="${xl}" y="${Y(z.b)}" width="${wpx}" height="${(z.b-z.a)*k}" fill="${C.lapz}" opacity="${forPrint?0.5:0.45}"/>`);
-    for(let i=0;i<=z.nL;i++){ const yy = Y(z.a + i*z.act); o.push(`<line x1="${xl+3}" y1="${_p(yy)}" x2="${xr-3}" y2="${_p(yy)}" stroke="${C.tie}" stroke-width="0.8"/>`); }
+    for(const p of z.pos){ const yy = Y(p); o.push(`<line x1="${xl+3}" y1="${_p(yy)}" x2="${xr-3}" y2="${_p(yy)}" stroke="${C.tie}" stroke-width="0.8"/>`); }
   }
   // 主筋
   const cvx = Math.max(6, (r.covO + R.dt + R.db/2)*kx), off = 4;
@@ -3040,7 +3056,7 @@ function svgColDev(M, forPrint, mechView){
   }
   T(o, 16, 22, `${showMech&&!P.mech?'機械式續接配置':'主筋伸展與搭接配置'}：${r.barSize}（d_b = ${f(R.db,2)} cm）`, 13.5, C.txt, null, true);
   T(o, 16, 40, `底端 ${ANC_TXT[P.bot.type]}、頂端 ${ANC_TXT[P.top.type]}；續接 ${SPLICE_TXT[P.sp]}${P.stag?'（錯開）':''}`, 11, C.dim);
-  T(o, 16, 56, P.fits ? `縱向依實際比例${schematic?'、柱寬為示意':''}${P.lay&&P.lay.lapZones&&P.lay.lapZones.length?`；搭接段橫向筋加密 @ ${f(P.lay.sLap,1)} cm`:''}`
+  T(o, 16, 56, P.fits ? `縱向依實際比例${schematic?'、柱寬為示意':''}${devLapNote(P, '橫向筋')}`
     : `可續接範圍僅 ${f(Math.max(0,P.A1-P.A0),0)} cm ＜ 所需 ${P.zone} cm：改用機械式續接（第三類）或調整鋼筋`, 11, P.fits?C.dim:C.bad);
   o.push(`</svg>`);
   return o.join('');
@@ -3072,9 +3088,9 @@ function svgBeamDev(B, forPrint, mechView){
     o.push(`<rect x="${X(a)}" y="${yT}" width="${(b-a)*k}" height="${hpx}" fill="${C.no}" opacity="${forPrint?0.4:0.25}"/>`);
     T(o, (X(a)+X(b))/2, yT+hpx/2+4, showMech ? '2h 不得設第一、二類' : '2h 不得搭接', 10, C.dim, 'middle');
   }
-  if(P.lay && P.lay.lapZones) for(const z of P.lay.lapZones){
+  for(const z of devLapRegions(P)){              // 搭接段箍筋：實際位置，沿軸向真實比例
     o.push(`<rect x="${X(z.a)}" y="${yT}" width="${(z.b-z.a)*k}" height="${hpx}" fill="${C.lapz}" opacity="${forPrint?0.5:0.45}"/>`);
-    for(let i=0;i<=z.nL;i++){ const xx = X(z.a + i*z.act); o.push(`<line x1="${_p(xx)}" y1="${yT+3}" x2="${_p(xx)}" y2="${yB-3}" stroke="${C.tie}" stroke-width="0.8"/>`); }
+    for(const p of z.pos){ const xx = X(p); o.push(`<line x1="${_p(xx)}" y1="${yT+3}" x2="${_p(xx)}" y2="${yB-3}" stroke="${C.tie}" stroke-width="0.8"/>`); }
   }
   const cv = Math.max(7, (S.cover + R.dt + 1.2)*ky), off = 3.5;
   const yt = yT + cv, yb = yB - cv;
@@ -3127,8 +3143,10 @@ function svgBeamDev(B, forPrint, mechView){
     for(const g of segs){
       if(g.meas) measArrow(o, g.rev ? X(g.b) : X(g.a), yDim, g.rev ? X(g.a) : X(g.b), yDim, g.bad ? C.bad : C.dim);
       else elevDim(o, C, X(g.a), X(g.b), yDim, false);
-      for(const z of [g.a, g.b]) o.push(`<line x1="${X(z)}" y1="${below ? yB+4 : yT-4}" x2="${X(z)}" y2="${yDim+(below?6:-6)}" stroke="${C.dim}" stroke-width="0.6"/>`);
-      g.want = (X(g.a)+X(g.b))/2; g.size = txtW(g.t, 11);
+      for(const z of [g.a, g.b]) o.push(`<line x1="${X(z)}" y1="${below ? yB+4 : yT-4}" x2="${X(z)}" y2="${yDim+(below?3:-3)}" stroke="${C.dim}" stroke-width="0.6"/>`);   // 超出尺寸線 3 px，不伸入文字
+      g.size = txtW(g.t, 11);
+      g.want = (X(g.a)+X(g.b))/2;
+      if(g.rev) g.want = Math.min(g.want, X(g.b) - g.size/2 - 4);   // 錨定段標籤不跨過臨界斷面虛線（彎鉤短時常見）
     }
     for(const g of spreadLabels(segs, 4, W-4, 12))
       T(o, g.at, yDim + (below ? 16 : -7), g.t, 11, g.bad?C.bad:g.hot?C.bar2:C.txt, 'middle', true);
@@ -3140,7 +3158,7 @@ function svgBeamDev(B, forPrint, mechView){
   T(o, 16, 40, `${sup}內 ${ANC_TXT[P.X.anc]}${seis?'（耐震接頭 §18.5.5）':''}；頂筋${top&&top.lapOn?'跨中續接':'通長'}、底筋${bot.lapOn?'支承附近續接':'通長'}；${SPLICE_TXT[P.sp]}${P.stag?'（錯開）':''}`, 11, C.dim);
   const bad = [top,bot].filter(b=>b && b.lapOn && !b.fits);
   T(o, 16, yB+80, bad.length ? `${bad.map(b=>b.name.split(' ')[0]).join('、')}續接長度大於可續接範圍：改用機械式續接（第三類）或通長配置`
-    : `${sup}寬依輸入 ${f(hc,0)} cm${schematic?'、梁深為示意':''}${P.lay&&P.lay.lapZones&&P.lay.lapZones.length?`；搭接段箍筋加密 @ ${f(P.lay.sLap,1)} cm（§18.3.3.3）`:''}`, 11, bad.length?C.bad:C.dim);
+    : `${sup}寬依輸入 ${f(hc,0)} cm${schematic?'、梁深為示意':''}${devLapNote(P, '箍筋')}`, 11, bad.length?C.bad:C.dim);
   T(o, 16, yB+98, `受拉直線 l_d：底筋 ${devUp(bot.d.ld)}${top?`、頂筋 ${devUp(top.d.ld)}`:''} cm（由臨界斷面起算）`, 11, C.dim);
   o.push(`</svg>`);
   return o.join('');
