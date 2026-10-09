@@ -494,6 +494,7 @@ function buildColumn(ExcelJS, inp){
   S.item({key:'dvSpG', label:'控制面主筋中心距', f:'IF({dvld0B}>={dvld0H},{dvSpB},{dvSpH})', unit:'cm', fmt:'0.00', ref:'—'});
   devRest(S, 'dv', '', {db:'{db}', ld0:'{dvld0}', ccov:'{dvCov}', cSp:'{dvSpG}', seis:'{isPH}',
     psiRc:'IF(OR({isSp}=1,AND({dt}>=1.27-1E-6,{sUse2}<=10)),0.75,1)'});
+  devPlanColX(S, inp.devX);
 
   /* ---------------- 九、檢核彙總 ---------------- */
   S.section('【九、檢核彙總】');
@@ -513,6 +514,13 @@ function buildColumn(ExcelJS, inp){
   addSum({label:'加密區外橫向筋間距 採用／需求', need:{f:'{sUse2}'}, cap:{f:'{sGov2}'}, ratio:{f:'{sUse2}/{sGov2}'}, judge:{f:'IF({isPH}=0,"N/A",IF({sUse2}<={sGov2},"PASS","FAIL"))'}, note:{f:'"控制："&{sGov2Tag}'}, ref:ref401('18.4.5.5')});
   addSum({label:'X 向箍筋肢橫向間距（cm）', need:{f:'{legGx}'}, cap:{f:'{legLx}'}, ratio:{f:'{legGx}/{legLx}'}, judge:{f:'IF(OR({isCirc}=1,{isBox}=1),"N/A",IF({legGx}<={legLx},"PASS","FAIL"))'}, note:'箱型壁以柱條文檢核偏保守，僅供參考（N/A）', ref:ref401('10.7.6.5.2')});
   addSum({label:'Y 向箍筋肢橫向間距（cm）', need:{f:'{legGy}'}, cap:{f:'{legLy}'}, ratio:{f:'{legGy}/{legLy}'}, judge:{f:'IF(OR({isCirc}=1,{isBox}=1),"N/A",IF({legGy}<={legLy},"PASS","FAIL"))'}, note:'同上', ref:ref401('10.7.6.5.2')});
+  addSum({label:'底端錨定長度（cm）', need:{f:'{dvLenB}'}, cap:{f:'{dvAvB}'}, ratio:{f:'IF({dvAvB}>0,{dvLenB}/{dvAvB},0)'}, judge:{f:'IF({dvAncB}="貫穿續接","N/A",IF(AND({dvAncB}="擴頭",{dvhd}<>"適用"),"FAIL",IF({dvLenB}<={dvAvB}+1E-9,"PASS","FAIL")))'}, ref:R401('25.4')});
+  addSum({label:'底端受壓直段 ldc（cm）', need:{f:'{dvldcU}'}, cap:{f:'{dvCvB}'}, ratio:{f:'IF({dvCvB}>0,{dvldcU}/{dvCvB},0)'}, judge:{f:'IF({dvAncB}="貫穿續接","N/A",IF({dvldcU}<={dvCvB}+1E-9,"PASS","FAIL"))'}, ref:R401('25.4.9、25.4.1.2')});
+  addSum({label:'頂端錨定長度（cm）', need:{f:'{dvLenT}'}, cap:{f:'{dvAvT}'}, ratio:{f:'IF({dvAvT}>0,{dvLenT}/{dvAvT},0)'}, judge:{f:'IF({dvAncT}="貫穿續接","N/A",IF(AND({dvAncT}="擴頭",{dvhd}<>"適用"),"FAIL",IF({dvLenT}<={dvAvT}+1E-9,"PASS","FAIL")))'}, ref:R401('25.4')});
+  addSum({label:'頂端受壓直段 ldc（cm）', need:{f:'{dvldcU}'}, cap:{f:'{dvCvT}'}, ratio:{f:'IF({dvCvT}>0,{dvldcU}/{dvCvT},0)'}, judge:{f:'IF({dvAncT}="貫穿續接","N/A",IF({dvldcU}<={dvCvT}+1E-9,"PASS","FAIL"))'}, ref:R401('25.4.9、25.4.1.2')});
+  addSum({label:'續接區段 所需／可續接範圍（cm）', need:{f:'{dvZone}'}, cap:{f:'{dvA1}-{dvA0}'}, ratio:{f:'IF({dvA1}-{dvA0}>0,{dvZone}/({dvA1}-{dvA0}),0)'}, judge:J('{dvFit}=1'), ref:R401('18.4.4.3、18.2.7.2')});
+  addSum({label:'甲級搭接 As,使用／As,需求', need:2, cap:{f:'IF({dvExc}>0,1/{dvExc},1)'}, ratio:{f:'2*{dvExc}'}, judge:{f:'IF({dvSp}<>"甲級搭接","N/A",IF({dvExc}<=0.5+1E-9,"PASS","FAIL"))'}, ref:R401('表 25.5.2.1')});
+  addSum({label:'搭接處淨距（cm）', need:{f:'{need}'}, cap:{f:'{dvClrL}'}, ratio:{f:'IF({dvClrL}>0,{need}/{dvClrL},9)'}, judge:{f:'IF({dvMech}=1,"N/A",IF({dvClrL}>={need}-1E-9,"PASS","FAIL"))'}, ref:R401('25.5.1.2、25.2.3')});
   S.sum({key:'jAll', total:true, label:'總判定', judge:{f:`IF(COUNTIF($E$${'{SUMR1}'}:$E$${'{SUMR2}'},"FAIL")=0,"PASS","NG")`}, note:'僅計 FAIL；N/A 不計', ref:'—'});
 
   /* ---------------- 十、注意事項 ---------------- */
@@ -546,7 +554,7 @@ function buildColumn(ExcelJS, inp){
 
   /* ---------------- 輔助工作表（先建立名稱以供解析） ---------------- */
   const resolve = makeResolver([S]);
-  const order = ['檢核表','結構計算書(A4)','載重組合','P-M_X','P-M_Y','射線交點','雙軸迭代','鋼筋層','配筋座標','圖表資料',EL];
+  const order = ['檢核表','結構計算書(A4)','載重組合','P-M_X','P-M_Y','射線交點','雙軸迭代','鋼筋層','配筋座標','圖表資料',EL].concat(inp.devFigs&&inp.devFigs.length?[DEVFIG]:[]);
   const W = {}; for(const nm of order) W[nm] = wb.addWorksheet(nm, nm==='檢核表'?{views:[{state:'frozen', ySplit:2}]}:{});
   const ws = W['檢核表'];
   writeCalcSheet(ws, S, resolve);
@@ -563,8 +571,9 @@ function buildColumn(ExcelJS, inp){
   const cinfo = buildColumnChartData(W['圖表資料'], resolve);
   const einfo = buildElevSheet(W[EL], resolve, true, elevRows(inp));
   const a4 = buildA4Column(W['結構計算書(A4)'], S, resolve, inp, jt.r, sumRows);
+  const figPics = W[DEVFIG] ? buildDevFigSheet(W[DEVFIG], inp.devFigs) : [];
   return {wb, keys:S.keys, judgeRow:jt.r,
-          charts: columnCharts(inp, cinfo, a4.fig).concat([elevChart(einfo, true, a4.elev, FIG_EL_ROWS, inp.lu)])};
+          charts: columnCharts(inp, cinfo, a4.fig).concat([elevChart(einfo, true, a4.elev, FIG_EL_ROWS, inp.lu)], a4.devPics, figPics)};
 }
 
 /* ---------- 沿構材軸向配置（柱、梁共用；需先定義 nEnds、lo、Lel、sUse、sUse2） ----------
@@ -585,6 +594,7 @@ function layoutItems(S, unit, refLo){
 
 /* ---------- 配置立面圖資料（3 列一支：兩端點＋#N/A 斷開；全部公式） ---------- */
 const EL = '配置立面';
+const LZMAX = 120;
 function buildElevSheet(ws, R, vertical, NH){
   const r = f => ({f:R(f,EL)});
   ws.columns = Array(14).fill(0).map((_,j)=>({width: j<3?9:11}));
@@ -595,18 +605,32 @@ function buildElevSheet(ws, R, vertical, NH){
     put(ws,'A'+n, i);
     put(ws,'B'+n, r(`IF(OR(A${n}>{total},{total}<1),${NA},IF({full}=1,{eF}+(A${n}-1)*({Lel}-2*{eF})/({nFull}-1),IF(A${n}<={n1},{eF}+(A${n}-1)*{sUse},IF(A${n}<={n1}+{nMid},{z1}+(A${n}-{n1})*{sMid},{Lel}-{eF}-({total}-A${n})*{sUse}))))`),{fmt:'0.0'});
     put(ws,'C'+n, r(`--AND(A${n}<={total},{nEnds}>0,OR({full}=1,A${n}<={n1},A${n}>{n1}+{nMid}))`));
+    // 搭接段內之原配置改由 O、P 欄（搭接段加密）取代
+    put(ws,'M'+n, r(`IFERROR(--OR(AND({lzOn1}=1,B${n}>{lzA1}+1E-6,B${n}<{lzB1}-1E-6),AND({lzOn2}=1,B${n}>{lzA2}+1E-6,B${n}<{lzB2}-1E-6)),0)`));
     for(let k=0;k<3;k++){
-      const m = n+k, pos = `$B$${n}`, hot = `$C$${n}`;
+      const m = n+k, pos = `$B$${n}`, hot = `$C$${n}`, ml = `$M$${n}`;
       if(k===2){ put(ws,'D'+m,{f:NA}); put(ws,'E'+m,{f:NA}); put(ws,'F'+m,{f:NA}); continue; }
       if(vertical){
         put(ws,'D'+m, k===0 ? -0.42 : 0.42);
-        put(ws,'E'+m, {f:`IF(${hot}=1,${pos},${NA})`},{fmt:'0.0'});
-        put(ws,'F'+m, {f:`IF(${hot}=0,${pos},${NA})`},{fmt:'0.0'});
+        put(ws,'E'+m, {f:`IF(AND(${hot}=1,${ml}=0),${pos},${NA})`},{fmt:'0.0'});
+        put(ws,'F'+m, {f:`IF(AND(${hot}=0,${ml}=0),${pos},${NA})`},{fmt:'0.0'});
       }else{
         put(ws,'D'+m, {f:pos},{fmt:'0.0'});
-        put(ws,'E'+m, {f:`IF(${hot}=1,${k===0?0.1:0.9},${NA})`});
-        put(ws,'F'+m, {f:`IF(${hot}=0,${k===0?0.1:0.9},${NA})`});
+        put(ws,'E'+m, {f:`IF(AND(${hot}=1,${ml}=0),${k===0?0.1:0.9},${NA})`});
+        put(ws,'F'+m, {f:`IF(AND(${hot}=0,${ml}=0),${k===0?0.1:0.9},${NA})`});
       }
+    }
+  }
+  // 搭接段加密箍筋（兩區段，每段至多 LZMAX 支）
+  put(ws,'M2','搭接段內',{head:true}); put(ws,'O2','搭接段 x',{head:true}); put(ws,'P2','搭接段 y',{head:true});
+  for(let z=1; z<=2; z++) for(let j=0; j<=LZMAX; j++){
+    const n = 3 + 3*((z-1)*(LZMAX+1) + j);
+    const pos = `IF(AND({lzOn${z}}=1,${j}<={lzN${z}}),{lzA${z}}+${j}*{lzS${z}},${NA})`;
+    for(let k=0;k<3;k++){
+      const m = n+k;
+      if(k===2){ put(ws,'O'+m,{f:NA}); put(ws,'P'+m,{f:NA}); continue; }
+      if(vertical){ put(ws,'O'+m, r(`IF(ISNA(${pos}),${NA},${k===0?-0.42:0.42})`)); put(ws,'P'+m, r(pos),{fmt:'0.0'}); }
+      else{ put(ws,'O'+m, r(pos),{fmt:'0.0'}); put(ws,'P'+m, r(`IF(ISNA(${pos}),${NA},${k===0?0.1:0.9})`)); }
     }
   }
   // 外框
@@ -625,9 +649,9 @@ function buildElevSheet(ws, R, vertical, NH){
     if(!pt){ put(ws,'K'+m,{f:NA}); put(ws,'L'+m,{f:NA}); return; }
     put(ws,'K'+m, typeof pt[0]==='string'?r(pt[0]):pt[0]); put(ws,'L'+m, typeof pt[1]==='string'?r(pt[1]):pt[1]); });
   put(ws,'N1', r(vertical
-    ? `"箍筋配置立面　"&{tie}&"：加密區 @ "&TEXT({sUse},"0.0")&IF({full}=1,""," ／ 一般區 @ "&TEXT({sUse2},"0.0"))&" cm，全長共 "&{total}&" 組"`
-    : `"箍筋配置立面　"&{tieS}&" "&{nLegs}&" 肢："&IF({full}=1,"全長 @ "&TEXT({sUse},"0.0"),"加密 @ "&TEXT({sUse},"0.0")&" ／ 一般 @ "&TEXT({sUse2},"0.0"))&" cm，全長共 "&{total}&" 支"`));
-  return {end: 2 + 3*NH};
+    ? `"箍筋配置立面　"&{tie}&"：加密區 @ "&TEXT({sUse},"0.0")&IF({full}=1,""," ／ 一般區 @ "&TEXT({sUse2},"0.0"))&" cm"&IF({lzOn1}+{lzOn2}>0,"，搭接段 @ "&TEXT(MAX({lzS1},{lzS2}),"0.0"),"")&"，全長共 "&{totalL}&" 組"`
+    : `"箍筋配置立面　"&{tieS}&" "&{nLegs}&" 肢："&IF({full}=1,"全長 @ "&TEXT({sUse},"0.0"),"加密 @ "&TEXT({sUse},"0.0")&" ／ 一般 @ "&TEXT({sUse2},"0.0"))&" cm"&IF({lzOn1}+{lzOn2}>0,"，搭接段 @ "&TEXT(MAX({lzS1},{lzS2}),"0.0"),"")&"，全長共 "&{totalL}&" 支"`));
+  return {end: 2 + 3*NH, lapEnd: 2 + 3*2*(LZMAX+1)};
 }
 function elevChart(info, vertical, a4From, rows, L){
   const rg = (c,a,b)=>`${qs(EL)}!$${c}$${a}:$${c}$${b}`;
@@ -641,7 +665,8 @@ function elevChart(info, vertical, a4From, rows, L){
       {name:'主筋', x:rg('I',3,10), y:rg('J',3,10), line:{color:'151C24', w:1}},
       {name:'加密區箍筋', x:rg('D',3,info.end), y:rg('E',3,info.end), line:{color:'0F5F6B', w:1}},
       {name:'一般區箍筋', x:rg('D',3,info.end), y:rg('F',3,info.end), line:{color:'6E9AA0', w:0.75}},
-      {name:'加密區邊界', x:rg('K',3,7), y:rg('L',3,7), line:{color:'B4711A', w:1, dash:'dash'}}
+      {name:'加密區邊界', x:rg('K',3,7), y:rg('L',3,7), line:{color:'B4711A', w:1, dash:'dash'}},
+      {name:'搭接段箍筋', x:rg('O',3,info.lapEnd), y:rg('P',3,info.lapEnd), line:{color:'1F7A8C', w:1}}
     ]});
   return {sheet:'結構計算書(A4)', name:'箍筋配置立面', from:[1,a4From], to:[6,a4From+rows], xml};
 }
@@ -716,6 +741,146 @@ function devRest(S, P, s, o){
     S.item({key:P+'ldS'+s, label:`${L}耐震梁柱接頭內直線 ld`, sym:'ld', unit:'cm', fmt:'0.0', f:`IF(${o.topKey}=1.3,3.25,2.5)*${k('ldhS0')}*${k('psiE')}`,
       expr:'2.5ldh（頂筋 3.25ldh）× 直線 ψe', ref:R401('18.5.5.3、18.5.5.5')});
   }
+}
+
+/* ---------- 錨定空間、續接位置與搭接檢核（與網頁 colDevPlan()／beamDevPlan() 相同） ---------- */
+const ANC_X = {hook90:'標準彎鉤 90°', hook180:'標準彎鉤 180°', head:'擴頭', straight:'直線', through:'貫穿續接'};
+const SPL_X = {B:'乙級搭接', A:'甲級搭接', m1:'機械式續接（第一類）', m2:'機械式續接（第二類）', m3:'機械式續接（第三類）'};
+const SPL_L = Object.values(SPL_X);
+const UPX = x => `ROUNDUP((${x})-1E-9,0)`;
+const PRACT = x => `IFERROR(_xlfn.AGGREGATE(14,6,{rng:sList}/(({rng:sList}<=${x})*({rng:sFlag}=0)),1),7.5)`;
+const ELB = c => `'${EL}'!$${c}:$${c}`;
+const remCnt = (a, b) => `COUNTIFS(${ELB('B')},">"&(${a}+1E-6),${ELB('B')},"<"&(${b}-1E-6))`;
+/* 續接共用：方式、錯開、甲級旗標（P：前綴） */
+function spliceItems(S, P, X){
+  S.item({key:P+'Sp', label:'主筋續接方式', v:SPL_X[X.splice]||'乙級搭接', kind:'list', list:SPL_L, ref:R401('表 25.5.2.1、18.2.7'),
+    note:'機械式第一、二類不得設於接頭面或降伏臨界斷面 2h 內（柱中央 1/2 淨高除外）；第三類不限。'});
+  S.item({key:P+'Stg', label:'搭接錯開 50%', v:X.stagger?'是':'否', kind:'list', list:['否','是'], ref:R401('表 25.5.2.1')});
+  S.item({key:P+'Gap', label:'非接觸搭接心距（0＝接觸搭接）', v:X.gap||0, unit:'cm', kind:'in', fmt:'0.0', ref:R401('25.5.1.2、25.5.1.3')});
+  S.item({key:P+'Mech', label:'　旗標：機械式續接', f:`--(LEFT({${P}Sp},3)="機械式")`, ref:'—'});
+  S.item({key:P+'M3', label:'　旗標：第三類機械式續接', f:`--({${P}Sp}="機械式續接（第三類）")`, ref:'—'});
+  S.item({key:P+'Stag', label:'　旗標：錯開配置', f:`--AND({${P}Mech}=0,OR({${P}Stg}="是",{${P}Sp}="甲級搭接"))`, expr:'甲級搭接必須錯開', ref:R401('表 25.5.2.1')});
+}
+function devPlanColX(S, X){
+  X = X || {};
+  S.section('【八之三、錨定空間、續接位置與搭接檢核（土木401 §25.4.1.2、表 25.5.2.1、§18.4.4.3、§18.2.7、§25.5.1.2）】');
+  S.item({key:'dvBend', label:'標準彎鉤彎曲內徑', f:'IF({db}<=2.54+1E-6,6,IF({db}<=3.59,8,10))*{db}', unit:'cm', fmt:'0.0', expr:'D25 以下 6db、D29～D36 8db、以上 10db', ref:R401('25.3.1')});
+  S.item({key:'dvldcU', label:'受壓伸展長度（進位）', sym:'ldc', f:UPX('{dvldc}'), unit:'cm', fmt:'0', ref:R401('25.4.9')});
+  S.item({key:'dvCovA', label:'錨定端保護層', v:X.cov ?? 7.5, unit:'cm', kind:'in', fmt:'0.0', ref:R401('20.5.1.3')});
+  for(const [E, lab, anc, h] of [['B','底端',X.ancBot,X.hBot],['T','頂端',X.ancTop,X.hTop]]){
+    S.item({key:'dvAnc'+E, label:`${lab}錨定方式`, v:ANC_X[anc]||'標準彎鉤 90°', kind:'list', list:Object.values(ANC_X), ref:R401('25.4'),
+      note:'貫穿續接＝主筋延續至相鄰樓層，不在此錨定。'});
+    S.item({key:'dvH'+E, label:`${lab}構材深度`, sym:'h', v:h ?? 200, unit:'cm', kind:'in', fmt:'0', ref:'—'});
+    S.item({key:'dvLen'+E, label:`${lab}錨定長度`, unit:'cm', fmt:'0',
+      f:`IF({dvAnc${E}}="直線",${UPX('{dvld}')},IF({dvAnc${E}}="擴頭",IF({dvhd}="適用",${UPX('{dvldt}')},0),IF({dvAnc${E}}="貫穿續接",0,${UPX('{dvldh}')})))`,
+      expr:'彎鉤 ldh／擴頭 ldt／直線 ld（無條件進位至 cm）', ref:R401('25.4')});
+    S.item({key:'dvAv'+E, label:`${lab}可用錨定長度`, f:`{dvH${E}}-{dvCovA}`, unit:'cm', fmt:'0.0', expr:'h − 保護層', ref:'—'});
+    S.item({key:'dvCv'+E, label:`${lab}受壓可用直段`, f:`{dvAv${E}}-IF(LEFT({dvAnc${E}},4)="標準彎鉤",{dvBend}/2+{db},0)`, unit:'cm', fmt:'0.0',
+      expr:'彎鉤扣除彎轉段（內徑/2 + db）', crit:'彎鉤與擴頭不計入受壓伸展', ref:R401('25.4.1.2')});
+  }
+  spliceItems(S, 'dv', X);
+  S.item({key:'dvLap', label:'搭接長度 lst', sym:'lst', f:`IF({dvSp}="甲級搭接",${UPX('{dvlapA}')},${UPX('{dvlapB}')})`, unit:'cm', fmt:'0', ref:R401('25.5.2.1')});
+  S.item({key:'dvZone', label:'所需續接區段長', f:'IF({dvMech}=1,0,IF({dvStag}=1,2,1)*{dvLap})', unit:'cm', fmt:'0', expr:'錯開時兩組 = 2lst', ref:'—'});
+  S.item({key:'dvA0', label:'可續接範圍起點', f:'IF(AND({isPH}=1,{dvM3}=0),IF({isBldg}=1,{lu}/4,IF({full}=1,{lu},{lo})),0)', unit:'cm', fmt:'0',
+    expr:'建築耐震柱：中央 1/2 淨高；橋梁：塑鉸區外', ref:R401('18.4.4.3、18.2.7.2')});
+  S.item({key:'dvA1', label:'可續接範圍終點', f:'IF(AND({isPH}=1,{dvM3}=0),IF({isBldg}=1,3*{lu}/4,IF({nEnds}=2,{lu}-{lo},{lu})),{lu})', unit:'cm', fmt:'0', ref:R401('18.4.4.3')});
+  S.item({key:'dvFit', label:'續接區段放得下', f:'--({dvA1}-{dvA0}>={dvZone}-1E-9)', ref:'—'});
+  S.item({key:'dvLa0', label:'續接起點（未修正）', f:'IF({dvMech}=1,({dvA0}+{dvA1})/2,IF(AND({isPH}=1,OR({isBldg}=1,{nEnds}=2)),({dvA0}+{dvA1}-{dvZone})/2,{dvA0}))', unit:'cm', fmt:'0.0', ref:'—'});
+  S.item({key:'dvLa', label:'續接起點（距柱底）', f:'IF(OR({dvFit}=0,{dvLa0}+{dvZone}>{lu}+1E-9),MAX(0,({lu}-{dvZone})/2),{dvLa0})', unit:'cm', fmt:'0.0', ref:'—'});
+  S.item({key:'dvLb', label:'第一組搭接終點', f:'IF({dvMech}=1,{dvLa},{dvLa}+{dvLap})', unit:'cm', fmt:'0.0', ref:'—'});
+  S.item({key:'dvLe', label:'續接區段終點', f:'IF({dvStag}=1,{dvLb}+{dvLap},{dvLb})', unit:'cm', fmt:'0.0', ref:'—'});
+  S.item({key:'dvPit', label:'主筋中心距（最小）', f:'IF({isCirc}=1,2*PI()*{rb}/{nC},MIN({pB},{pH}))', unit:'cm', fmt:'0.00', ref:'—'});
+  S.item({key:'dvClrL', label:'搭接處淨距', f:'{dvPit}-IF({dvGap}>0,{dvGap},{db})-{db}', unit:'cm', fmt:'0.00', expr:'中心距 − 心距（接觸取 db）− db', crit:'≧ 柱主筋淨距下限', ref:R401('25.5.1.2、25.2.3')});
+  S.item({key:'dvSLr', label:'搭接段橫向筋間距上限', f:'{sPH}', unit:'cm', fmt:FMT_SINF, expr:'同 §18.4.5.3 加密區間距上限', ref:R401('18.4.4.3、18.4.5.3')});
+  S.item({key:'dvDen', label:'搭接段須加密', f:'--AND({isBldg}=1,{isPH}=1,{dvMech}=0,{dvFit}=1,{full}=0,{sMid}>{dvSLr}+1E-9)', crit:'1＝一般區間距大於上限，搭接段改密配', ref:R401('18.4.4.3')});
+  S.item({key:'dvSL', label:'搭接段採用間距', f:PRACT('{dvSLr}'), unit:'cm', fmt:'0.0', ref:'實務間距'});
+  S.item({key:'lzOn1', label:'　加密區段 1 啟用', f:'{dvDen}', ref:'—'});
+  S.item({key:'lzA1', label:'　加密區段 1 起點', f:'{dvLa}', unit:'cm', fmt:'0.0', ref:'—'});
+  S.item({key:'lzB1', label:'　加密區段 1 終點', f:'{dvLe}', unit:'cm', fmt:'0.0', ref:'—'});
+  S.item({key:'lzN1', label:'搭接段間隔數', f:`IF({lzOn1}=1,MAX(1,ROUNDUP(({lzB1}-{lzA1})/{dvSL}-1E-9,0)),0)`, unit:'—', ref:'—'});
+  S.item({key:'lzS1', label:'搭接段實際間距', f:'IF({lzN1}>0,({lzB1}-{lzA1})/{lzN1},0)', unit:'cm', fmt:'0.0', ref:'—'});
+  S.item({key:'lzOn2', label:'　加密區段 2 啟用', f:'0', ref:'—'});
+  S.item({key:'lzA2', label:'　加密區段 2 起點', f:'0', ref:'—'}); S.item({key:'lzB2', label:'　加密區段 2 終點', f:'0', ref:'—'});
+  S.item({key:'lzN2', label:'　加密區段 2 間隔數', f:'0', ref:'—'}); S.item({key:'lzS2', label:'　加密區段 2 間距', f:'0', ref:'—'});
+  S.item({key:'lzRem', label:'搭接段內移除之原配置', f:`IF({lzOn1}=1,${remCnt('{lzA1}','{lzB1}')},0)`, unit:'組', ref:'—'});
+  S.item({key:'totalL', label:'全長合計數量（含搭接段加密）', sym:'n', f:'{total}-{lzRem}+IF({lzOn1}=1,{lzN1}+1,0)', unit:'組', ref:R401('18.4.4.3')});
+}
+function devPlanBeamX(S, X){
+  X = X || {};
+  const HT = 'IF({isSlab}=1,{spT}>0,ROUND({nTop},0)>0)';
+  S.section('【五之三、錨定空間、續接位置、搭接與截斷點檢核（土木401 §18.5.2.3、§18.3.3.3、§18.2.7、§25.5.1、§9.7.3）】');
+  S.item({key:'bvAnc', label:'支承內錨定方式', v:ANC_X[X.anc]||'標準彎鉤 90°', kind:'list', list:Object.values(ANC_X).slice(0,4), ref:R401('25.4、18.5.5')});
+  S.item({key:'bvHc', label:'支承柱寬（平行梁軸）', sym:'hc', v:X.hc ?? 60, unit:'cm', kind:'in', fmt:'0', ref:'—'});
+  S.item({key:'bvCovA', label:'支承外側保護層', v:X.cov ?? 4, unit:'cm', kind:'in', fmt:'0.0', ref:R401('20.5.1.3')});
+  S.item({key:'bvAv', label:'可用錨定長度', f:'{bvHc}-{bvCovA}', unit:'cm', fmt:'0.0', expr:'hc − 保護層', ref:'—'});
+  for(const [s, lab] of [['b','底筋'],['t','頂筋']]){
+    const J = `AND({isS}=1,{bvldhS${s}}>0)`;
+    S.item({key:'bvLen'+s, label:`${lab}錨定長度`, unit:'cm', fmt:'0',
+      f:`IF({bvAnc}="直線",${UPX(`IF(${J},{bvldS${s}},{bvld${s}})`)},IF({bvAnc}="擴頭",IF({bvhd${s}}="適用",${UPX(`IF(${J},{bvldtS${s}},{bvldt${s}})`)},0),${UPX(`IF(${J},{bvldhS${s}},{bvldh${s}})`)}))`,
+      expr:'耐震梁取 §18.5.5 接頭內長度；一般梁取第 25 章', ref:R401('25.4、18.5.5')});
+  }
+  S.item({key:'bvKj', label:'接頭深度倍數', f:'IF({fy}<=4200+1E-6,20/{bvLam},IF({fy}<=5000+1E-6,23,26))', unit:'db', fmt:'0.0', ref:R401('18.5.2.3')});
+  S.item({key:'bvJreq', label:'接頭深度需求（梁筋貫穿內柱）', f:`MAX({bvKj}*MAX({dbB},IF(${HT},{dbT},0)),{h}/2)`, unit:'cm', fmt:'0.0', expr:'max(倍數 × 最大 db, h/2)', ref:R401('18.5.2.3')});
+  spliceItems(S, 'bv', X);
+  S.item({key:'bvLapTop', label:'頂筋續接位置', v:X.lapTop==='none'?'通長不續接':'跨中續接', kind:'list', list:['跨中續接','通長不續接'], ref:'—'});
+  S.item({key:'bvLapBot', label:'底筋續接位置', v:X.lapBot==='sup'?'支承附近續接':'通長不續接', kind:'list', list:['通長不續接','支承附近續接'], ref:R401('18.3.3.3')});
+  S.item({key:'bvNz', label:'梁端不得搭接範圍', f:'IF({isS}=1,2*{h},0)', unit:'cm', fmt:'0', expr:'耐震梁 2h', ref:R401('18.3.3.3')});
+  S.item({key:'bvA0', label:'可續接範圍起點', f:'IF({bvM3}=1,0,{bvNz})', unit:'cm', fmt:'0', ref:R401('18.2.7.2')});
+  S.item({key:'bvA1', label:'可續接範圍終點', f:'IF({bvM3}=1,{ln},{ln}-{bvNz})', unit:'cm', fmt:'0', ref:'—'});
+  S.item({key:'bvHost', label:'一般區實際間距', f:'IF({full}=1,({Lel}-2*{eF})/({nFull}-1),{sMid})', unit:'cm', fmt:'0.0', ref:'—'});
+  S.item({key:'bvSLr', label:'搭接段箍筋間距上限', f:'MIN({d}/4,10)', unit:'cm', fmt:'0.00', expr:'min(d/4, 10 cm)', ref:R401('18.3.3.3')});
+  S.item({key:'bvSL', label:'搭接段採用間距', f:PRACT('{bvSLr}'), unit:'cm', fmt:'0.0', ref:'實務間距'});
+  for(const [s, lab, on, la0] of [['t','頂筋',`AND(${HT},{bvLapTop}="跨中續接")`, 'IF({bvMech}=1,{ln}/2,({ln}-{bvZonet})/2)'],
+                                  ['b','底筋','{bvLapBot}="支承附近續接"', 'IF({bvMech}=1,MAX({bvA0},MIN({bvA1},{bvA0}+IF({isS}=1,0,{ln}/8))),{bvA0})']]){
+    S.item({key:'bvOn'+s, label:`${lab}續接`, f:`--(${on})`, ref:'—'});
+    S.item({key:'bvLap'+s, label:`${lab}搭接長度 lst`, sym:'lst', f:`IF({bvSp}="甲級搭接",${UPX(`{bvlapA${s}}`)},${UPX(`{bvlapB${s}}`)})`, unit:'cm', fmt:'0', ref:R401('25.5.2.1')});
+    S.item({key:'bvZone'+s, label:`${lab}所需續接區段長`, f:`IF({bvMech}=1,0,IF({bvStag}=1,2,1)*{bvLap${s}})`, unit:'cm', fmt:'0', ref:'—'});
+    S.item({key:'bvFit'+s, label:`${lab}續接區段放得下`, f:`--({bvA1}-{bvA0}>={bvZone${s}}-1E-9)`, ref:'—'});
+    S.item({key:'bvLa0'+s, label:`${lab}續接起點（未修正）`, f:la0, unit:'cm', fmt:'0.0', ref:'—'});
+    S.item({key:'bvLa'+s, label:`${lab}續接起點（距左支承面）`, f:`IF(OR({bvFit${s}}=0,{bvLa0${s}}+{bvZone${s}}>{ln}+1E-9),MAX(0,({ln}-{bvZone${s}})/2),{bvLa0${s}})`, unit:'cm', fmt:'0.0', ref:'—'});
+    S.item({key:'bvLe'+s, label:`${lab}續接區段終點`, f:`IF({bvMech}=1,{bvLa${s}},{bvLa${s}}+IF({bvStag}=1,2,1)*{bvLap${s}})`, unit:'cm', fmt:'0.0', ref:'—'});
+    S.item({key:'bvClr'+s, label:`${lab}搭接處淨距`, f:`IF({clr${s==='t'?'T':'B'}}>=${BIG},${BIG},{clr${s==='t'?'T':'B'}}-IF({bvGap}>0,{bvGap},{db${s==='t'?'T':'B'}}))`, unit:'cm', fmt:FMT_SINF,
+      expr:'淨距 − 心距（接觸取 db）', crit:'≧ max(2.5, db, 4/3·dagg)', ref:R401('25.5.1.2、25.2.1')});
+    S.item({key:'bvDen'+s, label:`${lab}搭接段須加密`, f:`--AND({isS}=1,{bvMech}=0,{bvOn${s}}=1,{bvFit${s}}=1,{bvHost}>{bvSLr}+1E-9)`, ref:R401('18.3.3.3')});
+  }
+  S.item({key:'lzOn1', label:'　加密區段 1（頂筋）啟用', f:'{bvDent}', ref:'—'});
+  S.item({key:'lzA1', label:'　加密區段 1 起點', f:'{bvLat}', unit:'cm', fmt:'0.0', ref:'—'});
+  S.item({key:'lzB1', label:'　加密區段 1 終點', f:'{bvLet}', unit:'cm', fmt:'0.0', ref:'—'});
+  S.item({key:'lzN1', label:'頂筋搭接段間隔數', f:'IF({lzOn1}=1,MAX(1,ROUNDUP(({lzB1}-{lzA1})/{bvSL}-1E-9,0)),0)', unit:'—', ref:'—'});
+  S.item({key:'lzS1', label:'頂筋搭接段實際間距', f:'IF({lzN1}>0,({lzB1}-{lzA1})/{lzN1},0)', unit:'cm', fmt:'0.0', ref:'—'});
+  S.item({key:'lzOn2', label:'　加密區段 2（底筋）啟用', f:'{bvDenb}', ref:'—'});
+  S.item({key:'lzA2', label:'　加密區段 2 起點', f:'{bvLab}', unit:'cm', fmt:'0.0', ref:'—'});
+  S.item({key:'lzB2', label:'　加密區段 2 終點', f:'{bvLeb}', unit:'cm', fmt:'0.0', ref:'—'});
+  S.item({key:'lzN2', label:'底筋搭接段間隔數', f:'IF({lzOn2}=1,MAX(1,ROUNDUP(({lzB2}-{lzA2})/{bvSL}-1E-9,0)),0)', unit:'—', ref:'—'});
+  S.item({key:'lzS2', label:'底筋搭接段實際間距', f:'IF({lzN2}>0,({lzB2}-{lzA2})/{lzN2},0)', unit:'cm', fmt:'0.0', ref:'—'});
+  S.item({key:'lzRem', label:'搭接段內移除之原配置', f:`IF({lzOn1}=1,${remCnt('{lzA1}','{lzB1}')},0)+IF({lzOn2}=1,${remCnt('{lzA2}','{lzB2}')},0)`, unit:'支', ref:'—'});
+  S.item({key:'totalL', label:'全長合計數量（含搭接段加密）', sym:'n', f:'{total}-{lzRem}+IF({lzOn1}=1,{lzN1}+1,0)+IF({lzOn2}=1,{lzN2}+1,0)', unit:'支', ref:R401('18.3.3.3')});
+  // 截斷點
+  S.item({key:'bvCut', label:'頂筋截斷點分析', v:X.cut?'分析':'不分析', kind:'list', list:['不分析','分析'], ref:R401('9.7.3'), note:'以端部 Mu⁻、跨中 Mu⁺ 推均布載重彎矩圖；耐震梁地震反復作用下不適用。'});
+  S.item({key:'bvNc', label:'頂筋通長根數', v:X.nCont ?? 2, unit:'根', kind:'in', fmt:'0', ref:R401('9.7.3.8.4')});
+  const LR = c => `'載重組合'!${c}4:${c}${3+NCB}`;
+  S.item({key:'cMn', label:'端部負彎矩 Mu⁻（最大）', f:`MAX(0,MAX(${LR('C')}))*100000`, unit:'kgf·cm', fmt:'#,##0', ref:'—'});
+  S.item({key:'cMp', label:'跨中正彎矩 Mu⁺（最大）', f:`MAX(0,MAX(${LR('B')}))*100000`, unit:'kgf·cm', fmt:'#,##0', ref:'—'});
+  S.item({key:'cVu', label:'端部剪力 Vu（最大）', f:`MAX(0,MAX(${LR('D')}))*1000`, unit:'kgf', fmt:'#,##0', ref:'—'});
+  S.item({key:'cnT', label:'頂筋根數', f:'ROUND({nTop},0)', unit:'根', ref:'—'});
+  S.item({key:'cnC', label:'通長根數採用', f:'MIN({cnT},{bvNc})', unit:'根', ref:'—'});
+  S.item({key:'cdT', label:'頂筋有效深度', f:'{h}-({cover}+{dt}+{dbT}/2)', unit:'cm', fmt:'0.00', ref:'—'});
+  S.item({key:'cAs', label:'通長筋面積', f:'{cnC}*{AbT}', unit:'cm²', fmt:'0.00', ref:'—'});
+  S.item({key:'cPhiM', label:'通長筋 φMn（單筋近似）', f:'0.9*{cAs}*{fy}*({cdT}-{cAs}*{fy}/(0.85*{fc}*{bw})/2)', unit:'kgf·cm', fmt:'#,##0', expr:'0.9As·fy(d − a/2)', ref:R401('22.2')});
+  S.item({key:'cw', label:'等值均布載重 w', f:'IF({cMn}+{cMp}>0,8*({cMn}+{cMp})/{ln}^2,0)', unit:'kgf', fmt:'0.000', expr:'8(Mu⁻ + Mu⁺)/ln²', ref:'非規範明列條文，係彎矩圖近似'});
+  S.item({key:'cDisc', label:'反曲點判別式', f:'IF({cw}>0,{ln}^2/4-2*{cMn}/{cw},-1)', fmt:'#,##0', ref:'—'});
+  S.item({key:'cNA', label:'截斷分析不適用', f:`--OR({bvCut}<>"分析",NOT(${HT}),{isSlab}=1,{cMn}<=0,{cw}<=0,{cnC}>={cnT},{cDisc}<0)`, crit:'1＝不分析／無截斷鋼筋', ref:'—'});
+  S.item({key:'cx0', label:'反曲點（距柱面）', f:'IF({cDisc}>=0,{ln}/2-SQRT({cDisc}),0)', unit:'cm', fmt:'0.0', ref:'—'});
+  S.item({key:'cxc', label:'理論截斷點', f:'IF({cPhiM}>={cMn},0,IF({cw}>0,{ln}/2-SQRT(MAX(0,{ln}^2/4-2*({cMn}-{cPhiM})/{cw})),0))', unit:'cm', fmt:'0.0', ref:R401('9.7.3.3')});
+  S.item({key:'cExt', label:'延伸長度 max(d, 12db)', f:'MAX({d},12*{dbT})', unit:'cm', fmt:'0.0', ref:R401('9.7.3.3')});
+  S.item({key:'cld', label:'頂筋 ld（進位）', f:UPX('{bvldt}'), unit:'cm', fmt:'0', ref:R401('9.7.3.4')});
+  S.item({key:'cxCut', label:'截斷點（距柱面）', f:'MIN({ln}/2,MAX({cxc}+{cExt},{cld}))', unit:'cm', fmt:'0.0', expr:'max(理論點 + 延伸, ld)', ref:R401('9.7.3.3、9.7.3.4')});
+  S.item({key:'cTen', label:'截斷點位於拉力區', f:'--({cxCut}<{cx0}-1E-6)', ref:R401('9.7.3.5')});
+  S.item({key:'cS', label:'截斷點處箍筋間距', f:'IF(AND({lzOn1}=1,{cxCut}>={lzA1},{cxCut}<={lzB1}),{lzS1},IF(AND({lzOn2}=1,{cxCut}>={lzA2},{cxCut}<={lzB2}),{lzS2},IF({full}=1,({Lel}-2*{eF})/({nFull}-1),IF({cxCut}<={lo},{sUse},{sMid}))))', unit:'cm', fmt:'0.0', ref:'—'});
+  S.item({key:'cVc', label:'截斷點 Vc', f:"IF(AND({isS}=1,{cxCut}<2*{h}),0,0.53*{bvLam}*SQRT({fc})*{bw}*{d})", unit:'kgf', fmt:'#,##0', ref:R401('22.5.5.1')});
+  S.item({key:'cPhiV', label:'截斷點 φVn', f:'{phiv}*({cVc}+{Av}*{fyt}*{d}/{cS})', unit:'kgf', fmt:'#,##0', ref:R401('22.5.1.1')});
+  S.item({key:'cVux', label:'截斷點 Vu（線性遞減）', f:'{cVu}*MAX(0,1-2*{cxCut}/{ln})', unit:'kgf', fmt:'#,##0', ref:'—'});
+  S.item({key:'cCont', label:'通長筋延伸過反曲點', f:'MAX({d},12*{dbT},{ln}/16)', unit:'cm', fmt:'0.0', ref:R401('9.7.3.8.4')});
 }
 
 /* ---------- 配筋座標：每邊主筋座標、繫筋位置旗標、圓周座標 ---------- */
@@ -1116,7 +1281,7 @@ function buildA4Column(ws, S, R, inp, jRow, sumRows){
   ws.getRow(a.data('加密區外控制項','—','{sGov2Tag}','—',null,null,true)).height = 30;
   ws.getRow(a.data('加密區配置','—','IF({nEnds}=0,"—",IF({full}=1,"全長加密",{tie}&" @ "&TEXT({sUse},"0.0")&" cm × "&{n1}&" 組"&IF({nEnds}=2,"（每端）","")))','—','第一組距接頭面 e = min(5, s₁/2)',null,true)).height = 30;
   ws.getRow(a.data('一般區配置','—','IF({full}=1,"—",{tie}&" @ "&TEXT({sUse2},"0.0")&" cm × "&{nMid}&" 組（均分 "&TEXT({sMid},"0.0")&"）")','—','中段以 s₂ 均分',null,true)).height = 30;
-  a.data('全長合計','n','{total}','組','柱淨高 lu 範圍內','0');
+  a.data('全長合計','n','{totalL}','組','柱淨高 lu 範圍內（含搭接段加密）','0');
   a.sub('4.9 主筋伸展長度與搭接（土木401 第 25 章）'); a.thead();
   a.data('直線受拉伸展長度','ld','{dvld}','cm',"fy/(3.5λ√f'c)·ψtψeψsψg/((cb+Ktr)/db)·db",'0');
   a.data('標準彎鉤伸展長度','ldh','{dvldh}','cm',"fyψeψrψoψc/(23λ√f'c)·db^1.5",'0');
@@ -1124,6 +1289,13 @@ function buildA4Column(ws, S, R, inp, jRow, sumRows){
   a.data('擴頭伸展長度','ldt','IF({dvhd}="適用",TEXT({dvldt},"0")&" cm","不適用")','—','§25.4.4',null,true);
   a.data('受壓伸展長度','ldc','{dvldc}','cm','§25.4.9','0');
   a.data('受拉搭接（乙級）／受壓搭接','—','TEXT({dvlapB},"0")&"／"&TEXT({dvlapC},"0")&" cm"','—','§25.5.2、§25.5.5',null,true);
+  a.sub('4.10 錨定空間與續接配置（土木401 §25.4.1.2、§18.4.4.3、§18.2.7、§25.5.1.2）'); a.thead();
+  a.data('底端錨定','—','IF({dvAncB}="貫穿續接","貫穿續接",{dvAncB}&" "&TEXT({dvLenB},"0")&"／可用 "&TEXT({dvAvB},"0")&" cm")','—','長度／h − 保護層',null,true);
+  a.data('頂端錨定','—','IF({dvAncT}="貫穿續接","貫穿續接",{dvAncT}&" "&TEXT({dvLenT},"0")&"／可用 "&TEXT({dvAvT},"0")&" cm")','—','長度／h − 保護層',null,true);
+  a.data('受壓伸展（直段）','ldc','{dvldcU}','cm','彎鉤、擴頭不計入受壓','0');
+  ws.getRow(a.data('續接方式與位置','—','{dvSp}&IF({dvStag}=1,"（錯開）","")&"："&TEXT({dvLa},"0")&"～"&TEXT({dvLe},"0")&" cm（可續接 "&TEXT({dvA0},"0")&"～"&TEXT({dvA1},"0")&"）"','—','距柱底',null,true)).height = 30;
+  a.data('搭接處淨距','s','{dvClrL}','cm','需 ≧ 柱主筋淨距下限','0.00');
+  a.data('搭接段橫向筋','—','IF({lzOn1}=1,"加密 @ "&TEXT({lzS1},"0.0")&" cm","不需加密")','—','§18.4.4.3',null,true);
 
   ws.getRow(a.n).addPageBreak();
   a.chap('五、檢核彙總');
@@ -1157,8 +1329,9 @@ function buildA4Column(ws, S, R, inp, jRow, sumRows){
     ws.getCell(sl,j).border={bottom:side(K.black)}; });
   const fig = a4Figures(ws, a, '附圖　斷面配筋圖與 P-M 互制曲線（Excel 圖表，隨輸入自動更新）', inp.type==='circle'?1:2);
   const elev = a4Elev(ws, a, '附圖　沿柱軸向箍筋配置立面（柱寬為示意）', FIG_EL_ROWS);
+  const devPics = a4DevFigs(ws, a, '附圖　主筋伸展與搭接配置', inp.devFigs);
   ws.pageSetup.printArea = `A1:F${a.n}`;
-  return {fig, elev};
+  return {fig, elev, devPics};
 }
 
 /* ======================================================================
@@ -1374,6 +1547,7 @@ function buildBeam(ExcelJS, inp){
   devRest(S, 'bv', 'b', {label:'底筋', db:'{dbB}', ld0:'{bvld0b}', ccov:'{bvCov}', cSp:'{bvSpb}', seis:'{isS}', psiRc:'{bvRc}', joint:'{isS}', topKey:'{bvpsiTb}'});
   devStraight(S, 'bv', 't', {label:'頂筋', top:'IF(({h}-({cover}+{dt}+{dbT}))>30,1.3,1)', db:'{dbT}', ccov:'{bvCov}', cSp:'{bvSpt}', Atr:'{bvAtr}', s:'{sUse2}', n:'IF({isSlab}=1,1,MAX(1,ROUND({nTop},0)))'});
   devRest(S, 'bv', 't', {label:'頂筋', db:'{dbT}', ld0:'{bvld0t}', ccov:'{bvCov}', cSp:'{bvSpt}', seis:'{isS}', psiRc:'{bvRc}', joint:'{isS}', topKey:'{bvpsiTt}'});
+  devPlanBeamX(S, inp.devX);
 
   /* ---------------- 六、使用性 ---------------- */
   S.section('【六、使用性：裂縫控制、裂縫寬度與撓度】');
@@ -1448,6 +1622,17 @@ function buildBeam(ExcelJS, inp){
   addSum({label:'耐震：ln ≧ 4d（cm）', need:{f:'4*{d}'}, cap:{f:'{ln}'}, ratio:{f:'4*{d}/{ln}'}, judge:{f:'IF({isS}=0,"N/A",IF({ln}>=4*{d},"PASS","FAIL"))'}, ref:ref401('18.3.2.1')});
   addSum({label:'耐震：ρ ≦ 0.025', need:{f:'{rho}'}, cap:0.025, ratio:{f:'{rho}/0.025'}, judge:{f:'IF({isS}=0,"N/A",IF({rho}<=0.025,"PASS","FAIL"))'}, fmt:'0.0000', ref:ref401('18.3.3.1')});
   addSum({label:'耐震：φMn⁺ ≧ 0.5φMn⁻', need:{f:'0.5*{Mneg}'}, cap:{f:'{Mpos}'}, ratio:{f:'0.5*{Mneg}/{Mpos}'}, judge:{f:'IF({isS}=0,"N/A",IF({Mpos}>=0.5*{Mneg},"PASS","FAIL"))'}, ref:ref401('18.3.3.2')});
+  addSum({label:'底筋支承內錨定（cm）', need:{f:'{bvLenb}'}, cap:{f:'{bvAv}'}, ratio:{f:'IF({bvAv}>0,{bvLenb}/{bvAv},0)'}, judge:{f:'IF(AND({bvAnc}="擴頭",{bvhdb}<>"適用"),"FAIL",IF({bvLenb}<={bvAv}+1E-9,"PASS","FAIL"))'}, ref:R401('25.4、18.5.5')});
+  addSum({label:'頂筋支承內錨定（cm）', need:{f:'{bvLent}'}, cap:{f:'{bvAv}'}, ratio:{f:'IF({bvAv}>0,{bvLent}/{bvAv},0)'}, judge:{f:'IF(NOT(IF({isSlab}=1,{spT}>0,ROUND({nTop},0)>0)),"N/A",IF(AND({bvAnc}="擴頭",{bvhdt}<>"適用"),"FAIL",IF({bvLent}<={bvAv}+1E-9,"PASS","FAIL")))'}, ref:R401('25.4、18.5.5')});
+  addSum({label:'耐震接頭深度 hc（cm）', need:{f:'{bvJreq}'}, cap:{f:'{bvHc}'}, ratio:{f:'{bvJreq}/{bvHc}'}, judge:{f:'IF({isS}=0,"N/A",IF({bvHc}>={bvJreq}-1E-9,"PASS","FAIL"))'}, ref:R401('18.5.2.3')});
+  addSum({label:'頂筋續接區段 所需／可續接（cm）', need:{f:'{bvZonet}'}, cap:{f:'{bvA1}-{bvA0}'}, ratio:{f:'IF({bvA1}-{bvA0}>0,{bvZonet}/({bvA1}-{bvA0}),9)'}, judge:{f:'IF({bvOnt}=0,"N/A",IF({bvFitt}=1,"PASS","FAIL"))'}, ref:R401('18.3.3.3、18.2.7.2')});
+  addSum({label:'底筋續接區段 所需／可續接（cm）', need:{f:'{bvZoneb}'}, cap:{f:'{bvA1}-{bvA0}'}, ratio:{f:'IF({bvA1}-{bvA0}>0,{bvZoneb}/({bvA1}-{bvA0}),9)'}, judge:{f:'IF({bvOnb}=0,"N/A",IF({bvFitb}=1,"PASS","FAIL"))'}, ref:R401('18.3.3.3、18.2.7.2')});
+  addSum({label:'頂筋搭接處淨距（cm）', need:{f:'{needT}'}, cap:{f:'{bvClrt}'}, ratio:{f:'IF({bvClrt}>0,{needT}/{bvClrt},9)'}, judge:{f:'IF(OR({bvOnt}=0,{bvMech}=1),"N/A",IF({bvClrt}>={needT}-1E-9,"PASS","FAIL"))'}, ref:R401('25.5.1.2')});
+  addSum({label:'底筋搭接處淨距（cm）', need:{f:'{needB}'}, cap:{f:'{bvClrb}'}, ratio:{f:'IF({bvClrb}>0,{needB}/{bvClrb},9)'}, judge:{f:'IF(OR({bvOnb}=0,{bvMech}=1),"N/A",IF({bvClrb}>={needB}-1E-9,"PASS","FAIL"))'}, ref:R401('25.5.1.2')});
+  addSum({label:'非接觸搭接心距（cm）', need:{f:'{bvGap}'}, cap:{f:'MIN(IF({bvOnt}=1,MIN({bvLapt}/5,15),1E9),IF({bvOnb}=1,MIN({bvLapb}/5,15),1E9))'}, ratio:{f:'{bvGap}/MIN(IF({bvOnt}=1,MIN({bvLapt}/5,15),1E9),IF({bvOnb}=1,MIN({bvLapb}/5,15),1E9))'}, judge:{f:'IF(OR({bvGap}<=0,{bvMech}=1,AND({bvOnt}=0,{bvOnb}=0)),"N/A",IF({bvGap}<=MIN(IF({bvOnt}=1,MIN({bvLapt}/5,15),1E9),IF({bvOnb}=1,MIN({bvLapb}/5,15),1E9))+1E-9,"PASS","FAIL"))'}, ref:R401('25.5.1.3')});
+  addSum({label:'甲級搭接 As,使用／As,需求', need:2, cap:{f:'IF({bvExc}>0,1/{bvExc},1)'}, ratio:{f:'2*{bvExc}'}, judge:{f:'IF({bvSp}<>"甲級搭接","N/A",IF({bvExc}<=0.5+1E-9,"PASS","FAIL"))'}, ref:R401('表 25.5.2.1')});
+  addSum({label:'負彎矩筋延伸過反曲點（根）', need:{f:'{cnT}/3'}, cap:{f:'{cnC}'}, ratio:{f:'IF({cnC}>0,{cnT}/3/{cnC},9)'}, judge:{f:'IF({cNA}=1,"N/A",IF({cnC}>={cnT}/3-1E-9,"PASS","FAIL"))'}, ref:R401('9.7.3.8.4')});
+  addSum({label:'截斷點 Vu ≦ (2/3)φVn（tf）', need:{f:'{cVux}/1000'}, cap:{f:'2/3*{cPhiV}/1000'}, ratio:{f:'IF({cPhiV}>0,{cVux}/(2/3*{cPhiV}),0)'}, judge:{f:'IF(OR({cNA}=1,{cTen}=0),"N/A",IF({cVux}<=2/3*{cPhiV}+1E-9,"PASS","注意"))'}, note:'不符時可依 §9.7.3.5 (b)(c) 另行檢核（注意不計入 NG）', ref:R401('9.7.3.5')});
   S.sum({key:'jAll', total:true, label:'總判定', judge:{f:'"PASS"'}, note:'僅計 FAIL；N/A 不計', ref:'—'});
 
   S.section('【八、注意事項與使用說明】');
@@ -1469,7 +1654,7 @@ function buildBeam(ExcelJS, inp){
   const jt=S.rows.find(r=>r.key==='jAll'); jt.judge={f:`IF(COUNTIF($E$${r1}:$E$${r2},"FAIL")=0,"PASS","NG")`};
 
   const R = makeResolver([S]);
-  const order=['檢核表','結構計算書(A4)','載重組合','撓曲求解','開裂斷面','圖表資料',EL];
+  const order=['檢核表','結構計算書(A4)','載重組合','撓曲求解','開裂斷面','圖表資料',EL].concat(inp.devFigs&&inp.devFigs.length?[DEVFIG]:[]);
   const W={}; for(const nm of order) W[nm]=wb.addWorksheet(nm, nm==='檢核表'?{views:[{state:'frozen',ySplit:2}]}:{});
   writeCalcSheet(W['檢核表'], S, R);
   buildBeamLoads(W['載重組合'], R, inp.loads);
@@ -1478,8 +1663,9 @@ function buildBeam(ExcelJS, inp){
   const binfo = buildBeamChartData(W['圖表資料'], R);
   const einfo = buildElevSheet(W[EL], R, false, elevRows(inp));
   const a4 = buildA4Beam(W['結構計算書(A4)'], R, inp, jt.r, sumRows);
+  const figPics = W[DEVFIG] ? buildDevFigSheet(W[DEVFIG], inp.devFigs) : [];
   return {wb, keys:S.keys, judgeRow:jt.r,
-          charts: beamCharts(inp, binfo, a4.fig).concat(inp.slab ? [] : [elevChart(einfo, false, a4.elev, FIG_ELB_ROWS, inp.ln)])};
+          charts: beamCharts(inp, binfo, a4.fig).concat(inp.slab ? [] : [elevChart(einfo, false, a4.elev, FIG_ELB_ROWS, inp.ln)], a4.devPics, figPics)};
 }
 
 function buildBeamLoads(ws, R, loads){
@@ -1641,7 +1827,7 @@ function buildA4Beam(ws, R, inp, jRow, sumRows){
     ws.getRow(a.data('加密區外控制項','—','{sGov2Tag}','—',null,null,true)).height = 30;
     ws.getRow(a.data('加密區配置（自柱面 2h）','—','IF({nEnds}=0,"—（一般梁）",IF({full}=1,"全長加密",{tieS}&" @ "&TEXT({sUse},"0.0")&" cm × "&{n1}&" 支（每端，2h = "&TEXT({lo},"0")&" cm）"))','—','第一支距柱面 e = min(5, s₁/2)',null,true)).height = 30;
     ws.getRow(a.data('一般區配置','—','IF({full}=1,"全長 @ "&TEXT({sUse},"0.0")&" cm",{tieS}&" @ "&TEXT({sUse2},"0.0")&" cm × "&{nMid}&" 支（均分 "&TEXT({sMid},"0.0")&"）")','—',null,null,true)).height = 30;
-    a.data('全長合計','n','{total}','支','淨跨 ln 範圍內','0');
+    a.data('全長合計','n','{totalL}','支','淨跨 ln 範圍內（含搭接段加密）','0');
     ws.getRow(a.data('箍筋肢橫向間距','s⊥','TEXT({legG},"0.0")&"（上限 "&TEXT({legL},"0.0")&"）"','cm','土木401 §9.7.6.2.2',null,true)).height = 30;
   }
   a.sub('4.3b 主筋伸展長度與搭接（土木401 第 25 章；底筋／頂筋）'); a.thead();
@@ -1650,6 +1836,12 @@ function buildA4Beam(ws, R, inp, jRow, sumRows){
   a.data('直線受拉伸展長度','ld',bt('{bvldb}','{bvldt}'),'—','頂筋含 ψt = 1.3（下方混凝土 > 30 cm）',null,true);
   a.data('標準彎鉤伸展長度','ldh',bt('{bvldhb}','{bvldht}'),'—',"fyψeψrψoψc/(23λ√f'c)·db^1.5",null,true);
   a.data('擴頭伸展長度','ldt',`IF({bvhdb}="適用",TEXT({bvldtb},"0"),"不適用")&"／"&IF(${HASTOP},IF({bvhdt}="適用",TEXT({bvldtt},"0"),"不適用"),"—")`,'—','§25.4.4',null,true);
+  a.sub('4.3c 錨定空間、續接與截斷點（土木401 §18.5.2.3、§18.3.3.3、§9.7.3）'); a.thead();
+  a.data('支承內錨定（底／頂）','—',`{bvAnc}&" "&TEXT({bvLenb},"0")&IF(${HASTOP},"／"&TEXT({bvLent},"0"),"")&"；可用 "&TEXT({bvAv},"0")&" cm"`,'—','hc − 保護層',null,true);
+  a.data('耐震接頭深度需求','h','IF({isS}=1,TEXT({bvJreq},"0.0")&" cm（柱寬 "&TEXT({bvHc},"0")&"）","—")','—','§18.5.2.3',null,true);
+  ws.getRow(a.data('續接（頂／底）','—','{bvSp}&IF({bvStag}=1,"（錯開）","")&"：頂 "&IF({bvOnt}=1,TEXT({bvLat},"0")&"～"&TEXT({bvLet},"0"),"通長")&"；底 "&IF({bvOnb}=1,TEXT({bvLab},"0")&"～"&TEXT({bvLeb},"0"),"通長")&" cm"','—','距左支承面',null,true)).height = 30;
+  a.data('搭接段箍筋','—','IF({lzOn1}+{lzOn2}>0,"加密 @ "&TEXT(MAX({lzS1},{lzS2}),"0.0")&" cm","不需加密")','—','§18.3.3.3',null,true);
+  a.data('頂筋截斷點','—','IF({cNA}=1,"不分析／無截斷",TEXT({cxCut},"0")&" cm（反曲點 "&TEXT({cx0},"0")&"）")','—','§9.7.3',null,true);
   a.data('受拉搭接（乙級）','1.3ψgld',bt('{bvlapBb}','{bvlapBt}'),'—','表 25.5.2.1',null,true);
   if(inp.seismic && !inp.slab) a.data('耐震梁柱接頭內 彎鉤 ldh／直線 ld（底筋）','—','TEXT({bvldhSb},"0")&"／"&TEXT({bvldSb},"0")&" cm"','—','§18.5.5.1、§18.5.5.3',null,true);
   a.sub('4.4 使用性（土木401 §24.2、§24.3）'); a.thead();
@@ -1677,8 +1869,9 @@ function buildA4Beam(ws, R, inp, jRow, sumRows){
   [[2,'設計'],[3,'校核'],[5,'審核']].forEach(([j,h])=>{ const c=ws.getCell(sg,j); c.value=h; c.font={name:FONT,size:9,bold:true}; c.alignment={horizontal:'center'}; ws.getCell(sl,j).border={bottom:side(K.black)}; });
   const fig = a4Figures(ws, a, '附圖　斷面圖（Excel 圖表，隨輸入自動更新）', 0);
   const elev = inp.slab ? null : a4Elev(ws, a, '附圖　沿梁軸向箍筋配置立面（梁深為示意）', FIG_ELB_ROWS);
+  const devPics = a4DevFigs(ws, a, '附圖　主筋伸展與搭接配置', inp.devFigs);
   ws.pageSetup.printArea=`A1:F${a.n}`;
-  return {fig, elev};
+  return {fig, elev, devPics};
 }
 
 /* ======================================================================
@@ -1755,7 +1948,8 @@ async function injectCharts(buf, specs, JSZip){
   let ct = await zip.file('[Content_Types].xml').async('string');
   const bySheet = {};
   specs.forEach(s => (bySheet[s.sheet] = bySheet[s.sheet] || []).push(s));
-  let chartNo = 0, drawNo = 0;
+  let chartNo = 0, drawNo = 0, imgNo = 0;
+  if(specs.some(s=>s.pic) && !/Extension="png"/i.test(ct)) ct = ct.replace('<Default ', '<Default Extension="png" ContentType="image/png"/><Default ');
   for(const [sheet, list] of Object.entries(bySheet)){
     drawNo++;
     const sp = sheetPath(sheet), sf = sp.split('/').pop();
@@ -1775,6 +1969,16 @@ async function injectCharts(buf, specs, JSZip){
     zip.file(sp, sx);
     const anchors=[], drels=[];
     list.forEach((s,i)=>{
+      if(s.pic){
+        imgNo++;
+        zip.file(`xl/media/devimg${imgNo}.png`, s.pic.b64, {base64:true});
+        drels.push(`<Relationship Id="rId${i+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/devimg${imgNo}.png"/>`);
+        anchors.push(`<xdr:oneCellAnchor><xdr:from><xdr:col>${s.from[0]}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>${s.from[1]}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from>`
+          + `<xdr:ext cx="${s.pic.cx}" cy="${s.pic.cy}"/><xdr:pic><xdr:nvPicPr><xdr:cNvPr id="${i+2}" name="${xmlEsc(s.name||('圖 '+(i+1)))}"/><xdr:cNvPicPr><a:picLocks noChangeAspect="1"/></xdr:cNvPicPr></xdr:nvPicPr>`
+          + `<xdr:blipFill><a:blip r:embed="rId${i+1}"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill>`
+          + `<xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${s.pic.cx}" cy="${s.pic.cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic><xdr:clientData/></xdr:oneCellAnchor>`);
+        return;
+      }
       chartNo++;
       zip.file(`xl/charts/chart${chartNo}.xml`, s.xml);
       ct = ct.replace('</Types>', `<Override PartName="/xl/charts/chart${chartNo}.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"/></Types>`);
@@ -2027,6 +2231,46 @@ function a4Elev(ws, a, title, rows){
   const start = a.n;
   for(let i=0;i<rows+1;i++){ const n=a.row(); ws.getRow(n).height=ROW_PT; }
   return start;
+}
+
+/* ---------- 伸展與搭接配置圖（網頁 SVG 轉 PNG 後嵌入；靜態圖，非原生圖表） ---------- */
+const DEVFIG = '伸展搭接配置圖';
+const EMU_PX = 9525;
+function buildDevFigSheet(ws, figs){
+  ws.columns = [{width:3}].concat(Array(10).fill(0).map(()=>({width:11})));
+  put(ws,'B1','伸展與搭接配置圖（匯出當下之網頁圖面，靜態圖片；數值以「檢核表」公式為準）',{sec:true});
+  ws.mergeCells(1,2,1,11); ws.getCell(1,2).alignment = {wrapText:false, vertical:'middle'};
+  ws.pageSetup = {paperSize:9, orientation:'portrait', fitToPage:true, fitToWidth:1, fitToHeight:0, margins:{left:0.4,right:0.4,top:0.5,bottom:0.5,header:0.3,footer:0.3}};
+  const specs = []; let n = 3;
+  for(const fg of (figs||[])){
+    ws.getCell(n,2).value = fg.title; ws.getCell(n,2).font = {name:FONT, size:11, bold:true};
+    n++;
+    const rows = Math.ceil(fg.h*0.75/ROW_PT) + 3;
+    for(let i=0;i<rows;i++) ws.getRow(n+i).height = ROW_PT;
+    specs.push({sheet:DEVFIG, name:fg.title, from:[1, n-1], pic:{b64:fg.b64, cx:Math.round(fg.w*EMU_PX), cy:Math.round(fg.h*EMU_PX)}});
+    n += rows;
+    if(fg.fm){ ws.mergeCells(n,2,n,11); const c = ws.getCell(n,2); c.value = fg.fm; c.font = {name:FONT, size:9}; c.alignment = {wrapText:true, vertical:'top'}; ws.getRow(n).height = 42; n++; }
+    n += 2;
+  }
+  return specs;
+}
+function a4DevFigs(ws, a, title, figs){
+  const list = (figs||[]).filter(fg => fg.a4);
+  if(!list.length) return [];
+  ws.getRow(a.n).addPageBreak();
+  a.chap(title);
+  const specs = [], sc = 690/760; let used = 2;
+  for(const fg of list){
+    const rows = Math.ceil(fg.h*sc*0.75/ROW_PT) + 3;
+    if(used + rows + 3 > 52){ ws.getRow(a.n).addPageBreak(); used = 0; }
+    a.sub(fg.title);
+    const start = a.n;
+    for(let i=0;i<rows;i++){ const r = a.row(); ws.getRow(r).height = ROW_PT; }
+    specs.push({sheet:'結構計算書(A4)', name:fg.title, from:[1, start], pic:{b64:fg.b64, cx:Math.round(fg.w*sc*EMU_PX), cy:Math.round(fg.h*sc*EMU_PX)}});
+    if(fg.fm) a.para('', fg.fm, 40);
+    used += rows + 3;
+  }
+  return specs;
 }
 /* 附圖頁：預留圖表列，回傳第一列（0 起算） */
 function a4Figures(ws, a, title, nPm){

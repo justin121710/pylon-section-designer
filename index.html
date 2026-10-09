@@ -2617,8 +2617,8 @@ function svgDevEnd(view, M, P, setIdx, forPrint){
     drawAnchor(o, F, q2, d, v2 + (dir<0 ? -2*Math.max(3*d.db,8) : 0), dir, C.bar2, bw);
   }else if(view==='joint'){
     drawAnchor(o, F, q, d, barV, dir, colQ, bw);
-    if(q2){ const [a,b] = Pf(0, barV + dir*Math.max(2.2*d.db, 5)), [c,e] = Pf(q2.len, barV + dir*Math.max(2.2*d.db, 5));
-      o.push(`<line x1="${_p(a)}" y1="${_p(b)}" x2="${_p(c)}" y2="${_p(e)}" stroke="${q2.len > hS - cov ? C.bad : C.bar2}" stroke-width="${bw}" stroke-dasharray="${bw*2.5} ${bw*1.6}" opacity="0.75"/>`); }
+    if(q2){ const vv = barV + dir*Math.max(4*d.db, 8), [a,b] = Pf(0, vv), [c,e] = Pf(q2.len, vv), w2 = Math.max(1.5, bw*0.5);
+      o.push(`<line x1="${_p(a)}" y1="${_p(b)}" x2="${_p(c)}" y2="${_p(e)}" stroke="${q2.len > hS - cov ? C.bad : C.bar2}" stroke-width="${_p(w2)}" stroke-dasharray="${_p(w2*4)} ${_p(w2*3)}"/>`); }
   }else if(q.ok) drawAnchor(o, F, q, d, barV, dir, colQ, bw);
   else{ const [a,b] = Pf(-uM, barV), [c,e] = Pf(0, barV);
     o.push(`<line x1="${_p(a)}" y1="${_p(b)}" x2="${_p(c)}" y2="${_p(e)}" stroke="${C.bar}" stroke-width="${bw}"/>`); }
@@ -3115,14 +3115,43 @@ function devVerdict(P, target){
 function devAlerts(P, add){
   for(const c of P.checks) if(c.lv!=='ok') add(c.lv, `<b>${esc(c.item)}</b>：${c.msg}（土木401 ${c.ref}）`);
 }
-function devReportFigs(M, P){
-  const all = devAllViews(M, P), o = [];
+/* 計算書（及 Excel A4 頁）收錄之視圖：總覽＋本案實際採用之錨定、續接方式 */
+function devReportWant(P){
   const want = new Set(['all']);
   const ancT = P.mod==='col' ? [P.bot.type, P.top.type] : [P.X.anc];
   for(const t of ancT) if(t && t!=='through') want.add(t);
   if(P.mech) want.add('mech'); else { want.add('lap'); if(P.stag) want.add('stagger'); }
   if(P.mod==='beam' && P.seis) want.add('joint');
   if(P.mod==='beam' && P.cut && !P.cut.na) want.add('cut');
+  return want;
+}
+/* Excel：每個視圖轉成 PNG（2 倍解析度） */
+function svgPng(svg, scale){
+  scale = scale || 2;
+  return new Promise((res, rej) => {
+    const m = svg.match(/viewBox="0 0 ([\d.]+) ([\d.]+)"/), w = +m[1], h = +m[2];
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement('canvas'); c.width = Math.round(w*scale); c.height = Math.round(h*scale);
+      const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
+      res({b64: c.toDataURL('image/png').split(',')[1], w, h});
+    };
+    img.onerror = () => rej(new Error('配置圖轉檔失敗'));
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg.replace('<svg ', `<svg width="${w}" height="${h}" `));
+  });
+}
+const plainFm = t => String(t||'').replace(/<[^>]+>/g,'').replace(/[_^]\{([^}]*)\}/g,'$1').replace(/_(?=[A-Za-z0-9,])/g,'').replace(/\^(?=[A-Za-z])/g,'');
+async function devFigsPng(M){
+  const P = M.devPlan, want = devReportWant(P), out = [];
+  for(const v of devAllViews(M, P)){
+    const png = await svgPng(v.svg, 2);
+    out.push({title: v.title, b64: png.b64, w: png.w, h: png.h, fm: plainFm(v.fm), a4: want.has(v.id)});
+  }
+  return out;
+}
+function devReportFigs(M, P){
+  const all = devAllViews(M, P), o = [];
+  const want = devReportWant(P);
   o.push(`<div class="rp-h3">伸展與搭接配置圖</div>`);
   for(const v of all) if(want.has(v.id)){
     o.push(`<div class="rp-fig no-break">${v.svg}<div style="font-size:11.5px;margin-top:4px">${SB(v.fm)}</div></div>`);
@@ -3687,7 +3716,7 @@ function colXlsxInput(){
     dbl:g('dbl')==='1', spiral:g('spiral')==='spiral', tieAll:g('tieLayout')==='all', ph:g('ph')==='1',
     phio:num('phio',1.25), Lv:num('Lv',400), lu:num('lu',300), theta:num('theta',45), ashPerp:g('ashPair')!=='para',
     phEnds: g('phEnds')==='1' ? 1 : 2, layTotal: MODEL && MODEL.lay ? MODEL.lay.total : 60,
-    dev: devOpts('d'),
+    dev: devOpts('d'), devX: devXCol(),
     loads: LOADS.map(L=>({name:L.name, Pu:+L.Pu||0, Mux:+L.Mux||0, Muy:+L.Muy||0, Vux:+L.Vux||0, Vuy:+L.Vuy||0, Tu:+L.Tu||0})),
     meta:{project:'', member:memName('memName')}};
 }
@@ -3703,7 +3732,7 @@ function beamXlsxInput(){
     MD:num('bMD',0), ML:num('bML',0), MDn:num('bMDn',0), MLn:num('bMLn',0), sustain:num('bSustain',0.2), xi:num('bXi',2), limLive:num('bLimLive',360), limTotal:num('bLimTotal',240),
     deflCase:g('bDeflCase'), wLim:g('bWlim'),
     layTotal: BMODEL && BMODEL.lay ? BMODEL.lay.total : 60,
-    dev: devOpts('bd'),
+    dev: devOpts('bd'), devX: devXBeam(),
     loads: BLOADS.map(L=>({name:L.name, Mpos:+(L.Mpos??L.Mu??0)||0, Mneg:+(L.Mneg??0)||0, Vu:+L.Vu||0, Tu:+L.Tu||0})),
     meta:{project:'', member:memName('bMemName')}};
 }
@@ -3712,7 +3741,9 @@ async function exportXlsx(){
   try{
     btn.disabled=true; btn.textContent='產生中…';
     await ensureXlsxLib();
-    const out = TAB==='beam' ? RCXLSX.buildBeam(ExcelJS, beamXlsxInput()) : RCXLSX.buildColumn(ExcelJS, colXlsxInput());
+    const inp = TAB==='beam' ? beamXlsxInput() : colXlsxInput();
+    inp.devFigs = await devFigsPng(TAB==='beam' ? (BMODEL||renderBeam()) : (MODEL||render()));
+    const out = TAB==='beam' ? RCXLSX.buildBeam(ExcelJS, inp) : RCXLSX.buildColumn(ExcelJS, inp);
     const buf = await RCXLSX.toBuffer(out, JSZip);
     const d=new Date(), p=n=>String(n).padStart(2,'0');
     const name = (TAB==='beam'?'RC梁版計算書':'RC柱計算書') + `_${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}.xlsx`;
