@@ -2589,10 +2589,15 @@ function renderAlerts(M){
     if(cc.need) add('info',`${M.r.spiral?'螺箍':'圓箍'}體積比需求 ρ_s ≥ ${f(cc.rhoReq*100,3)} %（${cc.rhoReq===cc.t1?"0.45(A_g/A_ch−1)f'c/f_yt":cc.rhoReq===cc.t2?"0.12f'c/f_yt":"0.35k_f P_u/(f_yt A_ch)"} 控制）→ s ≤ ${f(M.conf.sAsh,2)} cm。`);
     if(M.r.spiral && clr < chk.spMinClr) add('bad',`<b>螺箍淨距過小</b>：s − d_t = ${f(clr,1)} cm ＜ ${f(chk.spMinClr,1)} cm（max(2.5, 4/3·d_agg)），混凝土無法澆置。請改用較大號數的螺箍。`);
   }else
-  add(chk.everyB||chk.everyH?'warn':'info',
-    `繫筋排布：B 邊每面 <b>${chk.tiesB}</b> 根、H 邊每面 <b>${chk.tiesH}</b> 根（規範：每隔一根縱筋須側向支撐，且距被支撐筋淨距 ≤ 15 cm）。`+
-    (chk.everyB?`<br>B 邊主筋淨距 ${f(chk.clB,1)} cm > 15 cm，<b>每一根</b>都須繫筋。`:'')+
-    (chk.everyH?`<br>H 邊主筋淨距 ${f(chk.clH,1)} cm > 15 cm，<b>每一根</b>都須繫筋。`:''));
+  { // 「每一根」可能是規範強制（淨距 > 15 cm），也可能只是使用者選了「每一根主筋皆設」
+    const codeB = chk.clB > 15, codeH = chk.clH > 15, userAll = M.opt.tieAll;
+    const why = (side, cl, code) => code
+      ? `<br>${side} 邊主筋淨距 ${f(cl,1)} cm ＞ 15 cm，規範要求<b>每一根</b>都須繫筋。` : '';
+    add(codeB||codeH ? 'warn' : 'info',
+      `繫筋排布：B 邊每面 <b>${chk.tiesB}</b> 根、H 邊每面 <b>${chk.tiesH}</b> 根（規範：每隔一根縱筋須側向支撐，且距被支撐筋淨距 ≤ 15 cm）。`+
+      why('B',chk.clB,codeB) + why('H',chk.clH,codeH) +
+      (userAll && !(codeB&&codeH) ? `<br>目前設定為「每一根主筋皆設」${codeB||codeH?'（另一邊）':''}：主筋淨距 ${f(Math.min(chk.clB,chk.clH),1)} cm ≤ 15 cm，規範僅要求每隔一根；每根皆設為使用者選擇（增加 A_sh 與肢數）。` : ''));
+  }
 
   if(chk.hxMaxB>35||chk.hxMaxH>35)
     add('bad',`<b>耐震 h_x 超限</b>：被支撐筋中心距 B 邊 ${f(chk.hxMaxB,1)} / H 邊 ${f(chk.hxMaxH,1)} cm，超過 35 cm 上限，橫向圍束不足。`);
@@ -2847,7 +2852,7 @@ function buildReport(M){
     <tr><td class="l">中心距 (cm)</td><td>${d(M.chk.pB,2)}</td><td>${d(M.chk.pH,2)}</td></tr>
     <tr><td class="l">淨距 = 中心距 − d_b (cm)</td><td>${d(M.chk.clB,2)}</td><td>${d(M.chk.clH,2)}</td></tr>
     <tr><td class="l">淨距需求 max(4.0, 1.5d_b, 4/3·d_agg) (cm)</td><td>${d(M.chk.need,2)}</td><td>${d(M.chk.need,2)}</td></tr>
-    <tr><td class="l">須每根支撐？</td><td>${M.chk.everyB?'是':'否（每隔一根）'}</td><td>${M.chk.everyH?'是':'否（每隔一根）'}</td></tr>
+    <tr><td class="l">須每根支撐？</td>${[M.chk.clB,M.chk.clH].map(cl=>`<td>${cl>15?'是（淨距 ＞ 15 cm）':M.opt.tieAll?'否；採用每根皆設（使用者選擇）':'否（每隔一根）'}</td>`).join('')}</tr>
     <tr><td class="l">繫筋根數（每面）(根)</td><td><b>${M.chk.tiesB}</b></td><td><b>${M.chk.tiesH}</b></td></tr>
     <tr><td class="l">h_x 被支撐筋中心距 (cm，≤ 35)</td><td>${d(M.chk.hxMaxB,2)}</td><td>${d(M.chk.hxMaxH,2)}</td></tr>
   </tbody></table>`);
