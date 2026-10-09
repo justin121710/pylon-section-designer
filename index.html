@@ -6,6 +6,9 @@
 <title>RC 斷面設計工具（橋塔／柱・梁）</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2032%2032%22%3E%3Crect%20x%3D%224%22%20y%3D%224%22%20width%3D%2224%22%20height%3D%2224%22%20fill%3D%22none%22%20stroke%3D%22%230F5F6B%22%20stroke-width%3D%222.8%22%2F%3E%3Cg%20fill%3D%22%230F5F6B%22%3E%3Ccircle%20cx%3D%2210.5%22%20cy%3D%2210.5%22%20r%3D%222.5%22%2F%3E%3Ccircle%20cx%3D%2221.5%22%20cy%3D%2210.5%22%20r%3D%222.5%22%2F%3E%3Ccircle%20cx%3D%2210.5%22%20cy%3D%2221.5%22%20r%3D%222.5%22%2F%3E%3Ccircle%20cx%3D%2221.5%22%20cy%3D%2221.5%22%20r%3D%222.5%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
 
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" crossorigin="anonymous">
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js" crossorigin="anonymous"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" crossorigin="anonymous"></script>
@@ -15,17 +18,24 @@
 /* 案 C「檢核導向」：冷灰底 + 白卡 + 深青強調色。
    語意色（ok/warn/bad）與強調色刻意分開，狀態才不會跟裝飾混在一起。 */
 :root{
-  --bg:#EDF0F3; --panel:#FFFFFF; --line:#D8DEE5; --txt:#151C24; --dim:#5E6B7A;
-  --acc:#0F5F6B; --ok:#1E7A44; --warn:#B4711A; --bad:#B03A2E;
+  --bg:#EBEEF2; --panel:#FFFFFF; --line:#D8DEE5; --line2:#C3CCD6; --txt:#151C24; --dim:#56636F; --faint:#7D8994;
+  --acc:#0F5F6B; --acc-h:#0B4D57; --acc-soft:#E2EDEF;
+  --ok:#1E7A44; --warn:#9A5E10; --bad:#B03A2E;
+  --ok-soft:#E5F2EA; --warn-soft:#FBF0DF; --bad-soft:#F8E6E3;
   --sel:#E6EEF0; --sub:#F5F7F9; --shadow:0 1px 2px rgba(21,28,36,.07);
+  --chrome:#F8FAFB;   /* 頂列與狀態列：比內容區白一階、比卡片灰一階 */
   --conc:#DCE2E8; --void:#FFFFFF; --bar:#151C24; --tie:#0F5F6B; --ct:#B0407A;
   --curveN:#8A97A5; --curveD:#0F5F6B; --curveM:#6B4FA8; --pt:#6B7887; --ptc:#B03A2E;
 }
-html,body{background:var(--bg);color:var(--txt);font-family:ui-sans-serif,"Noto Sans TC",system-ui,sans-serif;margin:0}
-.fallback-grid{display:grid;grid-template-columns:142px minmax(390px,430px) minmax(0,1fr);gap:12px;padding:14px}
+html,body{background:var(--bg);color:var(--txt);margin:0;
+  font-family:"Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif;font-size:14px;
+  -webkit-font-smoothing:antialiased;caret-color:var(--acc)}
+::selection{background:rgba(15,95,107,.20)}
+*{scrollbar-width:thin;scrollbar-color:#B9C3CD transparent}
+.fallback-grid{display:grid;grid-template-columns:150px minmax(430px,480px) minmax(0,1fr);gap:14px;padding:14px 16px}
 @media(max-width:1150px){.fallback-grid{grid-template-columns:1fr}.pin-detail{max-height:none}}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:13px;
-  margin-bottom:11px;box-shadow:var(--shadow)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px;
+  margin-bottom:12px;box-shadow:var(--shadow)}
 /* 一律加 body 前綴提高權重。Tailwind 的 preflight 會把 button/input/select 的
    padding 歸零、font-size 改成 100%（＝16px），而且它是執行期注入、排在這段之後，
    同分時後者勝——不加前綴的話按鈕會變成 0 padding + 16px 字，擠成一團。 */
@@ -33,22 +43,38 @@ body input,body select{background:var(--panel);color:var(--txt);border:1px solid
   border-radius:5px;padding:6px 9px;width:100%;font-size:13.5px;line-height:1.35}
 body input:focus,body select:focus{outline:2px solid var(--acc);outline-offset:-1px}
 body input.inp-bad{outline:2px solid var(--bad);outline-offset:-1px;background:rgba(176,58,46,.08)}
-body button{cursor:pointer;border-radius:6px;border:1px solid var(--line);background:var(--panel);
-  color:var(--txt);padding:8px 14px;font-size:13.5px;line-height:1.25;box-shadow:var(--shadow)}
-body button:hover{background:var(--sel)}
-body #tabPylon,body #tabBeam{padding:6px 15px;border-radius:5px}
+/* 按鈕三階：主要（實心強調色，一個畫面只放一顆）、一般（白底框線）、安靜（無框，用在頂列工具） */
+body button{cursor:pointer;border-radius:6px;border:1px solid var(--line2);background:var(--panel);
+  color:var(--txt);padding:6px 12px;font-size:13px;font-weight:500;line-height:1.3;
+  transition:background-color .15s,border-color .15s,color .15s}
+body button:hover{background:var(--sub);border-color:#AEB9C4}
+body button:active{background:var(--sel)}
+body button:disabled{opacity:.5;cursor:not-allowed}
+body button:focus-visible,[role=button]:focus-visible,.pin-all:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+body button[aria-pressed=true]{background:var(--acc-soft);border-color:var(--acc);color:var(--acc-h)}
+body .btn-primary{background:var(--acc);border-color:var(--acc);color:#fff}
+body .btn-primary:hover{background:var(--acc-h);border-color:var(--acc-h)}
+body .btn-quiet{background:transparent;border-color:transparent;color:var(--txt)}
+body .btn-quiet:hover{background:#E9EDF1;border-color:transparent}
+svg.ic{width:16px;height:16px;display:inline-block;flex-shrink:0;fill:none;stroke:currentColor;
+  stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+body .tb-actions button{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+body .btn-quiet svg.ic{color:var(--dim)}
+body .btn-quiet:hover svg.ic{color:var(--txt)}
 table{border-collapse:collapse;width:100%;font-size:13px}
 th,td{border:1px solid var(--line);padding:5px 9px;text-align:right}
 th{background:var(--sub);text-align:center;font-weight:600}
 td.l,th.l{text-align:left}
 .fld{display:grid;grid-template-columns:1fr 96px;align-items:center;gap:6px;margin:5px 0;font-size:13px}
 .fld span{color:var(--dim)}
-h2{font-size:14px;font-weight:700;margin:0 0 8px;letter-spacing:.03em}
-.alert{border-radius:8px;padding:8px 11px;margin:6px 0;font-size:13px;line-height:1.55;border-left:4px solid}
-.a-bad{background:rgba(239,68,68,.13);border-color:var(--bad)}
-.a-warn{background:rgba(245,158,11,.13);border-color:var(--warn)}
-.a-ok{background:rgba(34,197,94,.13);border-color:var(--ok)}
-.a-info{background:rgba(56,189,248,.11);border-color:var(--acc)}
+body h2{font-size:14.5px;font-weight:700;margin:0 0 10px}   /* body 前綴：preflight 的 h2{font-weight:inherit} 排在後面 */
+.alert{border-radius:6px;padding:8px 12px;margin:6px 0;font-size:13px;line-height:1.6;border:1px solid}
+.a-bad{background:var(--bad-soft);border-color:rgba(176,58,46,.35)}
+.a-warn{background:var(--warn-soft);border-color:rgba(154,94,16,.32)}
+/* 通過的項目不上色：一整片綠會把唯一的黃色警示淹掉。只留一個綠勾 */
+.a-ok{background:var(--panel);border-color:var(--line)}
+.a-ok::before{content:"✓";color:var(--ok);font-weight:700;margin-right:8px}
+.a-info{background:var(--sub);border-color:var(--line)}
 .kv{display:flex;justify-content:space-between;gap:12px;font-size:13.5px;padding:4px 0;border-bottom:1px dashed var(--line)}
 .kv b{font-variant-numeric:tabular-nums}
 svg{display:block;width:100%;height:auto}
@@ -70,24 +96,22 @@ body{overflow:hidden;display:flex;flex-direction:column}
 body.rp-open{overflow:auto;display:block;background:#fff;color:#111}
 body.rp-open #topbar{background:#fff;color:#111;border-bottom:1px solid #999}
 body.rp-open #impBanner{display:none!important}
-body.rp-open #verdict{display:none!important}
+body.rp-open #statusbar{display:none!important}
 /* 判定列：一眼看結論，點擊跳到對應卡片 */
-#verdict{flex-shrink:0;display:flex;flex-wrap:wrap;gap:6px;padding:7px 16px;background:var(--panel);
-  border-bottom:1px solid var(--line)}
-#verdict:empty{display:none}
-body #verdict .vd{display:inline-flex;align-items:center;gap:7px;padding:4px 11px 4px 9px;border-radius:999px;
-  font-size:12.5px;line-height:1.3;box-shadow:none;background:var(--sub);border:1px solid var(--line);
+#verdict{display:flex;flex-wrap:wrap;gap:6px;min-width:0;flex:1 1 520px}
+body #verdict .vd{display:inline-flex;align-items:center;gap:7px;padding:4px 11px 4px 8px;border-radius:999px;
+  font-size:12.5px;font-weight:400;line-height:1.3;background:var(--panel);border:1px solid var(--line);
   font-variant-numeric:tabular-nums;white-space:nowrap}
 body #verdict .vd:hover{background:var(--sel)}
 #verdict .vd i{font-style:normal;width:16px;height:16px;border-radius:50%;display:inline-flex;align-items:center;
   justify-content:center;font-size:10px;font-weight:800;color:#fff;flex-shrink:0}
 #verdict .vd.ok i{background:var(--ok)} #verdict .vd.warn i{background:var(--warn)}
-#verdict .vd.bad i{background:var(--bad)} #verdict .vd.bad{border-color:var(--bad);background:rgba(176,58,46,.07)}
-#verdict .vd.warn{border-color:rgba(180,113,26,.55)}
+#verdict .vd.bad i{background:var(--bad)} body #verdict .vd.bad{border-color:rgba(176,58,46,.5);background:var(--bad-soft)}
+body #verdict .vd.warn{border-color:rgba(154,94,16,.45);background:var(--warn-soft)}
 #verdict .vd em{font-style:normal;color:var(--dim)}
 /* 堆疊版面（整頁捲動）時判定列黏在頂端；跳轉目標留出它的高度 */
-@media(max-width:1150px){#verdict{position:sticky;top:0;z-index:5;box-shadow:0 2px 6px rgba(21,28,36,.08)}
-  .card{scroll-margin-top:var(--vdH,56px)}}
+@media(max-width:1150px){#statusbar{position:sticky;top:0;z-index:5;box-shadow:0 2px 6px rgba(21,28,36,.08)}
+  .ws .card{scroll-margin-top:calc(var(--sbH,56px) + 52px)}}
 body.rp-open #app,body.rp-open #appBeam{display:none!important}
 @media(max-width:1150px){
   body{overflow:auto;display:block}
@@ -103,18 +127,20 @@ body.rp-open #app,body.rp-open #appBeam{display:none!important}
 
 .pin-rail{display:flex;flex-direction:column;gap:2px;min-height:0}
 .pin-all,.pin-g{cursor:pointer;border-radius:8px;border:1px solid transparent}
-.pin-all{padding:7px 9px;font-size:12.5px;font-weight:700;background:var(--panel);border-color:var(--line);color:var(--dim)}
-.pin-all.on{background:var(--acc);border-color:var(--acc);color:#fff}
-.pin-g{display:flex;align-items:flex-start;gap:8px;padding:8px 10px}
-.pin-g.on{background:var(--panel);border-color:var(--line);font-weight:600;box-shadow:var(--shadow)}
-.pin-g:hover{background:var(--sel)}
+.pin-all{padding:7px 10px;font-size:13px;font-weight:500;color:var(--dim)}
+.pin-all:hover{background:#E2E7EC;color:var(--txt)}
+.pin-all.on{background:var(--panel);border-color:var(--line);color:var(--txt);font-weight:700;box-shadow:var(--shadow)}
+.pin-g{display:flex;align-items:flex-start;gap:9px;padding:8px 10px}
+.pin-g.on{background:var(--panel);border-color:var(--line);font-weight:700;box-shadow:var(--shadow)}
+.pin-g:hover{background:#E2E7EC}
+.pin-g.on:hover{background:var(--panel)}
 .pin-gl{font-size:13px;line-height:1.4}
 .pin-gs{font-size:10.5px;color:var(--dim);margin-top:1px}
 .pin-mk{width:19px;height:19px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;
   justify-content:center;font-size:10.5px;font-weight:700;margin-top:1px}
-.pin-mk.ok{background:rgba(34,197,94,.14);color:var(--ok);border:1px solid rgba(34,197,94,.5)}
-.pin-mk.warn{background:rgba(245,158,11,.16);color:var(--warn);border:1px solid var(--warn)}
-.pin-mk.bad{background:rgba(239,68,68,.16);color:var(--bad);border:1px solid var(--bad)}
+.pin-mk.ok{background:transparent;color:var(--ok);border:1.5px solid rgba(30,122,68,.45)}
+.pin-mk.warn{background:var(--warn);color:#fff}
+.pin-mk.bad{background:var(--bad);color:#fff}
 .pin-mk.note{background:rgba(15,95,107,.10);color:var(--acc);border:1px solid rgba(15,95,107,.45);font-style:italic;font-family:Georgia,serif}
 
 /* 中欄：參數表與說明卡之間夾一條可拖曳的分隔線（取代原本 pin-detail 的固定高度） */
@@ -124,16 +150,17 @@ body.rp-open #app,body.rp-open #appBeam{display:none!important}
 .pin-mid>#derivedP,.pin-mid>#derivedB{margin:10px 0 0}
 .pin-sheet{background:var(--panel);border:1px solid var(--line);border-radius:8px;
   display:flex;flex-direction:column;min-height:0;overflow:hidden;box-shadow:var(--shadow)}
-.pin-head{display:grid;grid-template-columns:58px 1fr 168px 62px 48px;background:var(--sub);
+.pin-head{display:grid;grid-template-columns:50px 1fr 156px 62px 44px;background:var(--sub);
   border-bottom:1px solid var(--line);font-size:12px;font-weight:600;color:var(--dim)}
 .pin-head>div{padding:7px 10px}
 .pin-body{overflow-y:auto;flex-grow:1}
-.pin-sec{padding:11px 10px 7px;font-size:11.5px;font-weight:700;letter-spacing:.08em;color:var(--dim);
+.pin-sec{padding:10px 12px 6px;font-size:12px;font-weight:700;letter-spacing:.04em;color:var(--txt);
   background:var(--sub);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:1}
-.pin-row{display:grid;grid-template-columns:58px 1fr 168px 62px 48px;align-items:center;
+.pin-row{display:grid;grid-template-columns:50px 1fr 156px 62px 44px;align-items:center;
   min-height:39px;cursor:pointer;border-bottom:1px solid var(--line)}
 .pin-row:hover{background:var(--sub)}
-.pin-row.on{background:var(--sel);box-shadow:inset 3px 0 0 var(--acc)}
+.pin-row.on{background:var(--acc-soft)}
+.pin-row.on .pin-n{color:var(--acc-h);font-weight:500}
 .pin-c{padding:0 10px;font-size:12.5px;color:var(--dim);font-variant-numeric:tabular-nums}
 .pin-n{padding:0 10px;font-size:13.5px}
 .pin-v{padding:0 6px}
@@ -141,7 +168,8 @@ body.rp-open #app,body.rp-open #appBeam{display:none!important}
 .pin-s{padding:0 4px;text-align:center}
 .pin-row.pin-hidden,.pin-row.pin-na{display:none}
 @media(min-width:641px){ .pin-row.pin-wide .pin-v{grid-column:3 / 5} .pin-row.pin-wide .pin-u{display:none} }
-.pin-chip{display:inline-block;padding:2px 7px;border-radius:10px;font-size:10.5px}
+.pin-chip{display:inline-block;padding:2px 7px;border-radius:10px;font-size:11px;font-weight:600}
+.pin-chip:empty{display:none}   /* 通過的列不標記：狀態欄只留給例外 */
 .pin-chip.ok{background:rgba(30,122,68,.12);color:var(--ok)}
 .pin-chip.warn{background:rgba(180,113,26,.13);color:var(--warn)}
 .pin-chip.bad{background:rgba(176,58,46,.12);color:var(--bad)}
@@ -149,8 +177,7 @@ body.rp-open #app,body.rp-open #appBeam{display:none!important}
 
 .pin-detail{background:var(--panel);border:1px solid var(--line);border-radius:8px;
   padding:13px 14px;overflow-y:auto;min-height:0;box-shadow:var(--shadow)}
-.pin-dt{font-size:11px;color:var(--acc);letter-spacing:.09em;margin-bottom:7px;font-weight:600}
-.pin-dl{font-size:11px;color:var(--dim);letter-spacing:.07em;margin-bottom:5px}
+.pin-dl{font-size:12px;color:var(--dim);margin-bottom:5px;font-weight:500}
 .pin-rule{font-size:12.5px;line-height:1.7;background:var(--sub);border:1px solid var(--line);
   border-radius:6px;padding:9px 11px;font-variant-numeric:tabular-nums}
 
@@ -174,6 +201,8 @@ body.rp-open #app,body.rp-open #appBeam{display:none!important}
 .ov-shell{position:fixed;inset:0;background:rgba(3,7,18,.55);z-index:60;
   display:none;align-items:center;justify-content:center;padding:20px}
 .ov-shell.open{display:flex}
+/* 對話框標題已寫明「載重組合」與正負號慣例，搬進來的卡片不再重複一次 */
+#loadHost .card>h2,#loadHost .card>h2+div{display:none}
 
 /* 分隔線：拖曳調整區塊範圍；Tab 選到後可用方向鍵 */
 .hsplit{cursor:row-resize;border:0;padding:0;background:transparent;touch-action:none;
@@ -188,8 +217,7 @@ body.rp-open #app,body.rp-open #appBeam{display:none!important}
 .stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
 .stat{background:var(--panel);border:1px solid var(--line);border-radius:8px;
   padding:11px 13px 12px;box-shadow:var(--shadow)}
-.stat .lb{font-size:10.5px;letter-spacing:.1em;color:var(--dim);font-weight:600;
-  text-transform:uppercase}
+.stat .lb{font-size:12px;color:var(--dim);font-weight:500}
 .stat .big{font-size:32px;font-weight:700;line-height:1.15;letter-spacing:-.02em;
   font-variant-numeric:tabular-nums;margin-top:2px}
 .stat .cap{font-size:11.5px;color:var(--dim);line-height:1.5}
@@ -251,7 +279,7 @@ body .pin-v input[type=text]{text-align:left}
     --conc:#d9d9d9;--void:#fff;--bar:#000;--tie:#000;--ct:#000;
     --curveN:#888;--curveD:#000;--curveM:#555;--pt:#777;--ptc:#000;
   }
-  #app,#appBeam,#topbar,#verdict{display:none!important}
+  #app,#appBeam,#topbar,#statusbar{display:none!important}
   #report{display:block!important}
   .rp-page{page-break-after:always}
   .rp-page:last-child{page-break-after:auto}
@@ -303,9 +331,9 @@ body .pin-v input[type=text]{text-align:left}
 .imp-note{font-size:12.5px;line-height:1.8;color:var(--dim)}
 .imp-tag{display:inline-block;font-size:11.5px;padding:2px 8px;border-radius:999px;
   border:1px solid var(--line);margin-left:6px;vertical-align:middle}
-.imp-tag.ok{background:rgba(34,197,94,.15);border-color:var(--ok);color:#86efac}
-.imp-tag.warn{background:rgba(245,158,11,.15);border-color:var(--warn);color:#fcd34d}
-.imp-tag.bad{background:rgba(239,68,68,.15);border-color:var(--bad);color:#fca5a5}
+.imp-tag.ok{background:var(--ok-soft);border-color:rgba(30,122,68,.4);color:var(--ok)}
+.imp-tag.warn{background:var(--warn-soft);border-color:rgba(154,94,16,.4);color:var(--warn)}
+.imp-tag.bad{background:var(--bad-soft);border-color:rgba(176,58,46,.4);color:var(--bad)}
 .imp-chk{width:auto;margin:0}
 #impOv input[type=file]{padding:7px}
 #oNbarChk{margin-left:7px}
@@ -317,7 +345,7 @@ body .pin-v input[type=text]{text-align:left}
   background:rgba(176,58,46,.12);border-bottom:2px solid var(--bad);color:var(--bad)}
 #errBar b{font-weight:700}
 #impBanner{flex-shrink:0;padding:8px 16px;font-size:12.5px;line-height:1.7;
-  background:rgba(56,189,248,.10);border-bottom:1px solid var(--line)}
+  background:var(--acc-soft);border-bottom:1px solid var(--line)}
 .src-key{display:inline-block;width:13px;height:13px;border-radius:3px;
   vertical-align:-2px;margin-right:4px}
 .src-draw-k{border:2px solid var(--ok);background:rgba(34,197,94,.16)}
@@ -326,6 +354,72 @@ input.src-draw,select.src-draw{border-color:var(--ok);
   box-shadow:inset 3px 0 0 var(--ok);background:rgba(34,197,94,.07)}
 input.src-miss,select.src-miss{border-color:var(--warn);border-style:dashed;
   box-shadow:inset 3px 0 0 var(--warn);background:rgba(245,158,11,.07)}
+
+/* ==== 頂列（品名・構件切換・文件動作）==== */
+#topbar{flex-shrink:0;display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;padding:9px 16px;
+  background:var(--chrome);border-bottom:1px solid var(--line)}
+.tb-brand{display:flex;align-items:center;gap:9px}
+.tb-name{font-size:16px;font-weight:700;letter-spacing:.02em;white-space:nowrap}
+.tb-sec{font-size:13px;color:var(--dim)}
+.tb-stamp{font-size:11px;color:var(--faint)}
+.tb-actions{display:flex;align-items:center;gap:2px;flex-wrap:wrap}
+.tb-actions .btn-primary{margin-right:6px}
+.tb-div{width:1px;height:20px;background:var(--line);margin:0 6px}
+/* 分段切換鈕（柱／梁）：選中的一段是白底浮起，不用強調色，強調色留給主要動作 */
+.seg{display:inline-flex;gap:2px;padding:3px;background:#E3E8ED;border-radius:8px}
+body .seg button{border:0;background:transparent;padding:5px 14px;border-radius:6px;color:var(--dim);font-weight:500}
+body .seg button:hover{background:rgba(255,255,255,.55);color:var(--txt)}
+body .seg button[aria-pressed=true]{background:var(--panel);color:var(--txt);font-weight:700;
+  box-shadow:0 1px 2px rgba(21,28,36,.12),0 0 0 1px rgba(21,28,36,.04)}
+
+/* ==== 狀態列：設計依據｜檢核結論 ==== */
+#statusbar{flex-shrink:0;display:flex;align-items:flex-start;gap:8px 16px;padding:8px 16px;
+  background:var(--chrome);border-bottom:1px solid var(--line)}
+/* 依據兩欄上下疊：跟兩排判定膠囊同高，判定列就能多拿到兩百多 px 的寬度 */
+.sb-basis{display:flex;flex-direction:column;gap:6px;flex-shrink:0;padding-right:16px;border-right:1px solid var(--line)}
+.sb-field{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--dim);white-space:nowrap}
+.sb-field>span{width:48px;text-align:right}
+body .sb-field select{width:auto;font-size:12.5px;padding:4px 8px;max-width:300px}
+
+/* ==== 右欄結果分頁 ==== */
+.ws{min-width:0}
+@media(min-width:1151px){ .ws .card{scroll-margin-top:52px} }
+.ws-tabs{display:flex;gap:2px;overflow-x:auto;margin:0 0 12px;border-bottom:1px solid var(--line2);
+  position:sticky;top:0;z-index:2;background:var(--bg);scrollbar-width:none}
+body .ws-tabs button{border:0;border-radius:6px 6px 0 0;background:transparent;color:var(--dim);
+  padding:8px 13px 9px;font-weight:500;white-space:nowrap;position:relative;display:inline-flex;align-items:center;gap:6px}
+body .ws-tabs button:hover{background:rgba(255,255,255,.6);color:var(--txt)}
+body .ws-tabs button[aria-selected=true]{color:var(--acc-h);font-weight:700}
+.ws-tabs button[aria-selected=true]::after{content:"";position:absolute;left:8px;right:8px;bottom:-1px;height:2px;
+  background:var(--acc);border-radius:2px 2px 0 0}
+.ws-badge{min-width:18px;height:18px;padding:0 5px;border-radius:9px;font-size:11px;font-weight:700;
+  color:#fff;display:inline-flex;align-items:center;justify-content:center;font-variant-numeric:tabular-nums}
+.ws-badge[hidden]{display:none}
+.ws-badge.warn{background:var(--warn)} .ws-badge.bad{background:var(--bad)}
+.ws[data-active=fig]  .card[data-pane]:not([data-pane=fig]),
+.ws[data-active=sum]  .card[data-pane]:not([data-pane=sum]),
+.ws[data-active=elev] .card[data-pane]:not([data-pane=elev]),
+.ws[data-active=dev]  .card[data-pane]:not([data-pane=dev]),
+.ws[data-active=load] .card[data-pane]:not([data-pane=load]),
+.ws[data-active=warn] .card[data-pane]:not([data-pane=warn]),
+.ws[data-active=test] .card[data-pane]:not([data-pane=test]){display:none}
+body.rp-open .ws-tabs{display:none}
+
+@media(max-width:1150px){
+  .ws-tabs{top:var(--sbH,56px)}
+  #statusbar{flex-wrap:wrap}
+  .sb-basis{border-right:0;padding-right:0;flex-direction:row;flex-wrap:wrap;flex:1 1 100%;min-width:0}
+  .sb-field{min-width:0;max-width:100%}
+  .sb-field>span{width:auto}
+  body .sb-field select{min-width:0;max-width:100%}
+}
+@media(max-width:900px){ .tb-actions .lbl{display:none} .tb-actions .btn-primary .lbl{display:inline} }
+@media(max-width:640px){
+  #statusbar{padding:6px 12px}
+  #verdict{flex:1 1 100%}
+  .tb-div{display:none}
+}
+@media(prefers-reduced-motion:reduce){ body button{transition:none} }
 </style>
 <!-- 原本用 cdn.tailwindcss.com 於執行期編譯；全檔只用到約 30 個工具類別，改為內嵌靜態 CSS：
      斷網也不降級、無正式環境警告、不受 CDN 版本漂移影響。
@@ -395,46 +489,70 @@ img,video{max-width:100%;height:auto}
   </symbol>
 </defs></svg>
 
-<div id="topbar" class="flex flex-wrap items-center px-4 py-3 border-b" style="gap:10px;row-gap:8px;border-color:var(--line);background:var(--panel)">
-  <svg class="logo" viewBox="0 0 32 32" role="img" aria-label="RC 斷面設計"><use href="#logoMark"/></svg>
-  <div class="font-extrabold text-[17px] tracking-wide">RC 斷面設計</div>
+<!-- 圖示：線條 1.75、圓角端點，與標誌同一套筆觸。尺寸由 svg.ic 指定（全域 svg 規則會蓋掉屬性）。 -->
+<svg style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true"><defs>
+  <symbol id="icImport" viewBox="0 0 24 24"><path d="M4 7V5a1 1 0 0 1 1-1h2M17 4h2a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2"/><path d="M8 12h8M12 8v8"/></symbol>
+  <symbol id="icOpen" viewBox="0 0 24 24"><path d="M4 19V6a1 1 0 0 1 1-1h4l2 2h7a1 1 0 0 1 1 1v2"/><path d="M4 19l2.6-7.2a1 1 0 0 1 .9-.8H20a.8.8 0 0 1 .8 1L18.5 19H4z"/></symbol>
+  <symbol id="icSave" viewBox="0 0 24 24"><path d="M5 4h11l3 3v12a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4z"/><path d="M8 4v5h7V4M8 20v-6h8v6"/></symbol>
+  <symbol id="icSheet" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="1.5"/><path d="M4 10h16M4 15h16M10 4v16"/></symbol>
+  <symbol id="icDoc" viewBox="0 0 24 24"><path d="M6 3h8l4 4v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v4h4M8.5 12h7M8.5 16h5"/></symbol>
+  <symbol id="icPrint" viewBox="0 0 24 24"><path d="M7 9V4h10v5"/><rect x="4" y="9" width="16" height="7" rx="1.5"/><path d="M7 14h10v6H7z"/></symbol>
+  <symbol id="icTest" viewBox="0 0 24 24"><path d="M9 3h6M10 3v6l-5 9a1.5 1.5 0 0 0 1.3 2.2h11.4A1.5 1.5 0 0 0 19 18l-5-9V3"/><path d="M7.5 14h9"/></symbol>
+</defs></svg>
+
+<header id="topbar">
+  <div class="tb-brand">
+    <svg class="logo" viewBox="0 0 32 32" role="img" aria-label="RC 斷面設計"><use href="#logoMark"/></svg>
+    <span class="tb-name">RC 斷面設計</span>
+  </div>
+  <div class="seg" role="group" aria-label="構件類型">
+    <button id="tabPylon" type="button" aria-pressed="true">柱斷面</button>
+    <button id="tabBeam" type="button" aria-pressed="false">梁／版斷面</button>
+  </div>
   <!-- 斷面切換：只有在匯入到 2 個以上斷面時才出現（見 secPicker） -->
   <select id="secPick" style="display:none;width:auto;min-width:170px;font-weight:600"></select>
-  <div id="secName" class="text-[13px]" style="color:var(--dim)"></div>
-  <div id="calcStamp" class="text-[11px] mono" style="color:var(--dim)" title="每次重新計算都會更新。數字沒動就代表沒有重算。"></div>
+  <div id="secName" class="tb-sec"></div>
+  <div id="calcStamp" class="tb-stamp mono" title="每次重新計算都會更新。數字沒動就代表沒有重算。"></div>
   <div class="grow"></div>
-  <label class="text-[11.5px] flex items-center gap-1" style="color:var(--dim)" title="決定耐震細則、容量設計剪力與計算書的規範依據；單位一律 kgf-cm">
-    設計依據
-    <select id="codeBasis" style="width:auto;font-size:12.5px;padding:4px 6px">
-      <option value="bldg">建築物（土木401＋建築物耐震設計規範）</option>
-      <option value="bridge">橋梁（土木401 斷面強度＋公路橋梁耐震設計規範）</option>
-    </select></label>
-  <select id="envWater" title="水工／環境結構：保護層 ≥ 5 cm、梁版檢核裂縫寬度、溫度收縮鋼筋比提高（參考 ACI 350／ACI 224R）"
-    style="width:auto;font-size:12.5px;padding:4px 6px">
-    <option value="normal">一般環境</option>
-    <option value="water">水工／環境結構（加嚴）</option>
-  </select>
-  <div class="flex gap-1" style="background:var(--sub);border:1px solid var(--line);border-radius:7px;padding:3px">
-    <button id="tabPylon" class="!border-0" style="background:var(--acc);color:#fff;box-shadow:none">柱斷面</button>
-    <button id="tabBeam"  class="!border-0" style="background:transparent;box-shadow:none">梁／版斷面</button>
+  <div class="tb-actions">
+    <button id="btnImport" type="button" class="btn-primary" title="上傳斷面圖說，判讀尺寸與配筋後逐欄勾選填入"><svg class="ic"><use href="#icImport"/></svg><span class="lbl">從圖說匯入</span></button>
+    <span class="tb-div" aria-hidden="true"></span>
+    <button id="btnCaseOpen" type="button" class="btn-quiet" title="開啟先前儲存的案件檔（.json）"><svg class="ic"><use href="#icOpen"/></svg><span class="lbl">開啟案件</span></button>
+    <button id="btnCaseSave" type="button" class="btn-quiet" title="把目前所有輸入與載重下載成 .json；本機也會自動保存"><svg class="ic"><use href="#icSave"/></svg><span class="lbl">儲存案件</span></button>
+    <input id="caseFile" type="file" accept=".json,application/json" style="display:none">
+    <span class="tb-div" aria-hidden="true"></span>
+    <button id="btnXlsx" type="button" class="btn-quiet" title="匯出附公式的 Excel 計算書（檢核表＋A4 結構計算書），數值皆為公式、可在 Excel 內修改重算"><svg class="ic"><use href="#icSheet"/></svg><span class="lbl">匯出 Excel</span></button>
+    <button id="btnPreview" type="button" class="btn-quiet" title="在畫面上預覽 A4 計算書；再按一次回到設計畫面"><svg class="ic"><use href="#icDoc"/></svg><span class="lbl">預覽報告</span></button>
+    <button id="btnPrint" type="button" class="btn-quiet" title="列印計算書，或在列印對話框選「另存為 PDF」"><svg class="ic"><use href="#icPrint"/></svg><span class="lbl">列印 / 存成 PDF</span></button>
+    <span class="tb-div" aria-hidden="true"></span>
+    <button id="btnTest" type="button" class="btn-quiet" title="執行內部一致性自測，結果顯示在右側「自測」分頁"><svg class="ic"><use href="#icTest"/></svg><span class="lbl">內部自測</span></button>
   </div>
-  <button id="btnImport" style="background:var(--acc);border-color:var(--acc);color:#fff">從圖說匯入</button>
-  <button id="btnCaseOpen" title="開啟先前儲存的案件檔（.json）">開啟案件</button>
-  <button id="btnCaseSave" title="把目前所有輸入與載重下載成 .json；本機也會自動保存">儲存案件</button>
-  <button id="btnXlsx" title="匯出附公式的 Excel 計算書（檢核表＋A4 結構計算書），數值皆為公式、可在 Excel 內修改重算">匯出 Excel</button>
-  <input id="caseFile" type="file" accept=".json,application/json" style="display:none">
-  <button id="btnTest">內部自測</button>
-  <button id="btnPreview">預覽報告</button>
-  <button id="btnPrint">列印 / 存成 PDF</button>
-</div>
+</header>
 
-<div id="verdict" aria-label="檢核結論"></div>
+<!-- 狀態列：左邊是這次檢核依據的規範，右邊是結論。先講依據，再講結果。 -->
+<div id="statusbar">
+  <div class="sb-basis">
+    <label class="sb-field" title="決定耐震細則、容量設計剪力與計算書的規範依據；單位一律 kgf-cm">
+      <span>設計依據</span>
+      <select id="codeBasis">
+        <option value="bldg">建築物（土木401＋建築物耐震設計規範）</option>
+        <option value="bridge">橋梁（土木401 斷面強度＋公路橋梁耐震設計規範）</option>
+      </select></label>
+    <label class="sb-field" title="水工／環境結構：保護層 ≥ 5 cm、梁版檢核裂縫寬度、溫度收縮鋼筋比提高（參考 ACI 350／ACI 224R）">
+      <span>環境</span>
+      <select id="envWater">
+        <option value="normal">一般環境</option>
+        <option value="water">水工／環境結構（加嚴）</option>
+      </select></label>
+  </div>
+  <div id="verdict" aria-label="檢核結論"></div>
+</div>
 <div id="errBar" style="display:none"></div>
 <div id="impBanner" style="display:none"></div>
 
 <div id="loadOv" class="ov-shell">
   <div class="imp-dlg">
-    <div class="imp-head"><b>⑥ 載重組合</b>
+    <div class="imp-head"><b>載重組合</b>
       <span class="imp-note">P<sub>u</sub> 壓為正、拉為負</span>
       <div class="imp-grow"></div><button id="loadClose">關閉</button></div>
     <div class="imp-body" id="loadHost"></div>
@@ -555,10 +673,18 @@ img,video{max-width:100%;height:auto}
 
   </div>
 
-  <!-- ============ 右：視覺化與結果 ============ -->
-  <div>
+  <!-- ============ 右：視覺化與結果（分頁；卡片留在 DOM，只切換顯示）============ -->
+  <div class="ws" id="wsP" data-active="fig">
+    <nav class="ws-tabs" role="tablist" aria-label="結果分頁">
+      <button type="button" role="tab" data-pane="fig">斷面與 P-M</button>
+      <button type="button" role="tab" data-pane="sum">結果摘要</button>
+      <button type="button" role="tab" data-pane="elev">軸向配置</button>
+      <button type="button" role="tab" data-pane="dev">伸展長度</button>
+      <button type="button" role="tab" data-pane="warn">警示<span class="ws-badge" hidden></span></button>
+      <button type="button" role="tab" data-pane="test">自測</button>
+    </nav>
     <div class="figs">
-    <div class="card">
+    <div class="card" data-pane="fig">
       <div class="flex items-center justify-between mb-1">
         <h2 class="!mb-0">斷面配筋圖（即時）</h2>
         <div class="text-[11.5px]" style="color:var(--dim)">SVG 向量 · 主筋依號數按真實直徑比例繪製</div>
@@ -566,7 +692,7 @@ img,video{max-width:100%;height:auto}
       <div id="secWrap" class="pm-box"></div>
     </div>
 
-    <div class="card">
+    <div class="card" data-pane="fig">
       <div class="flex items-center justify-between mb-1">
         <h2 class="!mb-0">P-M 互制曲線</h2>
         <div class="flex gap-2">
@@ -577,7 +703,7 @@ img,video{max-width:100%;height:auto}
       <div id="pmWrap" class="pm-box"></div>
       <div id="pmLegend" class="fig-legend"></div>
     </div>
-    <div class="card">
+    <div class="card" data-pane="elev">
       <div class="flex items-center justify-between mb-1">
         <h2 class="!mb-0">箍筋配置（沿柱軸向立面）</h2>
         <div class="text-[11.5px]" style="color:var(--dim)">加密區／一般區之間距與數量</div>
@@ -585,7 +711,7 @@ img,video{max-width:100%;height:auto}
       <div id="elevWrap" class="pm-box"></div>
       <div id="elevInfo" class="text-[12.5px] mt-2" style="overflow-x:auto"></div>
     </div>
-    <div class="card">
+    <div class="card" data-pane="dev">
       <div class="flex items-center justify-between mb-1">
         <h2 class="!mb-0">主筋伸展長度與搭接</h2>
         <div class="text-[11.5px]" style="color:var(--dim)">土木401 第 25 章 · 條件於左側「伸展長度」設定</div>
@@ -615,9 +741,9 @@ img,video{max-width:100%;height:auto}
       <button id="btnCsvApply" class="hidden mt-2">套用 CSV</button>
     </div>
 
-    <div class="card"><h2>設計結果摘要</h2><div id="summary"></div></div>
-    <div class="card"><h2>工程查核與警示</h2><div id="alerts"></div></div>
-    <div class="card"><h2>內部一致性自測</h2><div id="testOut" class="text-[12.5px]" style="color:var(--dim)">按上方「內部自測」執行。</div></div>
+    <div class="card" data-pane="sum"><h2>設計結果摘要</h2><div id="summary"></div></div>
+    <div class="card" data-pane="warn"><h2>工程查核與警示</h2><div id="alerts"></div></div>
+    <div class="card" data-pane="test"><h2>內部一致性自測</h2><div id="testOut" class="text-[12.5px]" style="color:var(--dim)">按頂列「內部自測」執行。</div></div>
   </div>
 </div>
 
@@ -721,8 +847,17 @@ img,video{max-width:100%;height:auto}
     </div>
   </div>
 
-  <div>
-    <div class="card">
+  <div class="ws" id="wsB" data-active="fig">
+    <nav class="ws-tabs" role="tablist" aria-label="結果分頁">
+      <button type="button" role="tab" data-pane="fig">斷面圖</button>
+      <button type="button" role="tab" data-pane="sum">結果摘要</button>
+      <button type="button" role="tab" data-pane="elev">軸向配置</button>
+      <button type="button" role="tab" data-pane="dev">伸展長度</button>
+      <button type="button" role="tab" data-pane="load">載重組合</button>
+      <button type="button" role="tab" data-pane="warn">警示<span class="ws-badge" hidden></span></button>
+      <button type="button" role="tab" data-pane="test">自測</button>
+    </nav>
+    <div class="card" data-pane="fig">
       <div class="flex items-center justify-between mb-1">
         <h2 class="!mb-0">梁斷面圖（即時）</h2>
         <div class="flex gap-2">
@@ -732,7 +867,7 @@ img,video{max-width:100%;height:auto}
       </div>
       <div id="bSecWrap"></div>
     </div>
-    <div class="card" id="bElevCard">
+    <div class="card" id="bElevCard" data-pane="elev">
       <div class="flex items-center justify-between mb-1">
         <h2 class="!mb-0">箍筋配置（沿梁軸向立面）</h2>
         <div class="text-[11.5px]" style="color:var(--dim)">加密區／一般區之間距與數量</div>
@@ -740,7 +875,7 @@ img,video{max-width:100%;height:auto}
       <div id="bElevWrap" class="pm-box"></div>
       <div id="bElevInfo" class="text-[12.5px] mt-2" style="overflow-x:auto"></div>
     </div>
-    <div class="card">
+    <div class="card" data-pane="dev">
       <div class="flex items-center justify-between mb-1">
         <h2 class="!mb-0">主筋伸展長度與搭接</h2>
         <div class="text-[11.5px]" style="color:var(--dim)">土木401 第 25 章 · 條件於左側「伸展長度」設定</div>
@@ -748,7 +883,7 @@ img,video{max-width:100%;height:auto}
       <div id="bDevInfo" class="text-[12.5px]" style="overflow-x:auto"></div>
     </div>
 
-    <div class="card">
+    <div class="card" data-pane="load">
       <h2>⑥ 載重組合</h2>
       <div class="text-[11.5px] mb-2" style="color:var(--dim)">M<sub>u</sub><sup>+</sup> 跨中正彎矩、M<sub>u</sub><sup>−</sup> 支承負彎矩（皆填絕對值，tf·m）｜ V (tf) ｜ T (tf·m)　—　依上方切換鈕取用對應欄</div>
       <div style="overflow-x:auto">
@@ -760,9 +895,9 @@ img,video{max-width:100%;height:auto}
       <div class="flex gap-2 mt-2"><button id="bAddRow">+ 新增組合</button></div>
     </div>
 
-    <div class="card"><h2>設計結果摘要</h2><div id="bSummary"></div></div>
-    <div class="card"><h2>工程查核與警示</h2><div id="bAlerts"></div></div>
-    <div class="card"><h2>內部一致性自測</h2><div id="bTestOut" class="text-[12.5px]" style="color:var(--dim)">按上方「內部自測」執行。</div></div>
+    <div class="card" data-pane="sum"><h2>設計結果摘要</h2><div id="bSummary"></div></div>
+    <div class="card" data-pane="warn"><h2>工程查核與警示</h2><div id="bAlerts"></div></div>
+    <div class="card" data-pane="test"><h2>內部一致性自測</h2><div id="bTestOut" class="text-[12.5px]" style="color:var(--dim)">按頂列「內部自測」執行。</div></div>
   </div>
 </div>
 
@@ -2519,6 +2654,29 @@ function caseOpenFile(file){
   }).catch(e=>alert('無法開啟案件：' + e.message));
 }
 
+/* ---------- 右欄結果分頁：卡片全部留在 DOM（計算書與匯出照樣讀得到），只切換顯示 ---------- */
+function wsShow(ws, pane){
+  if(!ws) return;
+  ws.dataset.active = pane;
+  ws.querySelectorAll('.ws-tabs [data-pane]').forEach(b=>{
+    const on = b.dataset.pane===pane;
+    b.setAttribute('aria-selected', String(on)); b.tabIndex = on ? 0 : -1;
+  });
+  try{ localStorage.setItem('rcsd.ws.'+ws.id, pane); }catch(e){}
+}
+document.querySelectorAll('.ws').forEach(ws=>{
+  let saved=null; try{ saved = localStorage.getItem('rcsd.ws.'+ws.id); }catch(e){}
+  const tabs=[...ws.querySelectorAll('.ws-tabs [data-pane]')];
+  wsShow(ws, tabs.some(b=>b.dataset.pane===saved) ? saved : 'fig');
+  tabs.forEach((b,i)=>{
+    b.onclick=()=>wsShow(ws, b.dataset.pane);
+    b.onkeydown=e=>{
+      const d = e.key==='ArrowRight'?1 : e.key==='ArrowLeft'?-1 : 0; if(!d) return;
+      e.preventDefault(); const n=tabs[(i+d+tabs.length)%tabs.length]; wsShow(ws,n.dataset.pane); n.focus();
+    };
+  });
+});
+
 /* ---------- 判定列：每項 [狀態, 標題, 值, 補充, 跳轉目標 id] ---------- */
 function renderVerdict(items, alertsId){
   const box=document.getElementById(alertsId);
@@ -2526,15 +2684,18 @@ function renderVerdict(items, alertsId){
   const nWarn= box ? box.querySelectorAll('.a-warn').length : 0;
   items = items.concat([[nBad?'bad':nWarn?'warn':'ok','警示',
     nBad||nWarn ? `${nBad?nBad+' 項不合格':''}${nBad&&nWarn?'、':''}${nWarn?nWarn+' 項注意':''}` : '無', '', alertsId]]);
+  const bdg = box && box.closest('.ws') && box.closest('.ws').querySelector('.ws-badge');
+  if(bdg){ bdg.hidden = !(nBad||nWarn); bdg.textContent = nBad||nWarn; bdg.className = 'ws-badge ' + (nBad?'bad':'warn'); }
   const ic={ok:'✓',warn:'!',bad:'✗'};
+  requestAnimationFrame(()=>document.documentElement.style.setProperty('--sbH', document.getElementById('statusbar').offsetHeight+'px'));
   document.getElementById('verdict').innerHTML = items.map(([st,k,v,sub,go])=>
     `<button type="button" class="vd ${st}" data-go="${go}"><i>${ic[st]}</i><span>${SB(esc(k))} <b>${SB(esc(v))}</b>${sub?` <em>${SB(esc(sub))}</em>`:''}</span></button>`).join('');
 }
 document.addEventListener('click',e=>{
   const b=e.target.closest && e.target.closest('#verdict .vd'); if(!b) return;
-  document.documentElement.style.setProperty('--vdH', (document.getElementById('verdict').offsetHeight+10)+'px');
   const el=document.getElementById(b.dataset.go); if(!el) return;
   const card=el.closest('.card')||el;
+  if(card.dataset.pane) wsShow(card.closest('.ws'), card.dataset.pane);
   card.scrollIntoView({behavior:'smooth',block:'start'});
   card.animate([{boxShadow:'0 0 0 3px var(--acc)'},{boxShadow:'0 0 0 0 transparent'}],{duration:1200});
 });
@@ -2619,8 +2780,8 @@ function render(){
         stroke="${g[1]}" stroke-width="${g[2]}" ${g[3]?`stroke-dasharray="${g[3]}"`:''}/></svg>
         <span class="nm">${g[0]}</span></span>`).join(''));
   }
-  document.getElementById('axX').style.outline = AXIS==='x'?'2px solid var(--acc)':'none';
-  document.getElementById('axY').style.outline = AXIS==='y'?'2px solid var(--acc)':'none';
+  document.getElementById('axX').setAttribute('aria-pressed', String(AXIS==='x'));
+  document.getElementById('axY').setAttribute('aria-pressed', String(AXIS==='y'));
 
   M.badIn = collectBadInputs('pylon');
   renderSummary(M); renderAlerts(M); verdictPylon(M);
@@ -4222,8 +4383,8 @@ function renderBeam(){
   document.getElementById('bOutD').textContent=f(B.d,2);
   document.getElementById('bOutAs').textContent=f(B.AsTen,2);
   document.getElementById('bOutRho').textContent=f(B.rho*100,3);
-  document.getElementById('bSignPos').style.outline = S.sign==='pos'?'2px solid var(--acc)':'none';
-  document.getElementById('bSignNeg').style.outline = S.sign==='neg'?'2px solid var(--acc)':'none';
+  document.getElementById('bSignPos').setAttribute('aria-pressed', String(S.sign==='pos'));
+  document.getElementById('bSignNeg').setAttribute('aria-pressed', String(S.sign==='neg'));
   document.getElementById('bSecWrap').innerHTML=svgBeam(B,false);
   document.getElementById('bElevCard').style.display = S.slab ? 'none' : '';
   if(!S.slab){
@@ -4935,9 +5096,9 @@ function pinRender(mod){
       const row = document.createElement('div');
       row.className = 'pin-row' + (st.sel===p[0] ? ' on' : '');
       row.innerHTML = SB(
-        `<div class="pin-c">${esc(p[1])}</div><div class="pin-n">${esc(p[2])}</div>
+        `<div class="pin-c">${p[1]==='—'?'':esc(p[1])}</div><div class="pin-n">${esc(p[2])}</div>
          <div class="pin-v"></div><div class="pin-u"${!p[3]&&rec.el.type==='number'?' title="無因次（無單位）"':''}>${esc(p[3] || (rec.el.type==='number' ? '無因次' : ''))}</div>
-         <div class="pin-s"><span class="pin-chip ${s.state||'ok'}">${esc(s.chip || (s.state==='warn'?'⚠':s.state==='bad'?'✗':'✓'))}</span></div>`);
+         <div class="pin-s"><span class="pin-chip ${s.state||'ok'}">${esc(s.chip || (s.state==='warn'?'⚠':s.state==='bad'?'✗':''))}</span></div>`);
       row.dataset.pid = p[0];
       if(!show) row.classList.add('pin-hidden');
       if((rec.el.tagName==='SELECT' || rec.el.type==='text') && !p[3]) row.classList.add('pin-wide');
@@ -4986,8 +5147,7 @@ function pinDetail(mod){
     : el.value;
   const s = S[r.id] || {};
   const vc = s.state==='bad' ? 'color:var(--bad)' : s.state==='warn' ? 'color:var(--warn)' : '';
-  let h = `<div class="pin-dt">參數說明</div>
-    <div style="display:flex;align-items:baseline;gap:9px">
+  let h = `<div style="display:flex;align-items:baseline;gap:9px">
       <div style="font-size:16px;font-weight:700">${esc(r.name)}</div>
       <div style="font-size:12.5px;color:var(--dim)">${r.code==='—'?'':esc(r.code)}</div>
     </div>
@@ -5088,7 +5248,7 @@ function pinStatus(mod, map){
     if(!chip) return;
     const s = S[r.id] || {};
     chip.className = 'pin-chip ' + (s.state || 'ok');
-    chip.innerHTML = SB(esc(s.chip || (s.state==='warn'?'⚠':s.state==='bad'?'✗':s.state==='note'?'i':'✓')));
+    chip.innerHTML = SB(esc(s.chip || (s.state==='warn'?'⚠':s.state==='bad'?'✗':s.state==='note'?'i':'')));   // 通過的列不放記號，表格只標出例外
   });
   // 導軌狀態點
   PIN_META[mod].forEach((g,i) => {
@@ -5126,7 +5286,10 @@ function pinStatus(mod, map){
   });
   document.getElementById('axX').onclick=()=>{AXIS='x';render();};
   document.getElementById('axY').onclick=()=>{AXIS='y';render();};
-  document.getElementById('btnTest').onclick=()=>TAB==='beam'?beamSelfTest():selfTest();
+  document.getElementById('btnTest').onclick=()=>{
+    wsShow(document.getElementById(TAB==='beam'?'wsB':'wsP'), 'test');
+    TAB==='beam'?beamSelfTest():selfTest();
+  };
   document.getElementById('btnAddRow').onclick=()=>{
     LOADS.push({name:'CASE-'+(LOADS.length+1),Pu:1000,Mux:10000,Muy:2000,Vux:300,Vuy:100,Tu:0});
     drawLoads(); render();
@@ -5195,11 +5358,8 @@ function pinStatus(mod, map){
     TAB=t;
     document.getElementById('app').style.display     = t==='pylon'?'':'none';
     document.getElementById('appBeam').style.display = t==='beam'?'':'none';
-    const tp=document.getElementById('tabPylon'), tb=document.getElementById('tabBeam');
-    tp.style.background = t==='pylon'?'var(--acc)':'transparent';
-    tp.style.color      = t==='pylon'?'#fff':'var(--txt)';
-    tb.style.background = t==='beam' ?'var(--acc)':'transparent';
-    tb.style.color      = t==='beam' ?'#fff':'var(--txt)';
+    document.getElementById('tabPylon').setAttribute('aria-pressed', String(t==='pylon'));
+    document.getElementById('tabBeam').setAttribute('aria-pressed', String(t==='beam'));
     document.getElementById('report').classList.remove('preview');
     document.body.classList.remove('rp-open');
     if(t==='beam') renderBeam(); else render();
