@@ -2053,7 +2053,8 @@ function loadScript(src){
 }
 async function ensureXlsxLib(){
   if(!window.ExcelJS) await loadScript('https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js');
-  if(!window.RCXLSX) await loadScript('calc-xlsx.js?v=1');
+  if(!window.JSZip) await loadScript('https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js');   // 注入 Excel 原生圖表
+  if(!window.RCXLSX) await loadScript('calc-xlsx.js?v=2');
 }
 function colXlsxInput(){
   const g=id=>document.getElementById(id).value;
@@ -2087,7 +2088,7 @@ async function exportXlsx(){
     btn.disabled=true; btn.textContent='產生中…';
     await ensureXlsxLib();
     const out = TAB==='beam' ? RCXLSX.buildBeam(ExcelJS, beamXlsxInput()) : RCXLSX.buildColumn(ExcelJS, colXlsxInput());
-    const buf = await out.wb.xlsx.writeBuffer();
+    const buf = await RCXLSX.toBuffer(out, JSZip);
     const d=new Date(), p=n=>String(n).padStart(2,'0');
     const name = (TAB==='beam'?'RC梁版計算書':'RC柱計算書') + `_${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}.xlsx`;
     const url=URL.createObjectURL(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));

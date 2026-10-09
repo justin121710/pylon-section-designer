@@ -467,7 +467,7 @@ function buildColumn(ExcelJS, inp){
 
   /* ---------------- 輔助工作表（先建立名稱以供解析） ---------------- */
   const resolve = makeResolver([S]);
-  const order = ['檢核表','結構計算書(A4)','載重組合','P-M_X','P-M_Y','射線交點','雙軸迭代','鋼筋層','配筋座標'];
+  const order = ['檢核表','結構計算書(A4)','載重組合','P-M_X','P-M_Y','射線交點','雙軸迭代','鋼筋層','配筋座標','圖表資料'];
   const W = {}; for(const nm of order) W[nm] = wb.addWorksheet(nm, nm==='檢核表'?{views:[{state:'frozen', ySplit:2}]}:{});
   const ws = W['檢核表'];
   writeCalcSheet(ws, S, resolve);
@@ -481,8 +481,9 @@ function buildColumn(ExcelJS, inp){
   buildLoadSheet(W['載重組合'], resolve, inp.loads);
   buildRaySheet(W['射線交點'], resolve);
   buildBisectSheet(W['雙軸迭代'], resolve);
-  buildA4Column(W['結構計算書(A4)'], S, resolve, inp, jt.r, sumRows);
-  return {wb, keys:S.keys, judgeRow:jt.r};
+  const cinfo = buildColumnChartData(W['圖表資料'], resolve);
+  const a4Start = buildA4Column(W['結構計算書(A4)'], S, resolve, inp, jt.r, sumRows);
+  return {wb, keys:S.keys, judgeRow:jt.r, charts: columnCharts(inp, cinfo, a4Start)};
 }
 
 /* ---------- 配筋座標：每邊主筋座標、繫筋位置旗標、圓周座標 ---------- */
@@ -881,7 +882,9 @@ function buildA4Column(ws, S, R, inp, jRow, sumRows){
   ws.mergeCells(sg,3,sg,4); ws.mergeCells(sg,5,sg,6); ws.mergeCells(sl,3,sl,4); ws.mergeCells(sl,5,sl,6);
   [[2,'設計'],[3,'校核'],[5,'審核']].forEach(([j,h])=>{ const c=ws.getCell(sg,j); c.value=h; c.font={name:FONT,size:9,bold:true}; c.alignment={horizontal:'center'};
     ws.getCell(sl,j).border={bottom:side(K.black)}; });
+  const fig = a4Figures(ws, a, '附圖　斷面配筋圖與 P-M 互制曲線（Excel 圖表，隨輸入自動更新）', inp.type==='circle'?1:2);
   ws.pageSetup.printArea = `A1:F${a.n}`;
+  return fig;
 }
 
 /* ======================================================================
@@ -1134,14 +1137,15 @@ function buildBeam(ExcelJS, inp){
   const jt=S.rows.find(r=>r.key==='jAll'); jt.judge={f:`IF(COUNTIF($E$${r1}:$E$${r2},"FAIL")=0,"PASS","NG")`};
 
   const R = makeResolver([S]);
-  const order=['檢核表','結構計算書(A4)','載重組合','撓曲求解','開裂斷面'];
+  const order=['檢核表','結構計算書(A4)','載重組合','撓曲求解','開裂斷面','圖表資料'];
   const W={}; for(const nm of order) W[nm]=wb.addWorksheet(nm, nm==='檢核表'?{views:[{state:'frozen',ySplit:2}]}:{});
   writeCalcSheet(W['檢核表'], S, R);
   buildBeamLoads(W['載重組合'], R, inp.loads);
   buildBeamSolve(W['撓曲求解'], R);
   buildBeamIcr(W['開裂斷面'], R);
-  buildA4Beam(W['結構計算書(A4)'], R, inp, jt.r, sumRows);
-  return {wb, keys:S.keys, judgeRow:jt.r};
+  const binfo = buildBeamChartData(W['圖表資料'], R);
+  const a4Start = buildA4Beam(W['結構計算書(A4)'], R, inp, jt.r, sumRows);
+  return {wb, keys:S.keys, judgeRow:jt.r, charts: beamCharts(inp, binfo, a4Start)};
 }
 
 function buildBeamLoads(ws, R, loads){
@@ -1317,11 +1321,325 @@ function buildA4Beam(ws, R, inp, jRow, sumRows){
   const sg=a.row(), sl=a.row(); ws.getRow(sl).height=45;
   ws.mergeCells(sg,3,sg,4); ws.mergeCells(sg,5,sg,6); ws.mergeCells(sl,3,sl,4); ws.mergeCells(sl,5,sl,6);
   [[2,'設計'],[3,'校核'],[5,'審核']].forEach(([j,h])=>{ const c=ws.getCell(sg,j); c.value=h; c.font={name:FONT,size:9,bold:true}; c.alignment={horizontal:'center'}; ws.getCell(sl,j).border={bottom:side(K.black)}; });
+  const fig = a4Figures(ws, a, '附圖　斷面圖（Excel 圖表，隨輸入自動更新）', 0);
   ws.pageSetup.printArea=`A1:F${a.n}`;
+  return fig;
 }
 
+/* ======================================================================
+   Excel 原生圖表（散佈圖）
+   ExcelJS 不支援建立圖表，故活頁簿寫出後再以 JSZip 注入 DrawingML 圖表：
+     xl/charts/chartN.xml、xl/drawings/drawingK.xml（+rels）、工作表 <drawing>、[Content_Types]。
+   數列一律以 numRef 參照「圖表資料」等工作表的公式格 → 在 Excel 內改輸入，圖會跟著重畫。
+   #N/A 點在 Excel 365 以「顯示為空白」處理（dispNaAsBlank），用來分隔繫筋線段。
+   ====================================================================== */
+const NA = 'NA()';
+const xmlEsc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const qs = n => `'${n.replace(/'/g,"''")}'`;
+
+/* 散佈圖 XML。series：{name, x:'工作表!$A$3:$A$9', y:..., line:{color,w,dash}|null, marker:{symbol,size,color,fill}|null} */
+function scatterChartXml(o){
+  const drop = new Set(o.legendDel||[]);
+  o = Object.assign({}, o, {series: o.series.filter((_,i)=>!drop.has(i)), legendDel: []});
+  const ser = o.series.map((s,i)=>{
+    const ln = s.line
+      ? `<a:ln w="${Math.round((s.line.w||1.5)*12700)}" cap="rnd"><a:solidFill><a:srgbClr val="${s.line.color}"/></a:solidFill>${s.line.dash?`<a:prstDash val="${s.line.dash}"/>`:''}<a:round/></a:ln>`
+      : `<a:ln w="12700"><a:noFill/></a:ln>`;
+    const mk = s.marker
+      ? `<c:marker><c:symbol val="${s.marker.symbol||'circle'}"/><c:size val="${Math.max(2,Math.min(72,Math.round(s.marker.size||5)))}"/><c:spPr>${s.marker.fill===false?'<a:noFill/>':`<a:solidFill><a:srgbClr val="${s.marker.fill||s.marker.color}"/></a:solidFill>`}<a:ln w="9525"><a:solidFill><a:srgbClr val="${s.marker.color}"/></a:solidFill></a:ln></c:spPr></c:marker>`
+      : `<c:marker><c:symbol val="none"/></c:marker>`;
+    return `<c:ser><c:idx val="${i}"/><c:order val="${i}"/><c:tx><c:v>${xmlEsc(s.name)}</c:v></c:tx>`
+      + `<c:spPr>${ln}</c:spPr>${mk}`
+      + `<c:xVal><c:numRef><c:f>${xmlEsc(s.x)}</c:f></c:numRef></c:xVal>`
+      + `<c:yVal><c:numRef><c:f>${xmlEsc(s.y)}</c:f></c:numRef></c:yVal><c:smooth val="0"/></c:ser>`;
+  }).join('');
+  const axis = (id, cross, pos, title, a) => {
+    const sc = (a && a.min!==undefined) ? `<c:max val="${a.max}"/><c:min val="${a.min}"/>` : '';
+    const del = a && a.hidden ? 1 : 0;
+    return `<c:valAx><c:axId val="${id}"/><c:scaling><c:orientation val="minMax"/>${sc}</c:scaling><c:delete val="${del}"/>`
+      + `<c:axPos val="${pos}"/>${a&&(a.grid===false||a.hidden)?'':'<c:majorGridlines><c:spPr><a:ln w="6350"><a:solidFill><a:srgbClr val="E2E7EC"/></a:solidFill></a:ln></c:spPr></c:majorGridlines>'}`
+      + (title?`<c:title><c:tx><c:rich><a:bodyPr${pos==='l'?' rot="-5400000" vert="horz"':''}/><a:p><a:pPr><a:defRPr sz="900" b="0"/></a:pPr><a:r><a:rPr lang="zh-TW" sz="900" b="0"/><a:t>${xmlEsc(title)}</a:t></a:r></a:p></c:rich></c:tx><c:overlay val="0"/></c:title>`:'')
+      + `<c:numFmt formatCode="${a&&a.fmt||'#,##0'}" sourceLinked="0"/><c:majorTickMark val="out"/><c:minorTickMark val="none"/><c:tickLblPos val="low"/>`
+      + `<c:spPr><a:ln w="9525"><a:solidFill><a:srgbClr val="3A4652"/></a:solidFill></a:ln></c:spPr>`
+      + `<c:txPr><a:bodyPr/><a:p><a:pPr><a:defRPr sz="800"/></a:pPr><a:endParaRPr lang="zh-TW"/></a:p></c:txPr>`
+      + `<c:crossAx val="${cross}"/><c:crosses val="autoZero"/><c:crossBetween val="midCat"/></c:valAx>`;
+  };
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`
+    + `<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:c16r3="http://schemas.microsoft.com/office/drawing/2017/03/chart">`
+    + `<c:roundedCorners val="0"/><c:chart>`
+    + (o.titleRef
+        ? `<c:title><c:tx><c:strRef><c:f>${xmlEsc(o.titleRef)}</c:f></c:strRef></c:tx><c:overlay val="0"/><c:txPr><a:bodyPr/><a:p><a:pPr><a:defRPr sz="1100" b="1"/></a:pPr><a:endParaRPr lang="zh-TW"/></a:p></c:txPr></c:title>`
+        : `<c:title><c:tx><c:rich><a:bodyPr/><a:p><a:pPr><a:defRPr sz="1100" b="1"/></a:pPr><a:r><a:rPr lang="zh-TW" sz="1100" b="1"/><a:t>${xmlEsc(o.title)}</a:t></a:r></a:p></c:rich></c:tx><c:overlay val="0"/></c:title>`)
+    + `<c:autoTitleDeleted val="0"/><c:plotArea>`
+    + (o.plot ? `<c:layout><c:manualLayout><c:layoutTarget val="inner"/><c:xMode val="edge"/><c:yMode val="edge"/><c:x val="${o.plot.x}"/><c:y val="${o.plot.y}"/><c:w val="${o.plot.w}"/><c:h val="${o.plot.h}"/></c:manualLayout></c:layout>` : '<c:layout/>')
+    + `<c:scatterChart><c:scatterStyle val="lineMarker"/><c:varyColors val="0"/>${ser}<c:axId val="5001"/><c:axId val="5002"/></c:scatterChart>`
+    + axis(5001,5002,'b',o.xTitle,o.xAxis) + axis(5002,5001,'l',o.yTitle,o.yAxis)
+    + `<c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr></c:plotArea>`
+    + (o.legend===false ? '' : `<c:legend><c:legendPos val="b"/>${(o.legendDel||[]).map(i=>`<c:legendEntry><c:idx val="${i}"/><c:delete val="1"/></c:legendEntry>`).join('')}<c:overlay val="0"/><c:txPr><a:bodyPr/><a:p><a:pPr><a:defRPr sz="800"/></a:pPr><a:endParaRPr lang="zh-TW"/></a:p></c:txPr></c:legend>`)
+    + `<c:plotVisOnly val="1"/><c:dispBlanksAs val="gap"/>`
+    + `<c:extLst><c:ext uri="{56B9EC1D-385E-4148-901F-78D8002777C0}"><c16r3:dataDisplayOptions16><c16r3:dispNaAsBlank val="1"/></c16r3:dataDisplayOptions16></c:ext></c:extLst>`
+    + `</c:chart><c:spPr><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill><a:ln w="6350"><a:solidFill><a:srgbClr val="BFBFBF"/></a:solidFill></a:ln></c:spPr>`
+    + `<c:txPr><a:bodyPr/><a:p><a:pPr><a:defRPr><a:latin typeface="Arial"/><a:ea typeface="Microsoft JhengHei"/></a:defRPr></a:pPr><a:endParaRPr lang="zh-TW"/></a:p></c:txPr>`
+    + `<c:printSettings><c:headerFooter/><c:pageMargins b="0.75" l="0.7" r="0.7" t="0.75" header="0.3" footer="0.3"/><c:pageSetup/></c:printSettings>`
+    + `</c:chartSpace>`;
+}
+
+/* 把圖表注入 xlsx（specs：[{sheet, from:[col,row], to:[col,row], xml}]，列欄 0 起算） */
+async function injectCharts(buf, specs, JSZip){
+  if(!specs.length) return buf;
+  const zip = await JSZip.loadAsync(buf);
+  const wbXml = await zip.file('xl/workbook.xml').async('string');
+  const wbRels = await zip.file('xl/_rels/workbook.xml.rels').async('string');
+  const sheetPath = name => {
+    const m = wbXml.match(new RegExp(`<sheet[^>]*name="${xmlEsc(name).replace(/[()]/g,'\\$&')}"[^>]*r:id="(rId\\d+)"`));
+    if(!m) throw new Error('找不到工作表 '+name);
+    const t = wbRels.match(new RegExp(`Id="${m[1]}"[^>]*Target="([^"]+)"`)) || wbRels.match(new RegExp(`Target="([^"]+)"[^>]*Id="${m[1]}"`));
+    return 'xl/' + t[1].replace(/^\/?xl\//,'');
+  };
+  let ct = await zip.file('[Content_Types].xml').async('string');
+  const bySheet = {};
+  specs.forEach(s => (bySheet[s.sheet] = bySheet[s.sheet] || []).push(s));
+  let chartNo = 0, drawNo = 0;
+  for(const [sheet, list] of Object.entries(bySheet)){
+    drawNo++;
+    const sp = sheetPath(sheet), sf = sp.split('/').pop();
+    const relPath = `xl/worksheets/_rels/${sf}.rels`;
+    let rels = zip.file(relPath) ? await zip.file(relPath).async('string')
+      : `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>`;
+    const rid = 'rIdDraw' + drawNo;
+    rels = rels.replace('</Relationships>', `<Relationship Id="${rid}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing${drawNo}.xml"/></Relationships>`);
+    zip.file(relPath, rels);
+    let sx = await zip.file(sp).async('string');
+    const tag = `<drawing r:id="${rid}"/>`;
+    if(/<legacyDrawing/.test(sx)) sx = sx.replace(/<legacyDrawing/, tag+'<legacyDrawing');
+    else if(/<tableParts/.test(sx)) sx = sx.replace(/<tableParts/, tag+'<tableParts');
+    else if(/<extLst>/.test(sx)) sx = sx.replace(/<extLst>/, tag+'<extLst>');
+    else sx = sx.replace('</worksheet>', tag+'</worksheet>');
+    if(!/xmlns:r=/.test(sx.slice(0,600))) sx = sx.replace('<worksheet ', '<worksheet xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" ');
+    zip.file(sp, sx);
+    const anchors=[], drels=[];
+    list.forEach((s,i)=>{
+      chartNo++;
+      zip.file(`xl/charts/chart${chartNo}.xml`, s.xml);
+      ct = ct.replace('</Types>', `<Override PartName="/xl/charts/chart${chartNo}.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"/></Types>`);
+      drels.push(`<Relationship Id="rId${i+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart" Target="../charts/chart${chartNo}.xml"/>`);
+      anchors.push(`<xdr:twoCellAnchor editAs="oneCell"><xdr:from><xdr:col>${s.from[0]}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>${s.from[1]}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from>`
+        + `<xdr:to><xdr:col>${s.to[0]}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>${s.to[1]}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to>`
+        + `<xdr:graphicFrame macro=""><xdr:nvGraphicFramePr><xdr:cNvPr id="${i+2}" name="${xmlEsc(s.name||('圖表 '+(i+1)))}"/><xdr:cNvGraphicFramePr/></xdr:nvGraphicFramePr>`
+        + `<xdr:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/></xdr:xfrm><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart">`
+        + `<c:chart xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" r:id="rId${i+1}"/></a:graphicData></a:graphic></xdr:graphicFrame><xdr:clientData/></xdr:twoCellAnchor>`);
+    });
+    zip.file(`xl/drawings/drawing${drawNo}.xml`, `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">${anchors.join('')}</xdr:wsDr>`);
+    zip.file(`xl/drawings/_rels/drawing${drawNo}.xml.rels`, `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${drels.join('')}</Relationships>`);
+    ct = ct.replace('</Types>', `<Override PartName="/xl/drawings/drawing${drawNo}.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/></Types>`);
+  }
+  zip.file('[Content_Types].xml', ct);
+  return zip.generateAsync({type: typeof window!=='undefined' ? 'arraybuffer' : 'nodebuffer', compression:'DEFLATE'});
+}
+
+/* 圖面尺寸（pt）：A4 計算書 B~F 欄寬合計 521pt；斷面圖 34 列、P-M 圖 26 列，列高 14pt */
+const FIG_SEC_ROWS = 34, FIG_PM_ROWS = 23, ROW_PT = 14;
+const SEC_W = 521, SEC_H = FIG_SEC_ROWS*ROW_PT;
+const SEC_PLOT = {x:0.04, y:0.09, w:0.92, h:0.76};
+/* 讓 x、y 每公分等長：依繪圖區實際尺寸放大較緊的一向 */
+function equalAxes(Wcm, Hcm, chartW, chartH){
+  const pw = chartW*SEC_PLOT.w, ph = chartH*SEC_PLOT.h;
+  const s = Math.max(Wcm*1.12/pw, Hcm*1.12/ph);          // cm / pt
+  return {hx:+(pw*s/2).toFixed(2), hy:+(ph*s/2).toFixed(2), ptPerCm:1/s};
+}
+
+/* ---------- 柱：圖表資料（全部公式） ---------- */
+const CD = '圖表資料';
+function buildColumnChartData(ws, R){
+  const r = f => ({f:R(f,CD)});
+  ws.columns = Array(16).fill(0).map(()=>({width:11}));
+  put(ws,'A1','斷面配筋圖資料（座標 cm，原點為斷面中心；#N/A＝不繪）',{sec:true});
+  const heads = ['外框 x','外框 y','圓外框 x','圓外框 y','中空 x','中空 y','箍筋 x','箍筋 y','圓箍 x','圓箍 y','內箍 x','內箍 y','繫筋 x','繫筋 y','主筋 x','主筋 y'];
+  heads.forEach((h,j)=>put(ws,colL(j)+'2',h,{head:true}));
+  const rect = (c1, c2, hx, hy, cond) => {
+    const P=[[1,1],[1,-1],[-1,-1],[-1,1],[1,1]];
+    P.forEach(([sx,sy],i)=>{ put(ws,c1+(3+i), r(`IF(${cond},${sx}*(${hx}),${NA})`),{fmt:'0.0'}); put(ws,c2+(3+i), r(`IF(${cond},${sy}*(${hy}),${NA})`),{fmt:'0.0'}); });
+  };
+  const circ = (c1, c2, rad, cond) => {
+    for(let k=0;k<=72;k++){ const th=`(${k}*PI()/36)`;
+      put(ws,c1+(3+k), r(`IF(${cond},(${rad})*COS(${th}),${NA})`),{fmt:'0.0'}); put(ws,c2+(3+k), r(`IF(${cond},(${rad})*SIN(${th}),${NA})`),{fmt:'0.0'}); }
+  };
+  const off = '({db}/2+{dt}/2)';
+  rect('A','B','{Be}/2','{He}/2','{isCirc}=0');
+  circ('C','D','{Din}/2','{isCirc}=1');
+  rect('E','F','({Be}/2-{tw})','({He}/2-{tw})','{isBox}=1');
+  rect('G','H',`({hxO}+${off})`,`({hyO}+${off})`,'{isCirc}=0');
+  circ('I','J',`({rb}+${off})`,'{isCirc}=1');
+  rect('K','L',`({hxI}+${off})`,`({hyI}+${off})`,'{inOK}=1');
+  // 繫筋：每支 6 列（兩段＋間隔）；垂直（B 邊 x_i）接著水平（H 邊 y_j）
+  const C = "'配筋座標'!";
+  let n=3;
+  for(const dir of ['v','h']){
+    for(let i=1;i<=NMAX;i++){
+      const cr=i+2, flag = dir==='v' ? `${C}D${cr}` : `${C}E${cr}`, pos = dir==='v' ? `${C}B${cr}` : `${C}C${cr}`;
+      const ho = dir==='v' ? '{hyO}' : '{hxO}', hi = dir==='v' ? '{hyI}' : '{hxI}';
+      const on = `AND({isCirc}=0,${flag}=1)`;
+      // 段 1：外緣 → 對側外緣（實心／無內層）或 外緣 → 內層（雙層箱型）
+      const ends = [[ho, `IF({inOK}=1,${hi},-${ho})`], [`-${ho}`, `-${hi}`]];
+      ends.forEach((e,si)=>{
+        const segOn = si===0 ? on : `AND(${on},{inOK}=1)`;
+        [e[0], e[1]].forEach((v,k)=>{
+          const xv = dir==='v' ? pos : v, yv = dir==='v' ? v : pos;
+          put(ws,'M'+n, r(`IF(${segOn},${xv},${NA})`),{fmt:'0.0'}); put(ws,'N'+n, r(`IF(${segOn},${yv},${NA})`),{fmt:'0.0'}); n++;
+        });
+        put(ws,'M'+n,{f:NA}); put(ws,'N'+n,{f:NA}); n++;
+      });
+    }
+  }
+  const tieEnd = n-1;
+  // 主筋：外層上下列、外層左右（去角隅）、內層上下列、內層左右、圓形
+  n=3;
+  const bar = (x, y, cond) => { put(ws,'O'+n, r(`IF(${cond},${x},${NA})`),{fmt:'0.0'}); put(ws,'P'+n, r(`IF(${cond},${y},${NA})`),{fmt:'0.0'}); n++; };
+  for(let i=1;i<=NMAX;i++){ const cr=i+2; bar(`${C}B${cr}`,'{hyO}',`AND({isCirc}=0,${i}<={nB})`); bar(`${C}B${cr}`,'-{hyO}',`AND({isCirc}=0,${i}<={nB})`); }
+  for(let i=1;i<=NMAX;i++){ const cr=i+2; bar('{hxO}',`${C}C${cr}`,`AND({isCirc}=0,${i}>=2,${i}<={nH}-1)`); bar('-{hxO}',`${C}C${cr}`,`AND({isCirc}=0,${i}>=2,${i}<={nH}-1)`); }
+  for(const sx of [1,-1]) for(const sy of [1,-1]) bar(`${sx}*{hxI}`,`${sy}*{hyI}`,'{inOK}=1');
+  for(let i=1;i<=NMAX;i++){ const cr=i+2; bar(`${C}B${cr}`,'{hyI}',`${C}F${cr}=1`); bar(`${C}B${cr}`,'-{hyI}',`${C}F${cr}=1`); }
+  for(let i=1;i<=NMAX;i++){ const cr=i+2; bar('{hxI}',`${C}C${cr}`,`${C}G${cr}=1`); bar('-{hxI}',`${C}C${cr}`,`${C}G${cr}=1`); }
+  for(let i=1;i<=NMAX;i++){ const cr=i+2; bar(`${C}I${cr}`,`${C}J${cr}`,`AND({isCirc}=1,${i}<={nC})`); }
+  const barEnd = n-1;
+  // 圖名（連結輸入，隨尺寸更新）
+  put(ws,'R1', r(`"斷面配筋圖　"&IF({isCirc}=1,"D = "&TEXT({Din},"0")&" cm",TEXT({Be},"0")&" × "&TEXT({He},"0")&" cm"&IF({isBox}=1,"，tw = "&TEXT({tw},"0")&" cm",""))&"　主筋 "&{bar}&" × "&{nBars}&"、橫向筋 "&{tie}&" @ "&TEXT({sUse},"0.0")&" cm"`));
+  // 載重點：X 軸（圓形取合彎矩）、Y 軸
+  ['M_x','P','M_y','P'].forEach((h,j)=>put(ws,colL(18+j)+'2',['載重 Mx','載重 P','載重 My','載重 P'][j],{head:true}));
+  for(let i=0;i<NCB;i++){
+    const lr=4+i, on=`'載重組合'!H${lr}=1`;
+    put(ws,'S'+(3+i), r(`IF(${on},IF({isCirc}=1,SQRT('載重組合'!C${lr}^2+'載重組合'!D${lr}^2),ABS('載重組合'!C${lr})),${NA})`),{fmt:'#,##0.0'});
+    put(ws,'T'+(3+i), {f:`IF(${on},'載重組合'!B${lr},${NA})`},{fmt:'#,##0.0'});
+    put(ws,'U'+(3+i), {f:`IF(${on},ABS('載重組合'!D${lr}),${NA})`},{fmt:'#,##0.0'});
+    put(ws,'V'+(3+i), {f:`IF(${on},'載重組合'!B${lr},${NA})`},{fmt:'#,##0.0'});
+  }
+  return {tieEnd, barEnd};
+}
+
+/* 柱圖表規格（依匯出當下尺寸定座標軸範圍與主筋標記大小） */
+function columnCharts(inp, info, a4Start){
+  const B = inp.type==='circle'?inp.D:inp.B, H = inp.type==='circle'?inp.D:inp.H;
+  const db = (BARS.find(b=>b[0]===inp.barSize)||[0,2.5])[1];
+  const eq = equalAxes(B, H, SEC_W, SEC_H);
+  const mk = db*eq.ptPerCm*1.1;
+  const s = (c1,c2,r2) => [`${qs(CD)}!$${c1}$3:$${c1}$${r2}`, `${qs(CD)}!$${c2}$3:$${c2}$${r2}`];
+  const ser = (name, xy, line, marker) => ({name, x:xy[0], y:xy[1], line, marker});
+  const circle = inp.type==='circle', box = inp.type==='box';
+  const sec = scatterChartXml({
+    title:'斷面配筋圖', titleRef:`${qs(CD)}!$R$1`, legend:true, plot:SEC_PLOT,
+    xAxis:{min:-eq.hx, max:eq.hx, hidden:true}, yAxis:{min:-eq.hy, max:eq.hy, hidden:true},
+    legendDel: [circle?0:1, ...(box?[]:[2]), circle?3:4, ...(box&&inp.dbl?[]:[5]), ...(circle?[6]:[])],
+    series:[
+      ser('混凝土', s('A','B',7), {color:'8A97A5', w:1.75}),
+      ser('混凝土（圓）', s('C','D',75), {color:'8A97A5', w:1.75}),
+      ser('中空區', s('E','F',7), {color:'8A97A5', w:1.25, dash:'dash'}),
+      ser('外閉合箍筋', s('G','H',7), {color:'0F5F6B', w:2}),
+      ser(inp.spiral?'螺旋箍筋':'圓形箍筋', s('I','J',75), {color:'0F5F6B', w:2}),
+      ser('內層閉合箍筋', s('K','L',7), {color:'0F5F6B', w:1.5, dash:'dash'}),
+      ser('繫筋', s('M','N',info.tieEnd), {color:'B0407A', w:1.25}),
+      ser(`主筋 ${inp.barSize}`, s('O','P',info.barEnd), null, {symbol:'circle', size:mk, color:'151C24', fill:'151C24'})
+    ]});
+  const pm = ax => {
+    const P = ax==='x' ? 'P-M_X' : 'P-M_Y', rng = (c,a,b)=>`${qs(P)}!$${c}$${a}:$${c}$${b}`;
+
+    return scatterChartXml({
+      title: circle ? 'P-M 互制曲線（圓形：合彎矩）' : `P-M 互制曲線（繞 ${ax.toUpperCase()} 軸）`,
+      xTitle: circle ? 'Mr = √(Mx² + My²) (tf·m)' : `M${ax} (tf·m)`, yTitle:'P (tf)，壓為正',
+      xAxis:{fmt:'#,##0'}, yAxis:{fmt:'#,##0'},
+      series:[
+        ser('標稱 Pn–Mn', [rng('G',PM_H+1,PM_H+NPM), rng('F',PM_H+1,PM_H+NPM)], {color:'8A97A5', w:1.25}),
+        ser('設計 φPn–φMn', [rng('Q',PM_H+1,PM_H+POLY_N), rng('R',PM_H+1,PM_H+POLY_N)], {color:'0F5F6B', w:2.25}),
+        ser('載重組合', ax==='x' ? [`${qs(CD)}!$S$3:$S$${2+NCB}`, `${qs(CD)}!$T$3:$T$${2+NCB}`] : [`${qs(CD)}!$U$3:$U$${2+NCB}`, `${qs(CD)}!$V$3:$V$${2+NCB}`], null, {symbol:'diamond', size:7, color:'B03A2E', fill:'B03A2E'})
+      ]});
+  };
+  const A4 = '結構計算書(A4)';
+  return [
+    {sheet:A4, name:'斷面配筋圖', from:[1,a4Start], to:[6,a4Start+FIG_SEC_ROWS], xml:sec},
+    {sheet:A4, name:'P-M 互制曲線 X', from:[1,a4Start+FIG_SEC_ROWS+1], to:[6,a4Start+FIG_SEC_ROWS+1+FIG_PM_ROWS], xml:pm('x')},
+    ...(circle ? [] : [{sheet:A4, name:'P-M 互制曲線 Y', from:[1,a4Start+FIG_SEC_ROWS+2+FIG_PM_ROWS], to:[6,a4Start+FIG_SEC_ROWS+2+2*FIG_PM_ROWS], xml:pm('y')}])
+  ];
+}
+
+/* ---------- 梁／版：圖表資料 ---------- */
+function buildBeamChartData(ws, R){
+  const r = f => ({f:R(f,CD)});
+  ws.columns = Array(8).fill(0).map(()=>({width:11}));
+  put(ws,'A1','梁／版斷面圖資料（x 以寬度中心為 0，y 自底面起算，cm）',{sec:true});
+  ['外框 x','外框 y','箍筋 x','箍筋 y','主筋 x','主筋 y','受壓區 x','受壓區 y'].forEach((h,j)=>put(ws,colL(j)+'2',h,{head:true}));
+  // 外框：T 型 9 點；矩形 5 點後補 #N/A
+  const T = [['-{be}/2','{h}'],['{be}/2','{h}'],['{be}/2','{h}-{hf}'],['{bw}/2','{h}-{hf}'],['{bw}/2','0'],['-{bw}/2','0'],['-{bw}/2','{h}-{hf}'],['-{be}/2','{h}-{hf}'],['-{be}/2','{h}']];
+  const Rc = [['-{bw}/2','{h}'],['{bw}/2','{h}'],['{bw}/2','0'],['-{bw}/2','0'],['-{bw}/2','{h}']];
+  for(let i=0;i<9;i++){
+    const t=T[i], q=Rc[i];
+    put(ws,'A'+(3+i), r(q ? `IF({isT}=1,${t[0]},${q[0]})` : `IF({isT}=1,${t[0]},${NA})`),{fmt:'0.0'});
+    put(ws,'B'+(3+i), r(q ? `IF({isT}=1,${t[1]},${q[1]})` : `IF({isT}=1,${t[1]},${NA})`),{fmt:'0.0'});
+  }
+  // 箍筋（版不繪）
+  [[1,1],[1,-1],[-1,-1],[-1,1],[1,1]].forEach(([sx,sy],i)=>{
+    put(ws,'C'+(3+i), r(`IF({isSlab}=1,${NA},${sx}*({bw}/2-{cover}-{dt}/2))`),{fmt:'0.0'});
+    put(ws,'D'+(3+i), r(`IF({isSlab}=1,${NA},{h}/2+${sy}*({h}/2-{cover}-{dt}/2))`),{fmt:'0.0'});
+  });
+  // 主筋：每層 41 列（梁：等分排列；版：依間距自中心向兩側）
+  let n=3;
+  const layer = (nKey, yKey, dbKey, spKey) => {
+    for(let k=-20;k<=20;k++){
+      const i = k+21;
+      const xBeam = `(-{bw}/2+{cover}+{dt}+${dbKey}/2)+(({bw}/2-{cover}-{dt}-${dbKey}/2)-(-{bw}/2+{cover}+{dt}+${dbKey}/2))*(${i}-1)/MAX(1,ROUND(${nKey},0)-1)`;
+      const xSlab = `${k}*${spKey}`;
+      const onBeam = `AND({isSlab}=0,${i}<=ROUND(${nKey},0),ROUND(${nKey},0)>0)`;
+      const onSlab = `AND({isSlab}=1,${spKey}>0,ABS(${k}*${spKey})<={bw}/2-${dbKey}/2)`;
+      put(ws,'E'+n, r(`IF(${onBeam},IF(ROUND(${nKey},0)=1,0,${xBeam}),IF(${onSlab},${xSlab},${NA}))`),{fmt:'0.0'});
+      put(ws,'F'+n, r(`IF(OR(${onBeam},${onSlab}),${yKey},${NA})`),{fmt:'0.0'});
+      n++;
+    }
+  };
+  layer('{r1}','{y1}','{dbB}','{spB}');
+  layer('IF({isSlab}=1,0,{r2})','{y2}','{dbB}','0');
+  layer('{nTop}','{yT}','{dbT}','{spT}');
+  const barEnd=n-1;
+  // 受壓區（應力塊 a）
+  const yA = 'IF({isPos}=1,{h},{a})', yB = 'IF({isPos}=1,{h}-{a},0)', wC = 'IF(AND({isT}=1,{isPos}=1),{be},{bw})/2';
+  [['-1',yA],['1',yA],['1',yB],['-1',yB],['-1',yA]].forEach(([sx,y],i)=>{
+    put(ws,'G'+(3+i), r(`${sx}*${wC}`),{fmt:'0.0'}); put(ws,'H'+(3+i), r(y),{fmt:'0.0'});
+  });
+  put(ws,'J1', r(`IF({isSlab}=1,"版斷面圖（每公尺寬）　h = "&TEXT({h},"0")&" cm　底 "&{botS}&" @ "&TEXT({spB},"0.0")&IF({spT}>0,"、頂 "&{topS}&" @ "&TEXT({spT},"0.0"),"")&" cm","梁斷面圖　"&IF({isT}=1,"T 型 be = "&TEXT({be},"0")&"、","")&"bw × h = "&TEXT({bw},"0")&" × "&TEXT({h},"0")&" cm　底 "&ROUND({nBot},0)&"-"&{botS}&"、頂 "&ROUND({nTop},0)&"-"&{topS})`));
+  return {barEnd};
+}
+function beamCharts(inp, info, a4Start){
+  const W = inp.slab ? 100 : (inp.type==='T' ? Math.min(Math.max(inp.bw, inp.L/4, inp.bw+16*inp.hf), Math.max(inp.bw, inp.sSpacing||inp.bw)) : inp.bw);
+  const db = (BARS.find(b=>b[0]===inp.botSize)||[0,2.5])[1];
+  const eq = equalAxes(W, inp.h, SEC_W, SEC_H);
+  const mk = db*eq.ptPerCm*1.1;
+  const s = (c1,c2,r2) => [`${qs(CD)}!$${c1}$3:$${c1}$${r2}`, `${qs(CD)}!$${c2}$3:$${c2}$${r2}`];
+  const xml = scatterChartXml({
+    title: inp.slab?'版斷面圖（每公尺寬）':'梁斷面圖', titleRef:`${qs(CD)}!$J$1`, plot:SEC_PLOT,
+    xAxis:{min:-eq.hx, max:eq.hx, hidden:true}, yAxis:{min:+(inp.h/2-eq.hy).toFixed(2), max:+(inp.h/2+eq.hy).toFixed(2), hidden:true},
+    legendDel: inp.slab ? [2] : [],
+    series:[
+      {name:'混凝土', x:s('A','B',11)[0], y:s('A','B',11)[1], line:{color:'8A97A5', w:1.75}},
+      {name:'受壓區 a', x:s('G','H',7)[0], y:s('G','H',7)[1], line:{color:'8A5A12', w:1.25, dash:'dash'}},
+      {name:'箍筋', x:s('C','D',7)[0], y:s('C','D',7)[1], line:{color:'0F5F6B', w:2}},
+      {name:'主筋', x:s('E','F',info.barEnd)[0], y:s('E','F',info.barEnd)[1], marker:{symbol:'circle', size:mk, color:'151C24', fill:'151C24'}}
+    ]});
+  return [{sheet:'結構計算書(A4)', name:'斷面圖', from:[1,a4Start], to:[6,a4Start+FIG_SEC_ROWS], xml}];
+}
+
+/* 附圖頁：預留圖表列，回傳第一列（0 起算） */
+function a4Figures(ws, a, title, nPm){
+  ws.getRow(a.n).addPageBreak();
+  a.chap(title);
+  const start = a.n;                 // 0 起算之列號＝已用列數
+  const total = FIG_SEC_ROWS + 1 + (nPm ? 1 + nPm*FIG_PM_ROWS + (nPm-1) : 0);
+  for(let i=0;i<total;i++){ const n=a.row(); ws.getRow(n).height=ROW_PT; if(nPm && i===FIG_SEC_ROWS) ws.getRow(n).addPageBreak(); }
+  return start;
+}
+/* 寫出：ExcelJS 產生後注入原生圖表 */
+async function toBuffer(out, JSZip){
+  const buf = await out.wb.xlsx.writeBuffer();
+  return injectCharts(buf, out.charts||[], JSZip);
+}
 /* ---------- 輸出 ---------- */
-const api = { buildColumn, buildBeam };
+const api = { buildColumn, buildBeam, toBuffer };
 if(typeof module!=='undefined' && module.exports) module.exports = api;
 else root.RCXLSX = api;
 })(typeof window!=='undefined' ? window : globalThis);
