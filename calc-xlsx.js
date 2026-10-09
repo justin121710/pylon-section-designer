@@ -250,7 +250,7 @@ function buildColumn(ExcelJS, inp){
   S.item({key:'phit', label:'拉力控制強度折減因數 φt', sym:'φt', v:inp.phit, unit:'無因次', kind:'in', fmt:'0.00', ref:ref401('21.2.2'),
     crit:'過渡區線性內插；本表拉控門檻取 εt ≧ 0.005（較 εty + 0.003 保守）'});
   S.item({key:'phiv', label:'剪力／扭矩強度折減因數 φv', sym:'φv', v:inp.phiv, unit:'無因次', kind:'in', fmt:'0.00', ref:ref401('21.2.1'),
-    crit:"關鍵假設：0.75 搭配 Vc = 0.53√f'c·bw·d，不可與 AASHTO 0.90 混用", note:'關鍵假設。φv = 0.75 係與 ACI 型 Vc 公式配套校準。'});
+    crit:"關鍵假設：0.75 搭配土木401-112 表 22.5.5.1 之 Vc，不可與 AASHTO 0.90 混用", note:'關鍵假設。φv = 0.75 係與規範 Vc 公式配套校準。'});
   S.item({key:'pmaxf', label:'最大軸力截斷係數', sym:'—', v:inp.pmaxf, unit:'×Po', kind:'in', fmt:'0.00', ref:ref401('22.4.2.1'),
     crit:'橫箍 0.80、螺箍 0.85', note:'橫箍柱 Pn,max = 0.80Po；螺箍柱 0.85Po（土木401 §22.4.2.1）。'});
   S.item({key:'alpha', label:'雙軸載重輪廓指數 α', sym:'α', v:inp.alpha, unit:'無因次', kind:'in', fmt:'0.00',
@@ -520,7 +520,7 @@ function buildColumn(ExcelJS, inp){
   S.text('色碼圖例：淺藍底＋藍字粗體＋藍框＝手動輸入格；黃底＋藍字粗體＋金框＝附下拉選單之輸入格（可輸入表列外之值）；白底黑字細灰框＝公式；綠字＝連結其他工作表；淺琥珀底＝總判定。', {h:32});
   S.text('1. P-M 互制以中性軸深度 c 於 0.02D～5D 對數取樣 '+NPM+' 點，等值應力塊 a = min(β₁c, D)；與網頁（220 點）之 D/C 可能於小數第三位有差。雙軸載重輪廓法以 '+NIT+' 次二分迭代求解。', {h:30});
   S.text('2. 不計細長效應／彎矩放大：輸入之 Pu、Mu 須為已含 P-Δ 之分析結果。塑性形心僅對對稱配筋成立。', {h:24});
-  S.text("3. 剪力 Vc 採 0.53(1 + Nu/140Ag)√f'c·bw·d（ACI 318-14 架構之 §22.5.6.1 形式）；未納入土木401-112（ACI 318-19）§22.5.5.1 新式 Vc 之 ρw 與尺寸效應 λs，d 較大且未達 Av,min 時偏不保守。", {h:32});
+  S.text("3. 剪力 Vc 依土木401-112 表 22.5.5.1 式 (a)：Vc = [0.53λ√f'c + Nu/(6Ag)]·bw·d，Nu/(6Ag) ≦ 0.05f'c、Vc ≦ 1.33λ√f'c·bw·d、Vc ≧ 0；箍筋間距恆受 Av,min 控制，故 Av ≧ Av,min 成立（逐組合詳「載重組合」O、R、AI、AJ 欄）。", {h:32});
   S.text('4. Mander 圍束混凝土曲線為參考資訊，未列入本表（不影響設計判定）。扭矩門檻未計軸壓增益（保守）。箱型牆片之 Ash 拆解非規範明列條文，請自行確認。', {h:30});
   S.text('5. 載重組合請於「載重組合」工作表填入已乘載重因數之設計值（壓為正，tf、tf·m）；最多 '+NCB+' 組，空白列不計。', {h:24});
 
@@ -879,7 +879,7 @@ function buildLoadSheet(ws, R, loads){
     for(const [ax,V,cVd,cVc,cVs] of [['x','E','N','O','P'],['y','F','Q','R','S']]){
       const Nu=`B${n}*1000`, Vu=`ABS(${V}${n})*1000`;
       put(ws,cVd+n, r(`IF(${on},IF({isPH}=1,MAX({Ve${ax}}*1000,${Vu}),${Vu})/1000,"")`),{fmt:'#,##0.0'});
-      put(ws,cVc+n, r(`IF(${on},IF(AND({isPH}=1,${Nu}<IF({isBldg}=1,0.05,0.1)*{fc}*{Ag}),0,MAX(0,0.53*SQRT({fc})*{bw${ax}}*{d${ax}}*IF(${Nu}>=0,1+${Nu}/(140*{Ag}),1+${Nu}/(35*{Ag}))))/1000,"")`),{fmt:'#,##0.0'});
+      put(ws,cVc+n, r(`IF(${on},IF(AND({isPH}=1,${Nu}<IF({isBldg}=1,0.05,0.1)*{fc}*{Ag}),0,MAX(0,MIN((0.53*{dvLam}*SQRT({fc})+MIN(${Nu}/(6*{Ag}),0.05*{fc}))*{bw${ax}}*{d${ax}},1.33*{dvLam}*SQRT({fc})*{bw${ax}}*{d${ax}})))/1000,"")`),{fmt:'#,##0.0'});
       put(ws,cVs+n, r(`IF(${on},MAX(0,${cVd}${n}/{phiv}-${cVc}${n}),"")`),{fmt:'#,##0.0'});
     }
     put(ws,'T'+n, r(`IF(${on},--(ABS(G${n})>{Tth}),"")`));
@@ -902,7 +902,7 @@ function buildLoadSheet(ws, R, loads){
     // 加密區（塑鉸區）外：V_c 不折減，設計剪力同 N／Q 欄（加密區時已含 V_e）
     for(const [ax,cVd,cVc,cS,cC] of [['x','N','AI','AK','AM'],['y','Q','AJ','AL','AN']]){
       const Nu=`B${n}*1000`, vs=`MAX(0,${cVd}${n}/{phiv}-${cVc}${n})`;
-      put(ws,cVc+n, r(`IF(${on},MAX(0,0.53*SQRT({fc})*{bw${ax}}*{d${ax}}*IF(${Nu}>=0,1+${Nu}/(140*{Ag}),1+${Nu}/(35*{Ag})))/1000,"")`),{fmt:'#,##0.0'});
+      put(ws,cVc+n, r(`IF(${on},MAX(0,MIN((0.53*{dvLam}*SQRT({fc})+MIN(${Nu}/(6*{Ag}),0.05*{fc}))*{bw${ax}}*{d${ax}},1.33*{dvLam}*SQRT({fc})*{bw${ax}}*{d${ax}}))/1000,"")`),{fmt:'#,##0.0'});
       put(ws,cS+n, r(`IF(${on},IF(${vs}*1000/({fyt}*{d${ax}})+2*U${n}>1E-9,{Av${ax}}/(${vs}*1000/({fyt}*{d${ax}})+2*U${n}),${BIG}),"")`),{fmt:FMT_SINF});
       put(ws,cC+n, r(`IF(${on},IF(${vs}*1000>1.06*SQRT({fc})*{bw${ax}}*{d${ax}},MIN({d${ax}}/4,30),MIN({d${ax}}/2,60)),"")`),{fmt:'0.00'});
     }
@@ -1216,7 +1216,7 @@ function buildBeam(ExcelJS, inp){
   S.item({key:'n', label:'彈性模數比 n', sym:'n', f:'{Es}/{Ec}', unit:'無因次', fmt:'0.000', ref:ref401('24.2.3.5')});
   S.item({key:'phic', label:'壓力控制 φc', sym:'φc', v:inp.phic, unit:'無因次', kind:'in', fmt:'0.00', ref:ref401('21.2.2')});
   S.item({key:'phit', label:'拉力控制 φt', sym:'φt', v:inp.phit, unit:'無因次', kind:'in', fmt:'0.00', ref:ref401('21.2.2'), crit:'本表拉控門檻取 εt ≧ 0.005（保守）'});
-  S.item({key:'phiv', label:'剪力／扭矩 φv', sym:'φv', v:inp.phiv, unit:'無因次', kind:'in', fmt:'0.00', ref:ref401('21.2.1'), crit:"關鍵假設：0.75 搭配 Vc = 0.53√f'c·bw·d"});
+  S.item({key:'phiv', label:'剪力／扭矩 φv', sym:'φv', v:inp.phiv, unit:'無因次', kind:'in', fmt:'0.00', ref:ref401('21.2.1'), crit:"關鍵假設：0.75 搭配土木401-112 表 22.5.5.1 之 Vc"});
 
   /* ---------------- 三、配筋 ---------------- */
   S.section('【三、配筋】');
@@ -1311,7 +1311,12 @@ function buildBeam(ExcelJS, inp){
   S.item({key:'Ve', label:'容量設計剪力 Ve', sym:'Ve', f:'IF({isS}=1,IF({ln}>0,({MprP}+{MprN})*100/{ln}+{Vg},0),0)', unit:'tf', fmt:'#,##0.0', expr:'(Mpr⁺ + Mpr⁻)/ln + Vg', ref:ref401('18.3.5.1')});
   S.item({key:'Vdes', label:'設計剪力', sym:'Vdes', f:'IF({isS}=1,MAX({Ve},{Vu}),{Vu})', unit:'tf', fmt:'#,##0.0', ref:ref401('18.3.5.1')});
   S.item({key:'VcZ', label:'Vc 歸零', f:'--AND({isS}=1,{Vdes}>0,({Ve}-{Vg})>=0.5*{Vdes})', expr:'地震剪力佔比 ≧ 50%', crit:'1＝Vc 取 0', ref:ref401('18.3.5.2')});
-  S.item({key:'Vc', label:'混凝土剪力強度 Vc', sym:'Vc', f:'IF({VcZ}=1,0,0.53*SQRT({fc})*{bw}*{d}/1000)', unit:'tf', fmt:'#,##0.00', expr:"0.53√f'c·bw·d", ref:ref401('22.5.5.1')+'（舊式；未含 λs）'});
+  S.item({key:'rhoW', label:'受拉鋼筋比 ρw', sym:'ρw', f:'{AsT}/({bw}*{d})', unit:'無因次', fmt:'0.00000', ref:ref401('22.5.5.1')});
+  S.item({key:'lamS', label:'尺寸效應修正係數 λs', sym:'λs', f:'MIN(1,SQRT(2/(1+{d}/25)))', unit:'無因次', fmt:'0.000', expr:'√(2/(1 + d/25)) ≦ 1', ref:ref401('22.5.5.1.3')});
+  S.item({key:'VcA', label:'Vc 式 (a)（Av ≧ Av,min，梁）', sym:'Vc', f:'0.53*{bvLam}*SQRT({fc})*{bw}*{d}/1000', unit:'tf', fmt:'#,##0.00', expr:"0.53λ√f'c·bw·d（Nu = 0）", ref:ref401('22.5.5.1')+' 表 (a)'});
+  S.item({key:'VcC', label:'Vc 式 (c)（Av < Av,min，版不配剪力筋）', sym:'Vc', unit:'tf', fmt:'#,##0.00',
+    f:'MIN(2.12*{lamS}*{bvLam}*{rhoW}^(1/3)*MIN(SQRT({fc}),26.5),1.33*{bvLam}*SQRT({fc}))*{bw}*{d}/1000', expr:"2.12λsλ(ρw)^(1/3)√f'c·bw·d ≦ 1.33λ√f'c·bw·d", ref:ref401('22.5.5.1')+' 表 (c)'});
+  S.item({key:'Vc', label:'混凝土剪力強度 Vc', sym:'Vc', f:'IF({VcZ}=1,0,IF({isSlab}=1,{VcC},{VcA}))', unit:'tf', fmt:'#,##0.00', expr:'梁取 (a)、版取 (c)；耐震 2h 內可能取 0', ref:ref401('22.5.5.1')});
   S.item({key:'phiVc', label:'φVc（版不配剪力筋時須 ≧ Vu）', sym:'φVc', f:'{phiv}*{Vc}', unit:'tf', fmt:'#,##0.00', ref:ref401('7.6.3.1')});
   S.item({key:'VsReq', label:'箍筋需求 Vs', sym:'Vs', f:'MAX(0,{Vdes}/{phiv}-{Vc})', unit:'tf', fmt:'#,##0.00', ref:ref401('22.5.1.1')});
   S.item({key:'VsMax', label:'Vs 上限', sym:'Vs,max', f:'2.12*SQRT({fc})*{bw}*{d}/1000', unit:'tf', fmt:'#,##0.00', ref:ref401('22.5.1.2')});
@@ -1339,7 +1344,7 @@ function buildBeam(ExcelJS, inp){
 
   /* ---------------- 五之一、加密區外間距、肢距與沿梁軸向配置 ---------------- */
   S.section('【五之一、加密區外箍筋間距、箍筋肢距與沿梁軸向配置（版不適用）】');
-  S.item({key:'Vc2', label:'加密區外 Vc（不折減）', sym:'Vc', f:'0.53*SQRT({fc})*{bw}*{d}/1000', unit:'tf', fmt:'#,##0.00', expr:'Vc 僅在自柱面 2h 內歸零', ref:ref401('18.3.5.2')});
+  S.item({key:'Vc2', label:'加密區外 Vc（不折減）', sym:'Vc', f:'{VcA}', unit:'tf', fmt:'#,##0.00', expr:'Vc 僅在自柱面 2h 內歸零', ref:ref401('18.3.5.2')});
   S.item({key:'VsReq2', label:'加密區外箍筋需求 Vs', sym:'Vs', f:'MAX(0,{Vdes}/{phiv}-{Vc2})', unit:'tf', fmt:'#,##0.00', expr:'設計剪力仍取 Ve', ref:ref401('18.3.5.1')});
   S.item({key:'sStr2', label:'加密區外強度需求間距', sym:'s', f:`IF(({VsReq2}*1000/({fyt}*{d})+2*{AtS})>1E-9,{Av}/({VsReq2}*1000/({fyt}*{d})+2*{AtS}),${BIG})`, unit:'cm', fmt:FMT_SINF, ref:ref401('22.5.8.5.3')});
   S.item({key:'sCode2', label:'加密區外規範間距上限', sym:'s', f:'IF({VsReq2}*1000>1.06*SQRT({fc})*{bw}*{d},MIN({d}/4,30),MIN({d}/2,60))', unit:'cm', fmt:'0.00', ref:ref401('9.7.6.2.2')});
@@ -1448,7 +1453,7 @@ function buildBeam(ExcelJS, inp){
   S.section('【八、注意事項與使用說明】');
   S.text('色碼圖例：淺藍底＋藍字粗體＋藍框＝手動輸入格；黃底＋藍字粗體＋金框＝附下拉選單之輸入格（可輸入表列外之值）；白底黑字細灰框＝公式；綠字＝連結其他工作表；淺琥珀底＝總判定。',{h:32});
   S.text('1. 中性軸以 ΣF = 0 二分 '+NBI+' 次求解（「撓曲求解」），開裂中性軸以轉換斷面 Q(x) = 0 二分求解（「開裂斷面」）。底筋最多 2 排、頂筋單排。',{h:28});
-  S.text("2. Vc 採 0.53√f'c·bw·d；未納入土木401-112（ACI 318-19）§22.5.5.1 之 ρw 與尺寸效應 λs。版不配剪力筋，須 Vu ≦ φVc。",{h:26});
+  S.text("2. Vc 依土木401-112 表 22.5.5.1：配箍筋之梁取式 (a) 0.53λ√f'c·bw·d；版不配剪力筋取式 (c) 2.12λsλ(ρw)^(1/3)√f'c·bw·d（含尺寸效應 λs），須 Vu ≦ φVc。",{h:26});
   S.text('3. 水工加嚴之裂縫寬度（Gergely-Lutz）與保護層、ρmin 均參考 ACI 350／ACI 224R，非我國規範明列；未含 ACI 350 環境耐久係數 Sd。「任一斷面 Mn ≧ 端部 25%」需整根梁包絡線，本表未檢核。建議配筋請於網頁查看。',{h:32});
 
   S.section('【附錄、對照表區】');
@@ -1609,7 +1614,7 @@ function buildA4Beam(ws, R, inp, jRow, sumRows){
   a.data('有效深度','d','{d}','cm','受拉鋼筋群形心','0.0');
   a.chap('三、設計假設');
   a.para('3.1','撓曲採應變相容與等值矩形應力塊（土木401 §22.2），中性軸以 ΣF = 0 求解；T 梁負彎矩時翼緣受拉不計入受壓區。',28);
-  a.para('3.2',"剪力 Vc = 0.53√f'c·bw·d，未納入土木401-112 §22.5.5.1 之尺寸效應 λs；版不配剪力筋，須 Vu ≦ φVc。",26);
+  a.para('3.2',"剪力 Vc 依土木401-112 表 22.5.5.1：梁取式 (a) 0.53λ√f'c·bw·d；版不配剪力筋取式 (c)，含尺寸效應 λs 與 ρw，須 Vu ≦ φVc。",26);
   a.para('3.3','撓度採 Branson 有效慣性矩 Ie 與長期乘數 λΔ = ξ/(1 + 50ρ\')；裂縫控制依土木401 §24.3.2（fs = ⅔fy）。',26);
   ws.getRow(a.n).addPageBreak();
   a.chap('四、計算過程');
@@ -1628,7 +1633,7 @@ function buildA4Beam(ws, R, inp, jRow, sumRows){
   a.data('最少鋼筋','As,min','{AsMin}','cm²','梁 max(0.8√f\'c/fy, 14/fy)·bw·d；版 ρmin·b·h','0.00');
   a.sub('4.3 剪力與扭矩（土木401 §22.5、§22.7）'); a.thead();
   a.data('設計剪力','Vdes','{Vdes}','tf','耐震取 max(Ve, Vu)','#,##0.00');
-  a.data('混凝土剪力強度','Vc','{Vc}','tf',"0.53√f'c·bw·d",'#,##0.00');
+  a.data('混凝土剪力強度','Vc','{Vc}','tf',"表 22.5.5.1：梁 (a)、版 (c)",'#,##0.00');
   a.data('箍筋採用間距（梁）','s','IF({isSlab}=1,"不配剪力筋",{tieS}&" "&{nLegs}&" 肢 @ "&TEXT({sUse},"0.0")&" cm")','—',null,null,true);
   a.data('可忽略扭矩門檻','φTth','{Tth}','tf·m',"φ·0.265√f'c·Acp²/pcp",'#,##0.00');
   if(!inp.slab){
