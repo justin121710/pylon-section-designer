@@ -716,6 +716,8 @@ img,video{max-width:100%;height:auto}
         <h2 class="!mb-0">主筋伸展長度與搭接</h2>
         <div class="text-[11.5px]" style="color:var(--dim)">土木401 第 25 章 · 條件於左側「伸展長度」設定</div>
       </div>
+      <div id="devElevWrap" class="pm-box"></div>
+      <div id="devPlan" class="text-[12.5px] mb-2" style="overflow-x:auto"></div>
       <div id="devInfo" class="text-[12.5px]" style="overflow-x:auto"></div>
     </div>
     </div>
@@ -880,6 +882,8 @@ img,video{max-width:100%;height:auto}
         <h2 class="!mb-0">主筋伸展長度與搭接</h2>
         <div class="text-[11.5px]" style="color:var(--dim)">土木401 第 25 章 · 條件於左側「伸展長度」設定</div>
       </div>
+      <div id="bDevElevWrap" class="pm-box"></div>
+      <div id="bDevPlan" class="text-[12.5px] mb-2" style="overflow-x:auto"></div>
       <div id="bDevInfo" class="text-[12.5px]" style="overflow-x:auto"></div>
     </div>
 
@@ -2048,6 +2052,244 @@ function devTable(D, opt){
 /* =========================================================================
    SVG 繪圖
    ========================================================================= */
+/* ---------- 伸展長度配置圖共用 ---------- */
+const devUp = v => Math.ceil(v - 1e-9);
+function devPal(forPrint){
+  return forPrint
+    ? {conc:'#ececec',line:'#000',bar:'#000',bar2:'#555',crit:'#000',no:'#bdbdbd',txt:'#000',dim:'#333',stub:'#d4d4d4',bad:'#000'}
+    : {conc:'#DCE2E8',line:'#8A97A5',bar:'#151C24',bar2:'#0F5F6B',crit:'#B03A2E',no:'#E8B04B',txt:'#151C24',dim:'#5E6B7A',stub:'#C5CED6',bad:'#B03A2E'};
+}
+/* 估計文字寬（中文字 ≈ 1em、其餘 ≈ 0.56em），供標註避讓 */
+const txtW = (t, fs) => [...String(t).replace(/[_^]/g,'')].reduce((a,ch)=> a + (ch.charCodeAt(0) > 0x2e80 ? fs : fs*0.56), 0);
+/* 標註避讓：want 依序排好後，相鄰中心距至少 (前後尺寸和)/2 + gap，整體限制在 [lo, hi] */
+function spreadLabels(items, lo, hi, gap){
+  const it = items.slice().sort((a,b)=>a.want-b.want);
+  for(let i=0;i<it.length;i++){
+    it[i].at = it[i].want;
+    if(i) it[i].at = Math.max(it[i].at, it[i-1].at + (it[i-1].size + it[i].size)/2 + gap);
+  }
+  const over = it.length ? it[it.length-1].at + it[it.length-1].size/2 - hi : 0;
+  if(over > 0) for(let i=it.length-1;i>=0;i--){
+    it[i].at -= over;
+    if(i < it.length-1) it[i].at = Math.min(it[i].at, it[i+1].at - (it[i].size + it[i+1].size)/2 - gap);
+  }
+  for(const q of it) q.at = Math.max(q.at, lo + q.size/2);
+  return it;
+}
+/* 標準 90° 彎鉤（d：+1 往 +x、-1 往 -x；垂直筋於 yH 處轉彎） */
+const hookV = (x, y0, yH, dir, tail, rad) =>
+  `M${x.toFixed(1)},${y0.toFixed(1)} L${x.toFixed(1)},${(yH - Math.sign(yH-y0)*rad).toFixed(1)} Q${x.toFixed(1)},${yH.toFixed(1)} ${(x+dir*rad).toFixed(1)},${yH.toFixed(1)} L${(x+dir*tail).toFixed(1)},${yH.toFixed(1)}`;
+const hookH = (y, x0, xH, dir, tail, rad) =>
+  `M${x0.toFixed(1)},${y.toFixed(1)} L${(xH - Math.sign(xH-x0)*rad).toFixed(1)},${y.toFixed(1)} Q${xH.toFixed(1)},${y.toFixed(1)} ${xH.toFixed(1)},${(y+dir*rad).toFixed(1)} L${xH.toFixed(1)},${(y+dir*tail).toFixed(1)}`;
+
+/* 柱主筋搭接位置與錨定（圖面與說明共用）
+   建築耐震柱：§18.4.4.3 搭接僅可設於柱中央半高；橋梁：塑鉸區內不得搭接；一般柱：自柱底臨界斷面起搭接。 */
+function colDevPlan(M){
+  const {lay,opt} = M, L = opt.lu, D = M.dev.sets[0].d;
+  const bldg = opt.code==='bldg', ph = opt.plastic;
+  const lap = devUp(D.lapB), ldh = devUp(D.ldh);
+  let A0 = 0, A1 = L, la, why;
+  if(ph && bldg){ A0 = L/4; A1 = 3*L/4; la = (L-lap)/2; why = '柱中央半高內（§18.4.4.3）'; }
+  else if(ph){
+    A0 = lay.full ? L : lay.lo; A1 = lay.nEnds===2 ? L - lay.lo : L;
+    la = lay.nEnds===2 ? (A0+A1-lap)/2 : A0; why = '塑鉸區外';
+  }else{ la = 0; why = '自柱底臨界斷面起'; }
+  const fits = A1 - A0 >= lap - 1e-9;
+  if(!fits || la + lap > L) la = Math.max(0, (L-lap)/2);
+  return {L, lap, ldh, la, lb: Math.min(L, la+lap), A0, A1, fits, why, bldg, ph, D};
+}
+function svgColDev(M, forPrint){
+  const {s,r,R} = M, P = colDevPlan(M), {L, lap, ldh, la, lb, bldg, D} = P;
+  const W=760, Hh=640, top=72, bot=36, C = devPal(forPrint);
+  const Hb = bldg ? 50 : ldh + 20, Ht = Hb, ext = bldg ? 45 : 0;
+  const k = (Hh - top - bot)/(L + Hb + Ht + 2*ext);
+  const Y = z => Hh - bot - (z + Hb + ext)*k;
+  const wReal = s.type==='circle' ? s.D : s.B;
+  let wpx = wReal*k, schematic = false;
+  if(wpx < 84){ wpx = 84; schematic = true; }
+  if(wpx > 200){ wpx = 200; schematic = true; }
+  const kx = wpx/wReal, cx = 268, xl = cx - wpx/2, xr = cx + wpx/2, sw = 64;
+  const o = [`<svg viewBox="0 0 ${W} ${Hh}" xmlns="http://www.w3.org/2000/svg" font-family="ui-sans-serif,system-ui,sans-serif">`];
+  o.push(`<rect width="${W}" height="${Hh}" fill="${forPrint?'#fff':'transparent'}"/>`);
+  // 端部：基礎／帽梁（橋梁）或梁柱接頭（建築）
+  o.push(`<rect x="${xl-sw}" y="${Y(0)}" width="${wpx+2*sw}" height="${Hb*k}" fill="${C.stub}"/>`);
+  o.push(`<rect x="${xl-sw}" y="${Y(L+Ht)}" width="${wpx+2*sw}" height="${Ht*k}" fill="${C.stub}"/>`);
+  if(ext){
+    for(const [a,b] of [[-Hb-ext, -Hb], [L+Ht, L+Ht+ext]])
+      o.push(`<rect x="${xl}" y="${Y(b)}" width="${wpx}" height="${ext*k}" fill="${C.conc}" opacity="0.55" stroke="${C.line}" stroke-dasharray="5 4"/>`);
+    o.push(`<text x="${xl-8}" y="${Y(-Hb-ext/2)+4}" font-size="10.5" fill="${C.dim}" text-anchor="end">下層柱</text>`);
+    o.push(`<text x="${xl-8}" y="${Y(L+Ht+ext/2)+4}" font-size="10.5" fill="${C.dim}" text-anchor="end">上層柱</text>`);
+  }
+  o.push(`<text x="${xl-sw/2}" y="${Y(-Hb/2)+4}" font-size="10.5" fill="${C.dim}" text-anchor="middle">${bldg?'接頭':'基礎'}</text>`);
+  o.push(`<text x="${xl-sw/2}" y="${Y(L+Ht/2)+4}" font-size="10.5" fill="${C.dim}" text-anchor="middle">${bldg?'接頭':'帽梁'}</text>`);
+  o.push(`<rect x="${xl}" y="${Y(L)}" width="${wpx}" height="${L*k}" fill="${C.conc}" stroke="${C.line}" stroke-width="1.6"/>`);
+  // 不得搭接區
+  if(P.ph){
+    const nz = [[0, Math.min(P.A0, L)]]; if(P.A1 < L) nz.push([P.A1, L]);
+    for(const [a,b] of nz) if(b - a > 1e-6){
+      o.push(`<rect x="${xl}" y="${Y(b)}" width="${wpx}" height="${(b-a)*k}" fill="${C.no}" opacity="${forPrint?0.4:0.25}"/>`);
+      o.push(`<text x="${xl-8}" y="${(Y(a)+Y(b))/2+4}" font-size="10.5" fill="${C.dim}" text-anchor="end">不得搭接</text>`);
+    }
+  }
+  // 主筋（兩側各示一根：下段＝自下方延伸上來者，上段＝本層起搭者）
+  const cvx = Math.max(6, (r.covO + R.dt + R.db/2)*kx), off = 4, rad = 5;
+  const tail = Math.max(12, Math.min(12*R.db*kx, wpx/2 - 12));
+  const yLo = bldg ? Y(-Hb-ext) : Y(-ldh), yHi = bldg ? Y(L+Ht+ext) : Y(L+ldh);
+  for(const [x, dir] of [[xl+cvx, 1], [xr-cvx, -1]]){
+    const x2 = x + dir*off;
+    o.push(`<path d="${bldg ? `M${x},${yLo} L${x},${Y(lb)}` : hookV(x, Y(lb), Y(-ldh), dir, tail, rad)}" fill="none" stroke="${C.bar}" stroke-width="2"/>`);
+    o.push(`<path d="${bldg ? `M${x2},${Y(la)} L${x2},${yHi}` : hookV(x2, Y(la), Y(L+ldh), dir, tail, rad)}" fill="none" stroke="${C.bar2}" stroke-width="2"/>`);
+  }
+  // 臨界斷面
+  for(const [z, t] of [[0, bldg?'臨界斷面（樓版面）':'臨界斷面（基礎頂面）'], [L, bldg?'臨界斷面（梁底面）':'臨界斷面（帽梁底面）']]){
+    o.push(`<line x1="${xl-sw-2}" y1="${Y(z)}" x2="${xr+sw+2}" y2="${Y(z)}" stroke="${C.crit}" stroke-width="1.4" stroke-dasharray="7 4"/>`);
+    o.push(`<text x="${xl-sw-6}" y="${Y(z)+(z?-5:13)}" font-size="10.5" font-weight="700" fill="${C.crit}" text-anchor="end">${t}</text>`);
+  }
+  // 右側尺寸鏈與標註
+  const dx = xr + sw + 16, tx = dx + 34;
+  const segs = [];
+  if(!bldg) segs.push({a:-ldh, b:0, l1:`l_dh = ${ldh} cm`, l2:'自臨界斷面量至彎鉤外緣'});
+  if(la > 0.5) segs.push({a:0, b:la, l1:`${f(la,0)} cm`, l2:''});
+  segs.push({a:la, b:lb, l1:`乙級搭接 ${lap} cm`, l2:`1.3ψ_g l_d，${P.why}`, hot:true, bad:!P.fits});
+  if(L - lb > 0.5) segs.push({a:lb, b:L, l1:`${f(L-lb,0)} cm`, l2:''});
+  if(!bldg) segs.push({a:L, b:L+ldh, l1:`l_dh = ${ldh} cm`, l2:'自臨界斷面量至彎鉤外緣'});
+  for(const g of segs){
+    elevDim(o, C, Y(g.a), Y(g.b), dx, true);
+    for(const z of [g.a, g.b]) o.push(`<line x1="${xr+4}" y1="${Y(z)}" x2="${dx+8}" y2="${Y(z)}" stroke="${C.dim}" stroke-width="0.6"/>`);
+    g.want = (Y(g.a)+Y(g.b))/2; g.size = g.l2 ? 30 : 16;
+  }
+  for(const g of spreadLabels(segs, top-4, Hh-4, 4)){
+    const col = g.bad ? C.bad : g.hot ? C.bar2 : C.txt;
+    if(Math.abs(g.at - g.want) > 2) o.push(`<polyline points="${dx+3},${g.want} ${tx-6},${g.at-(g.l2?6:4)}" fill="none" stroke="${C.dim}" stroke-width="0.6"/>`);
+    o.push(`<text x="${tx}" y="${g.at-(g.l2?3:-4)}" font-size="12" font-weight="700" fill="${col}">${svgTxt(g.l1,12)}</text>`);
+    if(g.l2) o.push(`<text x="${tx}" y="${g.at+12}" font-size="10.5" fill="${g.bad?C.bad:C.dim}">${svgTxt(g.l2,10.5)}</text>`);
+  }
+  // 標題
+  o.push(`<text x="16" y="22" font-size="13.5" font-weight="700" fill="${C.txt}">${svgTxt(`主筋 ${r.barSize}（d_b = ${f(R.db,2)} cm）伸展與搭接配置`,13.5)}</text>`);
+  o.push(`<text x="16" y="40" font-size="11" fill="${C.dim}">${svgTxt(bldg
+    ? `主筋貫穿梁柱接頭續接上層柱；受壓搭接 ${devUp(D.lapC)} cm、受拉直線 l_d = ${devUp(D.ld)} cm`
+    : `標準 90° 彎鉤：延伸 12d_b = ${f(D.ext90,1)} cm、彎曲內徑 ${f(D.bendD,1)} cm；受壓 l_dc = ${devUp(D.ldc)} cm`, 11)}</text>`);
+  o.push(`<text x="16" y="56" font-size="11" fill="${P.fits?C.dim:C.bad}">${svgTxt(P.fits
+    ? `比例：縱向依實際尺寸${schematic?'、柱寬為示意':''}${bldg?'、接頭深度為示意':'、基礎／帽梁深度為示意（須 ≥ l_dh + 保護層）'}`
+    : `可搭接範圍僅 ${f(Math.max(0,P.A1-P.A0),0)} cm ＜ 搭接長度 ${lap} cm：改用機械式續接器或錯開續接`, 11)}</text>`);
+  o.push(`</svg>`);
+  return o.join('');
+}
+function devPlanInfoCol(M){
+  const P = colDevPlan(M), D = P.D;
+  const rows = [];
+  if(!P.bldg) rows.push(['基礎／帽梁錨定', '基礎頂面、帽梁底面', `標準彎鉤 l<sub>dh</sub> = ${P.ldh} cm（直線則 l<sub>d</sub> = ${devUp(D.ld)} cm）`, '§25.4.3.1']);
+  rows.push(['主筋搭接', `距柱底 ${f(P.la,0)}～${f(P.lb,0)} cm（${esc(P.why)}）`, `乙級 ${P.lap} cm`, P.ph&&P.bldg ? '§18.4.4.3、表 25.5.2.1' : '表 25.5.2.1']);
+  let h = `<table style="width:100%;margin-top:6px"><thead><tr><th class="l">項目</th><th class="l">位置（臨界斷面）</th><th class="l">長度</th><th class="l">依據</th></tr></thead><tbody>`
+    + rows.map(q=>`<tr><td class="l">${q[0]}</td><td class="l">${q[1]}</td><td class="l">${q[2]}</td><td class="l">${q[3]}</td></tr>`).join('') + `</tbody></table>`;
+  if(!P.fits) h += `<div style="margin-top:4px;color:var(--bad)">可搭接範圍 ${f(Math.max(0,P.A1-P.A0),0)} cm 不足以容納搭接長度 ${P.lap} cm，請改用機械式續接器（耐震構材須符合 §18.2.7 之續接器等級）或調整鋼筋。</div>`;
+  return h;
+}
+
+/* 梁主筋：柱面為負彎矩臨界斷面（頂、底筋皆於柱內以 90° 彎鉤錨定，耐震梁取 §18.5.5 接頭內長度），
+   頂筋於跨中搭接、底筋於支承附近搭接（耐震梁須在 2h 以外，§18.3.3.3）。 */
+function beamDevPlan(B){
+  const {S} = B, sets = B.dev.sets, seis = S.seismic && !S.slab;
+  const pick = st => {
+    if(!st) return null;
+    const d = st.d, ldh = devUp(seis && d.ldhS ? d.ldhS : d.ldh);
+    return {name:st.name, d, ldh, lap:devUp(d.lapB), seisHook: seis && !!d.ldhS};
+  };
+  const bot = pick(sets[0]), top = pick(sets[1]);
+  const L = S.ln, nz = seis ? 2*S.h : 0;
+  const A0 = nz, A1 = L - nz;
+  if(top){ top.la = (L - top.lap)/2; top.fits = A1 - A0 >= top.lap - 1e-9; top.why = '跨中'; }
+  if(bot){ bot.la = nz; bot.fits = A1 - A0 >= bot.lap - 1e-9; bot.why = seis ? '支承附近、2h 以外' : '支承附近'; }
+  for(const b of [top, bot]) if(b){ if(b.la + b.lap > L) b.la = Math.max(0, (L-b.lap)/2); b.lb = Math.min(L, b.la + b.lap); }
+  return {L, nz, seis, top, bot, slab:S.slab};
+}
+function svgBeamDev(B, forPrint){
+  const {S,R} = B, P = beamDevPlan(B), {L, top, bot, seis} = P, C = devPal(forPrint);
+  const ldhMax = Math.max(bot.ldh, top ? top.ldh : 0);
+  const hc = Math.max(40, ldhMax + 15);
+  const W=760, xm=36, k = (W - 2*xm)/(L + 2*hc);
+  const X = z => xm + (z + hc)*k;
+  let hpx = S.h*k, schematic = false;
+  if(hpx < 70){ hpx = 70; schematic = true; }
+  if(hpx > 130){ hpx = 130; schematic = true; }
+  const ky = hpx/S.h, yT = 136, yB = yT + hpx, Hh = yB + 112;
+  const sup = S.slab ? '支承' : '柱';
+  const o = [`<svg viewBox="0 0 ${W} ${Hh}" xmlns="http://www.w3.org/2000/svg" font-family="ui-sans-serif,system-ui,sans-serif">`];
+  o.push(`<rect width="${W}" height="${Hh}" fill="${forPrint?'#fff':'transparent'}"/>`);
+  for(const [a,b] of [[-hc,0],[L,L+hc]]){
+    o.push(`<rect x="${X(a)}" y="${yT-22}" width="${hc*k}" height="${hpx+44}" fill="${C.stub}"/>`);
+    o.push(`<text x="${(X(a)+X(b))/2}" y="${yB+16}" font-size="10.5" fill="${C.dim}" text-anchor="middle">${sup}</text>`);
+  }
+  o.push(`<rect x="${X(0)}" y="${yT}" width="${L*k}" height="${hpx}" fill="${C.conc}" stroke="${C.line}" stroke-width="1.6"/>`);
+  if(seis) for(const [a,b] of [[0,P.nz],[L-P.nz,L]]){
+    o.push(`<rect x="${X(a)}" y="${yT}" width="${(b-a)*k}" height="${hpx}" fill="${C.no}" opacity="${forPrint?0.4:0.25}"/>`);
+    o.push(`<text x="${(X(a)+X(b))/2}" y="${yT+hpx/2+4}" font-size="10" fill="${C.dim}" text-anchor="middle">${svgTxt('2h 不得搭接',10)}</text>`);
+  }
+  // 主筋
+  const cv = Math.max(7, (S.cover + R.dt + 1.2)*ky), off = 3.5, rad = 5;
+  const yt = yT + cv, yb = yB - cv;
+  const tailOf = b => Math.max(10, Math.min(12*b.d.db*ky, (hpx - 2*cv)/2 - 10));
+  const bar = (d, col) => o.push(`<path d="${d}" fill="none" stroke="${col}" stroke-width="2"/>`);
+  if(top){
+    const t = tailOf(top);
+    bar(hookH(yt, X(top.lb), X(-top.ldh), 1, t, rad), C.bar);
+    bar(hookH(yt+off, X(top.la), X(L+top.ldh), 1, t, rad), C.bar2);
+  }
+  {
+    const t = tailOf(bot);
+    bar(hookH(yb, X(bot.lb), X(-bot.ldh), -1, t, rad), C.bar);
+    bar(hookH(yb-off, X(bot.la), X(L+bot.ldh), -1, t, rad), C.bar2);
+  }
+  // 臨界斷面
+  const crit = [[0, `臨界斷面（${sup}面）`], [L, `臨界斷面（${sup}面）`], [L/2, '跨中（正彎矩臨界）']];
+  for(const [z, t] of crit){
+    const mid = z === L/2;
+    o.push(`<line x1="${X(z)}" y1="${mid ? yT-6 : 70}" x2="${X(z)}" y2="${yB+(mid?6:24)}" stroke="${C.crit}" stroke-width="${mid?1:1.4}" stroke-dasharray="${mid?'3 3':'7 4'}" opacity="${mid?0.8:1}"/>`);
+  }
+  const cl = spreadLabels(crit.map(([z,t])=>({want:X(z), size:txtW(t,10.5), t})), 4, W-4, 10);
+  for(const q of cl) o.push(`<text x="${q.at}" y="66" font-size="10.5" font-weight="700" fill="${C.crit}" text-anchor="middle">${q.t}</text>`);
+  // 尺寸：上方頂筋、下方底筋
+  const chain = (b, yDim, below) => {
+    const segs = [{a:-b.ldh, b:0, t:`${b.seisHook?'接頭內 ':''}l_dh = ${b.ldh} cm`},
+                  {a:b.la, b:b.lb, t:`搭接 ${b.lap} cm（${b.why}）`, hot:true, bad:!b.fits}];
+    for(const g of segs){
+      elevDim(o, C, X(g.a), X(g.b), yDim, false);
+      for(const z of [g.a, g.b]) o.push(`<line x1="${X(z)}" y1="${below ? yB+4 : yT-4}" x2="${X(z)}" y2="${yDim+(below?6:-6)}" stroke="${C.dim}" stroke-width="0.6"/>`);
+      g.want = (X(g.a)+X(g.b))/2; g.size = txtW(g.t, 11);
+    }
+    for(const g of spreadLabels(segs, 4, W-4, 12)){
+      const ty = yDim + (below ? 16 : -7);
+      o.push(`<text x="${g.at}" y="${ty}" font-size="11" font-weight="700" fill="${g.bad?C.bad:g.hot?C.bar2:C.txt}" text-anchor="middle">${svgTxt(g.t,11)}</text>`);
+    }
+  };
+  if(top) chain(top, yT-32, false);
+  chain(bot, yB+40, true);
+  // 標題與說明
+  const nm = b => `${b.name.split(' ')[0]} ${b.name.split(' ')[1]||''}`;
+  o.push(`<text x="16" y="22" font-size="13.5" font-weight="700" fill="${C.txt}">主筋伸展與搭接配置（${[top,bot].filter(Boolean).map(nm).join('、')}）</text>`);
+  o.push(`<text x="16" y="40" font-size="11" fill="${C.dim}">${svgTxt(`l_dh 自${sup}面（臨界斷面）量至 90° 彎鉤外緣；彎鉤延伸 12d_b = ${f(bot.d.ext90,1)}${top?`／${f(top.d.ext90,1)}`:''} cm${seis?'；彎鉤須位於柱圍束核心內並彎向接頭':''}`,11)}</text>`);
+  const bad = [top,bot].filter(b=>b && !b.fits);
+  o.push(`<text x="16" y="${yB+78}" font-size="11" fill="${bad.length?C.bad:C.dim}">${svgTxt(bad.length
+    ? `${bad.map(b=>b.name.split(' ')[0]).join('、')}搭接長度大於可搭接範圍（${f(Math.max(0,L-2*P.nz),0)} cm）：改用機械式續接器或不搭接`
+    : `${sup}寬為示意（須 ≥ l_dh + 保護層）${schematic?'、梁深為示意':''}；${seis?'搭接範圍內箍筋間距 ≤ min(d/4, 10 cm)（§18.3.3.3）':'頂筋截斷點另依彎矩包絡線（延伸 d、12d_b，§9.7.3）'}`, 11)}</text>`);
+  o.push(`<text x="16" y="${yB+96}" font-size="11" fill="${C.dim}">${svgTxt(`受拉直線 l_d：底筋 ${devUp(bot.d.ld)}${top?`、頂筋 ${devUp(top.d.ld)}`:''} cm（由臨界斷面起算，直線錨定時${sup}內長度須 ≥ ${seis?'§18.5.5.3 之值':'l_d'}）`, 11)}</text>`);
+  o.push(`</svg>`);
+  return o.join('');
+}
+function devPlanInfoBeam(B){
+  const P = beamDevPlan(B), sup = P.slab ? '支承' : '柱';
+  const rows = [];
+  for(const b of [P.top, P.bot]) if(b){
+    rows.push([`${b.name} 錨定`, `${sup}面`, `90° 彎鉤 l<sub>dh</sub> = ${b.ldh} cm`, b.seisHook ? '§18.5.5.1' : '§25.4.3.1']);
+    rows.push([`${b.name} 搭接`, `距左${sup}面 ${f(b.la,0)}～${f(b.lb,0)} cm（${esc(b.why)}）`, `乙級 ${b.lap} cm`, P.seis ? '§18.3.3.3、表 25.5.2.1' : '表 25.5.2.1']);
+  }
+  let h = `<table style="width:100%;margin-top:6px"><thead><tr><th class="l">項目</th><th class="l">位置（臨界斷面）</th><th class="l">長度</th><th class="l">依據</th></tr></thead><tbody>`
+    + rows.map(q=>`<tr><td class="l">${q[0]}</td><td class="l">${q[1]}</td><td class="l">${q[2]}</td><td class="l">${q[3]}</td></tr>`).join('') + `</tbody></table>`;
+  for(const b of [P.top, P.bot]) if(b && !b.fits)
+    h += `<div style="margin-top:4px;color:var(--bad)">${b.name}：搭接長度 ${b.lap} cm 大於可搭接範圍 ${f(Math.max(0,P.L-2*P.nz),0)} cm，請改用機械式續接器或通長配置。</div>`;
+  return h;
+}
+
 function svgCircle(M,forPrint){
   const {s,r,R}=M;
   const W=760, Hh=600, pad=110, band=72;
@@ -2771,6 +3013,8 @@ function render(){
   document.getElementById('elevInfo').innerHTML=SB(elevInfoCol(M));
   M.dev=colDev(M);
   document.getElementById('devInfo').innerHTML=SB(devTable(M.dev, {colNote: colDevNote(M)}));
+  document.getElementById('devElevWrap').innerHTML=svgColDev(M,false);
+  document.getElementById('devPlan').innerHTML=SB(devPlanInfoCol(M));
   {   // 圖例移到圖外：圖面就不必為了容納它而放大
     const L=[['標稱 P_n – M_n','#8A97A5','1.7',''],
              ['設計 φP_n – φM_n','#0F5F6B','2.6',''],
@@ -3282,7 +3526,10 @@ function buildReport(M){
       \\(x=\\varepsilon/\\varepsilon_{cc}\\)，\\(r=E_c/(E_c-E_{sec})\\)），非等效應力塊，且已扣除保護層。`));
   }
   o.push(`<div class="rp-h2">${cf.MD?11:10}. 主筋伸展長度與搭接</div>`);
-  o.push(devReport(M.dev || colDev(M), eq, d, note));
+  if(!M.dev) M.dev = colDev(M);
+  o.push(`<div class="rp-fig">${svgColDev(M,true)}</div>`);
+  o.push(`<div style="font-size:12px">${devPlanInfoCol(M)}</div>`);
+  o.push(devReport(M.dev, eq, d, note));
   if(M.opt.plastic) o.push(note(colDevNote(M)));
   o.push(`<div class="rp-h2">附註</div>`);
   o.push(note(`1. 本工具<b>不計算</b>細長效應／彎矩放大係數。輸入之 \\(P_u,M_u\\) 須為已含 P-Δ 之大變形幾何非線性分析結果。<br>
@@ -4392,6 +4639,8 @@ function renderBeam(){
     document.getElementById('bElevInfo').innerHTML=SB(elevInfoBeam(B));
   }
   B.dev=beamDev(B);
+  document.getElementById('bDevElevWrap').innerHTML=svgBeamDev(B,false);
+  document.getElementById('bDevPlan').innerHTML=SB(devPlanInfoBeam(B));
   document.getElementById('bDevInfo').innerHTML=SB(devTable(B.dev, {colNote: S.seismic
     ? '耐震梁：搭接不得設於梁柱接頭內、自柱面 2h 內及可能產生塑鉸處，搭接長度範圍內箍筋間距 ≤ min(d/4, 10 cm)（土木401 §18.3.3.3）。' : ''}));
 
@@ -4861,7 +5110,10 @@ function buildBeamReport(B){
       無法由單一斷面判斷，請另行檢核。`));
   }
   o.push(`<div class="rp-h2">${S.seismic?'8':'7'}. 主筋伸展長度與搭接</div>`);
-  o.push(devReport(B.dev || beamDev(B), eq, d, note));
+  if(!B.dev) B.dev = beamDev(B);
+  o.push(`<div class="rp-fig">${svgBeamDev(B,true)}</div>`);
+  o.push(`<div style="font-size:12px">${devPlanInfoBeam(B)}</div>`);
+  o.push(devReport(B.dev, eq, d, note));
   o.push(`<div class="rp-h2">${S.seismic?'9':'8'}. 附註</div>`);
   o.push(note(`1. 本模組為<b>第一階段 RC 梁</b>，不含預力。預力梁之有效預力、施工/使用階段應力檢核、
     極限強度 f_ps 為第二階段。<br>
