@@ -106,7 +106,7 @@ body{overflow:hidden;display:flex;flex-direction:column}
 #app,#appBeam{flex-grow:1;min-height:0}
 #app>div:last-of-type,#appBeam>div:last-of-type{overflow-y:auto;min-height:0}
 /* 預覽計算書時整頁變成白底黑字，跟列印出來的一模一樣 */
-body.rp-open{overflow:auto;display:block;background:#fff;color:#111}
+body.rp-open{overflow:auto;display:block;background:var(--bg);color:#111}
 body.rp-open #topbar{background:#fff;color:#111;border-bottom:1px solid #999}
 body.rp-open #impBanner{display:none!important}
 body.rp-open #statusbar{display:none!important}
@@ -369,7 +369,20 @@ body .pin-v input[type=text]{text-align:left}
 #report table.rp-dense{font-size:11px}
 #report table.rp-dense th,#report table.rp-dense td{padding:2px 4px}
 @media print{ #report table{font-size:9pt} #report table.rp-dense{font-size:8.25pt} }
-.rp-h1{font-size:18px;font-weight:800;margin:0 0 4px}
+.rp-h1{font-size:18px;font-weight:800;margin:0}
+.rp-title{display:flex;justify-content:space-between;align-items:baseline;gap:16px;margin:0 0 8px;padding-bottom:6px;border-bottom:2px solid #333}
+.rp-mem{font-size:14px;white-space:nowrap}
+#report table.rp-meta{width:100%;margin:0 0 12px;border-collapse:collapse}
+#report table.rp-meta th,#report table.rp-meta td{border:0;border-bottom:1px solid #ddd;padding:3px 8px;text-align:left;vertical-align:top;background:none}
+#report table.rp-meta th{font-weight:700;white-space:nowrap;width:1%;color:#333}
+/* 鍵值表：項目欄粗體灰底，內容一律置左 */
+#report table.rp-kv td:nth-child(odd){font-weight:700;background:#f2f2f2;text-align:left;white-space:nowrap}
+#report table.rp-kv td:nth-child(even){text-align:left}
+#report table th{font-weight:700;background:#eee}
+.rp-sign{margin:22px 0 0}
+#report .rp-sign table{width:100%;table-layout:fixed}
+#report .rp-sign th{text-align:center}
+#report .rp-sign tr.sg td{height:56px}
 .rp-h2{font-size:14px;font-weight:800;margin:18px 0 7px;border-bottom:2px solid #333;padding-bottom:3px}
 .rp-h3{font-size:12.5px;font-weight:700;margin:12px 0 5px}
 .rp-eq{margin:2px 0 2px 12px;font-size:12px}
@@ -387,6 +400,25 @@ body .pin-v input[type=text]{text-align:left}
 .rp-pm2 .rp-fig{padding:3px}
 
 /* ---- 從圖說匯入（自帶規則，不依賴 Tailwind，斷網也不會垮）---- */
+#setupOv{position:fixed;inset:0;background:rgba(3,7,18,.55);z-index:70;display:none;align-items:center;justify-content:center;padding:16px}
+#setupOv.open{display:flex}
+.setup-dlg{background:var(--panel);border:1px solid var(--line);border-radius:12px;width:min(560px,100%);max-height:92vh;
+  display:flex;flex-direction:column;box-shadow:0 18px 60px rgba(0,0,0,.45)}
+.setup-head{padding:14px 18px 10px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:3px}
+.setup-head b{font-size:16px}
+.setup-head span{font-size:12.5px;color:var(--dim)}
+.setup-body{padding:12px 18px;overflow-y:auto;display:flex;flex-direction:column;gap:9px}
+.setup-row{display:grid;grid-template-columns:84px minmax(0,1fr);align-items:center;gap:10px;font-size:13.5px}
+.setup-k{color:var(--dim);font-weight:600}
+body .setup-v select,body .setup-v input{width:100%;padding:6px 8px;font-size:13.5px;border:1px solid var(--line2);border-radius:6px;background:var(--panel)}
+.setup-hint{font-size:11.5px;color:var(--faint);margin:-4px 0 2px 94px}
+#setupOv[data-mod="pylon"] .setup-row[data-mod="beam"],#setupOv[data-mod="beam"] .setup-row[data-mod="pylon"]{display:none}
+.setup-act{padding:12px 18px;border-top:1px solid var(--line);display:flex;justify-content:flex-end}
+body .tb-setup{display:inline-flex;align-items:center;gap:8px;padding:5px 10px;border:1px solid var(--line2);border-radius:8px;
+  background:var(--panel);font-size:13px;font-weight:600;color:var(--txt);cursor:pointer;max-width:46vw;overflow:hidden}
+body .tb-setup:hover{border-color:var(--acc);background:var(--acc-soft)}
+#setupSum{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tb-setup-ed{font-size:11.5px;font-weight:600;color:var(--acc-h);flex-shrink:0}
 #impOv{position:fixed;inset:0;background:rgba(3,7,18,.74);z-index:60;
   display:none;align-items:center;justify-content:center;padding:20px}
 #impOv.open{display:flex}
@@ -456,7 +488,7 @@ body .seg button[aria-pressed=true]{background:var(--panel);color:var(--txt);fon
 #statusbar{flex-shrink:0;display:flex;align-items:flex-start;gap:8px 16px;padding:8px 16px;
   background:var(--chrome);border-bottom:1px solid var(--line)}
 /* 依據兩欄上下疊：跟兩排判定膠囊同高，判定列就能多拿到兩百多 px 的寬度 */
-.sb-basis{display:flex;flex-direction:column;gap:6px;flex-shrink:0;padding-right:16px;border-right:1px solid var(--line)}
+.sb-basis{display:none}
 .sb-field{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--dim);white-space:nowrap}
 .sb-field>span{width:48px;text-align:right}
 body .sb-field select{width:auto;font-size:12.5px;padding:4px 8px;max-width:300px}
@@ -592,15 +624,37 @@ img,video{max-width:100%;height:auto}
   <symbol id="icTest" viewBox="0 0 24 24"><path d="M9 3h6M10 3v6l-5 9a1.5 1.5 0 0 0 1.3 2.2h11.4A1.5 1.5 0 0 0 19 18l-5-9V3"/><path d="M7.5 14h9"/></symbol>
 </defs></svg>
 
+<!-- 開場視窗：先決定設計對象（構件、斷面型式、範本、依據、環境），參數表只留尺寸以後的項目。
+     控制項是原本的元素搬進來（id 與事件監聽不變），compute() 照舊以 id 讀取。 -->
+<div id="setupOv" role="dialog" aria-modal="true" aria-labelledby="setupTtl">
+  <div class="setup-dlg">
+    <div class="setup-head"><b id="setupTtl">設計對象</b><span>先選構件與斷面型式；之後可由左上角按鈕隨時變更。</span></div>
+    <div class="setup-body">
+      <div class="setup-row"><span class="setup-k">構件類型</span>
+        <div class="seg" role="group" aria-label="構件類型">
+          <button id="tabPylon" type="button" aria-pressed="true">柱斷面</button>
+          <button id="tabBeam" type="button" aria-pressed="false">梁／版斷面</button>
+        </div></div>
+      <div class="setup-row" data-mod="pylon"><span class="setup-k">斷面型式</span><div class="setup-v" id="setupSecP"></div></div>
+      <div class="setup-row" data-mod="beam"><span class="setup-k">斷面型式</span><div class="setup-v" id="setupSecB"></div></div>
+      <div class="setup-row" data-mod="pylon"><span class="setup-k">預設範本</span><div class="setup-v" id="setupPreP"></div></div>
+      <div class="setup-row" data-mod="beam"><span class="setup-k">預設範本</span><div class="setup-v" id="setupPreB"></div></div>
+      <div class="setup-hint">範本只在變更時套用（覆寫尺寸、材料、配筋與載重）；清單只列出與所選斷面型式相符者。</div>
+      <div class="setup-row" data-mod="pylon"><span class="setup-k">構件名稱</span><div class="setup-v" id="setupMemP"></div></div>
+      <div class="setup-row" data-mod="beam"><span class="setup-k">構件名稱</span><div class="setup-v" id="setupMemB"></div></div>
+      <div class="setup-row"><span class="setup-k">設計依據</span><div class="setup-v" id="setupCode"></div></div>
+      <div class="setup-row"><span class="setup-k">環境</span><div class="setup-v" id="setupEnv"></div></div>
+    </div>
+    <div class="setup-act"><button id="setupGo" type="button" class="btn-primary">開始設計</button></div>
+  </div>
+</div>
+
 <header id="topbar">
   <div class="tb-brand">
     <svg class="logo" viewBox="0 0 32 32" role="img" aria-label="RC 斷面設計"><use href="#logoMark"/></svg>
     <span class="tb-name">RC 斷面設計</span>
   </div>
-  <div class="seg" role="group" aria-label="構件類型">
-    <button id="tabPylon" type="button" aria-pressed="true">柱斷面</button>
-    <button id="tabBeam" type="button" aria-pressed="false">梁／版斷面</button>
-  </div>
+  <button id="btnSetup" type="button" class="tb-setup" title="變更構件類型、斷面型式、範本、設計依據與環境"><span id="setupSum">柱斷面</span><span class="tb-setup-ed" aria-hidden="true">變更</span></button>
   <!-- 斷面切換：只有在匯入到 2 個以上斷面時才出現（見 secPicker） -->
   <select id="secPick" style="display:none;width:auto;min-width:170px;font-weight:600"></select>
   <div id="secName" class="tb-sec"></div>
@@ -1122,7 +1176,9 @@ const kn = (x,p) => f(x,p).replace(/,/g,'{,}');
    ・\frac{分子}{分母} → 先以 tspan.frac 佔位（未排版時退回 a/b），插入後由 fracLayout 疊成上下分式
    PNG 匯出的圖片載不到網頁字型，退回 Times New Roman（svgPng 會先換字型再排分式，位置一致）。 */
 const MATH_I = "KaTeX_Math,'Times New Roman',serif", MATH_R = "KaTeX_Main,'Times New Roman',serif";
-const _isL = c => /[A-Za-z]/.test(c||'');
+const _isL = c => /[A-Za-zȳ]/.test(c||'');
+/* 單位字樣（cm、kgf/cm²、tf·m…）：與數字同屬 LaTeX 直體（如 \text{cm}） */
+const _UNIT = /(^|[\s(（\/·-])(kgf|tf|kg|cm|mm|MPa|kN|m)(²|³)?(?=[\s)）\/·,，-]|$)/;
 const _GRK = /[α-ωϕϑ]/;
 const _MATHRUN = /[^⺀-￿]+/g;      // 非中日韓／全形字元的連續段
 function _mathIds(s){
@@ -1130,6 +1186,7 @@ function _mathIds(s){
   const ids = new Set();
   for(let i=0;i<s.length;i++){
     const c = s[i];
+    if(s.startsWith('D/C', i) && !_isL(s[i-1]) && !_isL(s[i+3])){ ids.add(i); ids.add(i+2); i += 2; continue; }   // 應力比 D/C
     if(_GRK.test(c)){ ids.add(i); continue; }
     if(!_isL(c)) continue;
     let j = i; while(_isL(s[j+1])) j++;
@@ -1181,7 +1238,7 @@ function svgTxt(t, fs){
         k = e; } }
     const ser = new Array(chars.length).fill(false);
     s.replace(_MATHRUN, (run, off) => {
-      let has = (pF && off===0) || (nF && off+run.length===s.length) || /\d/.test(run); for(let k=off;k<off+run.length;k++) if(ids.has(k)) { has = true; break; }
+      let has = (pF && off===0) || (nF && off+run.length===s.length) || /\d/.test(run) || _UNIT.test(run); for(let k=off;k<off+run.length;k++) if(ids.has(k)) { has = true; break; }
       if(has){ let a = off, b = off+run.length; while(a<b && s[a]===' ') a++; while(b>a && s[b-1]===' ') b--; for(let k=a;k<b;k++) ser[k] = true; }
       return run;
     });
@@ -1202,6 +1259,7 @@ function svgTxt(t, fs){
     if(Math.abs(d-shift) > 1e-9) at.push(`dy="${(d-shift).toFixed(2)}"`);
     if(p.lv) at.push(`font-size="${fsSub}"`);
     if(p.it) at.push(`font-family="${MATH_I}" font-style="italic"`); else if(p.ser) at.push(`font-family="${MATH_R}"`);
+    if(p.it) s = s.replace(/φ/g,'ϕ');   // 封閉的 ϕ，與 KaTeX \phi 一致
     out += at.length ? `<tspan ${at.join(' ')}>${esc(s)}</tspan>` : esc(s);
     shift = d; i = j;
   }
@@ -1220,7 +1278,7 @@ function fracLayout(svg, sysFont){
     const mk = (str) => {
       const e = document.createElementNS(NS, 'text');
       for(const a of ['fill','font-weight','stroke','stroke-width','stroke-linejoin','paint-order','transform']) if(tx.hasAttribute(a)) e.setAttribute(a, tx.getAttribute(a));
-      e.setAttribute('font-size', ff.toFixed(2)); e.setAttribute('text-anchor', 'middle');
+      e.setAttribute('font-size', ff.toFixed(2)); e.setAttribute('text-anchor', 'middle'); e.setAttribute('class', 'frp');
       e.setAttribute('font-family', sysFont ? "'Times New Roman',serif" : MATH_R);   // 分子分母一律襯線（數字亦然）
       e.innerHTML = sysFont ? svgTxt(str, ff).split('KaTeX_Math,').join('').split('KaTeX_Main,').join('') : svgTxt(str, ff);
       tx.parentNode.insertBefore(e, tx.nextSibling);
@@ -1233,8 +1291,8 @@ function fracLayout(svg, sysFont){
     sp.textContent = ' '; sp.setAttribute('dx', w.toFixed(2));
     let pos, adv; try{ pos = sp.getStartPositionOfChar(0); adv = sp.getComputedTextLength(); }catch(e){ continue; }
     const cx = pos.x - w + (w + adv)/2, ax = pos.y - fs*0.3;     // 分數線落在數學軸（約 0.3em）
-    num.setAttribute('x', cx.toFixed(2)); num.setAttribute('y', (ax - fs*0.2).toFixed(2));
-    den.setAttribute('x', cx.toFixed(2)); den.setAttribute('y', (ax + ff*0.78).toFixed(2));
+    num.setAttribute('x', cx.toFixed(2)); num.setAttribute('y', (ax - fs*0.26).toFixed(2));
+    den.setAttribute('x', cx.toFixed(2)); den.setAttribute('y', (ax + ff*0.9).toFixed(2));
     const ln = document.createElementNS(NS, 'line');
     ln.setAttribute('x1', (cx - w/2 + fs*0.1).toFixed(2)); ln.setAttribute('x2', (cx + w/2 - fs*0.1).toFixed(2));
     ln.setAttribute('y1', ax.toFixed(2)); ln.setAttribute('y2', ax.toFixed(2));
@@ -2745,13 +2803,14 @@ function dimLine(o, x1, y1, x2, y2, col){
 /* 長說明分行（於「；，、」後斷行，不拆開上下標記號） */
 function wrapT(o, x, y, t, fs, col, maxW, lh){
   const parts = String(t).split(/(?<=[；，、。）])/);
-  let line = '', yy = y;
+  let line = '', yy = y, prevFrac = false;
+  const put = ln => { const fr = /\\frac/.test(ln); if(fr && yy > y && !prevFrac) yy += fs*0.45; T(o, x, yy, ln, fs, col); prevFrac = fr; };
   for(const p of parts){
-    if(line && txtW(line + p, fs) > maxW){ T(o, x, yy, line, fs, col); yy += lh || fs*1.4; line = p; }
+    if(line && txtW(line + p, fs) > maxW){ put(line); yy += (lh || fs*1.4) + (prevFrac ? fs*0.45 : 0); line = p; }
     else line += p;
   }
-  if(line) T(o, x, yy, line, fs, col);
-  return yy;
+  if(line) put(line);
+  return yy + (prevFrac ? fs*0.45 : 0);
 }
 const T = (o, x, y, t, fs, col, anchor, bold) =>
   o.push(`<text x="${_p(x)}" y="${_p(y)}" font-size="${fs}" fill="${col}"${anchor?` text-anchor="${anchor}"`:''}${bold?' font-weight="700"':''} stroke="#fff" stroke-width="3" stroke-linejoin="round" paint-order="stroke">${svgTxt(t, fs)}</text>`);
@@ -2788,7 +2847,7 @@ function drawAnchor(o, F, q, d, v, dir, col, w){
 function devInset(o, x, y, w, h, M, P, setIdx, C){
   o.push(`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${C.conc==='#ececec'?'#fff':'rgba(255,255,255,.75)'}" stroke="${C.line}" stroke-width="0.8" rx="4"/>`);
   T(o, x+8, y+15, '斷面（計算用鋼筋）', 10.5, C.dim);
-  const bx = x+10, by = y+22, bw = w-20, bh = h-62;
+  const bx = x+10, by = y+22, bw = w-20, bh = h-70;
   if(P.mod==='col'){
     const {s,r,R} = M, st = M.dev.sets[0], d = st.d;
     const sW = s.type==='circle' ? s.D : s.B, sH = s.type==='circle' ? s.D : s.H, k = Math.min(bw/sW, bh/sH);
@@ -2812,7 +2871,7 @@ function devInset(o, x, y, w, h, M, P, setIdx, C){
       hi = [cx + pick.x*k, cy - pick.y*k];
       o.push(`<circle cx="${_p(hi[0])}" cy="${_p(hi[1])}" r="${rb+3.5}" fill="none" stroke="${C.crit}" stroke-width="1.6"/>`);
     }
-    T(o, x+8, y+h-26, `c_b = ${f(d.cb,1)} cm（中心距 ${f(d.cSp,1)}${face?`，${face}`:''}）`, 10, C.txt);
+    T(o, x+8, y+h-32, `c_b = ${f(d.cb,1)} cm（中心距 ${f(d.cSp,1)}${face?`，${face}`:''}）`, 10, C.txt);
     T(o, x+8, y+h-11, d.Ktr>0 ? `K_tr = \\frac{40×${f(d.Atr,2)}}{${f(d.s,1)}×${d.n}} = ${f(d.Ktr,2)}` : 'K_tr 保守取 0', 10, C.txt);
   }else{
     const {S,R} = M, st = M.dev.sets[setIdx] || M.dev.sets[0], d = st.d, isTop = setIdx===1;
@@ -2832,7 +2891,7 @@ function devInset(o, x, y, w, h, M, P, setIdx, C){
     const cvB = S.cover + (S.slab?0:R.dt) + R.dbB/2, cvT = S.cover + (S.slab?0:R.dt) + R.dbT/2;
     row(S.slab ? 0 : R.r1, R.dbB, S.h - cvB, !isTop);
     if(M.dev.sets[1]) row(S.slab ? 0 : S.nTop, R.dbT, cvT, isTop);
-    T(o, x+8, y+h-26, `c_b = ${f(d.cb,1)} cm（${isTop?'頂':'底'}筋外側筋）`, 10, C.txt);
+    T(o, x+8, y+h-32, `c_b = ${f(d.cb,1)} cm（${isTop?'頂':'底'}筋外側筋）`, 10, C.txt);
     T(o, x+8, y+h-11, d.Ktr>0 ? `K_tr = \\frac{40×${f(d.Atr,2)}}{${f(d.s,1)}×${d.n}} = ${f(d.Ktr,2)}（${S.nLegs} 肢）` : 'K_tr 取 0', 10, C.txt);
   }
 }
@@ -3594,7 +3653,7 @@ function alertBtnHtml(mod, id){
   const st = PIN[mod], rec = st && st.rows ? st.rows.find(r=>r.id===id) : null;
   const el = document.getElementById(id); if(!el) return '';
   const row = el.closest('.pin-row'); if(row && row.classList.contains('pin-na')) return '';
-  const name = rec ? rec.name : id;
+  const name = rec ? rec.name : (el.dataset.lbl || id);
   const val = el.tagName==='SELECT' ? (el.options[el.selectedIndex] ? el.options[el.selectedIndex].text : '') : el.value;
   const unit = rec && rec.unit ? ' '+rec.unit : '';
   return `<button type="button" class="al-btn" data-mod="${mod}" data-pid="${id}" title="跳到參數表修改「${esc(String(name).replace(/[_^{}]/g,''))}」">${SB(esc(name))}<b>${SB(esc(String(val).slice(0,18)))}${esc(unit)}</b><span aria-hidden="true">→</span></button>`;
@@ -3605,7 +3664,45 @@ function alertBox(mod, lv, t, ids){
 }
 /* 依嚴重度排序：不合格 → 注意 → 提醒 → 通過 */
 const alertSort = A => { const R = {bad:0, warn:1, info:2, note:2, ok:3}; return A.map((h,i)=>({h,i,r:R[(h.match(/a-(\w+)/)||[])[1]] ?? 2})).sort((a,b)=>a.r-b.r||a.i-b.i).map(x=>x.h); };
+/* ---------- 開場視窗：設計對象 ---------- */
+const SETUP_IDS = [['secType','setupSecP','斷面型式'],['bType','setupSecB','斷面型式'],['preset','setupPreP','預設範本'],['bPreset','setupPreB','預設範本'],
+  ['memName','setupMemP','構件名稱'],['bMemName','setupMemB','構件名稱'],['codeBasis','setupCode','設計依據'],['envWater','setupEnv','環境']];
+function setupFilter(){
+  // 範本清單只列出與目前斷面型式相符者（不自動套用，避免覆寫使用者資料）
+  const f = (selId, typeId, P) => { const sel = document.getElementById(selId), t = document.getElementById(typeId).value;
+    [...sel.options].forEach(o => { const pp = P[o.value]; o.hidden = !!(pp && pp.type && pp.type !== t); }); };
+  f('preset', 'secType', PRESETS); f('bPreset', 'bType', BPRESETS);
+}
+function setupSummary(){
+  const tx = id => { const e = document.getElementById(id); return e && e.options ? (e.options[e.selectedIndex]||{}).text || '' : ''; };
+  const beam = TAB==='beam';
+  const code = document.getElementById('codeBasis').value==='bridge' ? '橋梁' : '建築物';
+  const env = document.getElementById('envWater').value==='water' ? '・水工' : '';
+  const nm = memName(beam ? 'bMemName' : 'memName');
+  document.getElementById('setupSum').textContent = `${beam?'梁／版':'柱'}・${tx(beam?'bType':'secType').replace(/（.*$/,'')}｜${code}${env}${nm?'｜'+nm:''}`;
+  document.getElementById('setupOv').dataset.mod = beam ? 'beam' : 'pylon';
+}
+function openSetup(focusEl){
+  setupFilter(); setupSummary();
+  const ov = document.getElementById('setupOv'); ov.classList.add('open');
+  setTimeout(() => { try{ (focusEl || document.getElementById('setupGo')).focus(); }catch(e){} }, 30);
+}
+function closeSetup(){ document.getElementById('setupOv').classList.remove('open'); setupSummary(); }
+function setupInit(){
+  for(const [id, box, lbl] of SETUP_IDS){
+    const el = document.getElementById(id); if(!el) continue;
+    el.dataset.lbl = lbl; document.getElementById(box).appendChild(el);
+  }
+  for(const id of ['secType','bType']) document.getElementById(id).addEventListener('change', () => { setupFilter(); setupSummary(); });
+  for(const id of ['preset','bPreset','codeBasis','envWater','memName','bMemName']) document.getElementById(id).addEventListener('change', setupSummary);
+  for(const id of ['tabPylon','tabBeam']) document.getElementById(id).addEventListener('click', () => setTimeout(setupSummary, 0));
+  document.getElementById('btnSetup').onclick = () => openSetup();
+  document.getElementById('setupGo').onclick = closeSetup;
+  document.addEventListener('keydown', e => { if(e.key==='Escape' && document.getElementById('setupOv').classList.contains('open')) closeSetup(); });
+  openSetup();   // 每次開啟網站先確認設計對象
+}
 function pinGo(mod, id){
+  { const e = document.getElementById(id); if(e && e.closest('#setupOv')){ openSetup(e); return; } }
   const st = PIN[mod]; if(!st || !st.rows) return;
   const rec = st.rows.find(r=>r.id===id);
   const el = document.getElementById(id); if(!el) return;
@@ -3703,7 +3800,7 @@ function svgPng(svg, scale){
   scale = scale || 2;
   svg = svgForExport(svg);
   return new Promise((res, rej) => {
-    const m = svg.match(/viewBox="0 0 ([\d.]+) ([\d.]+)"/), w = +m[1], h = +m[2];
+    const m = svg.match(/viewBox="[-\d.]+ [-\d.]+ ([\d.]+) ([\d.]+)"/), w = +m[1], h = +m[2];
     const img = new Image();
     img.onload = () => {
       const c = document.createElement('canvas'); c.width = Math.round(w*scale); c.height = Math.round(h*scale);
@@ -3711,7 +3808,7 @@ function svgPng(svg, scale){
       res({b64: c.toDataURL('image/png').split(',')[1], w, h});
     };
     img.onerror = () => rej(new Error('配置圖轉檔失敗'));
-    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg.replace('<svg ', `<svg width="${w}" height="${h}" `));
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg.replace(/<svg /, `<svg width="${w}" height="${h}" `));
   });
 }
 const plainFm = t => String(t||'').replace(/<[^>]+>/g,'').replace(/[_^]\{([^}]*)\}/g,'$1').replace(/_(?=[A-Za-z0-9,])/g,'').replace(/\^(?=[A-Za-z])/g,'');
@@ -4061,21 +4158,10 @@ function niceTicks(lo, hi, n){
 
 /* 載重組合的標記：用形狀區分，不再在小圈裡塞數字（縮圖列印時數字必糊）。
    圖內對照表用同一個形狀，所以不需要編號也對得起來。 */
-function ptShape(i, cx, cy, r, fill){
-  const hollow = i >= 6;                       // 第 7 組起改空心，形狀總數 12
-  const w = 1.4;
-  const st = hollow ? `stroke="${fill}" stroke-width="${Math.max(1.8,r*0.34)}"`
-                    : `stroke="#FFFFFF" stroke-width="${w}"`;
-  if(hollow) fill = "none";
-  switch(i % 6){
-    case 0: return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${fill}" ${st}/>`;
-    case 1: return `<rect x="${cx-r*0.88}" y="${cy-r*0.88}" width="${r*1.76}" height="${r*1.76}" fill="${fill}" ${st}/>`;
-    case 2: return `<path d="M${cx},${cy-r*1.1} L${cx+r},${cy+r*0.75} L${cx-r},${cy+r*0.75} Z" fill="${fill}" ${st}/>`;
-    case 3: return `<path d="M${cx},${cy-r*1.15} L${cx+r*1.15},${cy} L${cx},${cy+r*1.15} L${cx-r*1.15},${cy} Z" fill="${fill}" ${st}/>`;
-    case 4: return `<path d="M${cx},${cy+r*1.1} L${cx+r},${cy-r*0.75} L${cx-r},${cy-r*0.75} Z" fill="${fill}" ${st}/>`;
-    default: return `<path d="M${cx-r},${cy-r} L${cx+r},${cy+r} M${cx+r},${cy-r} L${cx-r},${cy+r}"
-      fill="none" stroke="${fill}" stroke-width="${r*0.85}" stroke-linecap="round"/>`;
-  }
+/* P-M 載重點：圓圈內標組合編號（控制組合紅底），圖與圖例共用 */
+function ptNum(i, cx, cy, r, fill){
+  return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${fill}" stroke="#FFFFFF" stroke-width="${(r*0.14).toFixed(2)}"/>`
+    + `<text x="${cx}" y="${(cy + r*0.38).toFixed(2)}" font-size="${(r*(i>=9?0.95:1.12)).toFixed(2)}" font-weight="700" fill="#FFFFFF" text-anchor="middle">${i+1}</text>`;
 }
 
 /* 兩張 P-M 圖（列印版）左右並排成一張 SVG，供 Excel 嵌圖 */
@@ -4165,7 +4251,7 @@ function svgPM(M,axis,forPrint){
   for(let a=0;a<8;a++) OBS.push([X(bal.phi*bal.Mn/TFM)+7*Math.cos(a*Math.PI/4), Y(bal.phi*bal.Pn/TF)+7*Math.sin(a*Math.PI/4)]);
 
   // 載重點 + 控制點射線
-  const placedPts=[];
+  const placedPts=[], ptList=[];
   M.res.forEach((R2,i)=>{
     const isC = R2===M.ctrlFlex;
     const mx=mOf(R2.L), py=R2.L.Pu;
@@ -4177,13 +4263,9 @@ function svgPM(M,axis,forPrint){
     }else if(isC){                            // 無交點：僅由原點朝載重點畫延伸線
       o.push(`<line x1="${X(0)}" y1="${Y(0)}" x2="${X(mx)}" y2="${Y(py)}" stroke="${C.ptc}" stroke-width="${1.1*LW}" stroke-dasharray="${3*LW} ${3*LW}" opacity=".5"/>`);
     }
-    const R0 = forPrint ? (isC?15:13) : (isC?11:9.5);
+    const R0 = forPrint ? 15 : 9.5;
     const cx=X(mx), cy=Y(py);
-    o.push(ptShape(i, cx, cy, R0, isC?C.ptc:C.pt));
-    if(i >= 12)   // 形狀用完（6 形 × 實心/空心）才補編號
-      o.push(`<text x="${cx+R0+2}" y="${cy-R0*0.5}" fill="${isC?C.ptc:C.txt}"
-        font-size="${(9.5*FS).toFixed(1)}" font-weight="700"
-        stroke="#FFFFFF" stroke-width="2.6" paint-order="stroke">${i+1}</text>`);
+    ptList.push({i, cx, cy, R0, col: isC?C.ptc:C.pt});
     /* 載重點擠在一起時（例如各組合的 M 都很小、只有一組很大），
        編號會疊在一起。與已畫的點太近就把編號拉到圈外並補一條引線；
        這種叢集靠調整軸比例救不了，因為另一組點需要用到整個軸長。 */
@@ -4192,6 +4274,26 @@ function svgPM(M,axis,forPrint){
     OBS.push([cx,cy]);
     if(isC && Number.isFinite(R2.dc) && R2.dc>1e-9){ const qx=X(mx/R2.dc), qy=Y(py/R2.dc); pushPts(OBS, obsSample([[X(0),Y(0)],[qx,qy]], 4)); for(let a=0;a<8;a++) OBS.push([qx+7*Math.cos(a*Math.PI/4), qy+7*Math.sin(a*Math.PI/4)]); }
   });
+  /* 編號圓：彼此不重疊者直接畫在載重點上；重疊者原位畫小點，編號圓移到最空的方向並以引線連回 */
+  { const placed = [], late = [];
+    for(const q of ptList){
+      if(!placed.some(r => Math.hypot(r.cx-q.cx, r.cy-q.cy) < r.R0 + q.R0 - 1)){ placed.push(q); o.push(ptNum(q.i, q.cx, q.cy, q.R0, q.col)); continue; }
+      let best = null;
+      for(let k=0;k<16;k++){
+        const a = -Math.PI/2 + k*Math.PI/8, dist = q.R0*2.9, lx = q.cx + dist*Math.cos(a), ly = q.cy + dist*Math.sin(a);
+        if(lx < L + q.R0 || lx > W - Rr - q.R0 || ly < T + q.R0 || ly > yB - q.R0) continue;
+        const clr = Math.min(...placed.concat(ptList).map(r => Math.hypot(r.cx-lx, r.cy-ly) - r.R0), ...late.map(r => Math.hypot(r.lx-lx, r.ly-ly) - r.R0), 1e9);
+        if(!best || clr > best.clr) best = {lx, ly, clr};
+      }
+      if(!best) best = {lx: q.cx + q.R0*2.9, ly: q.cy - q.R0*2.9};
+      late.push(Object.assign({}, q, best)); placed.push(Object.assign({}, q, {cx: best.lx, cy: best.ly}));
+    }
+    for(const q of late){
+      o.push(`<line x1="${q.cx}" y1="${q.cy}" x2="${q.lx}" y2="${q.ly}" stroke="${q.col}" stroke-width="${1.1*LW}"/>`);
+      o.push(`<circle cx="${q.cx}" cy="${q.cy}" r="${(q.R0*0.32).toFixed(2)}" fill="${q.col}"/>`);
+      o.push(ptNum(q.i, q.lx, q.ly, q.R0, q.col));
+    }
+  }
   // φP_n,max 與平衡點標籤：避開曲線、載重點與對照表
   { const fs=10.5*FS, capY=Y(pd.cap/TF), t=`φP_{n,max} = ${f(pd.cap/TF,0)} tf`, w=txtW(t,fs)+6;
     const cs=[]; for(const xr of [W-Rr-4, L+8+w].concat([0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9].map(t=>L+(W-L-Rr)*t+w/2))) for(const dy of [-9, fs+7, -9-fs*0.8])
@@ -4227,17 +4329,27 @@ function svgPM(M,axis,forPrint){
         if(wide || col){ row++; col = 0; } else col = 1;
       }
       ly += (row + (col?1:0))*RH + 8*FS; }
-    head('載重組合　（D/C，定偏心射線法）');
-    // 名稱在半欄放不下就改單欄（整列寬），盡量不截斷組合名稱
-    const nm2 = colW - SW - gx - 50*FS, ncL = M.res.every(R2=>txtW(R2.L.name,lfs) <= nm2) ? 2 : 1;
-    const cw = ncL===2 ? colW : 2*colW, nmW = cw - SW - gx - 50*FS;
-    grid(M.res.length, (i,x,y)=>{
-      const R2 = M.res[i], isC = R2===M.ctrlFlex, col = isC?C.ptc:C.txt;
-      o.push(ptShape(i, x+SW/2, y-lfs*0.32, 6.2*FS, isC?C.ptc:C.pt));
+    /* 載重組合：單欄表格（編號圓圈｜名稱｜P｜M｜D/C），數值右對齊、欄位與圖例符號欄對齊 */
+    head('載重組合　（D/C 以定偏心射線法求得）');
+    const cD = W - 12, cM = cD - 4.4*lfs, cP = cM - 6.6*lfs, nx = x0 + SW + gx, nmW = cP - 5.2*lfs - nx;
+    const mLab = M.m.circle ? 'M_r (tf·m)' : `M_${axis} (tf·m)`;
+    const hcol = '#5E6B7A';
+    o.push(`<text x="${nx}" y="${ly}" font-size="${lfs.toFixed(1)}" fill="${hcol}">組合名稱</text>`);
+    for(const [xx, t] of [[cP,'P (tf)'],[cM,mLab],[cD,'D/C']])
+      o.push(`<text x="${xx}" y="${ly}" font-size="${lfs.toFixed(1)}" fill="${hcol}" text-anchor="end">${svgTxt(t,lfs)}</text>`);
+    o.push(`<line x1="${x0}" y1="${ly+lfs*0.45}" x2="${cD}" y2="${ly+lfs*0.45}" stroke="#C3CCD6" stroke-width="${0.8*LW}"/>`);
+    ly += RH*1.05;
+    const nf = v => f(v, Math.abs(v) >= 100 ? 0 : 1);
+    M.res.forEach((R2, i) => {
+      const isC = R2===M.ctrlFlex, col = isC?C.ptc:C.txt, bw = isC?' font-weight="700"':'', y = ly + i*RH*1.12;
+      o.push(ptNum(i, x0+SW/2, y-lfs*0.32, 0.62*lfs+2, isC?C.ptc:C.pt));
       let nm = R2.L.name; while(nm.length>2 && txtW(nm,lfs) > nmW) nm = nm.slice(0,-2)+'…';
-      o.push(`<text x="${x+SW+gx}" y="${y}" font-size="${lfs.toFixed(1)}" fill="${col}"${isC?' font-weight="700"':''}>${esc(nm)}</text>`);
-      o.push(`<text x="${x+cw-14*FS}" y="${y}" font-size="${lfs.toFixed(1)}" text-anchor="end" fill="${R2.dc>1?C.bad:col}"${isC?' font-weight="700"':''}>${fdc(R2.dc)}</text>`);
-    }, ncL);
+      o.push(`<text x="${nx}" y="${y}" font-size="${lfs.toFixed(1)}" fill="${col}"${bw}>${esc(nm)}</text>`);
+      o.push(`<text x="${cP}" y="${y}" font-size="${lfs.toFixed(1)}" fill="${col}"${bw} text-anchor="end">${nf(R2.L.Pu)}</text>`);
+      o.push(`<text x="${cM}" y="${y}" font-size="${lfs.toFixed(1)}" fill="${col}"${bw} text-anchor="end">${nf(mOf(R2.L))}</text>`);
+      o.push(`<text x="${cD}" y="${y}" font-size="${lfs.toFixed(1)}" fill="${R2.dc>1?C.bad:col}"${bw} text-anchor="end">${fdc(R2.dc)}</text>`);
+    });
+    ly += M.res.length*RH*1.12;
     Hh = Math.ceil(ly);
   }
   o[0] = `<svg viewBox="0 0 ${W} ${Hh}" xmlns="http://www.w3.org/2000/svg" font-family="ui-sans-serif,system-ui,sans-serif">`;
@@ -4824,6 +4936,27 @@ const codeText = code => code==='bridge'
 const colReportTitle = M => M.opt.code==='bridge' ? 'RC 橋墩／橋塔斷面設計檢核計算書' : 'RC 柱斷面設計檢核計算書';
 const memName = id => (document.getElementById(id).value || '').trim();
 const memLine = id => memName(id) ? `<div style="font-size:15px;font-weight:700;margin:-2px 0 6px">構件：${esc(memName(id))}</div>` : '';
+/* 計算書表頭：標題列（左標題、右構件名稱）＋ 兩欄式資料表；每一項自成一格，不把一個項目拆成兩行 */
+function rpHead(title, memId, pairs){
+  const mn = memName(memId);
+  const cells = []; let row = [];
+  for(const pr of pairs){
+    if(!pr) continue;
+    if(pr[2]==='wide'){ if(row.length){ cells.push(row); row = []; } cells.push([pr]); continue; }
+    row.push(pr); if(row.length===2){ cells.push(row); row = []; }
+  }
+  if(row.length) cells.push(row);
+  return `<div class="rp-title"><div class="rp-h1"><svg class="logo rp-logo" viewBox="0 0 32 32"><use href="#logoMark"/></svg>${title}</div>`
+    + (mn ? `<div class="rp-mem">構件：<b>${esc(mn)}</b></div>` : '') + `</div>`
+    + `<table class="rp-meta"><tbody>${cells.map(r => `<tr>${r.length===1
+        ? `<th>${r[0][0]}</th><td colspan="3">${r[0][1]}</td>`
+        : r.map(([k,v]) => `<th>${k}</th><td>${v}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+}
+/* 簽核區：與 Excel 計算書相同（設計／校核／審核） */
+const rpSign = () => `<div class="rp-sign no-break"><table><thead><tr><th>設計</th><th>校核</th><th>審核</th></tr></thead>
+  <tbody><tr class="sg"><td></td><td></td><td></td></tr><tr><td class="l">日期：</td><td class="l">日期：</td><td class="l">日期：</td></tr></tbody></table></div>`;
+/* 簽核區插在最後一頁內（不另起一頁） */
+const rpWithSign = html => { const i = html.lastIndexOf('</div>'); return i < 0 ? html + rpSign() : html.slice(0, i) + rpSign() + html.slice(i); };
 
 function buildReport(M){
   const m=M.m, s=M.s, r=M.r, R=M.R, F=M.fin, cf=M.cf, C=M.ctrlFlex;
@@ -4834,16 +4967,16 @@ function buildReport(M){
 
   /* --- 第 1 頁：輸入與圖 --- */
   o.push(`<div class="rp-page">`);
-  o.push(`<div class="rp-h1"><svg class="logo rp-logo" viewBox="0 0 32 32"><use href="#logoMark"/></svg>${colReportTitle(M)}</div>` + memLine('memName'));
-  o.push(`<div style="font-size:13px;margin-bottom:4px">構材類別：<b>${M.opt.code==='bridge'?'橋墩／橋塔（受壓構材，雙軸 P-M 互制）':'柱（受壓構材，雙軸 P-M 互制）'}</b>
-    ｜ 斷面：<b>${s.type==='circle'?`圓形 D = ${d(s.D,0)} cm（${r.spiral?'螺箍':'圓箍'}）`:s.type==='box'?`中空箱型 B × H = ${d(s.B,0)} × ${d(s.H,0)} cm，t_{w} = ${d(s.tw,0)} cm`:`實心矩形 B × H = ${d(s.B,0)} × ${d(s.H,0)} cm`}</b>
-    ｜ ${M.opt.plastic?(M.opt.code==='bldg'?'柱端加密區（耐震特殊抗彎構材）':'塑鉸區斷面'):'一般斷面'}</div>`);
-  o.push(`<div style="font-size:12px;color:#444;margin-bottom:10px">
-    依據：${codeText(M.opt.code)}${envText(document.getElementById('envWater').value)} ｜ 單位：kgf, cm（顯示 tf, tf·m）｜
-    產生時間：${new Date().toLocaleString('zh-TW')}</div>`);
+  o.push(rpHead(colReportTitle(M), 'memName', [
+    ['構材類別', M.opt.code==='bridge'?'橋墩／橋塔（受壓構材，雙軸 P-M 互制）':'柱（受壓構材，雙軸 P-M 互制）'],
+    ['斷面區段', M.opt.plastic?(M.opt.code==='bldg'?'柱端加密區（耐震特殊抗彎構材）':'塑鉸區斷面'):'一般斷面'],
+    ['斷面', s.type==='circle'?`圓形 D = ${d(s.D,0)} cm（${r.spiral?'螺箍':'圓箍'}）`:s.type==='box'?`中空箱型 B × H = ${d(s.B,0)} × ${d(s.H,0)} cm，t_{w} = ${d(s.tw,0)} cm`:`實心矩形 B × H = ${d(s.B,0)} × ${d(s.H,0)} cm`, 'wide'],
+    ['設計依據', codeText(M.opt.code) + envText(document.getElementById('envWater').value), 'wide'],
+    ['單位', 'kgf, cm（顯示 tf, tf·m）'],
+    ['產生時間', new Date().toLocaleString('zh-TW')]]));
 
   o.push(`<div class="rp-h2">1. 斷面與材料</div>`);
-  o.push(`<table class="no-break"><tbody>
+  o.push(`<table class="no-break rp-kv"><tbody>
     <tr><td class="l">斷面型式</td><td class="l">${s.type==='circle'?(r.spiral?'圓形（螺箍）':'圓形（圓箍）'):s.type==='box'?'中空箱型':'實心矩形'}</td>
         ${s.type==='circle'?`<td class="l">直徑 D</td><td>${d(s.D,0)} cm</td><td class="l">—</td><td>—</td>`
           :`<td class="l">外寬 B</td><td>${d(s.B,0)} cm</td><td class="l">外高 H</td><td>${d(s.H,0)} cm</td>`}</tr>
@@ -5096,7 +5229,7 @@ function buildReport(M){
   o.push(`</div>`);
 
   const el=document.getElementById('report');
-  el.innerHTML=SB(o.join(''));
+  el.innerHTML=SB(rpWithSign(o.join('')));
   if(window.renderMathInElement) renderMathInElement(el,{
     delimiters:[{left:'\\[',right:'\\]',display:true},{left:'\\(',right:'\\)',display:false}],
     fleqn:true, throwOnError:false});
@@ -6726,16 +6859,16 @@ function buildBeamReport(B){
 
   /* 第 1 頁：斷面與材料 */
   o.push(`<div class="rp-page">`);
-  o.push(`<div class="rp-h1"><svg class="logo rp-logo" viewBox="0 0 32 32"><use href="#logoMark"/></svg>${S.slab?'RC 版（單位寬）設計檢核計算書':'RC 梁斷面設計檢核計算書'}</div>` + memLine('bMemName'));
-  o.push(`<div style="font-size:13px;margin-bottom:4px">構材類別：<b>${S.slab?'版（單向受撓，每公尺寬）':`梁（受撓構材${S.seismic?'，耐震特殊抗彎構材':''}）`}</b>
-    ｜ 斷面：<b>${S.slab?`b × h = 100 × ${d(S.h,0)} cm`:`${S.type==='T'?'T 型':'矩形'} b_{w} × h = ${d(S.bw,0)} × ${d(S.h,0)} cm${S.type==='T'?`，h_{f} = ${d(S.hf,0)} cm`:''}`}</b></div>`);
-  o.push(`<div style="font-size:12px;color:#444;margin-bottom:10px">
-    依據：混凝土結構設計規範（土木401）${S.seismic?' + 耐震特殊抗彎構材規定':''}${envText(S.env)}
-    ｜ 單位：kgf, cm（顯示 tf, tf·m）｜ 檢核斷面：<b>${S.slab?(pos?'正彎矩（底層受拉）':'負彎矩（頂層受拉）'):(pos?'跨中正彎矩（翼緣受壓）':'支承負彎矩（翼緣受拉）')}</b>
-    ｜ 產生時間：${new Date().toLocaleString('zh-TW')}</div>`);
+  o.push(rpHead(S.slab?'RC 版（單位寬）設計檢核計算書':'RC 梁斷面設計檢核計算書', 'bMemName', [
+    ['構材類別', S.slab?'版（單向受撓，每公尺寬）':`梁（受撓構材${S.seismic?'，耐震特殊抗彎構材':''}）`],
+    ['檢核斷面', S.slab?(pos?'正彎矩（底層受拉）':'負彎矩（頂層受拉）'):(pos?'跨中正彎矩（翼緣受壓）':'支承負彎矩（翼緣受拉）')],
+    ['斷面', S.slab?`b × h = 100 × ${d(S.h,0)} cm`:`${S.type==='T'?'T 型':'矩形'} b_{w} × h = ${d(S.bw,0)} × ${d(S.h,0)} cm${S.type==='T'?`，h_{f} = ${d(S.hf,0)} cm`:''}`, 'wide'],
+    ['設計依據', `混凝土結構設計規範（土木401）${S.seismic?' + 耐震特殊抗彎構材規定':''}${envText(S.env)}`, 'wide'],
+    ['單位', 'kgf, cm（顯示 tf, tf·m）'],
+    ['產生時間', new Date().toLocaleString('zh-TW')]]));
 
   o.push(`<div class="rp-h2">1. 斷面與材料</div>`);
-  o.push(`<table class="no-break"><tbody>
+  o.push(`<table class="no-break rp-kv"><tbody>
     <tr><td class="l">斷面型式</td><td class="l">${S.slab?'單位寬版':S.type==='T'?'T 型':'矩形'}</td>
         <td class="l">腹板寬 b_w</td><td>${d(S.bw,0)} cm</td><td class="l">全深 h</td><td>${d(S.h,0)} cm</td></tr>
     <tr><td class="l">翼緣厚 h_f</td><td>${S.type==='T'?d(S.hf,0)+' cm':'—'}</td>
@@ -6957,7 +7090,7 @@ function buildBeamReport(B){
   o.push(`</div>`);
 
   const el=document.getElementById('report');
-  el.innerHTML=SB(o.join(''));
+  el.innerHTML=SB(rpWithSign(o.join('')));
   if(window.renderMathInElement) renderMathInElement(el,{
     delimiters:[{left:'\\[',right:'\\]',display:true},{left:'\\(',right:'\\)',display:false}],
     fleqn:true, throwOnError:false});
@@ -6977,9 +7110,6 @@ function buildBeamReport(B){
 const PIN_META = {
   pylon: [
     ['斷面幾何', [
-      ['preset','—','預設範本','','載入一組預設的尺寸、材料、配筋與載重組合作為起點。載入後可自由修改，範本名稱只代表起點，不代表目前斷面。','',''],
-      ['memName','—','構件名稱／編號','','自訂此斷面的名稱，顯示於計算書標題、列印檔名與 Excel 封面；不影響計算。','',''],
-      ['secType','—','斷面型式','','決定受壓區積分方式。中空箱型須扣掉中空區，分段涵蓋 a ≤ t_w、t_w < a < D−t_w、a ≥ D−t_w 三種情形。','',''],
       ['B','B','外寬','cm','毛斷面積 A_g、繞 Y 軸的有效深度。','',''],
       ['H','H','外高','cm','繞 X 軸的有效深度與 P-M 曲線形狀。','',''],
       ['Dia','D','直徑','cm','圓形斷面的 A_g、受壓弓形面積與剪力 b_w = D、d = 0.8D。','',''],
@@ -7048,9 +7178,6 @@ const PIN_META = {
 
   beam: [
     ['斷面幾何', [
-      ['bPreset','—','預設範本','','載入一組預設的尺寸、材料、配筋與載重組合作為起點。載入後可自由修改，範本名稱只代表起點，不代表目前斷面。','',''],
-      ['bMemName','—','構件名稱／編號','','自訂此斷面的名稱，顯示於計算書標題、列印檔名與 Excel 封面；不影響計算。','',''],
-      ['bType','—','斷面型式','','T 型時翼緣參與受壓（僅正彎矩）；負彎矩一律退化為 b_w×h 矩形。','',''],
       ['bw','b_w','腹板寬','cm','剪力的 b_w、A_s,min、主筋每排可排根數。','耐震：b_w ≥ max(0.3h, 25 cm)',''],
       ['bh','h','全深','cm','有效深度 d、I_g、加密區長度 2h。','',''],
       ['bhf','h_f','翼緣厚','cm','受壓區分段點：a ≤ h_f 走矩形、a > h_f 走 T 型分段積分。','',''],
@@ -7537,6 +7664,7 @@ function pinStatus(mod, map){
   document.getElementById('btnCaseOpen').onclick = ()=>document.getElementById('caseFile').click();
   document.getElementById('caseFile').onchange = e=>{ caseOpenFile(e.target.files[0]); e.target.value=''; };
   caseRestore();
+  setupInit();
 })();
 /* ---------- 圖面置中填滿＋畫面公式排版 ----------
    各繪圖函式以固定 viewBox（多為 760 寬）出圖，內容常只佔其中一部分，留下大片空白、圖顯得小。
@@ -7561,7 +7689,7 @@ function _texSegs(s, nextSub, inSub){
   s.replace(_MATHRUN, (run, off) => {
     let a = off, b = off + run.length; while(a<b && /\s/.test(s[a])) a++; while(b>a && /\s/.test(s[b-1])) b--;
     if(a>=b) return run;
-    let has = /\d/.test(s.slice(a,b)); for(let k=a;k<b && !has;k++) if(ids.has(k)) has = true;
+    let has = /\d/.test(s.slice(a,b)) || _UNIT.test(s.slice(a,b)); for(let k=a;k<b && !has;k++) if(ids.has(k)) has = true;
     if(!has) return run;
     if(a>last) segs.push([s.slice(last,a), null]);
     segs.push([s.slice(a,b), 'mr', a]); last = b;
@@ -7595,7 +7723,7 @@ function texify(root){
     for(const [t, c] of segs){
       if(!c){ fr.appendChild(document.createTextNode(t)); continue; }
       const sp = document.createElement('span'); sp.className = 'mr';
-      for(const [x, it] of t){ if(it){ const i = document.createElement('span'); i.className = 'mi'; i.textContent = x; sp.appendChild(i); } else sp.appendChild(document.createTextNode(x)); }
+      for(const [x, it] of t){ if(it){ const i = document.createElement('span'); i.className = 'mi'; i.textContent = x.replace(/φ/g,'ϕ'); sp.appendChild(i); } else sp.appendChild(document.createTextNode(x)); }
       fr.appendChild(sp);
     }
     n.parentNode.replaceChild(fr, n);
@@ -7619,6 +7747,19 @@ function svgForExport(str){
     document.body.appendChild(_fitHost); }
   const box = document.createElement('div'); box.innerHTML = str; _fitHost.appendChild(box);
   const el = box.querySelector('svg'); svgRawTex(el); fracLayout(el, true);
+  { const vb = el.getAttribute('viewBox').split(/[\s,]+/).map(Number);
+    const bg = [...el.children].find(r => r.tagName==='rect' && !r.getAttribute('x') && +r.getAttribute('width')===vb[2]);
+    if(bg) bg.setAttribute('display','none');
+    let bb = null; try{ bb = el.getBBox(); }catch(e){}
+    if(bg) bg.removeAttribute('display');
+    if(bb && bb.width > 20){
+      const pad = 6, x0 = Math.min(vb[0], bb.x-pad), y0 = Math.min(vb[1], bb.y-pad);
+      const x1 = Math.max(vb[0]+vb[2], bb.x+bb.width+pad), y1 = Math.max(vb[1]+vb[3], bb.y+bb.height+pad);
+      if(x0 < vb[0]-0.5 || y0 < vb[1]-0.5 || x1 > vb[0]+vb[2]+0.5 || y1 > vb[1]+vb[3]+0.5){
+        const nb = [x0, y0, x1-x0, y1-y0].map(v=>+v.toFixed(1));
+        el.setAttribute('viewBox', nb.join(' '));
+        if(bg){ bg.setAttribute('x', nb[0]); bg.setAttribute('y', nb[1]); bg.setAttribute('width', nb[2]); bg.setAttribute('height', nb[3]); }
+      } } }
   const out = new XMLSerializer().serializeToString(el); box.remove();
   return out.split('KaTeX_Math,').join('').split('KaTeX_Main,').join('');
 }
@@ -7643,12 +7784,13 @@ function _fitSvg(svg){
     if(svg.parentNode) svg.parentNode.replaceChild(cl, svg); svg = cl; }
   if(!bb || !(bb.width>20) || !(bb.height>20)) return svg;
   const pad = Math.max(8, 0.015*Math.max(bb.width, bb.height));
-  let x0 = Math.max(vb[0], bb.x-pad), y0 = Math.max(vb[1], bb.y-pad);
-  let x1 = Math.min(vb[0]+vb[2], bb.x+bb.width+pad), y1 = Math.min(vb[1]+vb[3], bb.y+bb.height+pad);
+  /* 內容超出原 viewBox（如貼邊的「臨界斷面」標籤）時放寬，不裁字；各邊最多外擴 25% */
+  let x0 = Math.max(vb[0]-0.25*vb[2], bb.x-pad), y0 = Math.max(vb[1]-0.25*vb[3], bb.y-pad);
+  let x1 = Math.min(vb[0]+1.25*vb[2], bb.x+bb.width+pad), y1 = Math.min(vb[1]+1.25*vb[3], bb.y+bb.height+pad);
   /* 放大倍率上限 1.4：只有一兩行字的圖（如「不適用」說明）不該被放成斗大標題；不足的寬度左右平均補回，內容仍置中 */
   const minW = vb[2]/1.4;
   if(x1-x0 < minW){ const c = (x0+x1)/2; x0 = c-minW/2; x1 = c+minW/2; }
-  if(x1-x0 > vb[2]*0.985 && y1-y0 > vb[3]*0.985) { svg.classList.add('figfit'); return svg; }
+  if(Math.abs(x0-vb[0]) < vb[2]*0.008 && Math.abs(y0-vb[1]) < vb[3]*0.008 && Math.abs(x1-vb[0]-vb[2]) < vb[2]*0.008 && Math.abs(y1-vb[1]-vb[3]) < vb[3]*0.008) { svg.classList.add('figfit'); return svg; }
   const nb = [x0, y0, x1-x0, y1-y0].map(v=>+v.toFixed(2));
   svg.setAttribute('viewBox', nb.join(' '));
   const bg = bgOf(svg); if(bg){ bg.setAttribute('x', nb[0]); bg.setAttribute('y', nb[1]); bg.setAttribute('width', nb[2]); bg.setAttribute('height', nb[3]); }
