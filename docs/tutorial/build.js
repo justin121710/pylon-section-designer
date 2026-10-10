@@ -76,8 +76,13 @@ async function screenshots(browser, base){
 
   /* 1 設計對象 */
   await page.fill('#memName', 'C1'); await page.dispatchEvent('#memName', 'input');
-  await shot('01-setup', [['#tabPylon',1],['#setupSecP',2],['#setupPreP',3],['#setupMemP',4],['#setupCode',5],['#setupEnv',6],['#setupGo',7]]);
+  await shot('01-setup', [['#tabPylon',1],['#setupSecP',2],['#setupPreP',3],['#setupMemP',4],['#setupCode',5],['#setupEnv',6],['#setupDims',7],['#setupSkip',8],['#setupGo',9]]);
+  /* 開場精靈第 2、3 步（截圖後不套用，回主畫面續後面步驟） */
   await page.click('#setupGo'); await W8(500);
+  await shot('01b-setup-loads', [['#setupLoadHost #loadTbl',1],['#setupLoadHost #btnPaste',2],['#setupNext2',3]]);
+  await page.click('#setupNext2'); await page.waitForFunction(() => OPT.pylon.res && !OPT.pylon.pending, null, {timeout:60000}); await W8(500);
+  await shot('01c-setup-opt', [['#setupOptHost .opt-best',1],['#setupOptHost .opt-apply',2],['#setupSkip',3]]);
+  await page.click('#setupSkip'); await W8(500);
   /* 2 畫面配置 */
   await shot('02-layout', [['#topbar .tb-actions',1],['#verdict',2],['#railP',3,2],['#sheetP',4,2],['#detailP',5,2],['#wsP .ws-tabs',6],['#btnSetup',7]]);
   /* 3 參數表 */
@@ -114,6 +119,9 @@ async function screenshots(browser, base){
   for(const [p, n, items] of [['sum','13-summary',[]],['elev','14-elev',[['#elevInfo',1]]],['dev','15-dev',[['#devExp',1]]]]){
     await ws(p); await W8(500); await shot(n, items, await pane());
   }
+  /* 11 建議配筋（試算完成後截圖） */
+  await ws('opt'); await page.waitForFunction(() => OPT.pylon.res && !OPT.pylon.pending, null, {timeout:60000}); await W8(500);
+  await shot('15b-opt', [['#optCardP .opt-best',1],['#optOutP table:nth-of-type(1)',2],['#optOutP table:nth-of-type(2)',3]], await pane());
   /* 11 計算書預覽 */
   await ws('fig');
   await page.click('#btnPreview'); await W8(2000);
@@ -133,7 +141,7 @@ async function screenshots(browser, base){
   await page.selectOption('#preset', 'pond80'); await W8(400);
   await shot('20-preset-ask', [['#askAct',1]]);
   await page.click('#askAct button:has-text("取消")'); await W8(300);
-  await page.click('#setupGo'); await W8(300);
+  await page.click('#setupSkip'); await W8(300);
   /* 14 從圖說匯入 */
   await page.click('#btnImport'); await W8(500);
   await shot('21-import', [['#impFile',1],['#impKey',2],['#impModel',3],['#impGo',4]]);
@@ -146,12 +154,14 @@ async function screenshots(browser, base){
   await page.click('#tabBeam'); await W8(500);
   await page.fill('#bMemName', 'G1');
   await shot('23-beam-setup', [['#tabBeam',1],['#setupSecB',2],['#setupPreB',3]]);
-  await page.click('#setupGo'); await W8(600);
+  await page.click('#setupSkip'); await W8(600);
   TABSEL = () => '#wsB';
   await ws('fig'); await W8(500);
   await shot('24-beam', [['#bSignPos',1],['#railB',2,2],['#wsB .ws-tabs',3]]);
   await ws('load'); await W8(500);
   { const a = await pane(); a.height = Math.min(520, a.height); await shot('25-beam-load', [['#bLoadTbl',1],['#bPaste',2]], a); }
+  await ws('opt'); await page.waitForFunction(() => OPT.beam.res && !OPT.beam.pending, null, {timeout:60000}); await W8(500);
+  await shot('25b-beam-opt', [['#optCardB .opt-best',1]], await pane());
 
   /* ===== 常見問題（FAQ）用截圖：f-*.png ===== */
   const preset = (mod, key) => page.evaluate(([mod, key]) => {
