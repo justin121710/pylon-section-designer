@@ -376,7 +376,9 @@ body .pin-v input[type=text]{text-align:left}
 .rp-fig{border:1px solid #999;padding:6px;margin:8px 0;background:#fff}
 /* P-M 圖不要占滿整個版面：縮到適中尺寸並置中。
    svgPM(forPrint) 內部已把字級放大、刻度改 5 格，縮圖後刻度仍讀得清楚。 */
-.rp-fig.pm{max-width:480px;margin-left:auto;margin-right:auto}
+.rp-fig.pm{margin:4px 0}
+.rp-pm2{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:start}
+.rp-pm2 .rp-fig{padding:3px}
 
 /* ---- 從圖說匯入（自帶規則，不依賴 Tailwind，斷網也不會垮）---- */
 #impOv{position:fixed;inset:0;background:rgba(3,7,18,.74);z-index:60;
@@ -802,7 +804,6 @@ img,video{max-width:100%;height:auto}
         </div>
       </div>
       <div id="pmWrap" class="pm-box"></div>
-      <div id="pmLegend" class="fig-legend"></div>
     </div>
     <div class="card" data-pane="elev">
       <div class="flex items-center justify-between mb-1">
@@ -1099,8 +1100,9 @@ function _sbOne(t){
     .replace(/([A-Za-zÀ-ɏͰ-Ͽ'’)\]])_([A-Za-z0-9]+(?:,[A-Za-z0-9]+)*)/g, '$1<sub>$2</sub>')
     .replace(/([A-Za-zÀ-ɏͰ-Ͽ'’)\]])\^([A-Za-z0-9]+)/g, '$1<sup>$2</sup>');
 }
-/* 以 \( … \) 為界切開，偶數段（一般 HTML）才做轉換，奇數段（數學式）原樣保留 */
-const SB = html => String(html).split(/(\\\([\s\S]*?\\\)|\\\[[\s\S]*?\\\])/)
+/* 以 \( … \) 為界切開，偶數段（一般 HTML）才做轉換，奇數段（數學式）原樣保留。
+   內嵌的 <svg> 也原樣保留：svgTxt 已排好上下標，且屬性裡的 KaTeX_Main 若被當成下標會毀掉字型設定 */
+const SB = html => String(html).split(/(\\\([\s\S]*?\\\)|\\\[[\s\S]*?\\\]|<svg[\s>][\s\S]*?<\/svg>)/)
   .map((seg,i)=> i%2 ? seg : _sbOne(seg)).join('');
 
 /* 行內公式：\( … \) 交給 KaTeX；\displaystyle 讓分式維持上下排列的全尺寸（同預覽報告）。
@@ -4059,15 +4061,25 @@ function ptShape(i, cx, cy, r, fill){
   }
 }
 
+/* 兩張 P-M 圖（列印版）左右並排成一張 SVG，供 Excel 嵌圖 */
+function pmPairSvg(M){
+  const one = ax => { const t = svgPM(M, ax, true), m = t.match(/viewBox="0 0 ([\d.]+) ([\d.]+)"/); return {t, w:+m[1], h:+m[2]}; };
+  const A = [one('x')].concat(M.s.type==='circle' ? [] : [one('y')]), gap = 30;
+  const W = A.reduce((a,b)=>a+b.w,0) + gap*(A.length-1), H = Math.max(...A.map(a=>a.h));
+  let x = 0;
+  const inner = A.map(a => { const r = a.t.replace('<svg ', `<svg x="${x}" y="0" width="${a.w}" height="${a.h}" `); x += a.w + gap; return r; }).join('');
+  return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" font-family="ui-sans-serif,system-ui,sans-serif"><rect width="${W}" height="${H}" fill="#fff"/>${inner}</svg>`;
+}
 function svgPM(M,axis,forPrint){
   const cv = axis==='x'?M.cvX:M.cvY, pd = axis==='x'?M.pX:M.pY;
   const cvc = axis==='x'?M.cvXc:M.cvYc;
   const key = axis==='x'?'Mux':'Muy';
-  const W=760,Rr=22,T=22, Hh = forPrint ? 612 : 520;
-  /* 計算書裡這張圖會被縮到約 480px 寬，所以列印版把字級放大 1.5 倍、
-     左下邊界加大以容納變寬的刻度標籤，縮圖後刻度仍清楚。 */
-  const FS = forPrint ? 1.5 : 1;
-  const Bm = forPrint ? 156 : 52;
+  /* 圖例（曲線＋載重組合）一律畫在座標框外的下方，兩者共用同一套兩欄格線；圖高隨載重組合數增加。
+     計算書兩張圖左右並排（各約半頁寬），列印版字級 ×1.9、線寬 ×1.7，縮圖後仍清楚。 */
+  const W=760,Rr=22,T=22;
+  const FS = forPrint ? 1.9 : 1, LW = forPrint ? 1.7 : 1.3;
+  const PH = forPrint ? 640 : 430, yB = T + PH;   // 繪圖區高、x 軸（圖框底）位置
+  let Hh = 0;   // 圖例排完後才知道
   const C = forPrint
     ? {ax:'#000',grid:'#ccc',n:'#888',d:'#000',mc:'#555',pt:'#666',ptc:'#000',txt:'#000',ok:'#000',bad:'#000'}
     : {ax:'#3A4652',grid:'#E2E7EC',n:'#8A97A5',d:'#0F5F6B',mc:'#6B4FA8',pt:'#6B7887',ptc:'#B03A2E',txt:'#151C24',ok:'#1E7A44',bad:'#B03A2E'};
@@ -4098,23 +4110,22 @@ function svgPM(M,axis,forPrint){
   }
   const confClipped = confKept < confAll.length;
 
-  const X=v=>L+(W-L-Rr)*(v/mMax), Y=v=>Hh-Bm-(Hh-Bm-T)*((v-pMin)/(pMax-pMin));
-  const o=[`<svg viewBox="0 0 ${W} ${Hh}" xmlns="http://www.w3.org/2000/svg" font-family="ui-sans-serif,system-ui,sans-serif">`];
-  o.push(`<rect width="${W}" height="${Hh}" fill="${forPrint?'#fff':'transparent'}"/>`);
+  const X=v=>L+(W-L-Rr)*(v/mMax), Y=v=>yB-(yB-T)*((v-pMin)/(pMax-pMin));
+  const o=['', ''];   // svg 開頭與底色：圖高確定後回填
   // 格線
   for(const mv of TX.ticks){
-    o.push(`<line x1="${X(mv)}" y1="${T}" x2="${X(mv)}" y2="${Hh-Bm}" stroke="${C.grid}" stroke-width="1"/>`);
+    o.push(`<line x1="${X(mv)}" y1="${T}" x2="${X(mv)}" y2="${yB}" stroke="${C.grid}" stroke-width="${LW*0.8}"/>`);
     { const tw=txtW(f(mv,TX.dp),11*FS), an = X(mv)+tw/2 > W-2 ? 'end' : 'middle';
-      o.push(`<text x="${an==='end'?W-2:X(mv)}" y="${Hh-Bm+13*FS+4}" fill="${C.txt}" font-size="${(11*FS).toFixed(1)}" text-anchor="${an}">${f(mv,TX.dp)}</text>`); }
+      o.push(`<text x="${an==='end'?W-2:X(mv)}" y="${yB+13*FS+4}" fill="${C.txt}" font-size="${(11*FS).toFixed(1)}" text-anchor="${an}">${f(mv,TX.dp)}</text>`); }
   }
   for(const pv of TY.ticks){
-    o.push(`<line x1="${L}" y1="${Y(pv)}" x2="${W-Rr}" y2="${Y(pv)}" stroke="${C.grid}" stroke-width="1"/>`);
+    o.push(`<line x1="${L}" y1="${Y(pv)}" x2="${W-Rr}" y2="${Y(pv)}" stroke="${C.grid}" stroke-width="${LW*0.8}"/>`);
     o.push(`<text x="${L-8}" y="${Y(pv)+4*FS}" fill="${C.txt}" font-size="${(11*FS).toFixed(1)}" text-anchor="end">${f(pv,TY.dp)}</text>`);
   }
-  o.push(`<line x1="${L}" y1="${Y(0)}" x2="${W-Rr}" y2="${Y(0)}" stroke="${C.ax}" stroke-width="1.8"/>`);
-  o.push(`<line x1="${L}" y1="${T}" x2="${L}" y2="${Hh-Bm}" stroke="${C.ax}" stroke-width="1.8"/>`);
-  o.push(`<text x="${(L+W-Rr)/2}" y="${forPrint ? Hh-Bm+43*FS : Hh-14}" fill="${C.txt}" font-size="${(12.5*FS).toFixed(1)}" text-anchor="middle">${svgTxt(M.m.circle?'M_r = √(M_x² + M_y²) (tf·m)':`M_${axis} (tf·m)`,12.5*FS)}</text>`);
-  o.push(`<text x="16" y="${(T+Hh-Bm)/2}" fill="${C.txt}" font-size="${(12.5*FS).toFixed(1)}" text-anchor="middle" transform="rotate(-90 16 ${(T+Hh-Bm)/2})">P (tf)  壓為正</text>`);
+  o.push(`<line x1="${L}" y1="${Y(0)}" x2="${W-Rr}" y2="${Y(0)}" stroke="${C.ax}" stroke-width="${1.8*LW}"/>`);
+  o.push(`<line x1="${L}" y1="${T}" x2="${L}" y2="${yB}" stroke="${C.ax}" stroke-width="${1.8*LW}"/>`);
+  o.push(`<text x="${(L+W-Rr)/2}" y="${yB+40*FS}" fill="${C.txt}" font-size="${(12.5*FS).toFixed(1)}" text-anchor="middle">${svgTxt(M.m.circle?'M_r = √(M_x² + M_y²) (tf·m)':`M_${axis} (tf·m)`,12.5*FS)}</text>`);
+  o.push(`<text x="${12*FS+4}" y="${(T+yB)/2}" fill="${C.txt}" font-size="${(12.5*FS).toFixed(1)}" text-anchor="middle" transform="rotate(-90 ${12*FS+4} ${(T+yB)/2})">P (tf)  壓為正</text>`);
 
   const OBS = [];
   const path=(arr,col,w,dash)=>{
@@ -4124,18 +4135,18 @@ function svgPM(M,axis,forPrint){
     o.push(`<path d="${d}" fill="none" stroke="${col}" stroke-width="${w}" ${dash?`stroke-dasharray="${dash}"`:''} stroke-linejoin="round"/>`);
   };
   // 標稱
-  path(cv.pts.filter(p=>p.Pn<=cv.PnMax).map(p=>[p.Mn/TFM,p.Pn/TF]).concat([[0,cv.PnMax/TF]]), C.n, 1.7);
+  path(cv.pts.filter(p=>p.Pn<=cv.PnMax).map(p=>[p.Mn/TFM,p.Pn/TF]).concat([[0,cv.PnMax/TF]]), C.n, 1.7*LW);
   // Mander 圍束核心
-  for(const run of confRuns) path(run, C.mc, 1.7, '8 4');
+  for(const run of confRuns) path(run, C.mc, 1.7*LW, '8 4');
   // 設計
-  path(pd.poly.map(p=>[p[0]/TFM,p[1]/TF]), C.d, 2.6);
+  path(pd.poly.map(p=>[p[0]/TFM,p[1]/TF]), C.d, 2.6*LW);
   // 截斷線
-  o.push(`<line x1="${L}" y1="${Y(pd.cap/TF)}" x2="${W-Rr}" y2="${Y(pd.cap/TF)}" stroke="${C.d}" stroke-width="1.2" stroke-dasharray="4 4"/>`);
+  o.push(`<line x1="${L}" y1="${Y(pd.cap/TF)}" x2="${W-Rr}" y2="${Y(pd.cap/TF)}" stroke="${C.d}" stroke-width="${1.2*LW}" stroke-dasharray="${4*LW} ${4*LW}"/>`);
 
   // 平衡點
   let bal=cv.pts[0],bd=1e9;
   for(const p of cv.pts){ const dd=Math.abs(p.eps_t-M.m.ety); if(dd<bd){bd=dd;bal=p;} }
-  o.push(`<circle cx="${X(bal.phi*bal.Mn/TFM)}" cy="${Y(bal.phi*bal.Pn/TF)}" r="5" fill="none" stroke="${C.ok}" stroke-width="2.2"/>`);
+  o.push(`<circle cx="${X(bal.phi*bal.Mn/TFM)}" cy="${Y(bal.phi*bal.Pn/TF)}" r="${5*Math.sqrt(LW)}" fill="none" stroke="${C.ok}" stroke-width="${2.2*LW}"/>`);
   for(let a=0;a<8;a++) OBS.push([X(bal.phi*bal.Mn/TFM)+7*Math.cos(a*Math.PI/4), Y(bal.phi*bal.Pn/TF)+7*Math.sin(a*Math.PI/4)]);
 
   // 載重點 + 控制點射線
@@ -4146,12 +4157,12 @@ function svgPM(M,axis,forPrint){
     if(isC && Number.isFinite(R2.dc) && R2.dc>1e-9){
       // 容量點 = 載重點 ÷ D/C（舊版誤寫成 × D/C，容量點落在載重點內側）
       const cx = mx/R2.dc, cy = py/R2.dc;
-      o.push(`<line x1="${X(0)}" y1="${Y(0)}" x2="${X(cx)}" y2="${Y(cy)}" stroke="${C.ptc}" stroke-width="1.1" stroke-dasharray="3 3" opacity=".85"/>`);
-      o.push(`<circle cx="${X(cx)}" cy="${Y(cy)}" r="3.4" fill="none" stroke="${C.ptc}" stroke-width="1.6"/>`);
+      o.push(`<line x1="${X(0)}" y1="${Y(0)}" x2="${X(cx)}" y2="${Y(cy)}" stroke="${C.ptc}" stroke-width="${1.1*LW}" stroke-dasharray="${3*LW} ${3*LW}" opacity=".85"/>`);
+      o.push(`<circle cx="${X(cx)}" cy="${Y(cy)}" r="${3.4*Math.sqrt(LW)}" fill="none" stroke="${C.ptc}" stroke-width="${1.6*LW}"/>`);
     }else if(isC){                            // 無交點：僅由原點朝載重點畫延伸線
-      o.push(`<line x1="${X(0)}" y1="${Y(0)}" x2="${X(mx)}" y2="${Y(py)}" stroke="${C.ptc}" stroke-width="1.1" stroke-dasharray="3 3" opacity=".5"/>`);
+      o.push(`<line x1="${X(0)}" y1="${Y(0)}" x2="${X(mx)}" y2="${Y(py)}" stroke="${C.ptc}" stroke-width="${1.1*LW}" stroke-dasharray="${3*LW} ${3*LW}" opacity=".5"/>`);
     }
-    const R0 = forPrint ? (isC?12:10.5) : (isC?11:9.5);
+    const R0 = forPrint ? (isC?15:13) : (isC?11:9.5);
     const cx=X(mx), cy=Y(py);
     o.push(ptShape(i, cx, cy, R0, isC?C.ptc:C.pt));
     if(i >= 12)   // 形狀用完（6 形 × 實心/空心）才補編號
@@ -4166,47 +4177,54 @@ function svgPM(M,axis,forPrint){
     OBS.push([cx,cy]);
     if(isC && Number.isFinite(R2.dc) && R2.dc>1e-9){ const qx=X(mx/R2.dc), qy=Y(py/R2.dc); pushPts(OBS, obsSample([[X(0),Y(0)],[qx,qy]], 4)); for(let a=0;a<8;a++) OBS.push([qx+7*Math.cos(a*Math.PI/4), qy+7*Math.sin(a*Math.PI/4)]); }
   });
-  // 圖內對照表（取代逐點標籤，避免重疊）：放在曲線與載重點最少的角落
-  const BW=248*FS, RH=14*FS, CR=6*FS;   // 盒寬 / 行距 / 圓標半徑，隨字級縮放
-  const BH=16*FS+M.res.length*RH;
-  // 列印版另有曲線圖例（三列）：先放它，再放載重組合表
-  const PLW=300*FS, PLH=3*19*FS+10*FS;
-  const plBox = null;   // 列印版曲線圖例畫在 x 軸標題下方（圖框外）
-  const lgC = [{x1:L+8,y1:T+8},{x1:W-Rr-8-BW,y1:T+8},{x1:W-Rr-8-BW,y1:Hh-Bm-8-BH},{x1:L+8,y1:Hh-Bm-8-BH}];
-  if(plBox) lgC.push({x1:plBox.x2-BW, y1:plBox.y1-8-BH}, {x1:plBox.x1, y1:plBox.y1-8-BH}, {x1:plBox.x2-BW, y1:plBox.y2+8}, {x1:plBox.x1, y1:plBox.y2+8});
-  const lgBox = pickBox(lgC.map(c=>({x1:c.x1, y1:c.y1, x2:c.x1+BW, y2:c.y1+BH})), OBS, plBox ? [plBox] : [], {x1:L, x2:W-Rr, y1:T, y2:Hh-Bm});
-  const bx=lgBox.x1, by=lgBox.y1;
-  o.push(`<rect x="${bx}" y="${by}" width="${BW}" height="${(16*FS+M.res.length*RH).toFixed(1)}" rx="4"
-    fill="${forPrint?'#fff':'#FFFFFF'}" stroke="${forPrint?'#999':'#D8DEE5'}" stroke-width="1" opacity="${forPrint?1:0.94}"/>`);
-  o.push(`<text x="${bx+8*FS}" y="${by+13*FS}" fill="${C.txt}" font-size="${(10*FS).toFixed(1)}" font-weight="700">載重組合　（D/C，定偏心射線法）</text>`);
-  M.res.forEach((R2,i)=>{
-    const isC=R2===M.ctrlFlex, yy=by+13*FS+(i+1)*RH;
-    o.push(ptShape(i, bx+13*FS, yy-3.5*FS, CR, isC?C.ptc:C.pt));
-    const nm=R2.L.name.length>22?R2.L.name.slice(0,21)+'…':R2.L.name;
-    o.push(`<text x="${bx+27*FS}" y="${yy}" fill="${isC?C.ptc:C.txt}" font-size="${(10*FS).toFixed(1)}" font-weight="${isC?700:400}">${esc(nm)}</text>`);
-    o.push(`<text x="${bx+BW-8*FS}" y="${yy}" fill="${R2.dc>1?C.bad:(isC?C.ptc:C.txt)}" font-size="${(10*FS).toFixed(1)}" font-weight="${isC?700:400}" text-anchor="end">${fdc(R2.dc)}</text>`);
-  });
   // φP_n,max 與平衡點標籤：避開曲線、載重點與對照表
   { const fs=10.5*FS, capY=Y(pd.cap/TF), t=`φP_{n,max} = ${f(pd.cap/TF,0)} tf`, w=txtW(t,fs)+6;
     const cs=[]; for(const xr of [W-Rr-4, L+8+w].concat([0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9].map(t=>L+(W-L-Rr)*t+w/2))) for(const dy of [-9, fs+7, -9-fs*0.8])
       cs.push({x1:xr-w, x2:xr, y1:capY+dy-fs, y2:capY+dy+2, ax:xr, ay:capY+dy});
-    const c = pickBox(cs, OBS, [lgBox].concat(plBox?[plBox]:[]), {x1:L, x2:W-Rr, y1:T-4, y2:Hh-Bm});
+    const c = pickBox(cs, OBS, [], {x1:L, x2:W-Rr, y1:T-4, y2:yB});
     o.push(`<text x="${c.ax}" y="${c.ay}" fill="${C.d}" font-size="${fs.toFixed(1)}" text-anchor="end" stroke="${forPrint?'#fff':'#FFFFFF'}" stroke-width="3" paint-order="stroke">${svgTxt(t,fs)}</text>`); }
   { const fs=10.5*FS, bx0=X(bal.phi*bal.Mn/TFM), by0=Y(bal.phi*bal.Pn/TF), w=txtW('平衡點',fs)+4;
     const cs=[[9,4],[-9-w,4],[-w/2,-10],[-w/2,fs+10],[8,-8],[8,fs+6],[-8-w,-8],[-8-w,fs+6]].map(([dx,dy])=>({x1:bx0+dx, x2:bx0+dx+w, y1:by0+dy-fs, y2:by0+dy+2, ax:bx0+dx, ay:by0+dy}));
-    const c = pickBox(cs, OBS, [lgBox].concat(plBox?[plBox]:[]));
+    const c = pickBox(cs, OBS, []);
     o.push(`<text x="${c.ax}" y="${c.ay}" fill="${C.ok}" font-size="${fs.toFixed(1)}" stroke="${forPrint?'#fff':'#FFFFFF'}" stroke-width="3" paint-order="stroke">平衡點</text>`); }
-  // 圖例（螢幕版移到圖外的 HTML，見 render()；列印版仍畫在圖內）
-  if(forPrint){
-  // 圖例
-  const lg=[['標稱 P_n – M_n',C.n,'1.7',''],['設計 φP_n – φM_n',C.d,'2.6',''],
-            ['Mander 圍束核心（保護層剝落）'+(confClipped?'（已裁切）':''),C.mc,'1.7','8 4']];
-  lg.forEach((g2,i)=>{
-    const yy=Hh-Bm+71*FS+(i>1?19*FS:0), x0=L+(i===1?(W-L-Rr)/2:0);
-    o.push(`<line x1="${x0}" y1="${yy}" x2="${x0+32*FS}" y2="${yy}" stroke="${g2[1]}" stroke-width="${g2[2]}" ${g2[3]?`stroke-dasharray="${g2[3]}"`:''}/>`);
-    o.push(`<text x="${x0+38*FS}" y="${yy+4*FS}" fill="${C.txt}" font-size="${(10.5*FS).toFixed(1)}">${svgTxt(g2[0],10.5*FS)}</text>`);
-  });
+  /* ---- 圖例：座標框外下方，曲線與載重組合共用兩欄格線（符號欄寬、文字起點、行距皆相同） ---- */
+  { const lfs = 10.5*FS, RH = 20*FS, SW = 36*FS, gx = 8*FS, x0 = 14, colW = (W - x0 - 10)/2;
+    let ly = yB + 66*FS;
+    const head = t => { o.push(`<text x="${x0}" y="${ly}" font-size="${lfs.toFixed(1)}" font-weight="700" fill="${C.txt}">${svgTxt(t,lfs)}</text>`); ly += RH; };
+    const grid = (n, draw, nc=2) => { for(let i=0;i<n;i++) draw(i, x0 + (i%nc)*colW, ly + Math.floor(i/nc)*RH); ly += Math.ceil(n/nc)*RH + 8*FS; };
+    const lab = (x, y, t, col, bold) => o.push(`<text x="${x}" y="${y}" font-size="${lfs.toFixed(1)}" fill="${col||C.txt}"${bold?' font-weight="700"':''}>${svgTxt(t,lfs)}</text>`);
+    const ln = (x, y, col, w, dash) => o.push(`<line x1="${x}" y1="${y}" x2="${x+SW}" y2="${y}" stroke="${col}" stroke-width="${w}"${dash?` stroke-dasharray="${dash}"`:''}/>`);
+    const curves = [
+      ['標稱 P_n – M_n', (x,y)=>ln(x,y,C.n,1.7*LW)],
+      ['設計 φP_n – φM_n', (x,y)=>ln(x,y,C.d,2.6*LW)],
+      ...(cvc ? [['Mander 圍束核心（保護層剝落）'+(confClipped?'（已裁切）':''), (x,y)=>ln(x,y,C.mc,1.7*LW,'8 4')]] : []),
+      ['φP_{n,max} 截斷', (x,y)=>ln(x,y,C.d,1.2*LW,`${4*LW} ${4*LW}`)],
+      ['控制組合 D/C 射線與容量點', (x,y)=>{ ln(x,y,C.ptc,1.1*LW,`${3*LW} ${3*LW}`); o.push(`<circle cx="${x+SW}" cy="${y}" r="${3.4*Math.sqrt(LW)}" fill="#fff" stroke="${C.ptc}" stroke-width="${1.6*LW}"/>`); }],
+      ['平衡點', (x,y)=>o.push(`<circle cx="${x+SW/2}" cy="${y}" r="${5*Math.sqrt(LW)}" fill="none" stroke="${C.ok}" stroke-width="${2.2*LW}"/>`)]];
+    head('曲線');
+    // 說明超出半欄寬的項目獨佔一整列，其餘兩欄對齊
+    { let col = 0, row = 0;
+      for(const c of curves){
+        const wide = txtW(c[0],lfs) > colW - SW - gx - 10*FS;
+        if(wide && col){ row++; col = 0; }
+        const x = x0 + col*colW, y = ly + row*RH;
+        c[1](x, y-lfs*0.32); lab(x+SW+gx, y, c[0]);
+        if(wide || col){ row++; col = 0; } else col = 1;
+      }
+      ly += (row + (col?1:0))*RH + 8*FS; }
+    head('載重組合　（D/C，定偏心射線法）');
+    const nmW = colW - SW - gx - 50*FS;
+    grid(M.res.length, (i,x,y)=>{
+      const R2 = M.res[i], isC = R2===M.ctrlFlex, col = isC?C.ptc:C.txt;
+      o.push(ptShape(i, x+SW/2, y-lfs*0.32, 6.2*FS, isC?C.ptc:C.pt));
+      let nm = R2.L.name; while(nm.length>2 && txtW(nm,lfs) > nmW) nm = nm.slice(0,-2)+'…';
+      o.push(`<text x="${x+SW+gx}" y="${y}" font-size="${lfs.toFixed(1)}" fill="${col}"${isC?' font-weight="700"':''}>${esc(nm)}</text>`);
+      o.push(`<text x="${x+colW-14*FS}" y="${y}" font-size="${lfs.toFixed(1)}" text-anchor="end" fill="${R2.dc>1?C.bad:col}"${isC?' font-weight="700"':''}>${fdc(R2.dc)}</text>`);
+    });
+    Hh = Math.ceil(ly);
   }
+  o[0] = `<svg viewBox="0 0 ${W} ${Hh}" xmlns="http://www.w3.org/2000/svg" font-family="ui-sans-serif,system-ui,sans-serif">`;
+  o[1] = `<rect width="${W}" height="${Hh}" fill="${forPrint?'#fff':'transparent'}"/>`;
   o.push(`</svg>`);
   return o.join('');
 }
@@ -4355,6 +4373,8 @@ async function exportXlsx(){
       inp.devFigs = await devFigsPng(MM);
       // 斷面圖與箍筋配置立面：與網頁同一張圖（列印配色）轉 PNG 嵌入，不再由 Excel 圖表重繪
       inp.secFig = await svgPng(TAB==='beam' ? svgBeam(MM, true) : svgSection(MM, true), 2);
+      // P-M 互制曲線：與計算書相同的網頁圖（列印版），X、Y 左右並排成一張；圓形只有一張
+      if(TAB!=='beam') inp.pmFig = await svgPng(pmPairSvg(MM), 2);
       inp.elevFig = (TAB==='beam' && MM.S.slab) ? null : await svgPng(TAB==='beam' ? svgBeamElev(MM, true) : svgColElev(MM, true), 2);
       inp.devSel = {f:[...sel.f], t:[...sel.t]};
       inp.devSched = sel.t.has('sched') ? devSchedule(MM.devPlan, MM).map(q=>({id:q.id, where:q.where, size:q.size, shape:q.shape, st:q.st, tail:q.tail, len:q.len, n:q.n, kg:q.kg})) : []; }
@@ -4536,15 +4556,6 @@ function render(){
   devCardRender('col', M); devExpRender('col', M);
   document.getElementById('devPlan').innerHTML=SB(devPlanHtml(M.devPlan));
   document.getElementById('devSched').innerHTML=SB(devScheduleHtml(M.devPlan, M));
-  {   // 圖例移到圖外：圖面就不必為了容納它而放大
-    const L=[['標稱 P_n – M_n','#8A97A5','1.7',''],
-             ['設計 φP_n – φM_n','#0F5F6B','2.6',''],
-             ['Mander 圍束核心（保護層剝落）','#6B4FA8','1.7','8 4']];
-    document.getElementById('pmLegend').innerHTML = SB(L.map(g=>
-      `<span class="it"><svg viewBox="0 0 34 8"><line x1="1" y1="4" x2="33" y2="4"
-        stroke="${g[1]}" stroke-width="${g[2]}" ${g[3]?`stroke-dasharray="${g[3]}"`:''}/></svg>
-        <span class="nm">${g[0]}</span></span>`).join(''));
-  }
   document.getElementById('axX').setAttribute('aria-pressed', String(AXIS==='x'));
   document.getElementById('axY').setAttribute('aria-pressed', String(AXIS==='y'));
 
@@ -4847,11 +4858,8 @@ function buildReport(M){
   /* --- 第 2 頁：P-M 曲線圖 --- */
   o.push(`<div class="rp-page">`);
   o.push(`<div class="rp-h2">3. P-M 互制曲線</div>`);
-  o.push(`<div class="rp-h3">3.1 繞 X 軸（對應 M_ux）</div>`);
-  o.push(`<div class="rp-fig pm">${svgPM(M,'x',true)}</div>`);
-  o.push(`</div><div class="rp-page">`);
-  o.push(`<div class="rp-h3">3.2 繞 Y 軸（對應 M_uy）</div>`);
-  o.push(`<div class="rp-fig pm">${svgPM(M,'y',true)}</div>`);
+  o.push(`<div class="rp-pm2"><div><div class="rp-h3">3.1 繞 X 軸（對應 M_ux）</div><div class="rp-fig pm">${svgPM(M,'x',true)}</div></div>`
+    + `<div><div class="rp-h3">3.2 繞 Y 軸（對應 M_uy）</div><div class="rp-fig pm">${svgPM(M,'y',true)}</div></div></div>`);
   o.push(note(`實線細＝標稱 P_n–M_n；實線粗＝設計 φP_n–φM_n；虛線＝Mander 圍束核心（保護層剝落後，真纖維積分）；
     水平虛線＝φP_n,max 截斷；紅點＝控制組合，紅色射線＝定偏心射線法之 D/C 求解路徑。`));
   o.push(`</div>`);

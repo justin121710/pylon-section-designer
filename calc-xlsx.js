@@ -73,6 +73,46 @@ function makeResolver(sheets){
   });
 }
 
+/* ---------- 符號：LaTeX 風格 rich text ----------
+   與網頁／PDF 一致：變數斜體、下標縮小，數字與 max、min 等字直體。
+   KaTeX 字型未必安裝在使用者電腦，Excel 端以 Times New Roman 呈現（網頁匯出 PNG 亦同）。 */
+const SYMF = 'Times New Roman';
+const _GK = /[α-ωϕϑ]/, _GKU = /[Α-Ω]/, _LT = /[A-Za-z]/;
+const SUB_UP = /^(max|min|req|des|lim)$/;
+function symRuns(sym){
+  const S = String(sym), out = [];
+  const push = (t, it, sub) => { if(!t) return; const L = out[out.length-1]; if(L && L.it===it && L.sub===sub) L.t += t; else out.push({t, it, sub}); };
+  const special = {'ψgld':'ψ_g l_d', '1.3ψgld':'1.3ψ_g l_d'};
+  if(special[S]){   // 已寫明下標者：_ 後一字為下標
+    const T = special[S];
+    for(let i=0;i<T.length;i++){ if(T[i]==='_'){ push(T[++i], true, true); continue; } push(T[i], _LT.test(T[i]) || _GK.test(T[i]), false); }
+    return out;
+  }
+  let i = 0;
+  const subRun = () => {   // 底字之後的下標：字母、數字、逗號、⊥、希臘
+    let j = i; while(j < S.length && /[A-Za-z0-9,⊥α-ωΔ]/.test(S[j])) j++;
+    let t = S.slice(i, j); i = j; if(t[0]===',') t = t.slice(1);
+    t.split(/(,)/).forEach(w => { if(!w) return; push(w, /[A-Za-zα-ωΔ]/.test(w) && !SUB_UP.test(w), true); });
+  };
+  while(i < S.length){
+    const c = S[i];
+    if(_LT.test(c) || _GK.test(c) || _GKU.test(c)){
+      push(c, !_GKU.test(c), false); i++;
+      if(S[i]==='′'){ push('′', false, false); i++; }
+      if(_GK.test(c) && /[A-Z]/.test(S[i]||'')) continue;      // φMn：φ 後接大寫為新變數
+      if(i < S.length && /[A-Za-z0-9,⊥α-ωΔ]/.test(S[i]) && !(/[0-9]/.test(S[i]) && !_LT.test(c) && !_GK.test(c))) subRun();
+      continue;
+    }
+    push(c, false, false); i++;
+  }
+  return out;
+}
+/* 寫入符號格：size 為該格原字級；'—' 或空白維持原樣 */
+function symCell(cell, sym, size, bold){
+  if(!sym || typeof sym!=='string' || sym==='—' || !/[A-Za-zα-ωΑ-Ω]/.test(sym)) return;
+  cell.value = {richText: symRuns(sym).map(r => ({text:r.t, font:Object.assign({name:SYMF, size:size+1, italic:r.it}, bold?{bold:true}:{}, r.sub?{vertAlign:'subscript'}:{})}))};
+}
+
 /* ---------- 樣式工具 ---------- */
 const side = (rgb, style='thin') => ({style, color:{argb:rgb}});
 const box  = (rgb, style='thin') => ({top:side(rgb,style), left:side(rgb,style), bottom:side(rgb,style), right:side(rgb,style)});
@@ -137,7 +177,7 @@ function writeCalcSheet(ws, cs, resolve){
     }
     // item
     const vals=[row.label,row.sym||'',null,row.unit||'',row.expr||'',row.crit||'',row.ref||''];
-    vals.forEach((v,j)=>{ if(j!==2){ const c=R.getCell(j+1); c.value=v; plain(c,{align:{horizontal:j===1||j===3?'center':'left'}}); }});
+    vals.forEach((v,j)=>{ if(j!==2){ const c=R.getCell(j+1); c.value=v; plain(c,{align:{horizontal:j===1||j===3?'center':'left'}}); if(j===1) symCell(c, v, 10); }});
     const c=R.getCell(3);
     if(row.f!==undefined) c.value={formula: resolve(row.f, cs.name)};
     else c.value=row.v;
@@ -1137,7 +1177,7 @@ class A4 {
     const n=this.row(), ws=this.ws;
     const cells=[label, sym, null, unit, note];
     cells.forEach((v,j)=>{ if(j===2) return; const c=ws.getCell(n,2+j); c.value=v; c.font={name:FONT,size:9}; c.border=box(K.grid);
-      c.alignment={horizontal: j===4||j===0?'left':'center', vertical:'middle', wrapText:true}; });
+      c.alignment={horizontal: j===4||j===0?'left':'center', vertical:'middle', wrapText:true}; if(j===1) symCell(c, v, 9); });
     if(textVal){ ws.getCell(n,5).value=null; ws.mergeCells(n,4,n,5); }
     const c=ws.getCell(n,4);
     c.value={formula:this.R(f, ws.name)}; c.font={name:FONT,size:textVal?8:9,color:{argb:K.link}}; c.border=box(K.grid);
@@ -1296,7 +1336,7 @@ function buildA4Column(ws, S, R, inp, jRow, sumRows){
   ws.mergeCells(sg,3,sg,4); ws.mergeCells(sg,5,sg,6); ws.mergeCells(sl,3,sl,4); ws.mergeCells(sl,5,sl,6);
   [[2,'設計'],[3,'校核'],[5,'審核']].forEach(([j,h])=>{ const c=ws.getCell(sg,j); c.value=h; c.font={name:FONT,size:9,bold:true}; c.alignment={horizontal:'center'};
     ws.getCell(sl,j).border={bottom:side(K.black)}; });
-  const fig = a4Figures(ws, a, '附圖　斷面配筋圖（匯出當下之網頁圖面）與 P-M 互制曲線（Excel 圖表，隨輸入自動更新）', inp.type==='circle'?1:2);
+  const fig = a4Figures(ws, a, '附圖　斷面配筋圖與 P-M 互制曲線（匯出當下之網頁圖面；P-M 逐點數值詳「P-M_X」「P-M_Y」工作表）', 1);
   const elev = a4Elev(ws, a, '附圖　沿柱軸向箍筋配置立面（匯出當下之網頁圖面；柱寬為示意）', FIG_EL_ROWS);
   const devPics = a4DevFigs(ws, a, '附圖　主筋伸展與搭接配置', inp.devFigs);
   ws.pageSetup.printArea = `A1:F${a.n}`;
@@ -1974,7 +2014,7 @@ async function injectCharts(buf, specs, JSZip){
 }
 
 /* 圖面尺寸（pt）：A4 計算書 B~F 欄寬合計 521pt；斷面圖 34 列、P-M 圖 26 列，列高 14pt */
-const FIG_SEC_ROWS = 34, FIG_PM_ROWS = 23, ROW_PT = 14;
+const FIG_SEC_ROWS = 34, FIG_PM_ROWS = 27, ROW_PT = 14;
 /* 網頁 SVG 轉 PNG 之附圖：置於預留之 rows 列內，寬不超過 A4 版心（B～F 欄實測 487.5 pt = 650 px，取 645）、高不超過預留列高 */
 const A4_FIG_W = 645;
 function figPic(fg, name, fromRow, rows){
@@ -2053,8 +2093,9 @@ function columnCharts(inp, a4Start){
   const A4 = '結構計算書(A4)';
   return [
     ...figPic(inp.secFig, '斷面配筋圖', a4Start, FIG_SEC_ROWS),
-    {sheet:A4, name:'P-M 互制曲線 X', from:[1,a4Start+FIG_SEC_ROWS+1], to:[6,a4Start+FIG_SEC_ROWS+1+FIG_PM_ROWS], xml:pm('x')},
-    ...(circle ? [] : [{sheet:A4, name:'P-M 互制曲線 Y', from:[1,a4Start+FIG_SEC_ROWS+2+FIG_PM_ROWS], to:[6,a4Start+FIG_SEC_ROWS+2+2*FIG_PM_ROWS], xml:pm('y')}])
+    // P-M 互制曲線：匯出當下之網頁圖（X、Y 並排），與網頁／PDF 計算書一致；舊版 Excel 原生圖表（pm()）保留備用
+    ...(inp.pmFig ? figPic(inp.pmFig, 'P-M 互制曲線', a4Start+FIG_SEC_ROWS+1, FIG_PM_ROWS)
+        : [{sheet:A4, name:'P-M 互制曲線 X', from:[1,a4Start+FIG_SEC_ROWS+1], to:[6,a4Start+FIG_SEC_ROWS+1+FIG_PM_ROWS], xml:pm('x')}])
   ];
 }
 
