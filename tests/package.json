@@ -1,0 +1,14 @@
+{
+  "name": "rcsd-regression",
+  "private": true,
+  "description": "RC 斷面設計工具之數值回歸測試（無頭 Chromium 載入 index.html 後直接驗算）",
+  "scripts": {
+    "test": "node --test --test-concurrency=1"
+  },
+  "devDependencies": {
+    "exceljs": "4.4.0",
+    "jszip": "3.10.1",
+    "katex": "0.16.9",
+    "playwright": "1.56.1"
+  }
+}

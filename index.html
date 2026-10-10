@@ -9,9 +9,15 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" crossorigin="anonymous">
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js" crossorigin="anonymous"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" crossorigin="anonymous"></script>
+<!-- U6：函式庫隨 repo 提供（vendor/，相對路徑），公司內網封鎖 CDN 時仍可排版公式與匯出 Excel；只帶走 index.html 時才改走 CDN -->
+<link rel="stylesheet" href="vendor/katex/katex.min.css" onerror="this.onerror=null;this.href='https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css'">
+<script>
+  window.__cdnKatex = function(){ if(window.__cdnKatexOn) return; window.__cdnKatexOn = true;
+    ['katex.min.js','contrib/auto-render.min.js'].forEach(function(f){ var t=document.createElement('script'); t.async=false;
+      t.src='https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/'+f; document.head.appendChild(t); }); };
+</script>
+<script defer src="vendor/katex/katex.min.js" onerror="window.__cdnKatex()"></script>
+<script defer src="vendor/katex/contrib/auto-render.min.js" onerror="window.__cdnKatex()"></script>
 
 <style>
 /* ---- 主樣式（Tailwind 工具類別與 preflight 另見下方 style[data-tw]） ---- */
@@ -120,6 +126,7 @@ body #verdict .vd:hover{background:var(--sel)}
   justify-content:center;font-size:10px;font-weight:800;color:#fff;flex-shrink:0}
 #verdict .vd.ok i{background:var(--ok)} #verdict .vd.warn i{background:var(--warn)}
 #verdict .vd.bad i{background:var(--bad)} body #verdict .vd.bad{border-color:rgba(176,58,46,.5);background:var(--bad-soft)}
+#verdict .vd.na i{background:#7a8086} body #verdict .vd.na{border-style:dashed;border-color:rgba(90,96,104,.55);background:#f3f4f5}
 body #verdict .vd.warn{border-color:rgba(154,94,16,.45);background:var(--warn-soft)}
 #verdict .vd em{font-style:normal;color:var(--dim)}
 /* 堆疊版面（整頁捲動）時判定列黏在頂端；跳轉目標留出它的高度 */
@@ -314,6 +321,25 @@ body .pin-v input[type=text]{text-align:left}
   .pin-gs{display:none}
   .loads-g .pin-gs{display:block}
 }
+
+/* ---- U2：矮螢幕（如 1280×720 筆電）：改為整頁捲動，參數表至少顯示 10 列，說明卡預設較矮且可收合 ---- */
+@media(min-width:1151px) and (max-height:860px){
+  body{overflow:auto;display:block}
+  #app,#appBeam{height:auto;min-height:calc(100vh - 120px)}
+  .pin-mid{grid-template-rows:minmax(440px,calc(100vh - 170px)) auto 8px minmax(60px,var(--detailH,170px))}
+  #app>div:last-of-type,#appBeam>div:last-of-type{max-height:calc(100vh - 40px)}
+}
+/* ---- U2：中等寬度（900～1150px）改兩欄：左＝導軌＋參數表，右＝結果 ---- */
+@media(min-width:900px) and (max-width:1150px){
+  .fallback-grid{grid-template-columns:minmax(420px,1fr) minmax(0,1.1fr)}
+  .fallback-grid>.pin-col{grid-column:1 / -1}
+  .pin-sheet{max-height:calc(100vh - 110px);min-height:440px}
+}
+/* 說明卡收合 */
+.pin-mid.det-off{grid-template-rows:minmax(120px,1fr) auto 8px 34px}
+.pin-mid.det-off .pin-detail>*:not(.det-tg){display:none}
+.det-tg{float:right;font-size:11.5px;padding:1px 8px;margin:-4px -4px 4px 8px}
+.pin-mid.det-off .det-tg{float:none;margin:0}
 
 /* ---- 手機（≤640px）：參數列改成兩行卡片，名稱不再被擠成直排 ---- */
 @media(max-width:640px){
@@ -514,6 +540,8 @@ body .seg button[aria-pressed=true]{background:var(--panel);color:var(--txt);fon
 /* 依據兩欄上下疊：跟兩排判定膠囊同高，判定列就能多拿到兩百多 px 的寬度 */
 .sb-basis{display:none}
 .sb-field{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--dim);white-space:nowrap}
+.sb-quick{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.sb-quick select{font-size:12px;padding:2px 4px}
 .sb-field>span{width:48px;text-align:right}
 body .sb-field select{width:auto;font-size:12.5px;padding:4px 8px;max-width:300px}
 
@@ -540,6 +568,18 @@ body .ws-tabs button[aria-selected=true]{color:var(--acc-h);font-weight:700}
 .ws[data-active=opt]  .card[data-pane]:not([data-pane=opt]),
 .ws[data-active=warn] .card[data-pane]:not([data-pane=warn]),
 .ws[data-active=test] .card[data-pane]:not([data-pane=test]){display:none}
+/* 輸入無效：停止計算，結果卡片一律不顯示（警示、載重表、自測除外） */
+.ws.blocked .card[data-pane]:not([data-pane=warn]):not([data-pane=load]):not([data-pane=test]){display:none!important}
+.blk-banner{margin:0 0 12px;padding:12px 14px;border:1.5px solid var(--bad,#c62828);border-left-width:5px;border-radius:8px;background:#fdecec;color:#7a1414;font-size:13px;line-height:1.6}
+.ws:not(.blocked) .blk-banner{display:none}
+.blk-hide{display:none!important}
+.conf-box{margin:0 0 12px;padding:10px 12px;border:1.5px solid var(--warn,#b26a00);border-left-width:5px;border-radius:8px;background:rgba(245,158,11,.08);font-size:12.5px;line-height:1.55}
+.conf-h{margin-bottom:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.conf-row{display:flex;gap:8px;align-items:flex-start;padding:4px 0;border-top:1px dashed var(--line);cursor:pointer}
+.conf-row input{margin-top:3px;flex-shrink:0}
+.conf-kind{flex-shrink:0;font-size:11px;padding:0 6px;border-radius:9px;background:var(--warn,#b26a00);color:#fff;height:18px;line-height:18px}
+.rp-unconf{border:2px solid #b26a00;color:#7a4a00;background:#fff7e6;padding:8px 12px;margin:0 0 10px;font-size:12px}
+@media print{.rp-unconf{display:none}}
 body.rp-open .ws-tabs{display:none}
 /* 自測：開發者用，平時隱藏分頁、按鈕只留淡色圖示 */
 body .tb-mini{opacity:.45;padding-left:6px;padding-right:6px}
@@ -678,9 +718,26 @@ img,video{max-width:100%;height:auto}
     <div class="setup-act">
       <button id="setupBack" type="button" class="btn-quiet setup-n1">← 上一步</button>
       <div class="grow"></div>
+      <label class="setup-noshow" style="font-size:12px;color:var(--dim);display:inline-flex;gap:4px;align-items:center"><input type="checkbox" id="setupNoShow">下次開啟不再顯示</label>
       <button id="setupSkip" type="button" class="btn-quiet">直接進入主畫面</button>
       <button id="setupGo" type="button" class="btn-primary setup-s1">下一步：輸入載重組合 →</button>
       <button id="setupNext2" type="button" class="btn-primary setup-s2">下一步：建議配筋 →</button>
+    </div>
+  </div>
+</div>
+
+<div id="memOv" class="ov-shell">
+  <div class="imp-dlg" style="max-width:980px">
+    <div class="imp-head"><b>構件清單</b><span class="imp-note">案件內多構件；清單隨案件檔儲存，本機亦自動保存</span>
+      <div class="imp-grow"></div><button id="memClose">關閉</button></div>
+    <div class="imp-body">
+      <div class="flex gap-2" style="flex-wrap:wrap;margin-bottom:8px">
+        <button id="memAdd" type="button" class="btn-primary">加入／更新目前構件</button>
+        <button id="memBatch" type="button">批次計算總表</button>
+        <button id="memCsv" type="button">總表匯出 CSV</button>
+        <button id="memXlsx" type="button">批次匯出 Excel</button>
+      </div>
+      <div id="memList" class="text-[12.5px]"></div>
     </div>
   </div>
 </div>
@@ -712,6 +769,7 @@ img,video{max-width:100%;height:auto}
     <button id="btnCaseOpen" type="button" class="btn-quiet" title="開啟先前儲存的案件檔（.json）"><svg class="ic"><use href="#icOpen"/></svg><span class="lbl">開啟案件</span></button>
     <button id="btnCaseSave" type="button" class="btn-quiet" title="把目前所有輸入與載重下載成 .json；本機也會自動保存"><svg class="ic"><use href="#icSave"/></svg><span class="lbl">儲存案件</span></button>
     <input id="caseFile" type="file" accept=".json,application/json" style="display:none">
+    <button id="btnMembers" type="button" class="btn-quiet" title="案件內多構件：加入目前構件、切換、批次計算總表與批次匯出"><svg class="ic"><use href="#icOpen"/></svg><span class="lbl">構件清單</span></button>
     <span class="tb-div" aria-hidden="true"></span>
     <button id="btnXlsx" type="button" class="btn-quiet" title="匯出附公式的 Excel 計算書（檢核表＋A4 結構計算書），數值皆為公式、可在 Excel 內修改重算"><svg class="ic"><use href="#icSheet"/></svg><span class="lbl">匯出 Excel</span></button>
     <button id="btnPreview" type="button" class="btn-quiet" aria-pressed="false" title="在畫面上預覽 A4 計算書"><svg class="ic"><use href="#icDoc"/></svg><span class="lbl">預覽報告</span></button>
@@ -735,6 +793,11 @@ img,video{max-width:100%;height:auto}
         <option value="normal">一般環境</option>
         <option value="water">水工結構（加嚴）</option>
       </select></label>
+  </div>
+  <div class="sb-quick" id="sbQuick" title="主畫面直接切換（同開場視窗之設定）">
+    <label class="sb-field"><span>依據</span><select id="sbCode"><option value="bldg">建築物</option><option value="bridge">橋梁</option></select></label>
+    <label class="sb-field" data-mod="pylon"><span>斷面</span><select id="sbSecP"></select></label>
+    <label class="sb-field" data-mod="beam"><span>斷面</span><select id="sbSecB"></select></label>
   </div>
   <div id="verdict" aria-label="檢核結論"></div>
 </div>
@@ -836,13 +899,29 @@ img,video{max-width:100%;height:auto}
         <select id="ph"><option value="1">是（塑鉸區／柱端加密區）</option><option value="0">否（一般斷面）</option></select></div>
       <div class="fld"><span>塑鉸區位置</span>
         <select id="phEnds"><option value="2">兩端（柱端皆加密）</option><option value="1">僅底端（懸臂墩柱／橋塔）</option></select></div>
+      <div class="fld"><span>構入接頭之柱數</span>
+        <select id="scwbNc"><option value="2">2（接頭上、下皆有柱）</option><option value="1">1（頂層柱）</option></select></div>
+      <div class="fld"><span>接頭梁 ΣM<sub>nb</sub>（繞 X 軸，tf·m）</span><input id="scwbMbX" type="number" step="5" value="0"></div>
+      <div class="fld"><span>接頭梁 ΣM<sub>nb</sub>（繞 Y 軸，tf·m）</span><input id="scwbMbY" type="number" step="5" value="0"></div>
       <div class="fld"><span>柱淨高 l<sub>u</sub> (cm)</span><input id="lu" type="number" step="10" value="300"></div>
       <div class="fld"><span>側向位移支撐</span>
         <select id="slFrame"><option value="sway">無側向位移支撐（有側移）</option><option value="braced">有側向位移支撐（無側移）</option></select></div>
-      <div class="fld"><span>有效長度係數 k</span><input id="slK" type="number" step="0.1" value="1"></div>
+      <div class="fld"><span>有效長度係數 k（繞 X 軸）</span><input id="slK" type="number" step="0.1" value="1"></div>
+      <div class="fld"><span>有效長度係數 k（繞 Y 軸）</span><input id="slKy" type="number" step="0.1" value="1"></div>
+      <div class="fld"><span>柱淨高 l<sub>u</sub>（繞 Y 軸；0＝同 l<sub>u</sub>）</span><input id="slLuY" type="number" step="10" value="0"></div>
       <div class="fld"><span>端彎矩比 M<sub>1</sub>/M<sub>2</sub></span><input id="slM12" type="number" step="0.1" value="-1"></div>
+      <div class="fld"><span>二階效應處理方式</span>
+        <select id="slTreat"><option value="mag">輸入為一階分析結果（本工具彎矩放大）</option><option value="second">輸入已含二階效應（P-Δ 與 P-δ）</option></select></div>
+      <div class="fld"><span>持續載重比 β</span><input id="slBeta" type="number" step="0.1" value="0.6"></div>
+      <div class="fld"><span>樓層穩定指數 Q（0＝以本柱 P<sub>c</sub> 計）</span><input id="slQ" type="number" step="0.01" value="0"></div>
       <div class="fld"><span>超強係數 φ<sub>o</sub></span><input id="phio" type="number" step="0.05" value="1.3"></div>
       <div class="fld"><span>剪力跨度 L<sub>v</sub> (cm)</span><input id="Lv" type="number" step="10" value="4000"></div>
+      <div class="fld"><span>建築柱 V<sub>c</sub> 歸零條件</span><select id="vcRule"><option value="ab">§18.4.6.2.1 (a) 且 (b)</option><option value="b">僅依軸力 (b)（保守）</option></select></div>
+      <div class="fld"><span>最大可能彎矩之軸力（橋梁）</span><select id="brMnP"><option value="max">各組合軸力下 M<sub>n</sub> 取大（保守）</option><option value="dead">靜載重軸力 P<sub>D</sub>（§4.2.1，單柱）</option></select></div>
+      <div class="fld"><span>靜載重軸力 P<sub>D</sub> (tf)</span><input id="brPD" type="number" step="10" value="0"></div>
+      <div class="fld"><span>彈性剪力上限 X 向 (tf，0＝不設)</span><input id="brVelX" type="number" step="10" value="0"></div>
+      <div class="fld"><span>彈性剪力上限 Y 向 (tf，0＝不設)</span><input id="brVelY" type="number" step="10" value="0"></div>
+      <div class="fld"><span>圍束筋 P<sub>e</sub> (tf，0＝各組合最大)</span><input id="brPe" type="number" step="10" value="0"></div>
       <div class="fld"><span>扭矩桁架角 θ (°)</span><input id="theta" type="number" step="5" value="45"></div>
       <div class="fld"><span>繫筋配置</span>
         <select id="tieLayout">
@@ -867,6 +946,7 @@ img,video{max-width:100%;height:auto}
       <div class="fld"><span>φ<sub>t</sub> 拉力控制</span><input id="phit" type="number" step="0.05" value="0.90"></div>
       <div class="fld"><span>φ<sub>v</sub> 剪力 / 扭矩</span><input id="phiv" type="number" step="0.05" value="0.75"></div>
       <div class="fld"><span>φ 橋梁剪力</span><input id="phivB" type="number" step="0.05" value="0.85"></div>
+      <div class="fld"><span>橋梁彎矩／軸力 φ</span><select id="brPhiMode"><option value="401">土木401-112 表 21.2.2（依 ε<sub>t</sub>）</option><option value="532">公路橋梁耐震設計規範 §5.3.2（依軸壓應力）</option></select></div>
       <div class="fld"><span>軸力截斷 (×P<sub>o</sub>)</span><input id="pmaxf" type="number" step="0.05" value="0.80"></div>
       <div class="fld"><span>低軸壓輪廓指數 α</span><input id="alpha" type="number" step="0.05" value="1.0"></div>
       <div class="fld"><span>鋼筋塗布環氧樹脂</span><select id="dEpoxy"><option value="0">否（未塗布）</option><option value="1">是（環氧樹脂塗布）</option></select></div>
@@ -961,19 +1041,23 @@ img,video{max-width:100%;height:auto}
       <div class="text-[11.5px] mb-2" style="color:var(--dim)">
         P<sub>u</sub>：壓為正、拉為負 (tf)　｜　M (tf·m)　｜　V (tf)　｜　T (tf·m)
       </div>
+      <div class="text-[12px] mb-1" style="display:flex;gap:6px;align-items:center;color:var(--dim)">輸入單位
+        <select id="loadUnit" title="計算核心維持 kgf-cm；選 SI 時表內數值以 kN、kN·m 顯示與輸入（1 tf = 9.80665 kN），CSV 亦依此單位解讀"><option value="tf">tf、tf·m（kgf 制）</option><option value="kN">kN、kN·m（SI）</option></select></div>
       <div style="overflow-x:auto">
         <table id="loadTbl" style="min-width:620px">
-          <thead><tr><th class="l">組合</th><th>P<sub>u</sub><br><span style="font-weight:400;font-size:11px;color:var(--dim)">tf</span></th><th>M<sub>ux</sub><br><span style="font-weight:400;font-size:11px;color:var(--dim)">tf·m</span></th><th>M<sub>uy</sub><br><span style="font-weight:400;font-size:11px;color:var(--dim)">tf·m</span></th><th>V<sub>ux</sub><br><span style="font-weight:400;font-size:11px;color:var(--dim)">tf</span></th><th>V<sub>uy</sub><br><span style="font-weight:400;font-size:11px;color:var(--dim)">tf</span></th><th>T<sub>u</sub><br><span style="font-weight:400;font-size:11px;color:var(--dim)">tf·m</span></th><th></th></tr></thead>
+          <thead><tr><th class="l">組合</th><th title="構材端部：同名組合分列頂、底兩列時，長細效應之 M₁/M₂ 由兩端彎矩求得">位置</th><th>P<sub>u</sub><br><span style="font-weight:400;font-size:11px;color:var(--dim)">tf</span></th><th title="繞 X 軸之彎矩，由 Y 向側力造成（與 V_uy 同一受力平面）">M<sub>ux</sub><br><span style="font-weight:400;font-size:11px;color:var(--dim)">tf·m ↔ V<sub>uy</sub></span></th><th title="繞 Y 軸之彎矩，由 X 向側力造成（與 V_ux 同一受力平面）">M<sub>uy</sub><br><span style="font-weight:400;font-size:11px;color:var(--dim)">tf·m ↔ V<sub>ux</sub></span></th><th>V<sub>ux</sub><br><span style="font-weight:400;font-size:11px;color:var(--dim)">tf</span></th><th>V<sub>uy</sub><br><span style="font-weight:400;font-size:11px;color:var(--dim)">tf</span></th><th>T<sub>u</sub><br><span style="font-weight:400;font-size:11px;color:var(--dim)">tf·m</span></th><th></th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
+      <div class="text-[11.5px] mt-1" style="color:var(--dim)" id="loadNote">M<sub>ux</sub> 繞 X 軸（深度沿 H），由 <b>Y 向</b>側力造成、與 V<sub>uy</sub> 同一受力平面；M<sub>uy</sub> 由 X 向側力造成、配 V<sub>ux</sub>。
+        數值保留正負號（構材內力慣例），檢核取絕對值、P<sub>u</sub> 壓為正。同名組合分列「頂」「底」兩列時，長細效應之 M<sub>1</sub>/M<sub>2</sub> 由兩端彎矩求得（同號＝單曲率，取負）。</div>
       <div class="flex gap-2 mt-2">
         <button id="btnAddRow">+ 新增組合</button>
         <button id="btnPaste">貼上 CSV</button>
       </div>
       <textarea id="csvBox" class="hidden w-full mt-2 text-[12px] p-2 rounded" rows="4"
         style="background:var(--panel);border:1px solid var(--line);color:var(--txt)"
-        placeholder="名稱,Pu,Mux,Muy,Vux,Vuy,Tu　每行一組（逗號或 Tab 分隔，可直接從 Excel 複製；標題列會自動略過），貼上後按下方套用"></textarea>
+        placeholder="名稱,Pu,Mux,Muy,Vux,Vuy,Tu[,位置]　每行一組；位置選填「頂」「底」（逗號或 Tab 分隔，可直接從 Excel 複製；標題列會自動略過），貼上後按下方套用"></textarea>
       <button id="csvApply" class="hidden mt-2">套用 CSV</button>
       <div id="csvMsg" class="hidden csv-msg"></div>
     </div>
@@ -982,15 +1066,17 @@ img,video{max-width:100%;height:auto}
       <div class="flex items-center justify-between mb-1" style="flex-wrap:wrap;gap:6px">
         <h2 class="!mb-0">建議配筋</h2>
         <div class="flex gap-2">
+          <label class="text-[11.5px]" style="display:inline-flex;align-items:center;gap:4px;color:var(--dim)" title="候選之撓曲 D/C 須不大於此值（保留裕度；1.00 表示用到滿）">目標 D/C ≤ <input id="optDc" type="number" step="0.05" min="0.5" max="1" value="0.95" style="width:58px"></label>
           <button type="button" class="opt-run !py-1 !px-2" data-mod="pylon">重新計算</button>
           <button type="button" class="opt-best btn-primary !py-1 !px-2" data-mod="pylon">套用最佳組合</button>
         </div>
       </div>
-      <div class="text-[11.5px]" style="color:var(--dim)">依目前斷面、材料、設計依據與<b>全部載重組合</b>，試算各號數之最少主筋，並為每組主筋求箍筋／繫筋號數、配置與加密區內外間距；每個候選都經與本工具相同之完整檢核（撓曲 D/C、ρ<sub>g</sub>、淨距、容量設計剪力、圍束筋、h<sub>x</sub>、伸展長度…），依用鋼量由少到多排列。主筋表每列已配上最省之橫向筋，依兩者合計用鋼量排序；按「套用」寫回輸入，「套用最佳組合」套用第一名。</div>
+      <div class="text-[11.5px]" style="color:var(--dim)">依目前斷面、材料、設計依據與<b>全部載重組合</b>，試算各號數之最少主筋，並為每組主筋求箍筋／繫筋號數、配置與加密區內外間距；每個候選都經與本工具相同之完整檢核（撓曲 D/C、ρ<sub>g</sub>、淨距、容量設計剪力、圍束筋、h<sub>x</sub>、伸展長度…），依用鋼量由少到多排列。主筋表每列已配上最省之橫向筋，依兩者合計用鋼量排序；按「套用」寫回輸入，「套用最佳組合」套用第一名。
+        <br><b style="color:var(--warn)">僅供初步配筋</b>：用鋼量依下料長度表（含錨定、彎鉤與搭接）估算；候選之撓曲 D/C 不大於「目標 D/C」；套用後仍須逐項確認判定列、警示與「未涵蓋」項目，並依施工習慣（號數種類、穿越梁筋）調整。</div>
       <div id="optOutP" class="text-[12.5px] mt-2" style="overflow-x:auto"></div>
     </div>
     <div class="card" data-pane="sum"><h2>設計結果摘要</h2><div id="summary"></div></div>
-    <div class="card" data-pane="warn"><h2>工程查核與警示</h2><div id="alerts"></div></div>
+    <div class="card" data-pane="warn"><h2>工程查核與警示</h2><div id="confirmP"></div><div id="alerts"></div></div>
     <div class="card" data-pane="test"><h2>內部一致性自測</h2><div id="testOut" class="text-[12.5px]" style="color:var(--dim)">按頂列右端燒瓶圖示執行。</div></div>
   </div>
 </div>
@@ -1017,8 +1103,9 @@ img,video{max-width:100%;height:auto}
       <div class="fld"><span>跨度 L (cm)</span><input id="bL" type="number" step="10" value="1800"></div>
       <div class="fld" id="rowFl"><span>梁中心距 (cm)</span><input id="bSpacing" type="number" step="5" value="250"></div>
       <div class="fld" id="rowEdge"><span>梁位置</span>
-        <select id="bEdge"><option value="0">內梁（雙側翼緣）</option><option value="1">邊梁（單側翼緣）</option></select></div>
-      <div class="fld"><span>邊梁淨距 (cm)</span><input id="bSclear" type="number" step="5" value="205"></div>
+        <select id="bEdge"><option value="0">內梁（雙側翼緣）</option><option value="1">邊梁（單側翼緣）</option><option value="2">單獨 T 梁（§6.3.2.2）</option></select></div>
+      <div class="fld"><span>邊梁淨距 s<sub>w</sub> (cm)</span><input id="bSclear" type="number" step="5" value="205"></div>
+      <div class="fld"><span>單獨 T 梁翼板全寬 b<sub>f</sub> (cm)</span><input id="bBf" type="number" step="5" value="120"></div>
       <div class="fld"><span>保護層 (cm)</span><input id="bCover" type="number" step="0.5" value="4"></div>
       <div class="fld"><span>骨材最大粒徑 (cm)</span><input id="bDagg" type="number" step="0.5" value="2.5"></div>
       <div class="text-[11.5px] mt-1" style="color:var(--dim)">
@@ -1175,15 +1262,17 @@ img,video{max-width:100%;height:auto}
       <div class="flex items-center justify-between mb-1" style="flex-wrap:wrap;gap:6px">
         <h2 class="!mb-0">建議配筋</h2>
         <div class="flex gap-2">
+          <label class="text-[11.5px]" style="display:inline-flex;align-items:center;gap:4px;color:var(--dim)" title="候選之撓曲 D/C 須不大於此值（保留裕度；1.00 表示用到滿）">目標 D/C ≤ <input id="bOptDc" type="number" step="0.05" min="0.5" max="1" value="0.95" style="width:58px"></label>
           <button type="button" class="opt-run !py-1 !px-2" data-mod="beam">重新計算</button>
           <button type="button" class="opt-best btn-primary !py-1 !px-2" data-mod="beam">套用最佳組合</button>
         </div>
       </div>
-      <div class="text-[11.5px]" style="color:var(--dim)">依目前斷面、材料與<b>全部載重組合</b>（M<sub>u</sub><sup>+</sup> 取底筋、M<sub>u</sub><sup>−</sup> 取頂筋），試算底筋、頂筋（單一號數）與箍筋號數、肢數、間距；每個候選都經與本工具相同之完整檢核（D/C、A<sub>s,min</sub>、拉力控制、淨距、裂縫、耐震規定、容量設計剪力…），底筋、頂筋表每列已配上最省之箍筋，依合計用鋼量排序；「套用最佳組合」依序套用頂筋、底筋、箍筋之第一名。</div>
+      <div class="text-[11.5px]" style="color:var(--dim)">依目前斷面、材料與<b>全部載重組合</b>（M<sub>u</sub><sup>+</sup> 取底筋、M<sub>u</sub><sup>−</sup> 取頂筋），試算底筋、頂筋（單一號數）與箍筋號數、肢數、間距；每個候選都經與本工具相同之完整檢核（D/C、A<sub>s,min</sub>、拉力控制、淨距、裂縫、耐震規定、容量設計剪力…），底筋、頂筋表每列已配上最省之箍筋，依合計用鋼量排序；「套用最佳組合」依序套用頂筋、底筋、箍筋之第一名。
+        <br><b style="color:var(--warn)">僅供初步配筋</b>：用鋼量依下料長度表（含錨定、彎鉤與搭接）估算；候選之撓曲 D/C 不大於「目標 D/C」；套用後仍須逐項確認判定列、警示，並依施工習慣調整。</div>
       <div id="optOutB" class="text-[12.5px] mt-2" style="overflow-x:auto"></div>
     </div>
     <div class="card" data-pane="sum"><h2>設計結果摘要</h2><div id="bSummary"></div></div>
-    <div class="card" data-pane="warn"><h2>工程查核與警示</h2><div id="bAlerts"></div></div>
+    <div class="card" data-pane="warn"><h2>工程查核與警示</h2><div id="bConfirm"></div><div id="bAlerts"></div></div>
     <div class="card" data-pane="test"><h2>內部一致性自測</h2><div id="bTestOut" class="text-[12.5px]" style="color:var(--dim)">按頂列右端燒瓶圖示執行。</div></div>
   </div>
 </div>
@@ -1197,6 +1286,7 @@ img,video{max-width:100%;height:auto}
 </div>
 <div id="report"></div>
 
+<script src="core/rc-core.js"></script>  <!-- U9：純計算函式（不讀 DOM），網頁與 Node 單元測試共用 -->
 <script>
 "use strict";
 /* =========================================================================
@@ -1219,25 +1309,44 @@ const MAIN_SIZES = ['#4','#5','#6','#7','#8','#9','#10','#11','#12','#14','#16',
 const TIE_SIZES  = ['#3','#4','#5','#6','#7'];
 const PRACTICAL_S = [30,25,20,15,12.5,10,7.5];
 
-/* 讀數值輸入。空白或無效時改用預設值，但記錄在 BADIN，重算後於欄位標紅並列入警示，
-   避免「欄位空白卻默默以 420 計算」這類看不見的錯誤。 */
+/* 讀數值輸入。空白或無效時記錄在 BADIN：欄位標紅、列入警示，且<b>停止計算</b>——結果區封鎖、判定列顯示「輸入不完整」、
+   禁止預覽／列印／匯出／建議配筋（applyBlocked）。內部仍以 dflt 佔位計算只為避免程式中斷，結果一律不顯示。
+   超出合理範圍之輸入（例如箱型壁厚 ≥ 短邊之半、根數非整數）以 badIn() 標記，不再由程式默默修正。 */
 const BADIN = new Map();
-const num = (id,dflt=0)=>{const v=parseFloat(document.getElementById(id).value);if(Number.isFinite(v)) return v; BADIN.set(id,dflt); return dflt;};
-const pos = (id,dflt=1)=>{const v=parseFloat(document.getElementById(id).value);if(Number.isFinite(v)&&v>0) return v; BADIN.set(id,dflt); return dflt;};
-/* 依目前分頁收集無效輸入（不適用而隱藏的欄位不計），回傳 [{id,label,dflt}] 並標紅 */
+const num = (id,dflt=0)=>{const v=parseFloat(document.getElementById(id).value);if(Number.isFinite(v)) return v; BADIN.set(id,{dflt}); return dflt;};
+const pos = (id,dflt=1)=>{const v=parseFloat(document.getElementById(id).value);if(Number.isFinite(v)&&v>0) return v; BADIN.set(id,{dflt}); return dflt;};
+const badIn = (id, why) => { if(!BADIN.has(id)) BADIN.set(id, {why}); };
+/* 根數類輸入：須為 ≥ lo 之整數，否則標記為無效（仍回傳夾制後之值供佔位計算） */
+const intIn = (id, v, lo, what) => { if(!(Number.isInteger(v) && v >= lo)) badIn(id, `${what}須為 ≥ ${lo} 之整數`); return Math.max(lo, Math.round(v)); };
+/* 依目前分頁收集無效輸入（不適用而隱藏的欄位不計），回傳 [{id,label,why}] 並標紅 */
 function collectBadInputs(mod){
   const root = document.getElementById(mod==='beam'?'appBeam':'app');
   root.querySelectorAll('.inp-bad').forEach(el=>el.classList.remove('inp-bad'));
   const out=[];
-  for(const [id,dflt] of BADIN){
+  for(const [id,info] of BADIN){
     const el=document.getElementById(id); if(!el || !root.contains(el)) continue;
     const row=el.closest('.pin-row'); if(row && row.classList.contains('pin-na')) continue;
     el.classList.add('inp-bad');
     let label=id; for(const g of PIN_META[mod==='beam'?'beam':'pylon']) for(const p of g[1]) if(p[0]===id) label=p[2];
-    out.push({id,label,dflt});
+    out.push({id,label,why: info.why || '空白或非數字'});
   }
   return out;
 }
+/* 有無效輸入時封鎖結果區（applyBlocked）；預覽、列印、Excel、建議配筋一律以 isBlocked() 擋下 */
+function applyBlocked(mod, bad){
+  const ws = document.getElementById(mod==='beam' ? 'wsB' : 'wsP'); if(!ws) return;
+  const on = !!(bad && bad.length);
+  ws.classList.toggle('blocked', on);
+  // 參數表下方之導出值（β₁、E_c、A_st、ρ_g…）亦以佔位值算出：一併隱藏
+  const dv = document.getElementById(mod==='beam' ? 'derivedB' : 'derivedP'); if(dv) dv.classList.toggle('blk-hide', on);
+  let bn = ws.querySelector('.blk-banner');
+  if(!bn){ bn = document.createElement('div'); bn.className = 'blk-banner'; bn.setAttribute('role','alert'); ws.querySelector('.ws-tabs').after(bn); }
+  bn.innerHTML = on ? `<b>輸入不完整，已停止計算</b>：${bad.map(b=>`${esc(b.label)}（${esc(b.why)}）`).join('、')}。<br>`
+    + '請修正參數表中標紅的欄位；在此之前不顯示任何結果，也不提供計算書、Excel 與建議配筋。' : '';
+}
+const isBlocked = mod => { const M = mod==='beam' ? BMODEL : MODEL; return !!(M && M.badIn && M.badIn.length); };
+const blockedMsg = mod => '輸入不完整，已停止計算，無法產生結果：\n\n'
+  + ((mod==='beam' ? BMODEL : MODEL).badIn.map(b=>`・${b.label}（${b.why}）`).join('\n')) + '\n\n請先修正參數表中標紅的欄位。';
 const f = (x,n=2)=>(Number.isFinite(x)?x.toLocaleString('en-US',{minimumFractionDigits:n,maximumFractionDigits:n}):'—');
 const esc = s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 /* D/C 可能為 Infinity（射線與包絡線無交點＝載重點完全在外），需與一般數值分開顯示 */
@@ -1397,10 +1506,6 @@ function fracLayout(svg, sysFont){
   }
 }
 
-/* ---------- 基本力學 ---------- */
-const beta1 = fc => Math.max(0.65, Math.min(0.85, 0.85 - 0.05*(fc-280)/70));
-const Ecof  = fc => 12000*Math.sqrt(fc);      // 常重混凝土 E_c = 12,000√f'c（土木401-112 §19.2.2.1(b)）
-const EcMander = fc => 15000*Math.sqrt(fc);  // Mander 模型之初始切線模數（≈ 4,700√f'c MPa），屬該模型參數、非規範分析用 E_c
 
 /* ---------- 斷面幾何 ---------- */
 function grossArea(s){
@@ -1485,14 +1590,6 @@ function genBars(s, r){
   return {bars,rings,db,Ab,dt,dOut,dIn,hxO,hyO,pB,pH,xsO,ysO,inner};
 }
 
-/* ---------- P-M 互制（單軸） ---------- */
-/* 土木401-112 表 21.2.2：ε_t ≤ ε_ty 壓力控制；ε_ty < ε_t < ε_ty + 0.003 過渡區線性內插；ε_t ≥ ε_ty + 0.003 拉力控制 */
-const etTC = m => m.ety + 0.003;                 // 拉力控制應變下限
-function phiOf(eps_t, m){
-  if(eps_t<=m.ety) return m.phic;
-  if(eps_t>=etTC(m)) return m.phit;
-  return m.phic + (m.phit-m.phic)*(eps_t-m.ety)/0.003;
-}
 function sectionAt(c, ctx){
   const {g,bars,m,axis}=ctx;
   const a = Math.min(m.b1*c, g.D);
@@ -1522,7 +1619,8 @@ function pmCurve(ctx){
   const PnMax = m.pmaxf*Po;
   const Pnt = -m.fy*Ast;
   const pts=[];
-  const N=220, c0=0.02*g.D, c1=5.0*g.D;
+  // c 由 0.001D 起掃（舊版 0.02D：寬扁、低配筋斷面在最低取樣點已為軸壓，較低軸力之 φM_n 取不到而判 D/C = ∞）
+  const N=260, c0=0.001*g.D, c1=5.0*g.D;
   for(let i=0;i<N;i++){                      // 對數掃描：拉控端解析度足夠
     const c = c0*Math.pow(c1/c0, i/(N-1));
     pts.push(sectionAt(c,ctx));
@@ -1530,7 +1628,9 @@ function pmCurve(ctx){
   // P-M 是以中性軸深度 c 為參數的曲線，排序鍵必須是 c；
   // 依 Pn 排序在 Pn 非單調於 c 時會打亂曲線順序，畫出跨接的鋸齒
   pts.sort((p,q)=>p.c-q.c);
-  return {pts,Po,PnMax,Pnt,Ast};
+  let Pthr = null;
+  if(m.phiMode==='br532'){ Pthr = phiThrBr(pts, m); for(const p of pts) p.phi = phiAxialBr(p.Pn, Pthr, m); }
+  return {pts,Po,PnMax,Pnt,Ast,Pthr};
 }
 /* 設計包絡多段線（M≥0 半平面），含 φPn,max 水平截斷與 M=0 閉合邊 */
 function designPoly(cv,m){
@@ -1577,7 +1677,8 @@ function radialDC(poly, Mu, Pu, cap, phitPnt){
 function phiMnAtP(cv,m,P){
   const cap=capPhi(m)*cv.PnMax;
   if(P> cap+1e-6) return 0;
-  const A=cv._phiPM || (cv._phiPM = cv.pts.map(p=>({P:p.phi*p.Pn,M:p.phi*p.Mn})).sort((a,b)=>a.P-b.P));   // 快取：雙軸二分會反覆呼叫
+  // 快取：雙軸二分會反覆呼叫。前置純拉點 (φ_tP_nt, 0)：最低取樣點與純拉之間線性內插，不回傳 0
+  const A=cv._phiPM || (cv._phiPM = [{P:m.phit*cv.Pnt, M:0}, ...cv.pts.map(p=>({P:p.phi*p.Pn,M:p.phi*p.Mn}))].sort((a,b)=>a.P-b.P));
   if(P<=A[0].P||P>=A[A.length-1].P) return 0;
   for(let i=0;i<A.length-1;i++){
     if(P>=A[i].P && P<=A[i+1].P){
@@ -1589,8 +1690,8 @@ function phiMnAtP(cv,m,P){
 }
 /* 標稱彎矩 Mn(at P)：容量設計剪力用 */
 function MnAtP(cv,P){
-  const A=cv._nPM || (cv._nPM = cv.pts.map(p=>({P:p.Pn,M:p.Mn})).sort((a,b)=>a.P-b.P));
-  if(P<=A[0].P) return A[0].M;
+  const A=cv._nPM || (cv._nPM = [{P:cv.Pnt, M:0}, ...cv.pts.map(p=>({P:p.Pn,M:p.Mn}))].sort((a,b)=>a.P-b.P));
+  if(P<=A[0].P) return 0;
   if(P>=A[A.length-1].P) return A[A.length-1].M;
   for(let i=0;i<A.length-1;i++)
     if(P>=A[i].P&&P<=A[i+1].P){
@@ -1600,8 +1701,112 @@ function MnAtP(cv,P){
   return 0;
 }
 
+/* ---------- 雙軸：旋轉中性軸精確解（等效應力塊、離散鋼筋） ----------
+   土木401-112 §22.2 之一般方法：中性軸可任意傾斜。對矩形／箱型斷面（主筋對兩軸對稱）預先建立第一象限之設計互制曲面網格：
+   方向角 θ ∈ [0, 90°]（θ = 0：受壓側為 +x，即繞 Y 軸；θ = 90°：受壓側為 +y，即繞 X 軸）× 中性軸深度 c（對數掃描），
+   每點以等效應力塊（距最外受壓角點 ≤ β₁c 之多邊形，以半平面裁切求面積與一次矩；箱型扣除中空）＋離散鋼筋（受壓區內扣 0.85f'c）
+   求 (P_n, M_nx, M_ny)，φ 依最外拉力筋 ε_t（表 21.2.2），並含 φP_n,max 截斷。
+   載重 (P_u, M_ux, M_uy) 沿定偏心射線放大 t 倍，於軸力 tP_u 之等軸力輪廓上沿 (M_ux, M_uy) 方向求容量，二分求邊界 t*，D/C = 1/t*。
+   Bresler 倒數式與 PCA 載重輪廓法僅列為參考（兩者在平衡點附近及低軸壓時分別偏不保守、過度保守，且於 0.1f'cA_g 處不連續）。 */
+function _clipHalf(poly, nx, ny, lim){
+  const out = [], n = poly.length;
+  for(let i=0;i<n;i++){
+    const P = poly[i], Q = poly[(i+1)%n], dp = P[0]*nx+P[1]*ny-lim, dq = Q[0]*nx+Q[1]*ny-lim;
+    if(dp >= 0) out.push(P);
+    if((dp >= 0) !== (dq >= 0)){ const t = dp/(dp-dq); out.push([P[0]+t*(Q[0]-P[0]), P[1]+t*(Q[1]-P[1])]); }
+  }
+  return out;
+}
+/* 多邊形面積與一次矩（逆時針為正）：A、Qx = ∫y dA、Qy = ∫x dA */
+function _polyAQ(poly){
+  let A = 0, Qx = 0, Qy = 0;
+  for(let i=0, n=poly.length; i<n; i++){
+    const [x1,y1] = poly[i], [x2,y2] = poly[(i+1)%n], cr = x1*y2 - x2*y1;
+    A += cr; Qy += (x1+x2)*cr; Qx += (y1+y2)*cr;
+  }
+  return {A: A/2, Qx: Qx/6, Qy: Qy/6};
+}
+const _rectPoly = (b, h) => [[-b/2,-h/2],[b/2,-h/2],[b/2,h/2],[-b/2,h/2]];
+/* 任意中性軸方向 θ、深度 c 之斷面合力（標稱值與 φ） */
+function biaxPoint(sec, bars, m, th, c){
+  const nx = Math.cos(th), ny = Math.sin(th);
+  const top = Math.max(...sec.outer.map(q => q[0]*nx+q[1]*ny)), bot = Math.min(...sec.outer.map(q => q[0]*nx+q[1]*ny));
+  const a = Math.min(m.b1*c, top-bot), lim = top - a;
+  let A = 0, Qx = 0, Qy = 0;
+  const o = _polyAQ(_clipHalf(sec.outer, nx, ny, lim)); A += o.A; Qx += o.Qx; Qy += o.Qy;
+  if(sec.inner){ const v = _polyAQ(_clipHalf(sec.inner, nx, ny, lim)); A -= v.A; Qx -= v.Qx; Qy -= v.Qy; }
+  const k = 0.85*m.fc;
+  let P = k*A, Mx = k*Qx, My = k*Qy, dmax = -1e9;
+  for(const b of bars){
+    const d = top - (b.x*nx + b.y*ny);
+    let fs = Math.max(-m.fy, Math.min(m.fy, m.Es*m.ecu*(c-d)/c));
+    if(d <= a) fs -= k;
+    const F = fs*b.A; P += F; Mx += F*b.y; My += F*b.x;
+    if(d > dmax) dmax = d;
+  }
+  const eps_t = m.ecu*(dmax-c)/c, phi = phiOf(eps_t, m);
+  return {P, Mx, My, phi, eps_t, c, th};
+}
+/* 第一象限設計互制曲面網格（矩形、箱型）。cap = φP_n,max，pt = φ_tP_nt（純拉） */
+function biaxSurface(s, bars, m, cap, pt, opts){
+  const NT = (opts && opts.nt) || 36, NC = (opts && opts.nc) || 110;
+  const sec = {outer: _rectPoly(s.B, s.H), inner: s.type==='box' && s.B-2*s.tw > 0 && s.H-2*s.tw > 0 ? _rectPoly(s.B-2*s.tw, s.H-2*s.tw) : null};
+  const cols = [];
+  for(let k=0;k<=NT;k++){
+    const th = Math.PI/2*k/NT, D = Math.abs(Math.cos(th))*s.B + Math.abs(Math.sin(th))*s.H;
+    const c0 = 1e-3*D, c1 = 6*D, pts = [{P:pt, Mx:0, My:0, c:0}], raw = [];
+    for(let j=0;j<NC;j++){ const c = c0*Math.pow(c1/c0, j/(NC-1)); raw.push(biaxPoint(sec, bars, m, th, c)); }
+    const thr = m.phiMode==='br532' ? phiThrBr(raw, m) : null;      // §5.3.2：各中性軸方向之 P_b
+    for(const q of raw){
+      const phi = thr!=null ? phiAxialBr(q.P, thr, m) : q.phi;
+      pts.push({P:phi*q.P, Mx:Math.abs(phi*q.Mx), My:Math.abs(phi*q.My), c:q.c, phi});
+    }
+    /* φ 過渡區 φP_n 可隨 c 回降（P-M 曲線之 re-entrant notch）：保留全部點，查詢時同一軸力取最內側（彎矩最小）分支 */
+    let Pmin = Infinity, Pmax = -Infinity; for(const q of pts){ Pmin = Math.min(Pmin, q.P); Pmax = Math.max(Pmax, q.P); }
+    cols.push({th, pts, Pmin, Pmax});
+  }
+  return {cols, cap, pt, sec, NT, NC};
+}
+/* 軸力 P 之等軸力輪廓上，(M_x, M_y) 方向 (ux, uy) 之設計彎矩容量（無則回傳 0） */
+function biaxMcap(S3, P, ux, uy){
+  if(P > S3.cap + 1e-9) return {M:0};
+  const C = [];
+  for(const col of S3.cols){
+    const a = col.pts; if(P < col.Pmin || P > col.Pmax) return {M:0};
+    let q = null;
+    for(let i=0;i<a.length-1;i++){
+      const A = a[i], B = a[i+1];
+      if(P < Math.min(A.P, B.P) || P > Math.max(A.P, B.P)) continue;
+      const t = (P-A.P)/((B.P-A.P)||1), Mx = A.Mx + t*(B.Mx-A.Mx), My = A.My + t*(B.My-A.My);
+      if(!q || Math.hypot(Mx, My) < Math.hypot(q.Mx, q.My)) q = {Mx, My, c: A.c + t*(B.c-A.c), th: col.th};
+    }
+    if(!q) return {M:0};
+    C.push(q);
+  }
+  let best = null;
+  for(let i=0;i<C.length-1;i++){
+    const A = C[i], B = C[i+1], dx = B.Mx-A.Mx, dy = B.My-A.My, den = ux*dy - uy*dx;
+    if(Math.abs(den) < 1e-12) continue;
+    const r = (A.Mx*dy - A.My*dx)/den, w = Math.abs(dx) > Math.abs(dy) ? (r*ux-A.Mx)/dx : (r*uy-A.My)/dy;
+    if(r > 0 && w >= -1e-9 && w <= 1+1e-9 && (!best || r > best.M))
+      best = {M:r, th: A.th + w*(B.th-A.th), c: A.c + w*(B.c-A.c), Mx: r*ux, My: r*uy};
+  }
+  return best || {M:0};
+}
+/* 定偏心射線 D/C（雙軸彎矩皆非零時）：t·(P_u, M_ux, M_uy) 在曲面內之最大 t */
+function biaxExactDC(S3, Pu, Mux, Muy){
+  const Mr = Math.hypot(Mux, Muy), ux = Mux/Mr, uy = Muy/Mr;
+  const inside = t => { const q = biaxMcap(S3, t*Pu, ux, uy); return q.M >= t*Mr; };
+  let lo = 0, hi = 1;
+  if(!inside(1e-6)) return {dc: Infinity};
+  while(inside(hi) && hi < 1e6){ lo = hi; hi *= 2; }
+  for(let k=0;k<60;k++){ const mid = 0.5*(lo+hi); if(inside(mid)) lo = mid; else hi = mid; }
+  const q = biaxMcap(S3, lo*Pu, ux, uy);
+  return {dc: 1/lo, t: lo, capP: lo*Pu, capMx: q.Mx, capMy: q.My, th: q.th, c: q.c};
+}
+
 /* ---------- 雙軸：Bresler / PCA 載重輪廓 ---------- */
-function biaxialDC(cvX,cvY,pX,pY,m,L){
+function biaxialDC(cvX,cvY,pX,pY,m,L,S3){
   const {Pu,Mux,Muy}=L;
   if(m.circle){
     // 圓形斷面各向同性：以合彎矩 √(M_ux² + M_uy²) 對單一 P-M 曲線檢核
@@ -1614,10 +1819,23 @@ function biaxialDC(cvX,cvY,pX,pY,m,L){
   if(Math.abs(Mux)<1e-9 && Math.abs(Muy)<1e-9) return {dc:Math.abs(uniX.dc),method:'純軸力',uniX,uniY};
   if(Math.abs(Muy)<1e-9) return {dc:uniX.dc, method:'單軸（繞 X）',uniX,uniY};
   if(Math.abs(Mux)<1e-9) return {dc:uniY.dc, method:'單軸（繞 Y）',uniX,uniY};
-
+  // 雙軸：旋轉中性軸精確解為判定值；Bresler／PCA 僅列為參考
+  if(S3){
+    const ref = biaxialApprox(cvX,cvY,pX,pY,m,L,uniX,uniY), ex = biaxExactDC(S3, Pu, Mux, Muy);
+    return {...ex, method:BIAX_EXACT, ref, uniX, uniY};
+  }
+  return biaxialApprox(cvX,cvY,pX,pY,m,L,uniX,uniY);
+}
+const BIAX_EXACT = '旋轉中性軸（精確解）';
+const biRefTxt = bi => bi && bi.ref ? `<span style="color:var(--dim)">（參考 ${bi.ref.method.startsWith('Bresler')?'Bresler':'PCA'} ${fdc(bi.ref.dc)}）</span>` : '';
+/* Bresler 倒數式（P_u ≥ 0.1f'cA_g）／PCA 載重輪廓法：參考值 */
+function biaxialApprox(cvX,cvY,pX,pY,m,L,uniX,uniY){
+  const {Pu,Mux,Muy}=L;
   if(Pu >= 0.1*m.fc*m.Ag){
     // Bresler 倒數式（偏心不變 → 尺度不變，可直接求）
-    const Pnx = uniX.capP, Pny = uniY.capP, Po = capPhi(m)*cvX.PnMax;
+    // P_o 須為「未截斷」之 φ_c·P_o：若改用 φP_n,max（0.8P_o），被減去之 1/P_o 變大 → 容量高估、D/C 偏不保守。
+    // φP_n,max 截斷已含於 P_nx、P_ny（射線交於截斷水平段），不另放入倒數式。
+    const Pnx = uniX.capP, Pny = uniY.capP, Po = m.phic*cvX.Po;
     const inv = 1/Pnx + 1/Pny - 1/Po;
     const Pcap = inv>1e-12 ? 1/inv : Infinity;
     return {dc: Pu/Pcap, method:'Bresler 倒數式', Pnx,Pny,Po,Pcap,uniX,uniY};
@@ -1709,12 +1927,6 @@ function colEdgeTies(n, pitch, db, opt, side, fixed){   // fixed：箱型角隅�
           ok: gmax<=2 && !(gmax===2 && clear>15.0)};
 }
 
-/* ---------- 剪力 / 扭矩 / 圍束筋 ---------- */
-/* 塑鉸區 V_c 歸零門檻：橋梁 N_u < 0.1f'c·A_g；建築柱 N_u < A_g·f'c/20（土木401 §18.4.6.2.1，
-   另一條件「地震引致剪力 ≥ 設計剪力之半」在耐震設計柱端視為成立，保守取之） */
-const vcZeroRatio = code => code==='bldg' ? 0.05 : 0.10;
-/* 耐震箍筋間距之主筋直徑倍數（土木401 §18.3.4.4、§18.4.5.3、§18.4.5.5）：f_y 4200 → 6、5000 → 5.5、5600 → 5 */
-const seisKdb = fy => fy <= 4200+1e-6 ? 6 : fy <= 5000+1e-6 ? 5.5 : 5;
 /* 土木401-112 表 22.5.5.1：A_v ≥ A_v,min 時 V_c = [0.53λ√f'c + N_u/(6A_g)]·b_w·d（式 (a)）；
    N_u/(6A_g) ≤ 0.05f'c（§22.5.5.1.2）、V_c ≤ 1.33λ√f'c·b_w·d（§22.5.5.1.1）、V_c ≥ 0。
    柱箍筋間距恆受 A_v,min 控制（finalSpacing 之 s_minAv），故採式 (a)。 */
@@ -1768,17 +1980,19 @@ function VcBridge(m, Nu, hinge){
   const vc0 = Math.max(0, 0.53*((hinge ? 0.33 : 1) + F)*Math.sqrt(m.fc)*Ae);
   return {vc:vc0*kV, vc0, kV, base:0.53*Math.sqrt(m.fc)*Ae, zeroed: vc0 <= 0, ax:F, F, Ae, hinge, bridge:true, lam:1};
 }
-function VcCalc(m,bw,d,Nu,plastic,code){
+/* 建築柱 V_c 歸零（土木401-112 §18.4.6.2.1）：ℓ_o 內 (a) 地震力引致之剪力（§18.4.6.1 之 V_e）≥ ½ 最大需求剪力，且
+   (b) P_u < A_gf'c/20 同時成立時 V_c = 0。seisA 為 (a) 是否成立（呼叫端傳入；選「僅依軸力」時恆為 true，保守） */
+function VcCalc(m,bw,d,Nu,plastic,code,seisA=true){
   if(code==='bridge') return VcBridge(m, Nu, plastic);
   const lam = m.lam || 1, sq = Math.sqrt(m.fc);
   const base = 0.53*lam*sq*bw*d;
   const ax = Math.min(Nu/(6*m.Ag), 0.05*m.fc);
   let vc = Math.min((0.53*lam*sq + ax)*bw*d, 1.33*lam*sq*bw*d);
   vc = Math.max(0,vc);                                  // 軸拉時可能為負 → 夾到 0
-  const zeroed = plastic && Nu < vcZeroRatio(code)*m.fc*m.Ag;
+  const lowP = plastic && Nu < vcZeroRatio(code)*m.fc*m.Ag, zeroed = lowP && seisA;
   if(zeroed) vc = 0;
   const kV = vcSlurry(m);
-  return {vc:vc*kV, vc0:vc, kV, base, zeroed, ax, lam};
+  return {vc:vc*kV, vc0:vc, kV, base, zeroed, lowP, seisA, ax, lam};
 }
 
 /* =========================================================================
@@ -1790,73 +2004,76 @@ let MODEL = null;
 let TAB = 'pylon';      /* 'pylon' 橋塔／柱　'beam' 梁 */
 
 /* 斷面範本：涵蓋一般橋墩柱到長跨徑橋塔的量體差距（Ag 相差 20 倍以上） */
+/* 範本載重：M_ux（繞 X 軸）由 Y 向側力造成、配 V_uy；M_uy 配 V_ux（與剪力方向配對 shearMoCurve 一致）。
+   懸臂橋墩／橋塔（塑鉸僅底端）之地震剪力取 V ≈ M/L_v；建築柱（兩端彎矩反向）V ≈ 2M/l_u。 */
 const PRESETS = {
-  bldg60: {label:'建築 RC 方柱', code:'bldg', ph:'1', lu:320,
+  bldg60: {label:'建築 RC 方柱', code:'bldg', ph:'1', lu:320, scwbMb:110,   // 強柱弱梁：接頭梁 ΣM_nb 示意值（兩向）
     type:'solid', B:60, H:60, tw:15, fc:280, bar:'#8', nB:4, nH:4, tie:'#4',
     covO:4, covI:4, Lv:160, dagg:2.5, tieAll:true,
-    loads:[{name:'1.2D+1.6L',Pu:260,Mux:18,Muy:10,Vux:8,Vuy:5,Tu:0},
-           {name:'1.2D+L+E (X)',Pu:210,Mux:42,Muy:12,Vux:24,Vuy:6,Tu:0},
-           {name:'1.2D+L+E (Y)',Pu:205,Mux:12,Muy:40,Vux:6,Vuy:23,Tu:0},
-           {name:'0.9D+E',Pu:95,Mux:38,Muy:11,Vux:22,Vuy:6,Tu:0}]},
-  pond80: {label:'地下滯洪池柱', code:'bldg', ph:'1', lu:650, ancBot:'hook90', hBot:100, ancTop:'hook90', hTop:80, ancCov:5,
+    loads:[{name:'1.2D+1.6L',Pu:260,Mux:18,Muy:10,Vux:5,Vuy:8,Tu:0},
+           {name:'1.2D+L+E (X)',Pu:205,Mux:12,Muy:40,Vux:23,Vuy:6,Tu:0},
+           {name:'1.2D+L+E (Y)',Pu:210,Mux:42,Muy:12,Vux:6,Vuy:24,Tu:0},
+           {name:'0.9D+E (Y)',Pu:95,Mux:38,Muy:11,Vux:6,Vuy:22,Tu:0}]},
+  pond80: {label:'地下滯洪池柱', code:'bldg', ph:'1', lu:650, scwbMb:200, ancBot:'hook90', hBot:100, ancTop:'hook90', hTop:80, ancCov:5,
     type:'solid', B:80, H:80, tw:20, fc:280, bar:'#8', nB:5, nH:5, tie:'#4',
     covO:5, covI:5, Lv:325, dagg:2.5,
-    loads:[{name:'1.2D+1.6L（頂版覆土）',Pu:520,Mux:22,Muy:15,Vux:7,Vuy:5,Tu:0},
-           {name:'1.2D+1.0L+E (X)',Pu:430,Mux:58,Muy:18,Vux:19,Vuy:6,Tu:0},
-           {name:'1.2D+1.0L+E (Y)',Pu:425,Mux:18,Muy:56,Vux:6,Vuy:18,Tu:0},
-           {name:'0.9D+E（滿水浮力）',Pu:140,Mux:52,Muy:16,Vux:17,Vuy:5,Tu:0}]},
-  circ80: {label:'建築 RC 圓柱（螺箍）', code:'bldg', ph:'1', lu:350,
+    loads:[{name:'1.2D+1.6L（頂版覆土）',Pu:520,Mux:22,Muy:15,Vux:5,Vuy:7,Tu:0},
+           {name:'1.2D+1.0L+E (X)',Pu:425,Mux:18,Muy:56,Vux:18,Vuy:6,Tu:0},
+           {name:'1.2D+1.0L+E (Y)',Pu:430,Mux:58,Muy:18,Vux:6,Vuy:19,Tu:0},
+           {name:'0.9D+E (Y)（滿水浮力）',Pu:140,Mux:52,Muy:16,Vux:5,Vuy:17,Tu:0}]},
+  circ80: {label:'建築 RC 圓柱（螺箍）', code:'bldg', ph:'1', lu:350, scwbMb:150,
     type:'circle', D:80, nCir:12, spiral:'spiral', B:80, H:80, tw:20, fc:280, bar:'#8', nB:4, nH:4, tie:'#4',
     covO:4, covI:4, Lv:175, dagg:2.5,
-    loads:[{name:'1.2D+1.6L',Pu:420,Mux:30,Muy:15,Vux:12,Vuy:6,Tu:0},
-           {name:'1.2D+L+E (X)',Pu:340,Mux:78,Muy:20,Vux:40,Vuy:9,Tu:0},
-           {name:'1.2D+L+E (Y)',Pu:335,Mux:20,Muy:76,Vux:9,Vuy:39,Tu:0},
-           {name:'0.9D+E',Pu:150,Mux:70,Muy:18,Vux:36,Vuy:8,Tu:0}]},
+    loads:[{name:'1.2D+1.6L',Pu:420,Mux:30,Muy:15,Vux:6,Vuy:12,Tu:0},
+           {name:'1.2D+L+E (X)',Pu:335,Mux:20,Muy:76,Vux:39,Vuy:9,Tu:0},
+           {name:'1.2D+L+E (Y)',Pu:340,Mux:78,Muy:20,Vux:9,Vuy:40,Tu:0},
+           {name:'0.9D+E (Y)',Pu:150,Mux:70,Muy:18,Vux:8,Vuy:36,Tu:0}]},
   pierC180: {label:'橋墩圓柱（螺箍）', code:'bridge', ph:'1', lu:1000,
     type:'circle', D:180, nCir:32, spiral:'spiral', B:180, H:180, tw:40, fc:350, bar:'#10', nB:9, nH:9, tie:'#7',
     covO:7.5, covI:5, Lv:1000, dagg:2.5,
-    loads:[{name:'D+L',Pu:1300,Mux:250,Muy:100,Vux:40,Vuy:18,Tu:10},
-           {name:'地震 X',Pu:1150,Mux:1000,Muy:200,Vux:120,Vuy:28,Tu:20},
-           {name:'地震 Y',Pu:1150,Mux:200,Muy:980,Vux:28,Vuy:118,Tu:20},
-           {name:'最小軸力',Pu:600,Mux:880,Muy:170,Vux:105,Vuy:24,Tu:15}]},
+    loads:[{name:'D+L',Pu:1300,Mux:250,Muy:100,Vux:10,Vuy:25,Tu:10},
+           {name:'地震 X',Pu:1150,Mux:200,Muy:980,Vux:98,Vuy:20,Tu:20},
+           {name:'地震 Y',Pu:1150,Mux:1000,Muy:200,Vux:20,Vuy:100,Tu:20},
+           {name:'最小軸力 (Y)',Pu:600,Mux:880,Muy:170,Vux:17,Vuy:88,Tu:15}]},
   pier100: {label:'橋墩柱（實心方形）', code:'bridge', ph:'1', lu:800,
-    type:'solid', B:100, H:100, tw:20, fc:280, bar:'#8', nB:6, nH:6, tie:'#5',
+    type:'solid', B:100, H:100, tw:20, fc:280, bar:'#9', nB:6, nH:6, tie:'#5',   // #9：一階彎矩經長細效應放大（δ ≈ 1.36）後仍通過
     covO:5, covI:5, Lv:800, dagg:2.5,
-    loads:[{name:'D+L',Pu:320,Mux:60,Muy:25,Vux:20,Vuy:10,Tu:2},
-           {name:'地震 X',Pu:280,Mux:196,Muy:40,Vux:52,Vuy:12,Tu:5},
-           {name:'地震 Y',Pu:280,Mux:40,Muy:196,Vux:12,Vuy:52,Tu:5},
-           {name:'最小軸力',Pu:120,Mux:152,Muy:32,Vux:44,Vuy:10,Tu:4}]},
+    loads:[{name:'D+L',Pu:320,Mux:60,Muy:25,Vux:3,Vuy:8,Tu:2},
+           {name:'地震 X',Pu:280,Mux:40,Muy:196,Vux:25,Vuy:5,Tu:5},
+           {name:'地震 Y',Pu:280,Mux:196,Muy:40,Vux:5,Vuy:25,Tu:5},
+           {name:'最小軸力 (Y)',Pu:120,Mux:152,Muy:32,Vux:4,Vuy:19,Tu:4}]},
   pier200: {label:'大型橋墩（實心矩形）', code:'bridge', ph:'1', lu:1500,
     type:'solid', B:200, H:300, tw:40, fc:280, bar:'#11', nB:13, nH:19, tie:'#5',
     covO:7.5, covI:5, Lv:1500, dagg:2.5,
-    loads:[{name:'D+L',Pu:1500,Mux:600,Muy:250,Vux:80,Vuy:40,Tu:20},
-           {name:'地震 X',Pu:1300,Mux:2450,Muy:400,Vux:330,Vuy:60,Tu:60},
-           {name:'地震 Y',Pu:1300,Mux:400,Muy:1750,Vux:60,Vuy:240,Tu:60},
-           {name:'最小軸力',Pu:600,Mux:2150,Muy:350,Vux:290,Vuy:55,Tu:50}]},
+    loads:[{name:'D+L',Pu:1500,Mux:600,Muy:250,Vux:17,Vuy:40,Tu:20},
+           {name:'地震 X',Pu:1300,Mux:400,Muy:1750,Vux:117,Vuy:27,Tu:60},
+           {name:'地震 Y',Pu:1300,Mux:2450,Muy:400,Vux:27,Vuy:163,Tu:60},
+           {name:'最小軸力 (Y)',Pu:600,Mux:2150,Muy:350,Vux:23,Vuy:143,Tu:50}]},
   box300: {label:'中跨徑橋塔（中空箱型）', code:'bridge', ph:'1', lu:2500,
-    type:'box', B:300, H:400, tw:40, fc:350, bar:'#8', nB:19, nH:25, tie:'#6', tieAll:true,
+    type:'box', B:300, H:400, tw:40, fc:350, bar:'#10', nB:21, nH:28, tie:'#6', tieAll:true,   // T_u > φT_th：主筋須另計 A_ℓ,min（§9.6.4.3）
     covO:7.5, covI:5, Lv:2500, dagg:2.5,
-    loads:[{name:'D+L',Pu:2200,Mux:900,Muy:400,Vux:120,Vuy:60,Tu:40},
-           {name:'地震 X',Pu:1900,Mux:6300,Muy:1100,Vux:520,Vuy:110,Tu:150},
-           {name:'地震 Y',Pu:1850,Mux:1200,Muy:4700,Vux:120,Vuy:400,Tu:180},
-           {name:'最小軸力',Pu:700,Mux:5400,Muy:950,Vux:450,Vuy:100,Tu:120}]},
+    loads:[{name:'D+L',Pu:2200,Mux:900,Muy:400,Vux:16,Vuy:36,Tu:40},
+           {name:'地震 X',Pu:1850,Mux:1200,Muy:4700,Vux:188,Vuy:48,Tu:180},
+           {name:'地震 Y',Pu:1900,Mux:6300,Muy:1100,Vux:44,Vuy:252,Tu:150},
+           {name:'最小軸力 (Y)',Pu:700,Mux:5400,Muy:950,Vux:38,Vuy:216,Tu:120}]},
   box600: {label:'長跨徑橋塔（中空箱型）', code:'bridge', ph:'1', lu:4000,
     type:'box', B:600, H:800, tw:90, fc:420, bar:'#11', nB:39, nH:53, tie:'#6',
     covO:7.5, covI:5, Lv:4000, dagg:2.5,
-    loads:[{name:'D+L',Pu:4200,Mux:21000,Muy:8000,Vux:600,Vuy:250,Tu:400},
-           {name:'地震 X 最大彎矩',Pu:2800,Mux:40000,Muy:7500,Vux:1450,Vuy:320,Tu:900},
-           {name:'地震 Y 最大彎矩',Pu:2650,Mux:9000,Muy:30000,Vux:300,Vuy:1180,Tu:1100},
-           {name:'最小軸力(拉)',Pu:-350,Mux:33000,Muy:6000,Vux:980,Vuy:200,Tu:300}]},
+    loads:[{name:'D+L',Pu:4200,Mux:21000,Muy:8000,Vux:200,Vuy:525,Tu:400},
+           {name:'地震 X 最大彎矩',Pu:2650,Mux:9000,Muy:30000,Vux:750,Vuy:225,Tu:650},    // T_u < φT_th ≈ 700 tf·m：扭矩可忽略
+           {name:'地震 Y 最大彎矩',Pu:2800,Mux:40000,Muy:7500,Vux:188,Vuy:1000,Tu:600},
+           {name:'最小軸力(拉) (Y)',Pu:-350,Mux:33000,Muy:6000,Vux:150,Vuy:825,Tu:300}]},
   pileC120: {label:'場鑄基樁 φ120（泥水中灌注）', code:'bldg', ph:'1', lu:3000, member:'pile', slurry:true,
     pile:{L:3000, site:'12', ecc:'user', e:10, infl:0}, ancTop:'hook90', hTop:200, ancCov:7.5,
     type:'circle', D:120, nCir:20, spiral:'hoop', B:120, H:120, tw:30, fc:280, bar:'#10', nB:4, nH:4, tie:'#5',
     covO:7.5, covI:5, Lv:1500, dagg:2.5,
-    loads:[{name:'1.2D+1.6L',Pu:520,Mux:18,Muy:0,Vux:6,Vuy:0,Tu:0},
-           {name:'1.2D+1.0L+E (X)',Pu:430,Mux:105,Muy:22,Vux:42,Vuy:9,Tu:0},
-           {name:'1.2D+1.0L+E (Y)',Pu:425,Mux:22,Muy:102,Vux:9,Vuy:41,Tu:0},
-           {name:'0.9D−E（上拔）',Pu:-60,Mux:95,Muy:20,Vux:38,Vuy:8,Tu:0}]}
+    loads:[{name:'1.2D+1.6L',Pu:520,Mux:18,Muy:0,Vux:0,Vuy:6,Tu:0},
+           {name:'1.2D+1.0L+E (X)',Pu:425,Mux:22,Muy:102,Vux:41,Vuy:9,Tu:0},
+           {name:'1.2D+1.0L+E (Y)',Pu:430,Mux:105,Muy:22,Vux:9,Vuy:42,Tu:0},
+           {name:'0.9D−E (Y)（上拔）',Pu:-60,Mux:95,Muy:20,Vux:8,Vuy:38,Tu:0}]}
 };
 function applyPreset(key){
+  if(CONFIRM) CONFIRM.pylon.clear();                         // 換構件：確認須重做
   const P=PRESETS[key]; if(!P) return;
   const S=(id,v)=>{const e=document.getElementById(id); if(e) e.value=v;};
   S('secType',P.type); S('B',P.B); S('H',P.H); S('tw',P.tw); S('fc',P.fc);
@@ -1866,8 +2083,13 @@ function applyPreset(key){
   S('codeBasis', P.code || 'bridge'); S('ph', P.ph || '1'); S('lu', P.lu || 300);
   S('phio', P.phio || 1.3); S('phivB', 0.85);   // 公路橋梁耐震設計規範 §4.2.1（RC 柱 1.3）、§5.3.3（φ = 0.85）
   S('phEnds', P.phEnds || (P.code==='bldg' ? '2' : '1'));
+  S('vcRule', P.vcRule || 'ab'); S('brMnP', P.brMnP || 'max'); S('brPD', P.brPD || 0); S('brVelX', P.brVelX || 0); S('brVelY', P.brVelY || 0); S('brPe', P.brPe || 0);
+  S('brPhiMode', P.brPhiMode || '401');
   // 長細比：範本值僅示意（建築框架柱 k = 1.0；懸臂墩柱、橋塔取理論值 k = 2.0），實際請依構架分析決定
   S('slFrame', P.slFrame || 'sway'); S('slK', P.slK || ((P.phEnds || (P.code==='bldg' ? '2' : '1'))==='1' ? 2 : 1)); S('slM12', P.slM12 ?? -1);
+  S('slKy', P.slKy || document.getElementById('slK').value); S('slLuY', P.slLuY || 0);
+  S('slTreat', P.slTreat || 'mag'); S('slBeta', P.slBeta ?? 0.6); S('slQ', P.slQ || 0);
+  S('scwbNc', P.scwbNc || 2); S('scwbMbX', P.scwbMb || 0); S('scwbMbY', P.scwbMb || 0);
   S('tieLayout', P.tieAll ? 'all' : 'code'); S('cTies', ''); CTIE_TOOL = false; CTIE_ADV = false;
   S('memType', P.member || 'col'); S('dSlurry', P.slurry ? '1' : '0');
   if(P.pile){ S('pileL', P.pile.L); S('pileSite', P.pile.site || '12'); S('pileEccMode', P.pile.ecc || 'user'); S('pileE', P.pile.e ?? 10); S('pileInfl', P.pile.infl || 0); }
@@ -1892,7 +2114,6 @@ function applyPreset(key){
        箍筋 D ≤ 50 cm 時 ≥ D10、> 50 cm 時 ≥ D13。
    ========================================================================= */
 const PILE_PHI_AX = 0.55;
-const capPhi = m => m.phiAx ?? m.phic;          // φP_n,max 之 φ：基樁 0.55，其餘 φ_c
 function pileOpt(){
   if(document.getElementById('memType').value!=='pile') return null;
   const L = pos('pileL', 3000), mode = document.getElementById('pileEccMode').value;
@@ -1939,17 +2160,21 @@ function compute(){
   const s = type==='circle'
     ? (D=>({type, D, B:D, H:D, tw:0}))(pos('Dia',100))
     : {type, B:pos('B',600), H:pos('H',800), tw:pos('tw',90)};
-  if(type==='box' && s.tw >= Math.min(s.B,s.H)/2) s.tw = Math.min(s.B,s.H)/2 - 1;
+  // 箱型壁厚 ≥ 短邊之半即為實心，不可由程式自行改小（舊版靜默改為 min/2 − 1 且參數表仍顯示 ✓）
+  if(type==='box' && s.tw >= Math.min(s.B,s.H)/2){ badIn('tw', `壁厚須小於短邊之半 ${f(Math.min(s.B,s.H)/2,1)} cm（否則請改選實心斷面）`); s.tw = Math.min(s.B,s.H)/2 - 1; }
 
+  const covO0 = num('covO',7.5), covI0 = num('covI',5);
+  if(covO0 < 0) badIn('covO','保護層不得為負值');
+  if(type==='box' && covI0 < 0) badIn('covI','保護層不得為負值');
   const r = {
     barSize: document.getElementById('barSize').value,
     tieSize: document.getElementById('tieSize').value,
-    nB: Math.max(2,Math.round(pos('nB',39))),
-    nH: Math.max(2,Math.round(pos('nH',53))),
+    nB: type==='circle' ? Math.max(2,Math.round(pos('nB',39))) : intIn('nB', pos('nB',39), 2, '每面根數'),
+    nH: type==='circle' ? Math.max(2,Math.round(pos('nH',53))) : intIn('nH', pos('nH',53), 2, '每面根數'),
     dbl: document.getElementById('dbl').value==='1' && type==='box',
-    nCir: Math.max(4, Math.round(pos('nCir',12))),
+    nCir: type==='circle' ? intIn('nCir', pos('nCir',12), 4, '圓周主筋根數') : Math.max(4, Math.round(pos('nCir',12))),
     spiral: type==='circle' && document.getElementById('spiral').value==='spiral',
-    covO: Math.max(0,num('covO',7.5)), covI: Math.max(0,num('covI',5))
+    covO: Math.max(0,covO0), covI: Math.max(0,covI0)
   };
   const R = genBars(s,r);
   const Ast = R.bars.reduce((a,b)=>a+b.A,0);
@@ -1968,19 +2193,35 @@ function compute(){
   m.slurry = document.getElementById('dSlurry').value==='1';             // 泥水中灌注（基礎構造設計規範 §7.6.2）
   const pile = pileOpt();
   if(pile){ m.pmaxf = 0.80; m.phiAx = PILE_PHI_AX; }                      // 表 22.4.2.1(e)、表 13.4.3.2(a)
+  // 橋梁彎矩／軸力 φ 依公路橋梁耐震設計規範 §5.3.2（選項）：φ 隨軸壓由 0.70（橫箍）／0.75（螺箍）線性增至 0.90
+  if(!pile && document.getElementById('codeBasis').value==='bridge' && document.getElementById('brPhiMode').value==='532'){
+    m.phiMode = 'br532'; m.phiBrMin = (type==='circle' && r.spiral) ? 0.75 : 0.70; }
   const opt = {
     code: document.getElementById('codeBasis').value==='bridge' ? 'bridge' : 'bldg',
     lu: pos('lu',300),
     plastic: document.getElementById('ph').value==='1',
     phEnds: document.getElementById('phEnds').value==='1' ? 1 : 2,
     phio: pos('phio',1.3), Lv: pos('Lv',4000),
+    // 橋梁容量設計選項（公路橋梁耐震設計規範 §4.2.1、§4.2.2、§5.3.4）
+    vcRule: document.getElementById('vcRule').value==='b' ? 'b' : 'ab',
+    brMnP: document.getElementById('brMnP').value==='dead' ? 'dead' : 'max', brPD: num('brPD',0)*TF,
+    brVelX: Math.max(0, num('brVelX',0))*TF, brVelY: Math.max(0, num('brVelY',0))*TF, brPe: Math.max(0, num('brPe',0))*TF,
     brExpo: document.getElementById('brExpo').value,
     slSway: document.getElementById('slFrame').value!=='braced', slK: pos('slK',1), slM12: Math.max(-1, Math.min(1, num('slM12',-1))),
+    slKy: pos('slKy',1), slLuY: Math.max(0, num('slLuY',0)), slTreat: document.getElementById('slTreat').value,
+    slBeta: Math.max(0, num('slBeta',0.6)), slQ: Math.max(0, num('slQ',0)),
+    scwbNc: document.getElementById('scwbNc').value==='1' ? 1 : 2, scwbMbX: num('scwbMbX',0)*TFM, scwbMbY: num('scwbMbY',0)*TFM,
     theta: pos('theta',45), dagg: Math.max(0.5,num('dagg',2.5)),
     ashPair: document.getElementById('ashPair').value,
     tieAll: document.getElementById('tieLayout').value==='all',
     tieMode: document.getElementById('tieLayout').value
   };
+  { const m12 = num('slM12',-1); if(m12 < -1 || m12 > 1) badIn('slM12','端彎矩比須介於 −1 與 1 之間');
+    if(num('slLuY',0) < 0) badIn('slLuY','不得為負值（0 表示同 l_u）');
+    for(const id of ['scwbMbX','scwbMbY']) if(num(id,0) < 0) badIn(id,'請填正值（0 表示未輸入）');
+    { const b = num('slBeta',0.6); if(b < 0 || b > 1) badIn('slBeta','持續載重比須介於 0 與 1 之間'); }
+    { const q = num('slQ',0); if(q < 0 || q >= 1) badIn('slQ','穩定指數須介於 0 與 1 之間（0 表示以本柱 P_c 計）'); }
+    if(num('dagg',2.5) < 0.5) badIn('dagg','骨材粒徑須 ≥ 0.5 cm'); }
   /* 場鑄基樁：依建築物（土木401 第十三章、§18.10.5）；不作柱之容量設計、V_c 歸零與柱端加密區，
      「塑鉸區」開關改作「支承耐震結構」（表 18.10.5.7.1 樁頂圍束區）；沿軸向配置總長取樁長 */
   opt.pile = pile;
@@ -2005,6 +2246,8 @@ function compute(){
   const ctxY = {g:geoFor(s,'y'), bars:R.bars, m, axis:'y'};
   const cvX = pmCurve(ctxX), cvY = pmCurve(ctxY);
   const pX = designPoly(cvX,m), pY = designPoly(cvY,m);
+  // 雙軸精確解之互制曲面（矩形、箱型；圓形各向同性以合彎矩檢核）
+  const S3 = type==='circle' ? null : biaxSurface(s, R.bars, m, pX.cap, m.phit*cvX.Pnt);
   // 建築柱容量設計剪力：機率強度 M_pr 以 1.25f_y、φ = 1.0 重解 P-M（土木401 §18.4.6.1）
   let cvXpr = null, cvYpr = null;
   if(opt.code==='bldg' && opt.plastic && !pile){
@@ -2015,6 +2258,9 @@ function compute(){
   /* --- 圍束核心（Mander）：需先定出實際箍筋間距 s 才能算 f'_l，
          故此處僅備妥幾何與 conf.finalize()，曲線於 render() 內以最終 s 產生 --- */
   opt.PuMax = Math.max(0, ...LOADS.map(L=>(+L.Pu||0)*TF));
+  // 圍束筋式 (5-6)、(5-8) 之 P_e（柱之係數化軸力）：預設取各組合最大（保守），橋梁可指定（例如地震組合之軸力）
+  opt.Pe = (opt.code==='bridge' && opt.brPe > 0) ? opt.brPe : opt.PuMax;
+  opt.slPairs = loadPairs(LOADS, opt.slM12); opt.slM12x = opt.slPairs.m12x; opt.slM12y = opt.slPairs.m12y;
   const conf = confinement(s,r,R,m,opt);
   /* 建築柱端加密區間距 s_o = 10 + (35 − h_x)/3，夾於 10～15 cm（土木401 §18.4.5.3(c)，cm 制） */
   opt.hx = Math.max(conf.eB.hx, conf.eH.hx);
@@ -2024,34 +2270,59 @@ function compute(){
   /* --- 各組合 D/C --- */
   // 載重組合為空時以零載重佔位，避免整個重算中斷；警示另行提醒
   const noLoads = !LOADS.length;
-  const res = (noLoads ? [{name:'（尚未輸入載重）',Pu:0,Mux:0,Muy:0,Vux:0,Vuy:0,Tu:0}] : LOADS).map(L=>{
+  const SL = pile ? null : colSlenderCore(s, m, opt);
+  const res = (noLoads ? [{name:'（尚未輸入載重）',Pu:0,Mux:0,Muy:0,Vux:0,Vuy:0,Tu:0}] : LOADS).map((L,iL)=>{
     const Lk = {Pu:L.Pu*TF, Mux:Math.abs(L.Mux)*TFM, Muy:Math.abs(L.Muy)*TFM,
                 Vux:Math.abs(L.Vux)*TF, Vuy:Math.abs(L.Vuy)*TF, Tu:Math.abs(L.Tu)*TFM};
     if(pile && pile.e > 0 && type==='circle') pileEcc(Lk, pile.e);   // 基樁限圓形斷面（合彎矩）
-    const bi = biaxialDC(cvX,cvY,pX,pY,m,Lk);
-    return {L,Lk,bi,dc:bi.dc};
+    if(SL) slenderApply(SL, Lk, noLoads ? null : opt.slPairs.rows[iL]);   // 長細效應：彎矩放大（不可忽略且輸入為一階分析時）
+    const bi = (Number.isFinite(Lk.Mux) && Number.isFinite(Lk.Muy)) ? biaxialDC(cvX,cvY,pX,pY,m,Lk,S3)
+      : {dc:Infinity, method:'構材挫屈（P_u ≥ 0.75P_c）', uniX:{dc:Infinity}, uniY:{dc:Infinity}};
+    return {L: L.pos && POS_TXT[L.pos] ? {...L, name:`${L.name}（${POS_TXT[L.pos]}）`} : L, Lk, bi, dc:bi.dc};
   });
-  const ctrlFlex = res.reduce((a,b)=> (b.dc>a.dc?b:a), res[0]);
+  let ctrlFlex = res.reduce((a,b)=> (b.dc>a.dc?b:a), res[0]);
   const ctrlAxial = res.reduce((a,b)=> (b.Lk.Pu>a.Lk.Pu?b:a), res[0]);
 
-  /* --- 剪力 / 扭矩（兩向分別檢核，取控制者） --- */
-  const shX = shearDesign(s,r,R,m,opt,cvX,res,'x',cvXpr);
-  const shY = shearDesign(s,r,R,m,opt,cvY,res,'y',cvYpr);
+  /* --- 剪力 / 扭矩（兩向分別檢核，取控制者） ---
+     剪力方向與彎矩平面必須配對：沿 x 之剪力（d 沿 B）由「深度沿 B」之彎矩產生 → cvY（繞 Y 軸）；
+     沿 y 之剪力（d 沿 H）→ cvX（繞 X 軸）。容量設計 V_e 取同一平面之 M_pr／M_n（shearMoCurve）。 */
+  const shX = shearDesign(s,r,R,m,opt,shearMoCurve('x',cvX,cvY),res,'x',shearMoCurve('x',cvXpr,cvYpr));
+  const shY = shearDesign(s,r,R,m,opt,shearMoCurve('y',cvX,cvY),res,'y',shearMoCurve('y',cvXpr,cvYpr));
+  /* 扭力縱筋（土木401-112 §9.5.4.3：A_l 須與撓曲／軸力鋼筋相加；§9.6.4.3 A_l,min）：
+     有扭矩之組合，主筋面積先扣除 max(A_l, A_l,min)（沿周邊均勻分布、各筋等比例扣減）後重算 P-M 與 D/C，取較大者。 */
+  const torsL = colTorsionLong(s, m, R, shX, shY, Ast, res);
+  if(torsL.any){
+    for(const [i, q] of res.entries()){
+      const t = torsL.rows[i]; if(!t || !t.tors) continue;
+      if(t.kf <= 0){ q.dcT = Infinity; }
+      else{
+        const bars2 = R.bars.map(b=>({...b, A:b.A*t.kf})), Ast2 = Ast*t.kf, m2 = {...m, Ast:Ast2};
+        const cX = pmCurve({g:geoFor(s,'x'), bars:bars2, m:m2, axis:'x'}), cY = type==='circle' ? cX : pmCurve({g:geoFor(s,'y'), bars:bars2, m:m2, axis:'y'});
+        const qX = designPoly(cX,m2), qY = type==='circle' ? qX : designPoly(cY,m2);
+        const S3b = type==='circle' ? null : biaxSurface(s, bars2, m2, qX.cap, m2.phit*cX.Pnt);
+        q.dcT = Number.isFinite(q.Lk.Mux) && Number.isFinite(q.Lk.Muy) ? biaxialDC(cX,cY,qX,qY,m2,q.Lk,S3b).dc : Infinity;
+      }
+      q.dc0 = q.dc; q.dc = Math.max(q.dc, q.dcT); q.AlReq = t.AlReq;
+    }
+    ctrlFlex = res.reduce((a,b)=> (b.dc>a.dc?b:a), res[0]);
+  }
 
   /* --- 加密區（塑鉸區）以外：V_c 不折減、仍取容量設計剪力；圓柱螺箍僅需非耐震 ρ_s --- */
   let shX2 = null, shY2 = null, conf2 = null;
   if(pile){ shX2 = shX; shY2 = shY; }                 // 基樁不作容量設計：樁頂圍束區內外剪力需求相同
   else if(opt.plastic){
     const o2 = {...opt, plastic:false, capShear:true};
-    shX2 = shearDesign(s,r,R,m,o2,cvX,res,'x',cvXpr);
-    shY2 = shearDesign(s,r,R,m,o2,cvY,res,'y',cvYpr);
+    shX2 = shearDesign(s,r,R,m,o2,shearMoCurve('x',cvX,cvY),res,'x',shearMoCurve('x',cvXpr,cvYpr));
+    shY2 = shearDesign(s,r,R,m,o2,shearMoCurve('y',cvX,cvY),res,'y',shearMoCurve('y',cvXpr,cvYpr));
     if(type==='circle') conf2 = confinementCircle(s,r,R,m,o2,BAR[r.tieSize].A,BAR[r.tieSize].d);
   }
 
   /* --- 施工性 / 配筋查核 --- */
   const chk = constructability(s,r,R,m,opt,conf);
 
-  MODEL = {s,r,R,m,opt,Ast,Ag,ctxX,ctxY,cvX,cvY,pX,pY,cvXc:null,cvYc:null,conf,cvXpr,cvYpr,noLoads,
+  // 強柱弱梁（土木401-112 §18.4.3.2）：建築特殊抗彎矩構架柱
+  const scwb = (opt.code==='bldg' && opt.plastic && !pile) ? colSCWB(cvX, cvY, m, opt, res, type) : null;
+  MODEL = {s,r,R,m,opt,Ast,Ag,ctxX,ctxY,cvX,cvY,pX,pY,S3,SL,torsL,scwb,cvXc:null,cvYc:null,conf,cvXpr,cvYpr,noLoads,
            coreGeoX,coreGeoY,res,ctrlFlex,ctrlAxial,shX,shY,shX2,shY2,conf2,chk};
   MODEL.legs = legGaps(MODEL);
   return MODEL;
@@ -2104,9 +2375,9 @@ function confinement(s,r,R,m,opt){
   const kf = Math.max(1, m.fc/1750 + 0.6), kn = nlSup/Math.max(1, nlSup-2);
   /* 橋梁塑鉸區（公路橋梁耐震設計規範 §5.3.4 式 5-7、5-8）：
      A_sh ≥ max{0.30·a·h_c·(f'c/f_yh)(A_g/A_c − 1), 0.12·a·h_c·(f'c/f_yh)(0.5 + 1.25P_e/(f'c·A_g))}
-     h_c 量至兩外側箍筋中心 = b_c − d_t；A_c 量至箍筋外緣；P_e 取各組合最大軸壓。 */
+     h_c 量至兩外側箍筋中心 = b_c − d_t；A_c 量至箍筋外緣；P_e 取各組合最大軸壓，或設計者指定（opt.Pe）。 */
   const bridgeAsh = opt.code==='bridge' && opt.plastic;
-  const peTerm = 0.5 + 1.25*Math.max(0, opt.PuMax)/(m.fc*m.Ag);
+  const peTerm = 0.5 + 1.25*Math.max(0, opt.Pe ?? opt.PuMax)/(m.fc*m.Ag);
   const panel=(tag,g1,g2,c1,c2,Ash1,Ash2,lab1,lab2)=>{
     const Ag_w=g1*g2, Ach_w=Math.max(1,c1*c2);
     const rq = bc => bridgeAsh
@@ -2167,7 +2438,7 @@ function confinementCircle(s,r,R,m,opt,At,dt){
   const seis = pl ? pl.seis : opt.plastic, need = pl ? pl.seis : (r.spiral || seis);
   const t1 = pl ? 0 : 0.45*(m.Ag/Ach-1)*m.fc/m.fyt;
   // 橋梁塑鉸區（公路橋梁耐震設計規範 式 5-6）：ρ_s ≥ 0.12(f'c/f_yh)(0.5 + 1.25P_e/(f'c·A_g))
-  const bridgeAsh = opt.code==='bridge' && seis, peTerm = 0.5 + 1.25*Math.max(0, opt.PuMax)/(m.fc*m.Ag);
+  const bridgeAsh = opt.code==='bridge' && seis, peTerm = 0.5 + 1.25*Math.max(0, opt.Pe ?? opt.PuMax)/(m.fc*m.Ag);
   const t2 = seis ? 0.12*m.fc/m.fyt*(bridgeAsh ? peTerm : 1)*(pl ? pileK : 1) : 0;
   const termC = !pl && opt.code==='bldg' && seis && (opt.PuMax > 0.3*m.Ag*m.fc || m.fc > 700);
   const kf = Math.max(1, m.fc/1750 + 0.6);
@@ -2191,6 +2462,41 @@ function confinementCircle(s,r,R,m,opt,At,dt){
           }};
 }
 
+/* ---------- 強柱弱梁（土木401-112 §18.4.3.2）----------
+   ΣM_nc ≥ (6/5)ΣM_nb；M_nc 為所考慮方向之側力作用下、各因數化軸力計算所得之最小標稱彎矩強度（φ = 1、f_y），ΣM_nc = 柱數 × M_nc。
+   含地震效應之因數化軸壓力不超過 A_gf'c/10 之柱端得免（本工具無法辨識哪些組合含 E，以全部組合之最大軸壓判斷）。 */
+function colSCWB(cvX, cvY, m, opt, res, type){
+  const Pmax = Math.max(...res.map(q => q.Lk.Pu)), exempt = Pmax <= m.Ag*m.fc/10;
+  const ax = (cv, Mb, nm) => {
+    const Mnc = Math.min(...res.map(q => MnAtP(cv, q.Lk.Pu))), sum = opt.scwbNc*Mnc;
+    return {nm, Mnc, sum, Mb, given: Mb > 0, ratio: Mb > 0 ? sum/Mb : Infinity, ok: Mb <= 0 || sum >= 1.2*Mb - 1e-6};
+  };
+  const X = ax(cvX, opt.scwbMbX, 'X'), Y = type==='circle' ? ax(cvX, opt.scwbMbY, 'Y') : ax(cvY, opt.scwbMbY, 'Y');
+  return {X, Y, exempt, Pmax, nc: opt.scwbNc, given: X.given || Y.given, ok: exempt || (X.ok && Y.ok)};
+}
+
+/* ---------- 扭力縱筋需求（柱） ----------
+   A_l = (A_t/s)p_h(f_yt/f_y)cot²θ（§22.7.6.1）；A_l,min = min{1.33√f'c·A_cp/f_y − (A_t/s)p_h·f_yt/f_y，1.33√f'c·A_cp/f_y − (1.75b_w/f_yt)p_h·f_yt/f_y}（§9.6.4.3）
+   A_cp：外周所圍面積（箱型含中空）；b_w 取兩向剪力腹板寬之小者（使 (b) 式較大，偏保守）。各組合 A_t/s 與方向無關。 */
+function colTorsionLong(s, m, R, shX, shY, Ast, res){
+  const Acp = s.type==='circle' ? Math.PI*s.D*s.D/4 : s.B*s.H, bw = Math.min(shX.bw, shY.bw), ph = shX.ph;
+  const rows = shX.all.map((c, i) => {
+    if(!c.torsion) return {tors:false};
+    const a = 1.33*Math.sqrt(m.fc)*Acp/m.fy - c.AtS*ph*m.fyt/m.fy;
+    const b = 1.33*Math.sqrt(m.fc)*Acp/m.fy - (1.75*bw/m.fyt)*ph*m.fyt/m.fy;
+    const AlMin = Math.max(0, Math.min(a, b)), AlReq = Math.max(c.Al, AlMin);
+    return {tors:true, Al:c.Al, AlMin, AlReq, kf: 1 - AlReq/Ast, name: res[i] ? res[i].L.name : ''};
+  });
+  const T = rows.filter(r => r.tors);
+  return {any: T.length > 0, rows, Acp, AlReqMax: Math.max(0, ...T.map(r => r.AlReq)), kfMin: Math.min(1, ...T.map(r => r.kf))};
+}
+
+/* ---------- 剪力方向 ↔ 彎矩平面 ----------
+   cvX：繞 X 軸（中性軸水平、深度沿 H），由 y 向側力造成；cvY：繞 Y 軸（深度沿 B），由 x 向側力造成。
+   故 x 向剪力（shearDesign dir 'x'，d 沿 B）之容量設計彎矩取 cvY，y 向剪力取 cvX。
+   方形、圓形兩向相同；矩形斷面配錯會使強軸方向 V_e 以弱軸彎矩計算而嚴重低估。 */
+function shearMoCurve(dir, cvX, cvY){ return dir==='x' ? cvY : cvX; }
+
 /* ---------- 剪力 + 扭矩設計 ---------- */
 function shearDesign(s,r,R,m,opt,cv,res,dir,cvPr){
   // dir 'x'：剪力沿 x → 腹板為 y=±H/2 之壁，bw 量於 y；有效深度沿 x
@@ -2211,11 +2517,17 @@ function shearDesign(s,r,R,m,opt,cv,res,dir,cvPr){
   const cvM = bldgCD ? cvPr : cv;
   let Mn = 0, PMn = res.length? res[0].Lk.Pu : 0;
   for(const R2 of res){ const v = MnAtP(cvM, R2.Lk.Pu); if(v > Mn){ Mn = v; PMn = R2.Lk.Pu; } }
+  const bridge = opt.code==='bridge';
+  // §4.2.1 單柱：計算最大可能彎矩強度時柱軸力得採用靜載重引致之軸力（選項）；構架式須考慮軸力變化（§4.2.2）→ 仍取各組合最大
+  const mnDead = bridge && !bldgCD && opt.brMnP==='dead' && opt.phEnds===1;
+  if(mnDead){ Mn = MnAtP(cvM, opt.brPD); PMn = opt.brPD; }
   // 橋梁（公路橋梁耐震設計規範 §4.2）：最大可能彎矩 = 1.3M_n（φ_o，RC 柱）；
   //   單柱（塑鉸僅底端）V_e = M_o / 柱高（含帽梁，即 L_v）；構架式（兩端塑鉸）V_e = (M_頂 + M_底)/淨高 = 2M_o / l_u
   const Mo = bldgCD ? Mn : opt.phio*Mn;
-  const Ve = bldgCD ? 2*Mo/opt.lu : (opt.phEnds===2 ? 2*Mo/opt.lu : Mo/opt.Lv);
-  const bridge = opt.code==='bridge';
+  const VeRaw = bldgCD ? 2*Mo/opt.lu : (opt.phEnds===2 ? 2*Mo/opt.lu : Mo/opt.Lv);
+  // §4.2.1／§4.2.2：設計剪力不必超過地震力為 1.2α_yF_u 倍時之彈性分析剪力（使用者輸入，0 表示不設上限）
+  const Vel = bridge && !bldgCD ? (dir==='x' ? opt.brVelX : opt.brVelY) || 0 : 0;
+  const VeCapped = Vel > 0 && VeRaw > Vel, Ve = VeCapped ? Vel : VeRaw;
   const phiS = bridge ? m.phivB : m.phiv;              // 橋梁剪力 φ = 0.85（§5.3.3）；扭矩仍依土木401 φ_v
   const Ae = 0.8*m.Ag;
   // 圓形橋柱 V_s = (π/2)A_h f_yh D/a（式 5-2b，D 為圍束區直徑）＝ A_v f_yt (πD/4)/a，A_v = 2A_h
@@ -2253,37 +2565,43 @@ function shearDesign(s,r,R,m,opt,cv,res,dir,cvPr){
   const one = ctrl => {
     const Nu = ctrl.Lk.Pu, Vu = ctrl.Lk[Vukey], Tu = ctrl.Lk.Tu;
     const Vdes = (opt.plastic || opt.capShear) ? Math.max(Ve,Vu) : Vu;   // capShear：加密區外仍取容量設計剪力
-    const V = VcCalc(m,bw,d,Nu,opt.plastic,opt.code);
+    // §18.4.6.2.1(a)：V_e（地震引致）≥ ½V_des；opt.vcRule === 'b' 時只看軸力（舊版，保守）
+    const seisA = opt.vcRule==='b' || (bldgCD && Ve >= 0.5*Vdes - 1e-9);
+    const V = VcCalc(m,bw,d,Nu,opt.plastic,opt.code,seisA);
     const VsReq = Math.max(0, Vdes/phiS - V.vc);
     const sectionFail = VsReq > VsMax;
     const torsion = Tu > Tthr;
     const AtS = torsion ? Tu/(2*m.phiv*Ao*m.fyt*cot) : 0;     // 單肢，每單位 s
     const Al  = torsion ? AtS*ph*(m.fyt/m.fy)*cot*cot : 0;
-    // 斷面上限（中空斷面採直接相加）
-    const lhs = Vdes/(bw*d) + (torsion? Tu*ph/(1.7*Aoh*Aoh) : 0);
+    // 斷面上限（中空斷面採直接相加）；空心斷面壁厚 t < A_oh/p_h 時扭矩項改為 T_u/(1.7A_oh·t)（§22.7.7.2）
+    const thin = s.type==='box' && s.tw < Aoh/ph;
+    const lhs = Vdes/(bw*d) + (torsion? (thin ? Tu/(1.7*Aoh*s.tw) : Tu*ph/(1.7*Aoh*Aoh)) : 0);
     const rhs = m.phiv*(V.vc/(bw*d) + 2.12*Math.sqrt(m.fc));
     const sectOver = bridge ? (torsion && lhs > rhs) : lhs > rhs;   // 橋梁：剪力上限改以 V_s ≤ 2.12√f'c·A_e；有扭矩時仍檢核剪扭合成上限
     const AvS_shear = VsReq>1e-9 ? VsReq/(m.fyt*dV) : 0;      // Av/s
-    const AvS_tot = AvS_shear + 2*AtS;
-    const s_str = AvS_tot>1e-9 ? Av/AvS_tot : 1e9;
+    const AvS_tot = AvS_shear + 2*AtS;                         // 土木401-112 式 (R9.5.4.3)，供列示
+    // 扭矩只能由外圍閉合箍筋承擔：§9.5.4.3 解說「肋筋組超過二肢時，僅靠近兩側之二肢可計入，內部各肢對扭力無效」。
+    // 剪力由全部 n_legs 肢平均分擔 → 外圍單肢需求 A_o/s = A_t/s + (A_v/s)/n_legs；n_legs = 2 時即 A_v/(A_v/s)_tot。
+    const AoS = AtS + AvS_shear/nlegs;
+    const s_str = AoS>1e-9 ? At1/AoS : 1e9;
     const s_code = VsReq>VsTight ? Math.min(d/4,30) : Math.min(d/2,60);
     const s_tors = torsion ? Math.min(ph/8, 30) : 1e9;
     const s_gov = Math.min(s_str, s_code, s_tors);
-    return {ctrl,Nu,Vu,Tu,Vdes,V,VsReq,sectionFail,torsion,AtS,Al,lhs,rhs,sectOver,
-            AvS_shear,AvS_tot,s_str,s_code,s_tors,s_gov};
+    return {ctrl,Nu,Vu,Tu,Vdes,V,VsReq,sectionFail,torsion,AtS,Al,lhs,rhs,sectOver,thin,
+            AvS_shear,AvS_tot,AoS,s_str,s_code,s_tors,s_gov};
   };
   const all = res.map(one);
-  // 控制組合：斷面不足者優先 → 強度需求 A_v/s 最大 → 規範間距最小 → 應力比最高
+  // 控制組合：斷面不足者優先 → 外圍單肢強度需求 A_o/s 最大（即強度需求間距最小）→ 規範間距最小 → 應力比最高
   const worse = (a,b) => {
     const fa = a.sectionFail||a.sectOver, fb = b.sectionFail||b.sectOver;
     if(fa!==fb) return fa ? a : b;
-    if(Math.abs(a.AvS_tot-b.AvS_tot) > 1e-12) return a.AvS_tot > b.AvS_tot ? a : b;
+    if(Math.abs(a.AoS-b.AoS) > 1e-12) return a.AoS > b.AoS ? a : b;
     if(Math.abs(a.s_gov-b.s_gov) > 1e-9) return a.s_gov < b.s_gov ? a : b;
     return a.lhs/a.rhs >= b.lhs/b.rhs ? a : b;
   };
   const gov = all.reduce(worse, all[0]);
 
-  return {dir,bw,d,dV,Mn,PMn,Mo,Ve,VsMax,VsTight,bldgCD,bridge,phiS,Ae,
+  return {dir,bw,d,dV,Mn,PMn,Mo,Ve,VeRaw,Vel,VeCapped,mnDead,VsMax,VsTight,bldgCD,bridge,phiS,Ae,
           nlegs,Av,At1,Aoh,ph,Ao,cot,Tthr,s_minAv,s_ph,
           ...gov, all};
 }
@@ -2845,9 +3163,10 @@ function colDevPlan(M){
   const zone = mech ? 0 : (stag ? 2*lap : lap);
   let A0 = 0, A1 = L, why;
   if(pl){ A0 = 0; A1 = lay.full ? L : L - M.pileR.lo; why = '樁頂加密區外（建議）'; }
-  else if(ph && !(mech && sp==='m3')){
+  // 橋梁：塑鉸圍束區內主筋以不續接為原則（公路橋梁耐震設計規範 §5.3.6），各類續接器皆設於塑鉸區外；建築第三類續接器位置不限（§18.2.7.2）
+  else if(ph && (!bldg || !(mech && sp==='m3'))){
     if(bldg){ A0 = L/4; A1 = 3*L/4; why = mech ? '柱中央 1/2 淨高內（§18.2.7.2）' : '柱中央半高內（§18.4.4.3）'; }
-    else { A0 = lay.full ? L : lay.lo; A1 = lay.nEnds===2 ? L - lay.lo : L; why = '塑鉸區外'; }
+    else { A0 = lay.full ? L : lay.lo; A1 = lay.nEnds===2 ? L - lay.lo : L; why = '塑鉸區外（§5.3.6）'; }
   }else why = mech ? (ph ? '第三類可設於任何位置（§18.2.7.2）' : '續接器位置不限') : '自柱底臨界斷面起';
   const fits = A1 - A0 >= zone - 1e-9;
   let la;
@@ -2858,7 +3177,7 @@ function colDevPlan(M){
   if(!fits || la + zone > L + 1e-9) la = Math.max(0, (L - zone)/2);
   const lb = mech ? la : la + lap, la2 = stag ? lb : null, lb2 = stag ? lb + lap : null;
   checks.push({lv: fits ? 'ok' : 'bad', item: mech ? '續接器位置' : '搭接位置', need: zone, cap: Math.max(0, A1 - A0), unit:'cm',
-    ref: pl ? '表 25.5.2.1（位置為建議）' : ph ? (bldg ? (mech ? '§18.2.7.2' : '§18.4.4.3') : '公路橋梁耐震設計規範') : '表 25.5.2.1',
+    ref: pl ? '表 25.5.2.1（位置為建議）' : ph ? (bldg ? (mech ? '§18.2.7.2' : '§18.4.4.3') : '公路橋梁耐震設計規範 §5.3.6') : '表 25.5.2.1',
     msg: fits ? (mech ? `${SPLICE_TXT[sp]}設於距${pl?'樁尖':'柱底'} ${f(la,0)} cm（${why}）` : `搭接 ${f(la,0)}～${f(stag?lb2:lb,0)} cm（${why}${stag?'，錯開兩組':''}）`)
       : `可搭接範圍 ${f(Math.max(0,A1-A0),0)} cm ＜ 所需 ${zone} cm：改用機械式續接（第三類可設於任何位置）或調整鋼筋號數`});
   if(!mech && R.db > 3.59) checks.push({lv:'bad', item:'大於 D36 之鋼筋不得搭接', need: R.db, cap: 3.58, unit:'cm', ref:'§25.5.1.1',
@@ -3979,6 +4298,7 @@ function setupSummary(){
   const nm = memName(beam ? 'bMemName' : 'memName');
   document.getElementById('setupSum').textContent = `${beam?'梁／版':'柱'}・${tx(beam?'bType':'secType').replace(/（.*$/,'')}｜${code}${env}${nm?'｜'+nm:''}`;
   document.getElementById('setupOv').dataset.mod = beam ? 'beam' : 'pylon';
+  if(window.sbQuickSync) sbQuickSync();
 }
 /* 開場精靈：① 設計對象與主要尺寸 → ② 載重組合 → ③ 建議配筋（套用後進入主畫面）。
    第 2、3 步把原本的載重卡片與建議配筋卡片暫時搬進視窗（id 與事件不變），離開時搬回原處。 */
@@ -4055,7 +4375,21 @@ function setupInit(){
     const el = document.getElementById(id); el.value = e.target.value; el.dispatchEvent(new Event('input'));
   });
   document.addEventListener('keydown', e => { if(e.key==='Escape' && document.getElementById('setupOv').classList.contains('open')) closeSetup(); });
-  openSetup();   // 每次開啟網站先確認設計對象
+  // U7：「下次開啟不再顯示」（本機記住；左上「變更」仍可隨時開啟）＋狀態列直接切換設計依據與斷面型式
+  const NS = 'rcsd.setup.noShow', nsBox = document.getElementById('setupNoShow');
+  let noShow = false; try{ noShow = localStorage.getItem(NS)==='1'; }catch(e){}
+  nsBox.checked = noShow;
+  nsBox.addEventListener('change', () => { try{ localStorage.setItem(NS, nsBox.checked ? '1' : '0'); }catch(e){} });
+  const mirror = (mId, rId) => { const m = document.getElementById(mId), r = document.getElementById(rId);
+    if(!m.options.length) m.innerHTML = [...r.options].map(o=>`<option value="${o.value}">${o.text.replace(/（.*$/,'')}</option>`).join('');
+    m.value = r.value;
+    m.addEventListener('change', () => { r.value = m.value; r.dispatchEvent(new Event('change', {bubbles:true})); });
+    r.addEventListener('change', () => { m.value = r.value; }); };
+  mirror('sbCode','codeBasis'); mirror('sbSecP','secType'); mirror('sbSecB','bType');
+  window.sbQuickSync = () => { for(const [m,r] of [['sbCode','codeBasis'],['sbSecP','secType'],['sbSecB','bType']]) document.getElementById(m).value = document.getElementById(r).value;
+    document.querySelectorAll('#sbQuick [data-mod]').forEach(e => e.style.display = e.dataset.mod===(TAB==='beam'?'beam':'pylon') ? '' : 'none'); };
+  sbQuickSync();
+  if(!noShow) openSetup();   // 開啟網站先確認設計對象（可設定不再顯示）
 }
 function pinGo(mod, id){
   { const e = document.getElementById(id); if(e && e.closest('#setupOv')){ openSetup(e); return; } }
@@ -4109,7 +4443,7 @@ function devCheckIds(P, c){
 const INPUT_RANGE = {
   pylon: {fc:[140,1050], fy:[2800,7000], fyt:[2800,7000], Es:[1.9e6,2.1e6], ecu:[0.002,0.004], esu:[0.03,0.2],
     phic:[0.5,0.9], phit:[0.75,0.95], phiv:[0.6,0.9], phivB:[0.7,0.9], pmaxf:[0.7,0.9], alpha:[0.5,2.5],
-    covO:[2,20], covI:[2,20], dagg:[0.5,5], lu:[30,10000], slK:[0.5,3], slM12:[-1,1], Lv:[10,10000], phio:[1,2], theta:[25,60],
+    covO:[2,20], covI:[2,20], dagg:[0.5,5], lu:[30,10000], slK:[0.5,3], slKy:[0.5,3], slM12:[-1,1], slBeta:[0,1], Lv:[10,10000], phio:[1,2], theta:[25,60],
     dExcess:[0.2,1], dAncCov:[2,15], dHBot:[10,1000], dHTop:[10,1000], dLapGap:[0,15]},
   beam: {bfc:[140,1050], bfy:[2800,7000], bfyt:[2800,7000], bEs:[1.9e6,2.1e6], becu:[0.002,0.004],
     bphit:[0.75,0.95], bphiv:[0.6,0.9], bCover:[2,15], bDagg:[0.5,5], bTheta:[25,60], bSustain:[0,1], bXi:[0,3],
@@ -4547,8 +4881,9 @@ function svgPM(M,axis,forPrint){
   // 否則其高軸壓分支（非設計相關）會把整張圖壓扁。
   let mMax=0,pMax=0,pMin=0;
   for(const p of cv.pts){ mMax=Math.max(mMax,p.Mn/TFM); pMax=Math.max(pMax,Math.min(p.Pn,cv.PnMax)/TF); pMin=Math.min(pMin,p.Pn/TF); }
-  const mOf = L => M.m.circle ? Math.hypot(L.Mux,L.Muy) : Math.abs(L[key]);   // 圓形：合彎矩
-  for(const R2 of M.res){ mMax=Math.max(mMax,mOf(R2.L)); pMax=Math.max(pMax,R2.L.Pu); pMin=Math.min(pMin,R2.L.Pu); }
+  // 載重點採實際檢核之設計彎矩（長細效應放大、基樁施工偏心後；tf·m）；圓形：合彎矩
+  const mOf = R2 => (M.m.circle ? Math.hypot(R2.Lk.Mux,R2.Lk.Muy) : Math.abs(R2.Lk[key]))/TFM;
+  for(const R2 of M.res){ mMax=Math.max(mMax,mOf(R2)); pMax=Math.max(pMax,R2.L.Pu); pMin=Math.min(pMin,R2.L.Pu); }
   mMax*=1.06; pMax*=1.05; pMin=Math.min(pMin*1.12,-0.04*pMax);
   const NT = forPrint ? 5 : 6;
   const TX = niceTicks(0, mMax, NT), TY = niceTicks(pMin, pMax, NT);
@@ -4612,7 +4947,7 @@ function svgPM(M,axis,forPrint){
   const placedPts=[], ptList=[];
   M.res.forEach((R2,i)=>{
     const isC = R2===M.ctrlFlex;
-    const mx=mOf(R2.L), py=R2.L.Pu;
+    const mx=mOf(R2), py=R2.L.Pu;
     if(isC && Number.isFinite(R2.dc) && R2.dc>1e-9){
       // 容量點 = 載重點 ÷ D/C（舊版誤寫成 × D/C，容量點落在載重點內側）
       const cx = mx/R2.dc, cy = py/R2.dc;
@@ -4704,7 +5039,7 @@ function svgPM(M,axis,forPrint){
       let nm = R2.L.name; while(nm.length>2 && txtW(nm,lfs) > nmW) nm = nm.slice(0,-2)+'…';
       o.push(`<text x="${nx}" y="${y}" font-size="${lfs.toFixed(1)}" fill="${col}"${bw}>${esc(nm)}</text>`);
       o.push(`<text x="${cP}" y="${y}" font-size="${lfs.toFixed(1)}" fill="${col}"${bw} text-anchor="end">${nf(R2.L.Pu)}</text>`);
-      o.push(`<text x="${cM}" y="${y}" font-size="${lfs.toFixed(1)}" fill="${col}"${bw} text-anchor="end">${nf(mOf(R2.L))}</text>`);
+      o.push(`<text x="${cM}" y="${y}" font-size="${lfs.toFixed(1)}" fill="${col}"${bw} text-anchor="end">${nf(mOf(R2))}</text>`);
       o.push(`<text x="${cD}" y="${y}" font-size="${lfs.toFixed(1)}" fill="${R2.dc>1?C.bad:col}"${bw} text-anchor="end">${fdc(R2.dc)}</text>`);
     });
     ly += M.res.length*RH*1.12;
@@ -4750,20 +5085,40 @@ function stampCalc(){
    自動存在本機（localStorage），也可下載成 JSON 帶走或交人複核。
    開機時先以範本建好畫面，再還原上次狀態；還原完成前不寫入，避免範本蓋掉存檔。 */
 const CASE_KEY = 'rcsd.case.v1', CASE_APP = 'rc-section-designer';
+/* ---------- 可追溯性（U4）：程式版本、程式碼雜湊、輸入雜湊 ----------
+   APP_VERSION 隨功能修訂手動遞增；CODE_HASH 為本頁內嵌程式碼之 SHA-256（前 12 碼），可唯一對應計算核心；
+   INPUT_HASH 為案件輸入（不含存檔時間）之 SHA-256。計算書、Excel 封面與案件檔皆記錄。 */
+const APP_VERSION = '2026.10-r4';
+// 程式碼雜湊含內嵌程式與 core/rc-core.js（file:// 無法讀檔時以其版本字串代替）
+let _codeHash = null, _coreText = null;
+try{ fetch('core/rc-core.js', {cache:'no-cache'}).then(r => r.ok ? r.text() : null).then(t => { _coreText = t; _codeHash = null; }).catch(()=>{}); }catch(e){}
+const codeHash = () => { if(_codeHash) return _codeHash;
+  const h = sha256([...document.querySelectorAll('script:not([src])')].map(x=>x.textContent).join('\n') + '\n' + (_coreText ?? ('core ' + RC_CORE_VERSION))).slice(0,12);
+  if(_coreText !== null) _codeHash = h; return h; };
+const inputHash = () => { const c = caseSnapshot(); delete c.saved; delete c.members; return sha256(JSON.stringify(c)); };
+const traceText = () => `v${APP_VERSION}｜程式 ${codeHash()}｜輸入 SHA-256 ${inputHash().slice(0,16)}`;
 let CASE_READY = false, CASE_T = 0;
 function caseInputs(){
-  return [...document.querySelectorAll('#codeBasis,#envWater,#app input[id],#app select[id],#appBeam input[id],#appBeam select[id]')]
+  // 斷面型式、構件名稱、範本選單搬進開場視窗後不在 #app 內：須明列（舊版漏存，開啟案件時斷面型式與名稱不會還原）
+  return [...document.querySelectorAll('#codeBasis,#envWater,#secType,#bType,#memName,#bMemName,#preset,#bPreset,#app input[id],#app select[id],#appBeam input[id],#appBeam select[id]')]
     .filter(el => !el.closest('#loadTbl,#bLoadTbl'));
 }
 function caseSnapshot(){
   const values = {};
   caseInputs().forEach(el => values[el.id] = el.value);
-  return {app:CASE_APP, ver:1, saved:new Date().toISOString(), tab:TAB, axis:AXIS, bsign:BSIGN,
-          values, loads:LOADS, bloads:BLOADS, devexp: JSON.parse(JSON.stringify(DEVEXP))};
+  return {app:CASE_APP, ver:2, appVersion:APP_VERSION, saved:new Date().toISOString(), tab:TAB, axis:AXIS, bsign:BSIGN,
+          values, loads:LOADS, bloads:BLOADS, devexp: JSON.parse(JSON.stringify(DEVEXP)),
+          members: typeof MEMBERS!=='undefined' ? MEMBERS : []};
 }
 function caseApply(c){
+  if(CONFIRM){ CONFIRM.pylon.clear(); CONFIRM.beam.clear(); }
   if(!c || c.app!==CASE_APP || typeof c.values!=='object') throw new Error('這不是本工具的案件檔');
   const ok = new Set(caseInputs().map(el=>el.id));
+  // U4：舊版案件缺少的欄位沿用新預設值 → 列出提醒（結果可能與當時不同）
+  const missing = caseInputs().filter(el => !(el.id in c.values) && !el.closest('#loadTbl,#bLoadTbl'));
+  CASE_NOTICE = (c.appVersion !== APP_VERSION && missing.length)
+    ? {from: c.appVersion || '（未記錄，ver ' + (c.ver||1) + '）', fields: missing.map(el => pinLabel(el.id))} : null;
+  if(Array.isArray(c.members) && !c._member) MEMBERS = c.members.filter(x => x && x.snap);
   for(const [id,val] of Object.entries(c.values)){
     if(!ok.has(id)) continue;
     const el = document.getElementById(id);
@@ -4784,6 +5139,70 @@ function caseApply(c){
   render(); renderBeam();          // 柱、梁兩個模型都依案件重算（不只目前分頁）
   document.getElementById(c.tab==='beam'?'tabBeam':'tabPylon').click();
 }
+var CASE_NOTICE = null;
+/* 參數表標籤（找不到時回傳 id） */
+function pinLabel(id){ for(const mod of ['pylon','beam']) for(const g of (PIN_META[mod]||[])) for(const p of g[1]) if(p[0]===id) return String(p[2]).replace(/<[^>]+>/g,''); return id; }
+function caseNotice(){
+  const N = CASE_NOTICE; if(!N) return; CASE_NOTICE = null;
+  askChoice('案件檔版本較舊', `此案件以版本 <b>${esc(N.from)}</b> 存檔，目前程式為 <b>${APP_VERSION}</b>。下列 <b>${N.fields.length}</b> 個欄位在舊檔中沒有記錄，<b>已採用目前預設值</b>，計算結果可能與當時不同，請確認：<br>`
+    + N.fields.slice(0,20).map(t=>'・'+esc(t)).join('<br>') + (N.fields.length>20 ? '<br>…' : ''), [{label:'知道了', value:1, primary:true}]);
+}
+/* ---------- 多構件（U3） ----------
+   每個構件存一份完整案件快照（柱、梁兩模組之輸入與載重）；開啟即套用該快照。
+   批次計算逐一套用、記錄主要結果後回到原構件；批次匯出逐一產生 Excel。 */
+const MEM_KEY = 'rcsd.members.v1';
+var MEMBERS = [], MEM_RES = {};
+const memSave = () => { try{ localStorage.setItem(MEM_KEY, JSON.stringify(MEMBERS)); }catch(e){} caseAutosave(); };
+const memCurName = () => memName(TAB==='beam' ? 'bMemName' : 'memName') || (TAB==='beam' ? '未命名梁' : '未命名柱');
+function memSummary(){
+  const beam = TAB==='beam';
+  if(beam){ const B = BMODEL || renderBeam(); if(!B || (B.badIn && B.badIn.length)) return {dc:NaN, bad:1, pend:0, txt:'輸入不完整'};
+    return {dc: B.ctrl ? B.ctrl.dc : 0, bad: beamAlertItems(B).filter(a=>a.lv==='bad').length, pend: confPending('beam').length,
+            txt: `${B.S.slab ? '版' : B.S.type==='T' ? 'T 梁' : '矩形梁'} ${f(B.S.bw,0)}×${f(B.S.h,0)}`}; }
+  const M = MODEL || render(); if(!M || (M.badIn && M.badIn.length)) return {dc:NaN, bad:1, pend:0, txt:'輸入不完整'};
+  return {dc: M.ctrlFlex.dc, bad: colAlertItems(M).filter(a=>a.lv==='bad').length, pend: confPending('pylon').length,
+          txt: M.s.type==='circle' ? `圓形 D${f(M.s.D,0)}` : `${M.s.type==='box'?'箱型':'矩形'} ${f(M.s.B,0)}×${f(M.s.H,0)}`};
+}
+function memRender(){
+  const el = document.getElementById('memList'); if(!el) return;
+  if(!MEMBERS.length){ el.innerHTML = '<div style="color:var(--dim)">尚無構件。設定好一根柱或一支梁後按「加入／更新目前構件」。</div>'; return; }
+  el.innerHTML = SB(`<table><thead><tr><th class="l">構件</th><th class="l">模組</th><th class="l">斷面</th><th>撓曲 D/C</th><th>不合格</th><th>需確認</th><th class="l">更新時間</th><th></th></tr></thead><tbody>`
+    + MEMBERS.map((m,i)=>{ const r = MEM_RES[m.id];
+      return `<tr><td class="l"><b>${esc(m.name)}</b></td><td class="l">${m.tab==='beam'?'梁／版':'柱'}</td><td class="l">${r?esc(r.txt):'—'}</td>
+        <td style="color:${r&&r.dc>1?'var(--bad)':'inherit'}">${r?fdc(r.dc):'—'}</td><td>${r?r.bad:'—'}</td><td>${r?r.pend:'—'}</td>
+        <td class="l">${esc((m.saved||'').replace('T',' ').slice(0,16))}</td>
+        <td style="white-space:nowrap"><button type="button" class="mem-open !py-0.5 !px-2" data-i="${i}">開啟</button> <button type="button" class="mem-del !py-0.5 !px-2" data-i="${i}">刪除</button></td></tr>`; }).join('')
+    + `</tbody></table>`);
+}
+function memAdd(){
+  const snap = caseSnapshot(); delete snap.members; snap._member = true;
+  const name = memCurName(), i = MEMBERS.findIndex(m => m.name===name && m.tab===TAB);
+  const rec = {id: i>=0 ? MEMBERS[i].id : 'm' + Date.now().toString(36), name, tab: TAB, saved: snap.saved, snap};
+  if(i>=0) MEMBERS[i] = rec; else MEMBERS.push(rec);
+  MEM_RES[rec.id] = memSummary(); memSave(); memRender();
+}
+function memOpen(i){ const m = MEMBERS[i]; if(!m) return; const keep = MEMBERS; caseApply(m.snap); MEMBERS = keep; memRender(); }
+async function memEach(fn){
+  const back = caseSnapshot(), keep = MEMBERS;
+  try{ for(const m of MEMBERS){ caseApply(m.snap); MEMBERS = keep; await fn(m); } }
+  finally{ caseApply(back); MEMBERS = keep; }
+}
+async function memBatch(){ await memEach(async m => { MEM_RES[m.id] = memSummary(); }); memRender(); }
+async function memCsv(){
+  await memBatch();
+  const rows = [['構件','模組','斷面','撓曲D/C','不合格項數','需確認未完成','判定']].concat(MEMBERS.map(m => { const r = MEM_RES[m.id] || {};
+    return [m.name, m.tab==='beam'?'梁／版':'柱', r.txt||'', Number.isFinite(r.dc) ? r.dc.toFixed(3) : '∞', r.bad??'', r.pend??'', r.bad ? 'FAIL' : r.pend ? '未完成' : 'PASS']; }));
+  const csv = '\ufeff' + rows.map(r => r.map(x => /[",\n]/.test(String(x)) ? `"${String(x).replace(/"/g,'""')}"` : x).join(',')).join('\r\n');
+  const a = Object.assign(document.createElement('a'), {href: URL.createObjectURL(new Blob([csv], {type:'text/csv'})), download: `構件總表_${new Date().toISOString().slice(0,10)}.csv`});
+  document.body.appendChild(a); a.click(); a.remove();
+}
+async function memXlsx(){ await memEach(async m => { await exportXlsx(m.name); await new Promise(r => setTimeout(r, 300)); }); }
+document.addEventListener('click', e => {
+  const t = e.target.closest && e.target.closest('.mem-open, .mem-del'); if(!t) return;
+  const i = +t.dataset.i;
+  if(t.classList.contains('mem-open')){ memOpen(i); document.getElementById('memOv').classList.remove('open'); }
+  else { MEMBERS.splice(i,1); memSave(); memRender(); }
+});
 function caseAutosave(){
   if(!CASE_READY) return;
   clearTimeout(CASE_T);
@@ -4794,7 +5213,9 @@ function saveWarn(on){ const w = document.getElementById('saveWarn'); if(w) w.cl
 function caseRestore(){
   try{ localStorage.setItem('rcsd.probe', '1'); localStorage.removeItem('rcsd.probe'); }catch(e){ saveWarn(true); }
   try{ const raw = localStorage.getItem(CASE_KEY); if(raw) caseApply(JSON.parse(raw)); }catch(e){}
+  try{ const mm = JSON.parse(localStorage.getItem(MEM_KEY) || 'null'); if(Array.isArray(mm) && (!MEMBERS || !MEMBERS.length)) MEMBERS = mm; }catch(e){}
   CASE_READY = true;
+  setTimeout(caseNotice, 300);
 }
 
 /* ---------- 通用確認視窗 ----------
@@ -4848,7 +5269,7 @@ async function presetGuard(mod, sel, apply){
 /* ---------- 載重組合 CSV ----------
    每行一組：名稱 + 數值欄。含 Tab 時（自 Excel 複製）只以 Tab 分欄、數字可帶千分位逗號；否則以逗號分欄。
    標題列、欄位不足或數值欄非數字的行略過並回報行號，不再把標題列當成一組零載重。空白數值欄＝0。 */
-function parseLoadCsv(txt, keys){
+function parseLoadCsv(txt, keys, opts){
   const ok = [], skip = [];
   let seen = false;
   txt.split(/\r?\n/).forEach((line, i) => {
@@ -4860,6 +5281,11 @@ function parseLoadCsv(txt, keys){
     if(nums.some(v => !Number.isFinite(v))){ skip.push({n:i+1, why: first ? '標題列' : '數值欄非數字'}); return; }
     const o = {name: a[0] || 'CASE-'+(ok.length+1)};
     keys.forEach((k,j) => o[k] = nums[j]);
+    // 柱：選用第 8 欄「位置」（頂／底，或 top／bot、T／B）
+    if(opts && opts.pos && a.length > keys.length+1){
+      const p = (a[keys.length+1]||'').toLowerCase();
+      if(/^(頂|top|t)$/.test(p)) o.pos = 'top'; else if(/^(底|bot|bottom|b)$/.test(p)) o.pos = 'bot';
+    }
     ok.push(o);
   });
   return {ok, skip};
@@ -4869,8 +5295,9 @@ async function applyLoadCsv(mod){
   const txt = document.getElementById(P+'Box').value.trim(), msg = document.getElementById(P+'Msg');
   if(!txt) return;
   const keys = B ? ['Mpos','Mneg','Vu','Tu'] : ['Pu','Mux','Muy','Vux','Vuy','Tu'];
-  const fmt = B ? '名稱,Mu+,Mu-,Vu,Tu' : '名稱,Pu,Mux,Muy,Vux,Vuy,Tu';
-  const {ok, skip} = parseLoadCsv(txt, keys);
+  const fmt = B ? '名稱,Mu+,Mu-,Vu,Tu' : '名稱,Pu,Mux,Muy,Vux,Vuy,Tu[,位置（頂／底）]';
+  const {ok, skip} = parseLoadCsv(txt, keys, {pos: !B});
+  if(!B){ const K = loadUnitK(); if(K!==1) for(const o of ok) for(const k of keys) o[k] /= K; }   // SI 輸入轉回 tf
   const sk = skip.length ? `略過 ${skip.length} 行：` + skip.slice(0,8).map(q => `第 ${q.n} 行（${q.why}）`).join('、') + (skip.length>8 ? '…' : '') : '';
   if(!ok.length){
     msg.className = 'csv-msg alert a-bad'; msg.innerHTML = SB(`沒有可匯入的載重組合。格式需為：${fmt}（每行一組，逗號或 Tab 分隔）。${sk ? '<br>'+sk : ''}`);
@@ -4896,8 +5323,10 @@ function loadScript(src){
   return new Promise((ok,bad)=>{ const s=document.createElement('script'); s.src=src; s.onload=ok; s.onerror=()=>bad(new Error('無法載入 '+src)); document.head.appendChild(s); });
 }
 async function ensureXlsxLib(){
-  if(!window.ExcelJS) await loadScript('https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js');
-  if(!window.JSZip) await loadScript('https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js');   // 注入 Excel 原生圖表
+  // 先載入 repo 內 vendor/（離線、公司內網可用），失敗才改走 CDN
+  const two = (a, b) => loadScript(a).catch(() => loadScript(b));
+  if(!window.ExcelJS) await two('vendor/exceljs.min.js', 'https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js');
+  if(!window.JSZip) await two('vendor/jszip.min.js', 'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js');   // 注入 Excel 原生圖表
   if(!window.RCXLSX){
     // 以 no-cache 重新驗證（ETag），部署新版後不會拿到瀏覽器快取的舊匯出模組；file:// 無法 fetch 時退回一般載入
     try{
@@ -4923,16 +5352,21 @@ function colXlsxInput(){
               hxB: c.eB.hx, hxH: c.eH.hx, legGx: (L.find(g=>g.dir==='x')||{}).gap||0, legGy: (L.find(g=>g.dir==='y')||{}).gap||0}; })(),
     phio:num('phio',1.3), phivB:num('phivB',0.85), Lv:num('Lv',400), lu:num('lu',300), theta:num('theta',45), ashPerp:g('ashPair')!=='para',
     brExpo:g('brExpo'), slSway:g('slFrame')!=='braced', slK:num('slK',1), slM12:Math.max(-1,Math.min(1,num('slM12',-1))),
+    slKy:num('slKy',1), slLuY:Math.max(0,num('slLuY',0)), slTreat:g('slTreat'), slBeta:num('slBeta',0.6), slQ:Math.max(0,num('slQ',0)),
+    scwbNc: g('scwbNc')==='1' ? 1 : 2, scwbMbX: num('scwbMbX',0), scwbMbY: num('scwbMbY',0),
+    vcRule: g('vcRule'), brPhiMode: g('brPhiMode'), brMnP: g('brMnP'), brPD: num('brPD',0), brVelX: num('brVelX',0), brVelY: num('brVelY',0), brPe: num('brPe',0),
     phEnds: g('phEnds')==='1' ? 1 : 2, layTotal: MODEL && MODEL.lay ? MODEL.lay.total : 60,
     dev: devOpts('d'), devX: (()=>{ const X = devXCol(); return MODEL && MODEL.opt.pile ? {...X, ancBot:'through'} : X; })(),
     pile: MODEL && MODEL.opt.pile ? {...MODEL.opt.pile} : null, waterNotes: [WATER_SCOPE, ...WATER_LOADS],
-    loads: LOADS.map(L=>({name:L.name, Pu:+L.Pu||0, Mux:+L.Mux||0, Muy:+L.Muy||0, Vux:+L.Vux||0, Vuy:+L.Vuy||0, Tu:+L.Tu||0})),
-    meta:{project:'', member:memName('memName')}};
+    loads: LOADS.map((L,i)=>({name:L.name, pos:L.pos||'', Pu:+L.Pu||0, Mux:+L.Mux||0, Muy:+L.Muy||0, Vux:+L.Vux||0, Vuy:+L.Vuy||0, Tu:+L.Tu||0,
+      ...(()=>{ const q = (MODEL||render()).res[i]; if(!q) return {dcEx:null, AlReq:null, dcT:null};
+        return {dcEx: q.bi.method===BIAX_EXACT ? q.bi.dc : null, AlReq: q.AlReq ?? null, dcT: q.dcT ?? null}; })()})),
+    meta:{project:'', member:memName('memName'), version:APP_VERSION, codeHash:codeHash(), inputHash:inputHash()}};
 }
 function beamXlsxInput(){
   const g=id=>document.getElementById(id).value, ty=g('bType');
   return {type: ty==='T'?'T':'rect', slab: ty==='slab', sign: BSIGN, env: g('envWater'),
-    bw:num('bw',45), h:num('bh',110), hf:num('bhf',22), L:num('bL',1800), sSpacing:num('bSpacing',250), edge:g('bEdge')==='1', sClear:num('bSclear',205),
+    bw:num('bw',45), h:num('bh',110), hf:num('bhf',22), L:num('bL',1800), sSpacing:num('bSpacing',250), edge:g('bEdge')==='1', flPos:({'0':'int','1':'edge','2':'iso'})[g('bEdge')]||'int', bf:num('bBf',120), sClear:num('bSclear',205),
     cover:num('bCover',4), dagg:num('bDagg',2.5), fc:num('bfc',280), fy:+g('bfy'), fyt:+g('bfyt'), Es:num('bEs',2.04e6), ecu:num('becu',0.003),
     phic:num('bphic',0.65), phit:num('bphit',0.9), phiv:num('bphiv',0.75),
     botSize:g('bBotSize'), topSize:g('bTopSize'), tieSize:g('bTieSize'), nBot:num('bNbot',4), nTop:num('bNtop',2),
@@ -4943,14 +5377,15 @@ function beamXlsxInput(){
     layTotal: BMODEL && BMODEL.lay ? BMODEL.lay.total : 60,
     legGap: BMODEL && BMODEL.leg ? BMODEL.leg.gap : 0, hoop: g('bHoop'), legPos: BMODEL && BMODEL.leg ? BMODEL.leg.pos : [], legPosT: BMODEL && BMODEL.leg ? BMODEL.leg.posT : [],
     dev: devOpts('bd'), devX: devXBeam(), waterNotes: [WATER_SCOPE, ...WATER_LOADS],
-    loads: BLOADS.map(L=>({name:L.name, Mpos:+(L.Mpos??L.Mu??0)||0, Mneg:+(L.Mneg??0)||0, Vu:+L.Vu||0, Tu:+L.Tu||0})),
-    meta:{project:'', member:memName('bMemName')}};
+    loads: BLOADS.map((L,i)=>({name:L.name, Mpos:+(L.Mpos??L.Mu??0)||0, Mneg:+(L.Mneg??0)||0, Vu:+L.Vu||0, Tu:+L.Tu||0,
+      ...(()=>{ const q = BMODEL && BMODEL.res[i]; return {AlReq: q && q.AlReq != null ? q.AlReq : null, dcT: q && q.dcT != null ? q.dcT : null}; })()})),
+    meta:{project:'', member:memName('bMemName'), version:APP_VERSION, codeHash:codeHash(), inputHash:inputHash()}};
 }
-async function exportXlsx(){
+async function exportXlsx(fname){
   const btn=document.getElementById('btnXlsx'), t0=btn.textContent;
   try{
-    { const bad = collectBadInputs(TAB==='beam'?'beam':'pylon');
-      if(bad.length){ alert('以下輸入空白或無效，網頁已暫以預設值計算，但 Excel 會照原值計算而與網頁不一致。請先修正後再匯出：\n\n' + bad.map(b=>`・${b.label}（暫用 ${b.dflt}）`).join('\n')); return; } }
+    { const mod = TAB==='beam' ? 'beam' : 'pylon';
+      if(isBlocked(mod)){ alert(blockedMsg(mod)); return; } }
     btn.disabled=true; btn.textContent='產生中…';
     await ensureXlsxLib();
     const inp = TAB==='beam' ? beamXlsxInput() : colXlsxInput();
@@ -4966,7 +5401,7 @@ async function exportXlsx(){
     const out = TAB==='beam' ? RCXLSX.buildBeam(ExcelJS, inp) : RCXLSX.buildColumn(ExcelJS, inp);
     const buf = await RCXLSX.toBuffer(out, JSZip);
     const d=new Date(), p=n=>String(n).padStart(2,'0');
-    const name = (TAB==='beam'?'RC梁版計算書':'RC柱計算書') + `_${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}.xlsx`;
+    const name = (typeof fname==='string' && fname ? fname.replace(/[\\/:*?"<>|\s]+/g,'') + '_' : '') + (TAB==='beam'?'RC梁版計算書':'RC柱計算書') + `_${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}.xlsx`;
     const url=URL.createObjectURL(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
     const a=Object.assign(document.createElement('a'),{href:url,download:name}); document.body.appendChild(a); a.click(); a.remove();
     setTimeout(()=>URL.revokeObjectURL(url),2000);
@@ -5020,11 +5455,13 @@ function renderVerdict(items, alertsId){
   const nBad = box ? box.querySelectorAll('.a-bad').length : 0;
   const nWarn= box ? box.querySelectorAll('.a-warn').length : 0;
   const alIds = box ? [...new Set([...box.querySelectorAll('.a-bad .al-btn[data-pid], .a-warn .al-btn[data-pid]')].map(b=>b.dataset.pid))] : [];
-  items = items.concat([[nBad?'bad':nWarn?'warn':'ok','警示',
-    nBad||nWarn ? `${nBad?nBad+' 項不合格':''}${nBad&&nWarn?'、':''}${nWarn?nWarn+' 項注意':''}` : '無', '', alertsId, alIds]]);
+  const mod = alertsId==='bAlerts' ? 'beam' : 'pylon', nConf = CONF_ITEMS[mod].length, nPend = confPending(mod).length;
+  // 三級：不合格（紅）／需確認未完成（琥珀，阻擋列印）／參考（提醒項目，於警示分頁）
+  items = items.concat([[nBad?'bad':'ok','不合格', nBad ? `${nBad} 項` : '無', '', alertsId, alIds.filter(x=>box && box.querySelector(`.a-bad .al-btn[data-pid="${x}"]`))]]);
+  if(nConf) items.push([nPend?'warn':'ok','需確認', nPend ? `${nPend} / ${nConf} 項未確認` : `${nConf} 項已確認`, nPend ? '列印前須勾選' : '', alertsId, []]);
   const bdg = box && box.closest('.ws') && box.closest('.ws').querySelector('.ws-badge');
   if(bdg){ bdg.hidden = !(nBad||nWarn); bdg.textContent = nBad||nWarn; bdg.className = 'ws-badge ' + (nBad?'bad':'warn'); }
-  const ic={ok:'✓',warn:'!',bad:'✗'};
+  const ic={ok:'✓',warn:'!',bad:'✗',na:'?'};
   requestAnimationFrame(()=>document.documentElement.style.setProperty('--sbH', document.getElementById('statusbar').offsetHeight+'px'));
   VD_IDS = {};
   document.getElementById('verdict').innerHTML = items.map(([st,k,v,sub,go,ids],i)=>{ VD_IDS[i] = ids || [];
@@ -5065,7 +5502,39 @@ document.addEventListener('click',e=>{
 });
 document.addEventListener('keydown', e=>{ if(e.key==='Escape') vdPopClose(); });
 window.addEventListener('scroll', vdPopClose, true);
+/* 本工具未涵蓋、須另行檢核之項目（判定列「未涵蓋」膠囊與警示、計算書附註共用） */
+function colUncovered(M){
+  const o = M.opt, out = [];
+  if(o.pile){ out.push('樁長方向之配筋終止點與最小配筋長度（土木401-112 表 18.10.5.7.1）'); out.push('樁帽、基樁群與地盤承載（建築物基礎構造設計規範）'); return out; }
+  if(o.code==='bldg' && o.plastic){
+    out.push('梁柱接頭剪力強度（土木401-112 §18.5.4）'); out.push('接頭內橫向鋼筋（§18.5.3）');
+    if(M.scwb && !M.scwb.exempt && !(M.scwb.X.given && M.scwb.Y.given)) out.push('強柱弱梁 ΣM_nc ≥ 1.2ΣM_nb（§18.4.3.2，未輸入接頭梁 ΣM_nb）');
+  }
+  if(o.code==='bridge' && o.plastic){
+    const ld = M.dev && M.dev.sets && M.dev.sets[0] ? M.dev.sets[0].d.ld : null;
+    out.push(`塑鉸區圍束鋼筋延伸入接頭（帽梁、基礎）長度 ≥ 柱主筋受拉伸展長度${ld ? ` l_d = ${Math.ceil(ld)} cm` : ''}（公路橋梁耐震設計規範 §5.3.5）`);
+    out.push('接合部設計剪力與橋柱接頭部（§4.3、§5.5）'); out.push('橋墩施工縫（§5.6）');
+  }
+  return out;
+}
+function beamUncovered(B){
+  if(B.S.slab || !B.S.seismic) return [];
+  return ['梁柱接頭剪力強度與接頭內橫向鋼筋（土木401-112 §18.5.3、§18.5.4）', '強柱弱梁（於柱側檢核，§18.4.3.2）'];
+}
+const uncovPill = (list, go) => ['na','未涵蓋',`${list.length} 項`,'須另行檢核',go,[]];
+/* 判定列撓曲膠囊之長細效應註記 */
+function slVerdictTxt(M, C){
+  const sl = M.opt.pile ? null : colSlender(M);
+  if(!sl || sl.ok) return '';
+  if(sl.treat==='second') return ' · 輸入含二階';
+  const d = Math.max(C.Lk.slx ? C.Lk.slx.d : 1, C.Lk.sly ? C.Lk.sly.d : 1);
+  return ` · 彎矩放大 δ = ${Number.isFinite(d) ? f(d,2) : '∞'}`;
+}
+function verdictBlocked(M, alertsId){
+  renderVerdict([['bad','輸入不完整',`${M.badIn.length} 欄`, M.badIn.map(b=>b.label).join('、'), alertsId, M.badIn.map(b=>b.id)]], alertsId);
+}
 function verdictPylon(M){
+  if(M.badIn && M.badIn.length) return verdictBlocked(M, 'alerts');
   const C=M.ctrlFlex, F=M.fin, c=M.chk;
   const dcSt = !Number.isFinite(C.dc)||C.dc>1 ? 'bad' : C.dc>0.9 ? 'warn' : 'ok';
   const shs=[M.shX,M.shY];
@@ -5073,7 +5542,7 @@ function verdictPylon(M){
   const shW=shs.reduce((a,b)=> b.VsReq/b.VsMax > a.VsReq/a.VsMax ? b : a);
   const clrBad = c.clB<c.need || c.clH<c.need, hxBad = c.hxMaxB>(c.hxLim||35) || c.hxMaxH>(c.hxLim||35);
   renderVerdict([
-    [dcSt,'撓曲 D/C',fdc(C.dc),C.L.name,'summary',['B','H','Dia','tw','barSize','nB','nH','nCir','#loadTbl']],
+    [dcSt,'撓曲 D/C',fdc(C.dc),C.L.name + slVerdictTxt(M, C),'summary',['B','H','Dia','tw','barSize','nB','nH','nCir','#loadTbl','slTreat']],
     [shBad?'bad':'ok','剪力 V_s/V_s,max',f(shW.VsReq/shW.VsMax,2),`${shW.dir.toUpperCase()} 向 · ${shW.ctrl.L.name}`,'summary',['B','H','Dia','tw','tieSize','tieLayout','#loadTbl']],
     [F.tooTight?'bad':'ok','箍筋',`${M.r.tieSize} @ ${f(F.sUse,1)} cm`,`需 ≤ ${f(F.gov.v,2)}（${F.gov.tag.replace(/ \(.*\)$/,'')}）`,'summary',['tieSize','tieLayout','dbl']],
     [(c.rho<rhoLimit(M).min||c.rho>rhoLimit(M).max)?'bad':c.rho>4?'warn':'ok','ρ_g',f(c.rho,2)+'%','','summary',['barSize','nB','nH','nCir']],
@@ -5081,6 +5550,7 @@ function verdictPylon(M){
       M.fin2&&!M.lay.full?`加密 @${f(M.fin.sUse,1)} · 一般 @${f(M.fin2.sUse,1)}`:`全長 @${f(M.fin.sUse,1)}`,'elevInfo',['lu','ph','phEnds','tieSize','tieLayout','#elevInfo']],
     [clrBad||hxBad?'bad':'ok','主筋淨距',Math.min(c.clB,c.clH)<0?'放不下':f(Math.min(c.clB,c.clH),1)+' cm',`需 ≥ ${f(c.need,1)}${hxBad?' · h_x 超限':''}`,'alerts',['nB','nH','nCir','barSize','dagg','covO','tieLayout']],
     devVerdict(M.devPlan,'devPlan'),
+    ...(colUncovered(M).length ? [uncovPill(colUncovered(M), 'alerts')] : []),
   ],'alerts');
 }
 
@@ -5133,12 +5603,19 @@ function render(){
   pinNA('pylon', ['B','H','nB','nH','tieLayout','ashPair'], isC);
   pinNA('pylon', ['Dia','nCir','spiral'], !isC);
   const PL = !!M.opt.pile;
-  pinNA('pylon', ['phio','Lv','phivB'], M.opt.code==='bldg');
+  pinNA('pylon', ['phio','Lv','phivB','brVelX','brVelY','brPe','brPhiMode'], M.opt.code==='bldg');
+  pinNA('pylon', ['vcRule'], M.opt.code!=='bldg' || !M.opt.plastic || !!M.opt.pile);
+  pinNA('pylon', ['brMnP'], M.opt.code==='bldg' || M.opt.phEnds!==1);
+  pinNA('pylon', ['brPD'], M.opt.code==='bldg' || M.opt.phEnds!==1 || M.opt.brMnP!=='dead');
   pinNA('pylon', ['phEnds'], !M.opt.plastic);
+  pinNA('pylon', ['scwbMbX','scwbMbY','scwbNc'], !(M.opt.plastic && M.opt.code==='bldg' && !M.opt.pile));
   pinNA('pylon', ['pileL','pileSite','pileEccMode','pileE','pileInfl'], !PL);
-  pinNA('pylon', ['lu','slFrame','slK','pmaxf','dAncBot','dHBot'], PL);    // 基樁：長細效應、柱淨高、軸力截斷、底端錨定不適用
+  pinNA('pylon', ['lu','slFrame','slK','slKy','slLuY','slTreat','slBeta','slQ','pmaxf','dAncBot','dHBot'], PL);    // 基樁：長細效應、柱淨高、軸力截斷、底端錨定不適用
   if(PL){ pinNA('pylon', ['pileSite'], !M.opt.pile.seis); pinNA('pylon', ['pileE'], M.opt.pile.mode!=='user'); pinNA('pylon', ['slM12'], true); }
-  if(!PL) pinNA('pylon', ['slM12'], M.opt.slSway);           // 端彎矩比只用於無側移
+  if(!PL){ const mag = M.opt.slTreat==='mag';
+    pinNA('pylon', ['slM12'], M.opt.slSway && !mag);            // 端彎矩比：無側移之門檻；彎矩放大之 C_m
+    pinNA('pylon', ['slBeta'], !mag);
+    pinNA('pylon', ['slQ'], !mag || !M.opt.slSway || M.opt.code==='bridge'); }   // Q 法僅建築有側移構架
   pinNA('pylon', ['brExpo'], M.opt.code!=='bridge');  // 公路橋梁設計規範表 7.2 只用於橋梁
   document.getElementById('rowTw').style.display = M.s.type==='box'?'':'none';
   document.getElementById('rowDbl').style.display = M.s.type==='box'?'':'none';
@@ -5156,8 +5633,9 @@ function render(){
   document.getElementById('axY').setAttribute('aria-pressed', String(AXIS==='y'));
 
   M.badIn = collectBadInputs('pylon');
+  applyBlocked('pylon', M.badIn);
   renderSummary(M); renderAlerts(M); verdictPylon(M);
-  pinStatus('pylon', pinMapPylon(M));
+  pinStatus('pylon', M.badIn.length ? pinMapBlocked(M) : pinMapPylon(M));
   if(document.getElementById('report').classList.contains('preview')) buildReport(M);
   caseAutosave();
   optAfterRender('pylon'); setupSync();
@@ -5215,7 +5693,7 @@ function elevInfoCol(M){
     <td>${r.tieSize} @ ${f(z.s,1)}</td><td>${z.note||'—'}</td><td>${z.n}</td></tr>`).join('');
   let h = `<table style="width:100%"><thead><tr><th class="l">區段</th><th>範圍 (cm)</th><th>長度 (cm)</th><th>配置</th><th>餘數（置於中央）</th><th>數量 (${unit})</th></tr></thead>
     <tbody>${rows}<tr style="font-weight:700"><td class="l">合計</td><td></td><td>${f(M.opt.lu,0)}</td><td></td><td></td><td>${lay.total}</td></tr></tbody></table>`;
-  if(M.opt.plastic && !lay.full) h += `<div style="margin-top:6px">加密區長度 l<sub>o</sub> = \\(\\displaystyle \\max\\left(h=${kn(lay.hMax,0)},\\ \\frac{l_u}{6}=${kn(M.opt.lu/6,0)},\\ 45\\right)\\) = <b>${f(lay.lo,0)} cm</b>（土木401 §18.4.5.1）；
+  if(M.opt.plastic && !lay.full) h += `<div style="margin-top:6px">加密區長度 l<sub>o</sub> = \\(\\displaystyle \\max\\left(h=${kn(lay.hMax,0)},\\ \\frac{l_u}{6}=${kn(M.opt.lu/6,0)},\\ 45\\right)\\) = <b>${f(lay.lo,0)} cm</b>（${M.opt.code==='bridge' ? '公路橋梁耐震設計規範 §5.3.5：h 為沿剪力方向之柱深，兩向皆須檢核，取兩向之大者 max(B, H)' : '土木401 §18.4.5.1'}）；
     一般區間距由「${esc(M.fin2.gov.tag)}」控制（≤ ${f(M.fin2.gov.v,2)} cm）。</div>`;
   else if(M.opt.plastic) h += `<div style="margin-top:6px">加密區長度 l<sub>o</sub> = ${f(lay.lo,0)} cm，兩端加密區相接或中段不足一個間距，<b>全長以加密區間距配置</b>。</div>`;
   else h += `<div style="margin-top:6px">本斷面設為「一般斷面」（非塑鉸區），全長以同一間距配置。若為耐震柱，請將「塑鉸區／柱端加密區」切為「是」以分區配置。</div>`;
@@ -5274,7 +5752,7 @@ function renderSummary(M){
     const bad=R2.dc>1, ctr=R2===M.ctrlFlex;
     h+=`<tr style="${ctr?'background:rgba(239,68,68,.10);font-weight:700':''}">
       <td class="l">${esc(R2.L.name)}</td><td>${f(R2.L.Pu,0)}</td><td>${f(R2.L.Mux,0)}</td><td>${f(R2.L.Muy,0)}</td>
-      <td style="color:${bad?'var(--bad)':'var(--ok)'}">${fdc(R2.dc)}</td><td class="l">${R2.bi.method}</td></tr>`;
+      <td style="color:${bad?'var(--bad)':'var(--ok)'}">${fdc(R2.dc)}</td><td class="l">${R2.bi.method}${biRefTxt(R2.bi)}</td></tr>`;
   }
   h+=`</tbody></table></div>`;
 
@@ -5286,8 +5764,9 @@ function renderSummary(M){
   h+=row('剪力控制組合',`<b>${esc(X.ctrl.L.name)}</b>`,`<b>${esc(Y.ctrl.L.name)}</b>`);
   h+=row('N_u (tf)',f(X.Nu/TF,0),f(Y.Nu/TF,0));
   h+=row('V_u 分析值 (tf)',f(X.Vu/TF,1),f(Y.Vu/TF,1));
-  h+=row('M_n,max（各組合 P_u 取大）(tf·m)',f(X.Mn/TFM,0),f(Y.Mn/TFM,0));
-  h+=row('\\(\\displaystyle V_e=\\frac{\\phi_o M_n}{L_v}\\) (tf)',f(X.Ve/TF,1),f(Y.Ve/TF,1));
+  { const VL = veLabels(M);
+    if(VL){ h+=row(VL.mn+' (tf·m)',f(X.Mn/TFM,0),f(Y.Mn/TFM,0)); h+=row(VL.ve+' (tf)',f(X.Ve/TF,1),f(Y.Ve/TF,1)); }
+    else h+=row('容量設計剪力 V_e','<span style="color:var(--dim)">不適用</span>','<span style="color:var(--dim)">不適用</span>'); }
   h+=row('設計剪力 V_des (tf)',`<b>${f(X.Vdes/TF,1)}</b>`,`<b>${f(Y.Vdes/TF,1)}</b>`);
   h+=row('V_c (tf)',f(X.V.vc/TF,1)+(X.V.zeroed?' <span style="color:var(--warn)">(塑鉸歸零)</span>':''),
                     f(Y.V.vc/TF,1)+(Y.V.zeroed?' <span style="color:var(--warn)">(塑鉸歸零)</span>':''));
@@ -5302,33 +5781,34 @@ function renderSummary(M){
   document.getElementById('summary').innerHTML=SB(h);
 }
 
-/* ---------- 長細效應判定 ----------
-   建築（土木401-112 §6.2.5）：
-     §6.2.5.1 無側向位移支撐 kl_u/r ≤ 22；有側向位移支撐 kl_u/r ≤ 34 + 12(M_1/M_2) 且 ≤ 40
-              （單曲率 M_1/M_2 為負、雙曲率為正）時得忽略長細效應；第一次近似分析時 k 可取 1.0（解說 R6.2.5）。
-     §6.2.5.2 r = 0.30 × 考量方向之尺度（矩形）、0.25D（圓形），或全斷面 √(I_g/A_g)（箱型採此式）。
-     §6.2.5.3 不可忽略時須依 §6.6.4／6.7／6.8 計二階效應，且二階 M_u ≤ 1.4 倍一階 M_u。
-   橋梁（公路橋梁設計規範 §7.3.5.2）：
-     (4) 有支撐防止側移 kl_u/r < 34 − 12(M_1b/M_2b)（M_1b/M_2b 單曲度為正，與上式正負相反；無 40 上限）；
-         無支撐 kl_u/r < 22 時可不計；所有 kl_u/r > 100 者應依 §7.3.5.1 分析。(3) 有支撐構材 k 除經分析外應為 1.0。
-   輸入之 M_1/M_2 一律採土木401-112 慣例（單曲率為負）；橋梁門檻 34 − 12(M_1b/M_2b) = 34 + 12(M_1/M_2)。
-   X 向＝繞 X 軸彎曲（深度沿 H），Y 向＝繞 Y 軸（深度沿 B）；兩向共用同一 k 與 l_u。只判定，不計算彎矩放大。 */
-function colSlender(M){
-  const s = M.s, o = M.opt, bridge = o.code==='bridge';
-  let rX, rY, how;
-  if(s.type==='circle'){ rX = rY = 0.25*s.D; how = 'circ'; }
-  else if(s.type==='box'){
-    const bi = Math.max(0, s.B-2*s.tw), hi = Math.max(0, s.H-2*s.tw), A = s.B*s.H - bi*hi;
-    rX = Math.sqrt((s.B*s.H**3 - bi*hi**3)/12/A); rY = Math.sqrt((s.H*s.B**3 - hi*bi**3)/12/A); how = 'box';
-  } else { rX = 0.3*s.H; rY = 0.3*s.B; how = 'rect'; }
-  const lamX = o.slK*o.lu/rX, lamY = o.slK*o.lu/rY, lam = Math.max(lamX, lamY);
-  const limB = 34 + 12*o.slM12;
-  const lim = o.slSway ? 22 : bridge ? limB : Math.min(limB, 40);
-  const ok = bridge ? lam < lim : lam <= lim + 1e-9;
-  return {rX, rY, how, lamX, lamY, lam, lim, limB, sway:o.slSway, k:o.slK, lu:o.lu, m12:o.slM12, ok, bridge,
-          over100: bridge && lam > 100, kLow: !o.slSway && o.slK < 1 - 1e-9,
-          ref: bridge ? '公路橋梁設計規範 §7.3.5.2' : '土木401-112 §6.2.5.1'};
+/* 計算書第 1 章：強度折減因數與載重因數之依據（M8：避免規範混用而未載明） */
+function phiBasis(M){
+  const m = M.m, o = M.opt, br = o.code==='bridge', d = (x,n=2)=>f(x,n), rows = [];
+  rows.push(['斷面強度（P-M）', '應變相容、等值矩形應力塊、離散鋼筋', '土木401-112 §22.2～§22.4']);
+  if(o.pile) rows.push(['彎矩／軸力 φ', `軸壓 φ = ${d(m.phiAx)}（無套管鑽掘場鑄樁）；彎矩依表 21.2.2`, '土木401-112 表 13.4.3.2(a)、表 21.2.2']);
+  else if(m.phiMode==='br532') rows.push(['彎矩／軸力 φ', `依軸壓應力：≥ min(0.1f′c, P_b/A_g) 時 φ = ${d(m.phiBrMin)}，降至 0 時線性增至 0.90；軸拉 0.90`, '公路橋梁耐震設計規範 §5.3.2']);
+  else rows.push(['彎矩／軸力 φ', `φ_c = ${d(m.phic)}、φ_t = ${d(m.phit)}，依最外拉力筋 ε_t 過渡`, '土木401-112 表 21.2.2' + (br ? '（橋梁：設計者決定沿用；公路橋梁耐震設計規範 §5.3.2 另規定依軸壓應力 0.70／0.75～0.90，可於「規範係數」切換）' : '')]);
+  rows.push(['最大軸力', `φP_n,max = ${d(capPhi(m))} × ${d(m.pmaxf)}P_o`, '土木401-112 §22.4.2.1']);
+  rows.push(['剪力 φ', br ? `φ = ${d(m.phivB)}（塑鉸區 V_c 依式 5-3、5-4）` : `φ_v = ${d(m.phiv)}`, br ? '公路橋梁耐震設計規範 §5.3.3' : '土木401-112 表 21.2.1']);
+  rows.push(['扭矩 φ', `φ = ${d(m.phiv)}`, '土木401-112 表 21.2.1、§22.7']);
+  if(!o.pile && (o.plastic || o.capShear)) rows.push(['容量設計', br ? `M_o = φ_oM_n，φ_o = ${d(o.phio)}；V_e = ${o.phEnds===2 ? '2M_o/l_u' : 'M_o/L_v'}` : 'M_pr 以 1.25f_y、φ = 1.0；V_e = 2M_pr/l_u',
+    br ? '公路橋梁耐震設計規範 §4.2.1、§4.2.2' : '土木401-112 §18.4.6.1']);
+  rows.push(['載重因數', '由設計者輸入之載重組合（已乘載重因數）', br ? '公路橋梁設計規範第三章；地震力依公路橋梁耐震設計規範' : '土木401-112 第五章（§5.3）']);
+  return rows;
 }
+
+/* 容量設計剪力之標題（依設計依據）：建築耐震柱 V_e = 2M_pr/l_u（M_pr 以 1.25f_y、φ = 1），
+   橋梁單柱 φ_oM_n/L_v、構架式 2φ_oM_n/l_u；不作容量設計（非塑鉸區、基樁）回傳 null */
+function veLabels(M){
+  const o = M.opt;
+  if(o.pile || !(o.plastic || o.capShear)) return null;
+  if(o.code==='bldg') return {mn:'M_pr,max（1.25f_y、φ = 1，各組合 P_u 取大）', ve:'\\(\\displaystyle V_e=\\frac{2M_{pr}}{l_u}\\)'};
+  const mn = o.brMnP==='dead' ? `M_n（靜載重軸力 P_D = ${f(o.brPD/TF,0)} tf）` : 'M_n,max（各組合 P_u 取大）';
+  return {mn, ve: o.phEnds===2 ? '\\(\\displaystyle V_e=\\frac{2\\phi_o M_n}{l_u}\\)' : '\\(\\displaystyle V_e=\\frac{\\phi_o M_n}{L_v}\\)'};
+}
+
+
+function colSlender(M){ return M.SL || (M.SL = colSlenderCore(M.s, M.m, M.opt)); }
 /* ---------- 橋梁保護層（公路橋梁設計規範 §7.1.5 表 7.2，cm） ----------
    外側保護層 c_o 量至橫向筋外緣：箍筋保護層 = c_o；主筋保護層 = c_o + d_t。 */
 const BR_COVER = {
@@ -5351,15 +5831,46 @@ function rhoLimit(M){
   return {min:1, max:8, ref:'土木401-112 §10.6.1.1'};
 }
 function renderAlerts(M){
-  document.getElementById('alerts').innerHTML=SB(alertSort(colAlertItems(M).map(a=>alertBox('pylon', a.lv, a.t, a.ids))).join(''));
+  const items = colAlertItems(M);
+  renderConfirm('pylon', items, M.badIn && M.badIn.length ? [] : colUncovered(M));
+  document.getElementById('alerts').innerHTML=SB(alertSort(items.map(a=>alertBox('pylon', a.lv, a.t, a.ids))).join(''));
 }
+/* ---------- 判定三級（U1）：✗ 不合格／⚠ 未完成・需確認（阻擋列印）／i 參考 ----------
+   「需確認」＝本工具未涵蓋之項目＋「注意」級警示；設計者須於警示分頁逐項勾選確認後才能列印計算書。
+   以訊息文字為鍵：數值改變（文字改變）即須重新確認。 */
+var CONFIRM = {pylon:new Set(), beam:new Set()}, CONF_ITEMS = {pylon:[], beam:[]};
+const confKey = t => String(t).replace(/<[^>]+>/g,'').replace(/\s+/g,' ').trim();
+function renderConfirm(mod, items, uncov){
+  const list = [...(uncov||[]).map(t=>({kind:'未涵蓋', t:`須另行檢核：${t}`})), ...items.filter(a=>a.lv==='warn').map(a=>({kind:'注意', t:a.t}))]
+    .map(q=>({...q, key: confKey(q.t)}));
+  CONF_ITEMS[mod] = list;
+  const host = document.getElementById(mod==='beam' ? 'bConfirm' : 'confirmP'); if(!host) return;
+  if(!list.length){ host.innerHTML = ''; return; }
+  const done = list.filter(q=>CONFIRM[mod].has(q.key)).length;
+  host.innerHTML = SB(`<div class="conf-box"><div class="conf-h"><b>需確認項目</b>（${done} / ${list.length} 已確認）— 列印計算書前須逐項勾選，表示設計者已檢視並另行處理。
+      <button type="button" class="conf-all !py-0.5 !px-2" data-mod="${mod}">全部勾選</button></div>`
+    + list.map((q,i)=>`<label class="conf-row"><input type="checkbox" data-mod="${mod}" data-k="${esc(q.key)}"${CONFIRM[mod].has(q.key)?' checked':''}>
+      <span class="conf-kind">${q.kind}</span><span>${q.t}</span></label>`).join('') + `</div>`);
+}
+const confPending = mod => CONF_ITEMS[mod].filter(q=>!CONFIRM[mod].has(q.key));
+function confAll(mod){ for(const q of CONF_ITEMS[mod]) CONFIRM[mod].add(q.key); (mod==='beam' ? renderBeam : render)(); }
+document.addEventListener('change', e=>{
+  const c = e.target.closest && e.target.closest('.conf-row input[type=checkbox]'); if(!c) return;
+  const S = CONFIRM[c.dataset.mod]; if(c.checked) S.add(c.dataset.k); else S.delete(c.dataset.k);
+  (c.dataset.mod==='beam' ? renderBeam : render)();
+});
+document.addEventListener('click', e=>{ const b = e.target.closest && e.target.closest('.conf-all'); if(b) confAll(b.dataset.mod); });
 /* 柱警示清單（純資料）：畫面警示與「建議配筋」判定共用 */
 function colAlertItems(M){
   const A=[];
   const add=(lv,t,ids)=>A.push({lv,t,ids});
-  if(M.badIn && M.badIn.length) add('bad',`<b>輸入空白或無效（已暫以預設值計算，請補正）</b>：${M.badIn.map(b=>`${esc(b.label)} → ${b.dflt}`).join('、')}。`, M.badIn.map(b=>b.id));
+  if(M.badIn && M.badIn.length) add('bad',`<b>輸入不完整，已停止計算</b>：${M.badIn.map(b=>`${esc(b.label)}（${esc(b.why)}）`).join('、')}。修正後才顯示結果。`, M.badIn.map(b=>b.id));
+  if(M.badIn && M.badIn.length) return A;   // 停止計算：以佔位值算出之其他警示不列出
   rangeAlerts('pylon', add);
   if(M.noLoads) add('warn','<b>尚未輸入載重組合</b>：目前以零載重計算，撓曲與剪力檢核結果沒有意義。請於「載重組合」新增。', ['#loadTbl']);
+  // U8：單位防呆——軸力遠超過斷面純壓強度，常是把 kN 當成 tf 輸入（差 9.8 倍）
+  { const PuMax = Math.max(0, ...M.res.map(q => Math.abs(q.Lk.Pu)));
+    if(!M.noLoads && PuMax > 2.5*M.cvX.Po) add('warn', `<b>載重疑似單位錯誤</b>：最大 |P_u| = ${f(PuMax/TF,0)} tf，超過斷面純壓強度 P_o = ${f(M.cvX.Po/TF,0)} tf 之 2.5 倍。若分析結果為 kN、kN·m，請將載重表「輸入單位」改為 SI（1 tf = 9.80665 kN）。`, ['loadUnit','#loadTbl']); }
   if(M.s.type==='box' && !M.R.inner)
     add('bad',`<b>箱型未設內層主筋</b>${M.r.dbl?'（壁厚容不下雙層，內層已取消）':''}：繫筋貫穿壁厚後沒有主筋可勾，貫穿壁厚方向無圍束鋼筋，A_sh 須由內層主筋＋繫筋提供。請改為雙層配筋${M.r.dbl?'或加厚壁厚':''}。`, ['dbl','tw','covO','covI']);
   const C=M.ctrlFlex, F=M.fin, chk=M.chk;
@@ -5423,7 +5934,8 @@ function colAlertItems(M){
     if(sh.sectOver) add('bad',`<b>${t} 向剪力+扭矩斷面應力超限</b>：${f(sh.lhs,1)} > ${f(sh.rhs,1)} kgf/cm²（中空斷面採直接相加）。`, ['B','H','Dia','tw','#loadTbl']);
     if(sh.V.zeroed) add('warn', sh.bridge
       ? `${t} 向（控制組合「${esc(sh.ctrl.L.name)}」）：N = ${f(sh.Nu/TF,0)} tf，V_c = 0.53(${sh.V.hinge?'0.33':'1'} + F)√f'c·A_e ≤ 0 → <b>V_c 取 0</b>，全部剪力由箍筋承擔（公路橋梁耐震設計規範 §5.3.3）。`
-      : `${t} 向（控制組合「${esc(sh.ctrl.L.name)}」）：柱端加密區且 N_u = ${f(sh.Nu/TF,0)} tf < A_g·f'c/20 = ${f(vcZeroRatio(M.opt.code)*M.m.fc*M.m.Ag/TF,0)} tf → <b>V_c 取 0</b>，全部剪力由箍筋承擔。`, ['ph','#loadTbl']);
+      : `${t} 向（控制組合「${esc(sh.ctrl.L.name)}」）：柱端加密區，${M.opt.vcRule==='b' ? '依設計者選擇僅以軸力判斷（保守），' : `地震引致剪力 V_e = ${f(sh.Ve/TF,0)} tf ≥ ½V_des 且`} N_u = ${f(sh.Nu/TF,0)} tf < A_g·f'c/20 = ${f(vcZeroRatio(M.opt.code)*M.m.fc*M.m.Ag/TF,0)} tf → <b>V_c 取 0</b>，全部剪力由箍筋承擔（土木401-112 §18.4.6.2.1）。`, ['ph','vcRule','#loadTbl']);
+    else if(!sh.bridge && sh.V.lowP && !sh.V.seisA) add('info',`${t} 向（控制組合「${esc(sh.ctrl.L.name)}」）：N_u < A_g·f'c/20，但地震引致剪力 V_e = ${f(sh.Ve/TF,0)} tf ＜ ½V_des = ${f(sh.Vdes/2/TF,0)} tf（非地震剪力控制），依 §18.4.6.2.1(a) <b>保留 V_c</b>。`, ['vcRule','#loadTbl']);
     if(sh.Nu<0 && sh.bridge) add('warn',`${t} 向：控制組合為<b>軸拉</b>（N = ${f(sh.Nu/TF,0)} tf），F = N/(35A_g)，V_c 夾至 ≥ 0。`, ['#loadTbl']);
     if(M.opt.plastic && sh.Ve>sh.Vu) add('info',`${t} 向：<b>容量設計控制</b>。V_e = ${sh.bldgCD?'\\(\\displaystyle \\frac{2M_{pr}}{l_u}\\)':M.opt.phEnds===2?'\\(\\displaystyle \\frac{2\\phi_o M_n}{l_u}\\)':'\\(\\displaystyle \\frac{\\phi_o M_n}{L_v}\\)'} = ${f(sh.Ve/TF,0)} tf > 分析值 V_u = ${f(sh.Vu/TF,0)} tf，設計剪力採 V_e。`, ['ph','phio','Lv','lu','phEnds']);
   }
@@ -5450,17 +5962,34 @@ function colAlertItems(M){
   if(M.cf.MD) add('info',`Mander 圍束：f'_cc = ${f(M.cf.MD.fcc,0)} kgf/cm²（提升 ${f((M.cf.MD.fcc/M.m.fc-1)*100,1)}%）、ε_cu,c = ${f(M.cf.MD.ecu,4)}、k_e = ${f(M.cf.ke,3)}、ρ_s = ${f(M.cf.rho_s*100,3)}%。虛線即為保護層剝落後之圍束核心容量。`, ['tieSize','#pmWrap']);
   devAlerts(M.devPlan, add);
   if(M.opt.pile) pileAlerts(M, add);
-  else { const sl = colSlender(M), fr = sl.sway ? '無側向位移支撐' : '有側向位移支撐', ids = ['slFrame','slK','lu','slM12','#loadTbl'];
-    const lamT = M.s.type==='circle' ? f(sl.lam,1) : `${f(sl.lam,1)}（X 向 ${f(sl.lamX,1)}、Y 向 ${f(sl.lamY,1)}）`;
+  else { const sl = colSlender(M), fr = sl.sway ? '無側向位移支撐' : '有側向位移支撐', ids = ['slFrame','slK','slKy','slLuY','lu','slM12','slTreat','slBeta','slQ','#loadTbl'];
+    const lamT = M.s.type==='circle' ? f(sl.lam,1) : `X 向 ${f(sl.lamX,1)}、Y 向 ${f(sl.lamY,1)}`;
     const lt = sl.bridge ? '<' : '≤';
     const limT = sl.sway ? '22' : sl.bridge
       ? `\\(34-12\\dfrac{M_{1b}}{M_{2b}}\\) = ${f(sl.lim,1)}（\\(M_{1b}/M_{2b}=${f(-sl.m12,2)}\\)，單曲度為正）`
       : `\\(\\min\\left(34+12\\dfrac{M_1}{M_2},\\ 40\\right)\\) = ${f(sl.lim,1)}`;
+    const axT = (sl.needX && sl.needY) ? '兩向' : sl.needX ? '繞 X 軸' : '繞 Y 軸';
+    if(sl.pairs && !sl.sway) add('info',`<b>端彎矩比由載重表頂／底配對求得</b>：可忽略門檻用各軸最不利之 M_1/M_2（X 向 ${f(sl.m12x,2)}、Y 向 ${f(sl.m12y,2)}；未配對之組合用參數表輸入 ${f(sl.m12in,2)}）；彎矩放大之 C_m 依各組合自身之 M_1/M_2。`, ['slM12','#loadTbl']);
     if(sl.ok) add('ok',`長細效應可忽略（${fr}）：kl_u/r = ${lamT} ${lt} ${limT}（${sl.ref}）。`, ids);
-    else add('warn',`<b>須考慮長細效應</b>（${fr}）：kl_u/r = ${lamT}，未滿足 ${lt} ${limT}（${sl.ref}）。`
-      + `本工具<b>不計算彎矩放大</b>：輸入之 P_u、M_u 須為已含二階效應之分析結果（${sl.sway ? '含 P-Δ' : '含構材 P-δ'}，`
-      + (sl.bridge ? '公路橋梁設計規範 §7.3.5' : '土木401-112 §6.2.5.3、§6.6.4；含二階效應之 M_u 不得超過一階 M_u 之 1.4 倍')
-      + `）；若餵入一階分析結果，撓曲容量將被高估。`, ids);
+    else if(sl.treat==='second') add('info',`<b>長細效應不可忽略</b>（${fr}，${axT}）：kl_u/r = ${lamT}，未滿足 ${lt} ${limT}（${sl.ref}）。`
+      + `已聲明輸入之 P_u、M_u <b>已含二階效應</b>（${sl.sway ? 'P-Δ 及構材 P-δ' : '構材 P-δ'}），本工具不再放大`
+      + (sl.bridge ? '（公路橋梁設計規範 §7.3.5.1）。' : '；依土木401-112 §6.2.5.3，含二階效應之彎矩不得超過一階彎矩之 1.4 倍，請於分析報告確認。'), ids);
+    else {
+      const rows = M.res.map(q => ({q, x:q.Lk.slx, y:q.Lk.sly})).filter(r => r.x && r.y);
+      const dmax = ax => Math.max(1, ...rows.map(r => r[ax].d).filter(Number.isFinite));
+      const unstable = rows.filter(r => !Number.isFinite(r.x.d) || !Number.isFinite(r.y.d));
+      const over14 = !sl.bridge && rows.some(r => r.x.d > 1.4 || r.y.d > 1.4);
+      const dT = `${sl.needX ? `δ_x 最大 ${f(dmax('x'),3)}` : ''}${sl.needX && sl.needY ? '、' : ''}${sl.needY ? `δ_y 最大 ${f(dmax('y'),3)}` : ''}`;
+      add(unstable.length || over14 ? 'bad' : 'info',
+        `<b>長細效應：彎矩放大</b>（${fr}，${axT}）：kl_u/r = ${lamT}，未滿足 ${lt} ${limT}（${sl.ref}）。輸入視為一階分析結果，已依${sl.bridge ? '公路橋梁設計規範 §7.3.5.2(5)' : '土木401-112 §6.6.4'}放大：${dT}；D/C 以放大後之 M_c 檢核（含最小偏心距 P_u(1.5 + 0.03h)）。`
+        + (unstable.length ? `<br><b>構材挫屈</b>：組合「${unstable.map(r=>esc(r.q.L.name)).join('、')}」之 P_u ≥ ${sl.bridge ? 'φ' : '0.75'}P_c，須加大斷面或改採二階分析。` : '')
+        + (over14 ? `<br><b>二階彎矩超過一階彎矩之 1.4 倍</b>（土木401-112 §6.2.5.3），須加大斷面、增加側向勁度或改採二階分析確認。` : ''), ids);
+      if(sl.sway) add('info', sl.bridge
+        ? `有側移構材：δ_s = 1/(1 − ΣP_u/φΣP_c) 以本柱 P_u/P_c 計（單柱橋墩適用）；構架或群柱共同抵抗側移時應以群組 ΣP_u、ΣP_c 計（§7.3.5.2(9)），必要時改採二階分析。δ_b 以有支撐構材（k = 1.0）計；ΣP_u 未分重力與側移彎矩，設計彎矩保守取 max(δ_b, δ_s)·M_2。`
+        : sl.Q > 0 ? `有側移構架：δ_s 依 Q 法 1/(1 − Q)，Q = ${f(sl.Q,3)}（§6.6.4.6.2(a)）${rows.some(r => r.x.qOver || r.y.qOver) ? '；δ_s > 1.5 時 Q 法不適用，已改以 (b) 法計' : ''}；另乘沿柱長之 δ（§6.6.4.6.4，k = 1.0）。`
+        : `有側移構架：δ_s 以本柱 P_u/(0.75P_c) 代替 ΣP_u/(0.75ΣP_c)（§6.6.4.6.2(b)）；多柱樓層請輸入樓層穩定指數 Q 或採二階分析。另乘沿柱長之 δ（§6.6.4.6.4，k = 1.0）；輸入彎矩未分 M_ns、M_s，全部視為側移彎矩放大（保守）。`, ['slQ','slBeta','slK','slKy']);
+    }
+    if(sl.bridge && !sl.ok) add('info','公路橋梁耐震設計規範 §4.6：穩定指數 Q_s = PΔ_0/(V_u l_c) > 0.05 時，耐震分析須考慮 P-Δ 效應。', ['slTreat']);
     if(sl.over100) add('bad',`<b>kl_u/r = ${f(sl.lam,1)} > 100</b>：公路橋梁設計規範 §7.3.5.2(4) 規定須依 §7.3.5.1 以考慮撓度、開裂與載重延時之二階分析設計，不得採彎矩放大近似法。`, ids);
     if(sl.kLow) add('info', sl.bridge
       ? `有支撐防止側移之構材 k 除經分析採較小值外應為 1.0（公路橋梁設計規範 §7.3.5.2(3)）；目前 k = ${f(sl.k,2)}，請附分析依據。`
@@ -5470,6 +5999,31 @@ function colAlertItems(M){
     const m = M.m, lim = M.opt.plastic ? 5600 : 4200, tors = [M.shX, M.shY].some(sh => sh.torsion);
     if(m.fyt > lim + 1) add('bad',`<b>橫向筋 f_yt = ${f(m.fyt,0)} 超過剪力鋼筋設計上限 ${lim}</b>（土木401-112 表 20.2.2.4(a)：肋筋、箍筋 4200；特殊耐震系統 5600）。本工具剪力計算直接採輸入值，請改用較低等級或依上限計算。`, ['fyt']);
     else if(tors && m.fyt > 4200 + 1) add('bad',`<b>扭力鋼筋 f_yt = ${f(m.fyt,0)} 超過 4200</b>（表 20.2.2.4(a)），請改用 SD420 以下。`, ['fyt']);
+  }
+  { const U = colUncovered(M); if(U.length) add('info',`<b>本工具未涵蓋、須另行檢核</b>（判定列「未涵蓋」）：${U.join('；')}。`, []); }
+  if(M.scwb){ // 強柱弱梁
+    const W = M.scwb, ids = ['scwbMbX','scwbMbY','scwbNc'];
+    const t = a => a.given ? `${a.nm === 'X' ? '繞 X 軸' : '繞 Y 軸'}：ΣM_nc = ${W.nc} × ${f(a.Mnc/TFM,1)} = ${f(a.sum/TFM,1)} ${a.ok ? '≥' : '＜'} 1.2ΣM_nb = 1.2 × ${f(a.Mb/TFM,1)} = ${f(1.2*a.Mb/TFM,1)} tf·m` : `${a.nm === 'X' ? '繞 X 軸' : '繞 Y 軸'}：未輸入 ΣM_nb`;
+    if(W.exempt) add('info',`強柱弱梁：各組合最大軸壓 ${f(W.Pmax/TF,0)} tf ≤ A_gf'c/10 = ${f(M.m.Ag*M.m.fc/10/TF,0)} tf，得免檢核（土木401-112 §18.4.3.2）。`, ids);
+    else if(!W.X.given || !W.Y.given) add('warn',`<b>強柱弱梁未完整檢核</b>（土木401-112 §18.4.3.2，特殊抗彎矩構架柱必須符合）：${t(W.X)}；${t(W.Y)}。請輸入構入接頭之梁標稱彎矩強度總和 ΣM_nb（T 形梁含有效翼寬內板筋）。`, ids);
+    else add(W.ok ? 'ok' : 'bad', `${W.ok ? '強柱弱梁' : '<b>強柱弱梁不符</b>'}（§18.4.3.2，M_nc 取各組合軸力下之最小值）：${t(W.X)}；${t(W.Y)}。`
+      + (W.ok ? '' : '不符時該柱之側向強度與勁度不得計入結構強度與勁度（§18.4.3.3），須加大柱斷面或配筋。'), ids);
+  }
+  { // 扭力縱筋（§9.5.4.3、§9.6.4.3、§9.7.5）
+    const T = M.torsL, ids = ['barSize','nB','nH','nCir','tieSize','#loadTbl'];
+    if(T && T.any){
+      const W = T.rows.map((r,i)=>({...r, q:M.res[i]})).filter(r=>r.tors).reduce((a,b)=> b.AlReq>a.AlReq ? b : a);
+      add(T.kfMin <= 0 ? 'bad' : 'info',
+        `<b>扭力縱筋</b>（土木401-112 §9.5.4.3、§9.6.4.3）：A_l = ${f(W.Al,1)}、A_l,min = ${f(W.AlMin,1)} → 需 ${f(W.AlReq,1)} cm²（組合「${esc(W.name)}」）；`
+        + (T.kfMin <= 0 ? `<b>超過主筋總量 A_st = ${f(M.Ast,1)} cm²，主筋不足以同時承擔扭力縱向拉力</b>，須增加主筋。`
+           : `已自主筋 A_st = ${f(M.Ast,1)} cm² 等比例扣除後重算 P-M，撓曲 D/C ${fdc(W.q.dc0)} → ${fdc(W.q.dc)}（扭力縱筋沿周邊均勻分布）。`), ids);
+      const sMax = Math.max(M.fin.sUse, M.fin2 ? M.fin2.sUse : 0), dNeed = Math.max(0.042*sMax, 0.95);
+      const pMax = M.s.type==='circle' ? M.R.pB : Math.max(M.chk.pB, M.chk.pH);
+      if(pMax > 30 + 1e-9) add('bad',`<b>扭力縱筋間距不足</b>：主筋中心距 ${f(pMax,1)} cm ＞ 30 cm（§9.7.5.1，縱向扭力鋼筋應沿閉合箍筋周邊分布、間距 ≤ 30 cm），請增加根數。`, ids);
+      if(M.R.db < dNeed - 1e-9) add('bad',`<b>扭力縱筋直徑不足</b>：d_b = ${f(M.R.db*10,1)} mm ＜ max(0.042s, 9.5 mm) = ${f(dNeed*10,1)} mm（§9.7.5.2，s = ${f(sMax,1)} cm）。`, ids);
+      const th = [M.shX, M.shY].find(sh => sh.thin && sh.torsion);
+      if(th) add('info',`空心斷面壁厚 t_w = ${f(M.s.tw,1)} cm ＜ A_oh/p_h = ${f(th.Aoh/th.ph,1)} cm：剪扭上限之扭矩項改以 T_u/(1.7A_oh·t) 計（§22.7.7.2）。`, ['tw']);
+    }
   }
   if(M.opt.code==='bridge'){   // 公路橋梁耐震設計規範 §5.2、§5.3.4、§5.8
     const m = M.m, okFy = Math.abs(m.fy-4200)<1 || Math.abs(m.fy-2800)<1;
@@ -5510,7 +6064,7 @@ function rpHead(title, memId, pairs){
   if(row.length) cells.push(row);
   return `<div class="rp-title"><div class="rp-h1"><svg class="logo rp-logo" viewBox="0 0 32 32"><use href="#logoMark"/></svg>${title}</div>`
     + (mn ? `<div class="rp-mem">構件：<b>${esc(mn)}</b></div>` : '') + `</div>`
-    + `<table class="rp-meta"><tbody>${cells.map(r => `<tr>${r.length===1
+    + `<table class="rp-meta"><tbody>${cells.concat([[['程式版本／雜湊', traceText(), 'wide']]]).map(r => `<tr>${r.length===1
         ? `<th>${r[0][0]}</th><td colspan="3">${r[0][1]}</td>`
         : r.map(([k,v]) => `<th>${k}</th><td>${v}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
 }
@@ -5552,6 +6106,12 @@ function buildReport(M){
         <td class="l">骨材粒徑</td><td>${d(M.opt.dagg,1)} cm</td><td class="l">${M.opt.code==='bldg'?'柱端加密區':'塑鉸區'}</td><td>${M.opt.plastic?'是':'否'}</td></tr>
   </tbody></table>`);
 
+  o.push(`<div class="rp-h3">1.0 強度折減因數與載重因數之依據</div>`);
+  o.push(`<table class="no-break"><thead><tr><th class="l">項目</th><th class="l">採用</th><th class="l">出處</th></tr></thead><tbody>${
+    phiBasis(M).map(q=>`<tr><td class="l">${q[0]}</td><td class="l">${q[1]}</td><td class="l">${q[2]}</td></tr>`).join('')}</tbody></table>`);
+  o.push(note(M.opt.code==='bridge'
+    ? '載重組合由設計者輸入（已乘載重因數），本工具不產生組合；橋梁之載重組合應依公路橋梁設計規範第三章（地震依公路橋梁耐震設計規範），φ 須與所用載重組合之規範配套，不得混用他國規範（如 AASHTO LRFD）之 φ 或載重因數。'
+    : '載重組合由設計者輸入（已乘載重因數），本工具不產生組合；應依土木401-112 第五章（§5.3）之載重組合，與上列 φ（第二十一章）配套使用。'));
   o.push(`<div class="rp-h3">1.1 導出量</div>`);
   o.push(eq(`\\beta_1=\\max\\!\\left(0.65,\\min\\!\\left(0.85,\\;0.85-0.05\\frac{f'_c-280}{70}\\right)\\right)
     =\\max\\!\\left(0.65,\\min\\!\\left(0.85,\\;0.85-0.05\\frac{${d(m.fc,0)}-280}{70}\\right)\\right)=${d(m.b1,4)}`));
@@ -5617,7 +6177,7 @@ function buildReport(M){
   o.push(`<table class="no-break"><thead><tr><th class="l">組合</th><th>P_u (tf)</th><th>M_ux (tf·m)</th><th>M_uy (tf·m)</th><th>D/C</th><th class="l">方法</th></tr></thead><tbody>`);
   for(const R2 of M.res) o.push(`<tr${R2===C?' style="font-weight:700;background:#f0f0f0"':''}>
     <td class="l">${esc(R2.L.name)}</td><td>${d(R2.L.Pu,0)}</td><td>${d(R2.L.Mux,0)}</td>
-    <td>${d(R2.L.Muy,0)}</td><td>${fdc(R2.dc)}</td><td class="l">${R2.bi.method}</td></tr>`);
+    <td>${d(R2.L.Muy,0)}</td><td>${fdc(R2.dc)}</td><td class="l">${R2.bi.method}${biRefTxt(R2.bi)}</td></tr>`);
   o.push(`</tbody></table>`);
   if(M.opt.pile && M.opt.pile.e > 0){
     const P = M.opt.pile;
@@ -5636,19 +6196,39 @@ function buildReport(M){
     \\(D/C=P_u/\\phi P_{n,max}\\) 特判。`));
 
   o.push(`<div class="rp-h3">5.2 雙軸檢核 — ${C.bi.method}</div>`);
-  if(C.bi.method.startsWith('Bresler')){
-    o.push(eq(`P_u=${d(C.Lk.Pu/TF,0)}\\ \\text{tf}\\;\\ge\\;0.1f'_cA_g=0.1\\times${d(m.fc,0)}\\times${d(M.Ag,0)}
-      =${d(0.1*m.fc*M.Ag/TF,0)}\\ \\text{tf}\\;\\Rightarrow\\;\\text{適用 Bresler}`));
-    o.push(eq(`\\frac{1}{\\phi P_n}=\\frac{1}{\\phi P_{nx}}+\\frac{1}{\\phi P_{ny}}-\\frac{1}{\\phi P_o}
-      =\\frac{1}{${d(C.bi.Pnx/TF,0)}}+\\frac{1}{${d(C.bi.Pny/TF,0)}}-\\frac{1}{${d(C.bi.Po/TF,0)}}`));
-    o.push(eq(`\\phi P_n=${d(C.bi.Pcap/TF,0)}\\ \\text{tf}\\qquad
-      D/C=\\frac{P_u}{\\phi P_n}=\\frac{${d(C.Lk.Pu/TF,0)}}{${d(C.bi.Pcap/TF,0)}}=${d(C.dc,3)}`));
-  }else if(C.bi.method.startsWith('PCA')){
-    o.push(eq(`P_u=${d(C.Lk.Pu/TF,0)}\\lt 0.1f'_cA_g=${d(0.1*m.fc*M.Ag/TF,0)}\\ \\text{tf}
-      \\;\\Rightarrow\\;\\text{改用載重輪廓法}`));
-    o.push(eq(`\\left(\\frac{M_{ux}}{\\phi M_{nx}}\\right)^{\\alpha}+\\left(\\frac{M_{uy}}{\\phi M_{ny}}\\right)^{\\alpha}\\le1,
-      \\quad \\alpha=${d(m.alpha,2)},\\ \\phi M_{nx}=${d((C.bi.phiMnx||0)/TFM,0)},\\ \\phi M_{ny}=${d((C.bi.phiMny||0)/TFM,0)}\\ \\text{tf}\\cdot\\text{m}`));
-    o.push(eq(`D/C=1/\\lambda^{*}=${d(C.dc,3)}\\quad(\\lambda^{*}\\text{ 由定偏心射線二分求解})`));
+  // Bresler／PCA 之代入式（判定值或精確解之參考值共用）
+  const approxBlock = (B, ref) => {
+    if(B.method.startsWith('Bresler')){
+      o.push(eq(`P_u=${d(C.Lk.Pu/TF,0)}\\ \\text{tf}\\;\\ge\\;0.1f'_cA_g=0.1\\times${d(m.fc,0)}\\times${d(M.Ag,0)}
+        =${d(0.1*m.fc*M.Ag/TF,0)}\\ \\text{tf}\\;\\Rightarrow\\;\\text{Bresler 倒數式}`));
+      o.push(eq(`\\frac{1}{\\phi P_n}=\\frac{1}{\\phi P_{nx}}+\\frac{1}{\\phi P_{ny}}-\\frac{1}{\\phi P_o}
+        =\\frac{1}{${d(B.Pnx/TF,0)}}+\\frac{1}{${d(B.Pny/TF,0)}}-\\frac{1}{${d(B.Po/TF,0)}}`));
+      o.push(eq(`\\phi P_n=${d(B.Pcap/TF,0)}\\ \\text{tf}\\qquad
+        D/C${ref?'_{Bresler}':''}=\\frac{P_u}{\\phi P_n}=\\frac{${d(C.Lk.Pu/TF,0)}}{${d(B.Pcap/TF,0)}}=${d(B.dc,3)}`));
+      o.push(`<div class="rp-note">φP_o = φ_c·P_o = ${d(m.phic,2)} × ${d(M.cvX.Po/TF,0)} = ${d(B.Po/TF,0)} tf（未截斷之純壓強度；φP_n,max 截斷已反映於 φP_nx、φP_ny）。</div>`);
+    }else{
+      o.push(eq(`P_u=${d(C.Lk.Pu/TF,0)}\\lt 0.1f'_cA_g=${d(0.1*m.fc*M.Ag/TF,0)}\\ \\text{tf}
+        \\;\\Rightarrow\\;\\text{載重輪廓法}`));
+      o.push(eq(`\\left(\\frac{M_{ux}}{\\phi M_{nx}}\\right)^{\\alpha}+\\left(\\frac{M_{uy}}{\\phi M_{ny}}\\right)^{\\alpha}\\le1,
+        \\quad \\alpha=${d(m.alpha,2)},\\ \\phi M_{nx}=${d((B.phiMnx||0)/TFM,0)},\\ \\phi M_{ny}=${d((B.phiMny||0)/TFM,0)}\\ \\text{tf}\\cdot\\text{m}`));
+      o.push(eq(`D/C${ref?'_{PCA}':''}=1/\\lambda^{*}=${d(B.dc,3)}\\quad(\\lambda^{*}\\text{ 由定偏心射線二分求解})`));
+    }
+  };
+  if(C.bi.method===BIAX_EXACT){
+    const B = C.bi;
+    o.push(note(`雙軸彎矩以<b>旋轉中性軸</b>直接求解（土木401-112 §22.2 之一般假設：平面保持平面、ε_cu = 0.003、等效應力塊 0.85f'c × β₁c、鋼筋彈塑性）：
+      中性軸方向角 θ 自 0°（受壓側為 +x，繞 Y 軸）至 90°（受壓側為 +y，繞 X 軸），對每一 θ 掃描中性軸深度 c，受壓區取距最外受壓角點 β₁c 以內之斷面（箱型扣除中空），
+      φ 依最外拉力筋 ε_t（表 21.2.2），並以 φP_n,max 截斷，構成設計互制曲面。載重沿定偏心射線放大至曲面邊界之倍數 t 之倒數即為 D/C。`));
+    o.push(eq(`t^{*}=${d(B.t,4)}:\\quad \\phi P_n=t^{*}P_u=${d(B.capP/TF,0)}\\ \\text{tf},\\quad
+      \\phi M_{nx}=t^{*}M_{ux}=${d(B.capMx/TFM,0)},\\quad \\phi M_{ny}=t^{*}M_{uy}=${d(B.capMy/TFM,0)}\\ \\text{tf}\\cdot\\text{m}`));
+    o.push(eq(`\\text{中性軸}\\ \\theta=${d((B.th||0)*180/Math.PI,1)}^{\\circ},\\quad c=${d(B.c||0,1)}\\ \\text{cm}
+      \\qquad D/C=\\frac{1}{t^{*}}=${d(C.dc,3)}`));
+    if(B.ref){
+      o.push(note(`參考（不作判定）：${B.ref.method} D/C = ${fdc(B.ref.dc)}。近似法於平衡點附近可能偏不保守（Bresler）、低軸壓時過度保守（PCA），且兩者於 0.1f'cA_g 切換處不連續。`));
+      approxBlock(B.ref, true);
+    }
+  }else if(C.bi.method.startsWith('Bresler') || C.bi.method.startsWith('PCA')){
+    approxBlock(C.bi, false);
   }else if(M.m.circle){
     o.push(eq(`M_r=\\sqrt{M_{ux}^2+M_{uy}^2}=\\sqrt{${d(C.L.Mux,1)}^2+${d(C.L.Muy,1)}^2}=${d(C.bi.Mr/TFM,1)}\\ \\text{tf}\\cdot\\text{m}`));
     o.push(eq(`D/C=${d(C.dc,3)}\\quad(\\text{圓形斷面各向同性，合彎矩對單一 P-M 曲線之射線交點})`));
@@ -5671,7 +6251,7 @@ function buildReport(M){
   if(M.conf.circ){
     const cc=M.conf.circ;
     o.push(`<div class="rp-h2">7. ${r.spiral?'螺旋箍筋':'圓形箍筋'}體積比 ρ_s</div>`);
-    if(cc.bridgeAsh) o.push(note(`橋梁塑鉸區依公路橋梁耐震設計規範 §5.3.4 式 (5-5)、(5-6)；P_e 取各組合最大軸壓 ${d(M.opt.PuMax/TF,0)} tf，\\(0.5+\\dfrac{1.25P_e}{f'_cA_g}=${d(cc.peTerm,4)}\\)。`));
+    if(cc.bridgeAsh) o.push(note(`橋梁塑鉸區依公路橋梁耐震設計規範 §5.3.4 式 (5-5)、(5-6)；${M.opt.brPe>0 ? `P_e 採設計者指定之係數化軸力 ${d(M.opt.Pe/TF,0)} tf` : `P_e 取各組合最大軸壓 ${d(M.opt.Pe/TF,0)} tf（保守；§5.3.4 之 P_e 為柱之係數化軸力，可指定地震組合之軸力）`}，\\(0.5+\\dfrac{1.25P_e}{f'_cA_g}=${d(cc.peTerm,4)}\\)。`));
     if(M.opt.pile) o.push(eq(cc.need ? `\\rho_s\\ \\ge\\ ${cc.pileK===0.5?'\\tfrac12\\times':''}0.12\\frac{f'_c}{f_{yt}}\\quad(\\text{表 18.10.5.7.1、表 18.4.5.4(e)})` : `\\text{不需檢核 }\\rho_s`));
     else o.push(eq(`\\rho_s\\ \\ge\\ \\max\\left\\{0.45\\left(\\frac{A_g}{A_{ch}}-1\\right)\\frac{f'_c}{f_{yt}}${M.opt.plastic?(cc.bridgeAsh?`,\\ \\ 0.12\\frac{f'_c}{f_{yt}}\\left(0.5+\\frac{1.25P_e}{f'_cA_g}\\right)`:`,\\ \\ 0.12\\frac{f'_c}{f_{yt}}`):''}${M.conf.termC?`,\\ \\ 0.35k_f\\frac{P_u}{f_{yt}A_{ch}}`:''}\\right\\}`));
     if(M.opt.pile) o.push(note(cc.need
@@ -5696,7 +6276,7 @@ function buildReport(M){
   o.push(`<div class="rp-h2">7. 耐震圍束筋量 A_sh</div>`);
   if(M.conf.bridgeAsh){
     o.push(note(`橋梁塑鉸區依公路橋梁耐震設計規範 §5.3.4 式 (5-7)、(5-8)：h_c 為柱心在所考慮方向之尺寸，<b>量至兩外側箍筋之中心</b>（h_c = b_c − d_t）；A_c 量至箍筋外緣；
-      P_e 取各組合最大軸壓 ${d(M.opt.PuMax/TF,0)} tf，\\(0.5+\\dfrac{1.25P_e}{f'_cA_g}=${d(M.conf.peTerm,4)}\\)。`));
+      ${M.opt.brPe>0 ? `P_e 採設計者指定之係數化軸力 ${d(M.opt.Pe/TF,0)} tf` : `P_e 取各組合最大軸壓 ${d(M.opt.Pe/TF,0)} tf（保守；§5.3.4 之 P_e 為柱之係數化軸力，可指定地震組合之軸力）`}，\\(0.5+\\dfrac{1.25P_e}{f'_cA_g}=${d(M.conf.peTerm,4)}\\)。`));
     o.push(eq(`\\frac{A_{sh}}{a\\,h_c}\\ \\ge\\ \\max\\left\\{0.30\\frac{f'_c}{f_{yh}}\\left(\\frac{A_g}{A_c}-1\\right),\\ \\ 0.12\\frac{f'_c}{f_{yh}}\\left(0.5+\\frac{1.25P_e}{f'_cA_g}\\right)\\right\\}`));
   }else
   o.push(eq(`\\frac{A_{sh}}{s\\,b_c}\\ \\ge\\ \\max\\left\\{0.3\\left(\\frac{A_g}{A_{ch}}-1\\right)\\frac{f'_c}{f_{yt}},
@@ -5814,34 +6394,55 @@ function buildReport(M){
   if(M.opt.pile) pileReport(M, o, eq, note, d, cf.MD?12:11);
   else { const sl = colSlender(M);
     o.push(`<div class="rp-h2">${cf.MD?12:11}. 長細效應判定（${sl.bridge ? '公路橋梁設計規範 §7.3.5' : '土木401-112 §6.2.5'}）</div>`);
-    o.push(note(`${sl.sway ? '無側向位移支撐（有側移）' : '有側向位移支撐（無側移）'}；有效長度係數 \\(k=${d(sl.k,2)}\\)、柱淨高 \\(l_u=${d(sl.lu,0)}\\ \\text{cm}\\)。`
+    o.push(note(`${sl.sway ? '無側向位移支撐（有側移）' : '有側向位移支撐（無側移）'}；繞 X 軸 \\(k_x=${d(sl.kX,2)}\\)、\\(l_{u,x}=${d(sl.luX,0)}\\ \\text{cm}\\)；繞 Y 軸 \\(k_y=${d(sl.kY,2)}\\)、\\(l_{u,y}=${d(sl.luY,0)}\\ \\text{cm}\\)。`
       + `迴轉半徑依 ${sl.bridge ? '§7.3.5.2(2)' : '§6.2.5.2'}：${sl.how==='rect' ? '矩形取考量穩定方向尺度之 0.30 倍' : sl.how==='circ' ? '圓形取 0.25D' : '中空箱型以全斷面 \\(r=\\sqrt{I_g/A_g}\\) 計算'}。`));
-    if(sl.how==='circ') o.push(eq(`r=0.25D=0.25\\times${d(M.s.D,0)}=${d(sl.rX,2)}\\ \\text{cm},\\qquad
-      \\frac{kl_u}{r}=\\frac{${d(sl.k,2)}\\times${d(sl.lu,0)}}{${d(sl.rX,2)}}=${d(sl.lam,1)}`));
+    const rx = sl.how==='circ' ? `r=0.25D=0.25\\times${d(M.s.D,0)}=${d(sl.rX,2)}` : sl.how==='rect' ? `r_x=0.30H=0.30\\times${d(M.s.H,0)}=${d(sl.rX,2)}` : `r_x=\\sqrt{\\frac{I_{gx}}{A_g}}=${d(sl.rX,2)}`;
+    const ry = sl.how==='circ' ? `r=${d(sl.rY,2)}` : sl.how==='rect' ? `r_y=0.30B=0.30\\times${d(M.s.B,0)}=${d(sl.rY,2)}` : `r_y=\\sqrt{\\frac{I_{gy}}{A_g}}=${d(sl.rY,2)}`;
+    o.push(eq(`${rx}\\ \\text{cm},\\qquad \\frac{k_xl_{u,x}}{r_x}=\\frac{${d(sl.kX,2)}\\times${d(sl.luX,0)}}{${d(sl.rX,2)}}=${d(sl.lamX,1)}`));
+    o.push(eq(`${ry}\\ \\text{cm},\\qquad \\frac{k_yl_{u,y}}{r_y}=\\frac{${d(sl.kY,2)}\\times${d(sl.luY,0)}}{${d(sl.rY,2)}}=${d(sl.lamY,1)}`));
+    const limTex = sl.sway ? '22' : sl.bridge
+      ? `34-12\\frac{M_{1b}}{M_{2b}}=34-12\\times(${d(-sl.m12,2)})=${d(sl.lim,1)}`
+      : `\\min\\left(34+12\\frac{M_1}{M_2},\\ 40\\right)=\\min\\left(34+12\\times(${d(sl.m12,2)}),\\ 40\\right)=${d(sl.lim,1)}`;
+    o.push(eq(`\\text{可忽略門檻（${sl.sway ? '無側向位移支撐' : '有側向位移支撐'}）：}\\ \\frac{kl_u}{r}\\ ${sl.bridge ? '<' : '\\le'}\\ ${limTex}\\qquad
+      \\text{繞 X：}${sl.needX ? '\\text{須考慮}' : '\\text{可忽略}'},\\ \\text{繞 Y：}${sl.needY ? '\\text{須考慮}' : '\\text{可忽略}'}`));
+    if(sl.ok) o.push(note(`<b>長細效應可忽略</b>（${sl.ref}）。`));
+    else if(sl.treat==='second') o.push(note(`<b>須考慮長細效應</b>：設計者聲明本計算書之 \\(P_u,M_u\\) <b>已含二階效應</b>（${sl.sway ? '含 P-Δ 及構材 P-δ' : '含構材 P-δ'}${sl.bridge ? '，公路橋梁設計規範 §7.3.5.1' : '，土木401-112 §6.2.5.3、§6.6.4；含二階效應之彎矩不得超過一階彎矩之 1.4 倍'}），本計算未再放大。`));
     else {
-      const rx = sl.how==='rect' ? `r_x=0.30H=0.30\\times${d(M.s.H,0)}=${d(sl.rX,2)}` : `r_x=\\sqrt{\\frac{I_{gx}}{A_g}}=${d(sl.rX,2)}`;
-      const ry = sl.how==='rect' ? `r_y=0.30B=0.30\\times${d(M.s.B,0)}=${d(sl.rY,2)}` : `r_y=\\sqrt{\\frac{I_{gy}}{A_g}}=${d(sl.rY,2)}`;
-      o.push(eq(`${rx}\\ \\text{cm},\\qquad \\frac{kl_u}{r_x}=\\frac{${d(sl.k,2)}\\times${d(sl.lu,0)}}{${d(sl.rX,2)}}=${d(sl.lamX,1)}`));
-      o.push(eq(`${ry}\\ \\text{cm},\\qquad \\frac{kl_u}{r_y}=\\frac{${d(sl.k,2)}\\times${d(sl.lu,0)}}{${d(sl.rY,2)}}=${d(sl.lamY,1)}`));
+      const ex = M.res.find(q => q.Lk.slx && (q.Lk.slx.d > 1 || q.Lk.sly.d > 1)) || M.res[0], ax = ex.Lk.slx && ex.Lk.slx.need ? 'x' : 'y', q = ax==='x' ? ex.Lk.slx : ex.Lk.sly;
+      const Ig = ax==='x' ? sl.IgX : sl.IgY;
+      o.push(note(`<b>彎矩放大</b>：輸入之 \\(M_u\\) 為一階分析結果，依${sl.bridge ? '公路橋梁設計規範 §7.3.5.2(5)' : '土木401-112 §6.6.4'}放大後檢核（下例為「${esc(ex.L.name)}」繞 ${ax.toUpperCase()} 軸）：`));
+      if(sl.bridge){
+        o.push(eq(`EI=\\frac{E_cI_g/2.5}{1+\\beta_d}=\\frac{${d(sl.Ec,0)}\\times${d(Ig,0)}/2.5}{1+${d(sl.beta,2)}}=${d(q.EI||0,0)}\\ \\text{kgf}\\cdot\\text{cm}^2,\\qquad
+          C_m=0.6+0.4\\frac{M_{1b}}{M_{2b}}\\ge0.4\\ \\Rightarrow\\ ${d(q.Cm||1,3)}`));
+        o.push(eq(`P_{c,b}=\\frac{\\pi^2EI}{(k_bl_u)^2}=${d((q.PcB||0)/TF,0)}\\ \\text{tf},\\quad \\delta_b=\\frac{C_m}{1-P_u/(\\phi P_{c,b})}=${d(q.db||1,3)}`
+          + (sl.sway ? `,\\quad P_{c,s}=${d((q.PcS||0)/TF,0)}\\ \\text{tf},\\quad \\delta_s=\\frac{1}{1-P_u/(\\phi P_{c,s})}=${d(q.ds||1,3)}` : '')));
+      }else{
+        o.push(eq(`(EI)_{eff}=\\frac{0.4E_cI_g}{1+\\beta_{dns}}=\\frac{0.4\\times${d(sl.Ec,0)}\\times${d(Ig,0)}}{1+${d(sl.beta,2)}}=${d(q.EIns||0,0)},\\qquad
+          C_m=0.6-0.4\\frac{M_1}{M_2}=${d(q.Cm||1,3)}`));
+        o.push(eq(`P_c=\\frac{\\pi^2(EI)_{eff}}{(kl_u)^2}=${d((q.PcN||0)/TF,0)}\\ \\text{tf},\\quad \\delta=\\frac{C_m}{1-P_u/(0.75P_c)}=${d(q.dn||1,3)}`
+          + (sl.sway ? `,\\quad \\delta_s=${q.dsQ!==null && q.dsQ<=1.5 ? `\\frac{1}{1-Q}` : `\\frac{1}{1-P_u/(0.75P_{c,s})}`}=${d(q.ds||1,3)}` : '')));
+      }
+      o.push(eq(`M_{2,min}=P_u(1.5+0.03h)=${d((q.M2min||0)/TFM,1)}\\ \\text{tf}\\cdot\\text{m},\\qquad M_c=\\delta\\,\\max(M_2,M_{2,min})=${d(Number.isFinite(q.d)?q.d:0,3)}\\times${d((q.M2||0)/TFM,1)}=${d((q.Mc||0)/TFM,1)}\\ \\text{tf}\\cdot\\text{m}`));
+      o.push(`<table class="no-break"><thead><tr><th class="l">組合</th><th>P_u (tf)</th><th>M_ux (tf·m)</th><th>δ_x</th><th>M_cx (tf·m)</th><th>M_uy (tf·m)</th><th>δ_y</th><th>M_cy (tf·m)</th></tr></thead><tbody>`
+        + M.res.map(r => { const X = r.Lk.slx || {d:1}, Y = r.Lk.sly || {d:1}, dd = v => Number.isFinite(v) ? d(v,3) : '∞';
+            return `<tr><td class="l">${esc(r.L.name)}</td><td>${d(r.L.Pu,0)}</td><td>${d(Math.abs(r.L.Mux),1)}</td><td>${dd(X.d)}</td><td>${d(r.Lk.Mux/TFM,1)}</td><td>${d(Math.abs(r.L.Muy),1)}</td><td>${dd(Y.d)}</td><td>${d(r.Lk.Muy/TFM,1)}</td></tr>`; }).join('')
+        + `</tbody></table>`);
+      o.push(note(sl.bridge ? (sl.sway ? 'δ_s 以本柱 P_u/P_c 代替群組 ΣP_u/ΣP_c（§7.3.5.2(9) 群柱時應以群組計）；彎矩未分重力與側移部分，取 max(δ_b, δ_s)。φ 取 φ_c。' : '有支撐構材 δ_s = 1.0。')
+        : (sl.sway ? 'δ_s 依 §6.6.4.6.2（輸入 Q 時採 (a)；否則以本柱 P_u/P_c 代替 ΣP_u/ΣP_c 之 (b)），並乘沿柱長之 δ（§6.6.4.6.4，k = 1.0）；彎矩未分 M_ns、M_s，全部視為側移彎矩。' : '無側移構架 §6.6.4.5。')
+          + ' 二階彎矩不得超過一階之 1.4 倍（§6.2.5.3）。'));
     }
-    const cmp = sl.ok ? (sl.bridge ? '<' : '\\le') : (sl.bridge ? '\\ge' : '>');
-    o.push(eq(sl.sway ? `\\text{無側向位移支撐：}\\ \\frac{kl_u}{r}=${d(sl.lam,1)}\\ ${cmp}\\ 22`
-      : sl.bridge
-      ? `\\text{有支撐防止側移：}\\ \\frac{kl_u}{r}=${d(sl.lam,1)}\\ ${cmp}\\ 34-12\\frac{M_{1b}}{M_{2b}}=34-12\\times(${d(-sl.m12,2)})=${d(sl.lim,1)}`
-      : `\\text{有側向位移支撐：}\\ \\frac{kl_u}{r}=${d(sl.lam,1)}\\ ${cmp}\\ \\min\\left(34+12\\frac{M_1}{M_2},\\ 40\\right)=\\min\\left(34+12\\times(${d(sl.m12,2)}),\\ 40\\right)=${d(sl.lim,1)}`));
-    o.push(note((sl.ok ? `<b>長細效應可忽略</b>（${sl.ref}）。`
-      : `<b>須考慮長細效應</b>：本計算書之 \\(P_u,M_u\\) 須為已含二階效應之分析結果（${sl.sway ? '含 P-Δ' : '含構材 P-δ'}${sl.bridge ? '，公路橋梁設計規範 §7.3.5' : '，土木401-112 §6.2.5.3、§6.6.4），且含二階效應之彎矩不得超過一階彎矩之 1.4 倍（§6.2.5.3'}）。`)
-      + (sl.over100 ? '<br><b>kl_u/r > 100</b>：須依公路橋梁設計規範 §7.3.5.1 進行二階分析，不得採近似法。' : '')
-      + (sl.sway ? '' : sl.bridge ? '<br>\\(M_{1b}/M_{2b}\\)：單曲度為正、反向曲度為負（與土木401-112 之 \\(M_1/M_2\\) 正負相反，本工具輸入採後者並自動換號）。' : '<br>\\(M_1/M_2\\)：單曲率為負、雙曲率為正。')));
+    if(sl.over100) o.push(note('<b>kl_u/r > 100</b>：須依公路橋梁設計規範 §7.3.5.1 進行二階分析，不得採近似法。'));
+    o.push(note(sl.bridge ? '\\(M_{1b}/M_{2b}\\)：單曲度為正、反向曲度為負（與土木401-112 之 \\(M_1/M_2\\) 正負相反，本工具輸入採後者並自動換號）。' : '\\(M_1/M_2\\)：單曲率為負、雙曲率為正。'));
     const bc = brCover(M);
     if(bc) o.push(note(`<b>橋梁保護層</b>（公路橋梁設計規範 §7.1.5 表 7.2，${bc.t}）：箍筋 \\(c_o=${d(bc.cTie,1)}\\ ${bc.okTie?'\\ge':'<'}\\ ${d(bc.tie,1)}\\ \\text{cm}\\)；主筋 \\(c_o+d_t=${d(bc.cMain,1)}\\ ${bc.okMain?'\\ge':'<'}\\ ${d(bc.main,1)}\\ \\text{cm}\\)。`));
   }
   if(document.getElementById('envWater').value==='water') o.push(note(waterNoteHtml()));
   o.push(`<div class="rp-h2">附註</div>`);
-  o.push(note(`1. 本工具<b>不計算</b>彎矩放大係數，只判定長細效應可否忽略（建築 §6.2.5.1；橋梁依公路橋梁設計規範 §7.3.5.2）。輸入之 \\(P_u,M_u\\) 須為已含 P-Δ 之大變形幾何非線性分析結果。<br>
+  o.push(note(`1. 長細效應不可忽略時，依「二階效應處理方式」以彎矩放大法放大一階彎矩（建築 §6.6.4；橋梁 §7.3.5.2(5)），或由設計者聲明輸入已含二階效應；kl_u/r > 100 之橋梁構材須另行二階分析。<br>
     2. 塑性形心僅對<b>對稱配筋</b>成立；非對稱配筋之結果不適用。<br>
     3. ${M.opt.code==='bridge'?`橋梁剪力依公路橋梁耐震設計規範 §5.3.3（\\(\\phi=${d(m.phivB,2)}\\)、\\(V_c\\) 式 5-3／5-4），扭矩依土木401（\\(\\phi_v=${d(m.phiv,2)}\\)）。`:`\\(\\phi_v=${d(m.phiv,2)}\\) 係搭配土木401-112 表 22.5.5.1 之 \\(V_c\\)，勿與 AASHTO 之 \\(\\phi_v=0.90\\)（搭配 MCFT）混用。`}<br>
     4. 中空斷面之剪力+扭矩斷面上限採<b>直接相加</b>（非平方根合成）。`));
+  { const U = colUncovered(M); if(U.length) o.push(note(`<b>本計算書未涵蓋、須另行檢核</b>：${U.map((t,i)=>`(${i+1}) ${t}`).join('；')}。`)); }
   o.push(`</div>`);
 
   const el=document.getElementById('report');
@@ -5947,7 +6548,7 @@ function shearReport(M,sh){
   const eq=x=>`<div class="rp-eq">${KD(x)}</div>`;   /* 同樣走 display 模式 */
   const note=x=>`<div class="rp-note">${x}</div>`;
   const o=[`<div class="rp-h3">6.${sh.dir==='x'?'1':'2'} ${t} 向（控制組合：${esc(sh.ctrl.L.name)}）</div>`];
-  o.push(`<div class="rp-note">各載重組合逐一檢核（V_c 隨 N_u 改變），取強度需求 A_v/s 最大者為控制組合，以下計算均以該組合代入。</div>`);
+  o.push(`<div class="rp-note">各載重組合逐一檢核（V_c 隨 N_u 改變），取強度需求間距最小者為控制組合，以下計算均以該組合代入。</div>`);
   o.push(shearComboRows(sh,true));
   o.push(M.s.type==='circle'
     ? eq(`b_w=D=${d(sh.bw,1)}\\ \\text{cm},\\qquad d=0.8D=${d(sh.d,2)}\\ \\text{cm}\\ \\ (\\text{圓形斷面，土木401／ACI 22.5.2.2})`)
@@ -5960,13 +6561,19 @@ function shearReport(M,sh){
     o.push(eq(`V_e=\\frac{2M_{pr}}{l_u}=\\frac{2\\times${d(sh.Mo/TFM,0)}\\times100}{${d(M.opt.lu,0)}}=${d(sh.Ve/TF,1)}\\ \\text{tf}
       \\qquad V_{des}=\\max(V_e,\\;V_u)=\\max(${d(sh.Ve/TF,1)},\\;${d(sh.Vu/TF,1)})=${d(sh.Vdes/TF,1)}\\ \\text{tf}`));
   } else if(M.opt.plastic){
-    o.push(`<div class="rp-note">超強彎矩取各載重組合軸力下 M_n 之最大者（P_u = ${d(sh.PMn/TF,0)} tf）。</div>`);
+    o.push(`<div class="rp-note">${sh.mnDead
+      ? `最大可能彎矩強度之軸力採靜載重引致之軸力 P_D = ${d(sh.PMn/TF,0)} tf（公路橋梁耐震設計規範 §4.2.1，單柱得採用；設計者選用）。`
+      : `超強彎矩取各載重組合軸力下 M_n 之最大者（P_u = ${d(sh.PMn/TF,0)} tf）——較 §4.2.1 單柱得採靜載重軸力之規定保守${M.opt.phEnds===2 ? '；構架式依 §4.2.2 須考慮軸力變化' : ''}。`}</div>`);
     o.push(eq(`M_n(P_u=${d(sh.PMn/TF,0)}\\text{tf})=${d(sh.Mn/TFM,0)}\\ \\text{tf}\\cdot\\text{m}\\quad\\Rightarrow\\quad
       M_o=\\phi_o M_n=${d(M.opt.phio,2)}\\times${d(sh.Mn/TFM,0)}=${d(sh.Mo/TFM,0)}\\ \\text{tf}\\cdot\\text{m}`));
     o.push(note(M.opt.phEnds===2
       ? `構架式橋墩（兩端塑鉸）：V_e = (柱頂 + 柱底最大可能彎矩)／淨高（公路橋梁耐震設計規範 §4.2.2），最大可能彎矩 = φ_o·M_n（RC 柱 φ_o = 1.3，§4.2.1）。`
       : `單柱橋墩：V_e = 最大可能彎矩／柱高（含帽梁，即 L_v）（公路橋梁耐震設計規範 §4.2.1），最大可能彎矩 = φ_o·M_n（RC 柱 φ_o = 1.3）。`));
-    o.push(eq(`${M.opt.phEnds===2 ? `V_e=\\frac{2M_o}{l_u}=\\frac{2\\times${d(sh.Mo/TFM,0)}\\times100}{${d(M.opt.lu,0)}}` : `V_e=\\frac{M_o}{L_v}=\\frac{${d(sh.Mo/TFM,0)}\\times100}{${d(M.opt.Lv,0)}}`}=${d(sh.Ve/TF,1)}\\ \\text{tf}
+    o.push(eq(`${M.opt.phEnds===2 ? `V_e=\\frac{2M_o}{l_u}=\\frac{2\\times${d(sh.Mo/TFM,0)}\\times100}{${d(M.opt.lu,0)}}` : `V_e=\\frac{M_o}{L_v}=\\frac{${d(sh.Mo/TFM,0)}\\times100}{${d(M.opt.Lv,0)}}`}=${d(sh.VeRaw/TF,1)}\\ \\text{tf}`)
+      + (sh.Vel > 0 ? note(sh.VeCapped
+          ? `<b>彈性剪力上限</b>：設計剪力不必超過地震力為 1.2α_yF_u 倍時之彈性分析剪力 V_el = ${d(sh.Vel/TF,1)} tf（§4.2.1、§4.2.2，設計者輸入）→ V_e 取 ${d(sh.Ve/TF,1)} tf。`
+          : `彈性剪力上限 V_el = ${d(sh.Vel/TF,1)} tf（§4.2.1、§4.2.2）不控制。`) : note(`未輸入彈性剪力上限（§4.2.1、§4.2.2 之 1.2α_yF_u 彈性剪力），V_e 不折減（保守）。`)));
+    o.push(eq(`V_e=${d(sh.Ve/TF,1)}\\ \\text{tf}
       \\qquad V_{des}=\\max(V_e,\\;V_u)=\\max(${d(sh.Ve/TF,1)},\\;${d(sh.Vu/TF,1)})=${d(sh.Vdes/TF,1)}\\ \\text{tf}`));
   } else o.push(eq(`V_{des}=V_u=${d(sh.Vdes/TF,1)}\\ \\text{tf}\\quad(\\text{非塑鉸區，不作容量設計})`));
 
@@ -5978,8 +6585,8 @@ function shearReport(M,sh){
     o.push(note(`公路橋梁耐震設計規範 §5.3.3：${V.hinge?'塑鉸區式 (5-3)':'非塑鉸區式 (5-4)'}；F 於軸壓取 N/(140A_g)、軸拉取 N/(35A_g)；V_c ≥ 0。`));
   }else if(sh.V.zeroed){
     const zr = vcZeroRatio(M.opt.code);
-    o.push(eq(`N_u=${d(sh.Nu/TF,0)}\\ \\text{tf}\\lt ${zr===0.05?"A_gf'_c/20":"0.1f'_cA_g"}=${d(zr*m.fc*M.Ag/TF,0)}\\ \\text{tf}
-      \\ \\Rightarrow\\ \\boxed{V_c=0}\\quad(\\text{${zr===0.05?'柱端加密區':'塑鉸區'}折減})`));
+    o.push(eq(`${M.opt.vcRule==='b' ? '' : `V_e=${d(sh.Ve/TF,1)}\\ \\ge\\ \\tfrac12V_{des}=${d(sh.Vdes/2/TF,1)}\\ \\text{tf},\\quad `}N_u=${d(sh.Nu/TF,0)}\\ \\text{tf}\\lt ${zr===0.05?"A_gf'_c/20":"0.1f'_cA_g"}=${d(zr*m.fc*M.Ag/TF,0)}\\ \\text{tf}
+      \\ \\Rightarrow\\ \\boxed{V_c=0}\\quad(\\text{§18.4.6.2.1${M.opt.vcRule==='b' ? '，設計者選擇僅依軸力（保守）' : ' (a)(b)'}})`));
   }else{
     const V=sh.V, capped = V.vc0 >= 1.33*V.lam*Math.sqrt(m.fc)*sh.bw*sh.d - 1e-6;
     o.push(eq(`V_c=\\left(0.53\\lambda\\sqrt{f'_c}+\\frac{N_u}{6A_g}\\right)b_wd
@@ -6001,12 +6608,18 @@ function shearReport(M,sh){
       =\\frac{${d(sh.Tu,0)}}{2\\times${d(m.phiv,2)}\\times${d(sh.Ao,0)}\\times${d(m.fyt,0)}\\times${d(sh.cot,3)}}
       =${d(sh.AtS,5)}\\ \\text{cm}^2/\\text{cm}`));
     o.push(eq(`A_l=\\frac{A_t}{s}p_h\\frac{f_{yt}}{f_y}\\cot^2\\theta=${d(sh.Al,1)}\\ \\text{cm}^2\\ \\ (\\text{追加扭矩縱筋})`));
-    o.push(eq(`\\frac{V_{des}}{b_wd}+\\frac{T_up_h}{1.7A_{oh}^2}=${d(sh.lhs,2)}\\ \\le\\
+    o.push(eq(`\\frac{V_{des}}{b_wd}+${sh.thin ? `\\frac{T_u}{1.7A_{oh}t_w}` : `\\frac{T_up_h}{1.7A_{oh}^2}`}=${d(sh.lhs,2)}\\ \\le\\
       \\phi_v\\left(\\frac{V_c}{b_wd}+2.12\\sqrt{f'_c}\\right)=${d(sh.rhs,2)}\\ \\text{kgf/cm}^2
       \\ \\ ${sh.sectOver?'\\;\\textbf{✗}':'\\;\\checkmark'}`));
   }else o.push(`<div class="rp-note">T_u = ${d(sh.Tu/TFM,1)} tf·m ≤ 門檻 φT_th = φ·0.265√f'c·A_cp²/p_cp = ${d(sh.Tthr/TFM,1)} tf·m，扭矩可忽略（ACI 22.7.4.1）。</div>`);
-  o.push(eq(`\\frac{A_v}{s}\\bigg|_{tot}=\\frac{V_s}{f_{yt}${sh.dV!==sh.d?'(\\pi D/4)':'d'}}+2\\frac{A_t}{s}=${d(sh.AvS_shear,5)}+${d(2*sh.AtS,5)}
-    =${d(sh.AvS_tot,5)}\\ \\Rightarrow\\ s\\le\\frac{A_v}{(A_v/s)_{tot}}=${d(sh.s_str,2)}\\ \\text{cm}`));
+  if(sh.torsion){
+    o.push(eq(`\\frac{A_v}{s}\\bigg|_{tot}=\\frac{V_s}{f_{yt}${sh.dV!==sh.d?'(\\pi D/4)':'d'}}+2\\frac{A_t}{s}=${d(sh.AvS_shear,5)}+${d(2*sh.AtS,5)}
+      =${d(sh.AvS_tot,5)}\\ \\text{cm}^2/\\text{cm}`));
+    o.push(eq(`\\text{外圍閉合單肢：}\\frac{A_t}{s}+\\frac{A_v/s}{n_{legs}}=${d(sh.AtS,5)}+\\frac{${d(sh.AvS_shear,5)}}{${sh.nlegs}}=${d(sh.AoS,5)}
+      \\ \\Rightarrow\\ s\\le\\frac{A_{b}}{A_t/s+(A_v/s)/n_{legs}}=\\frac{${d(sh.At1,3)}}{${d(sh.AoS,5)}}=${d(sh.s_str,2)}\\ \\text{cm}`));
+    o.push(note(`扭矩只能由外圍閉合箍筋承擔：肋筋組超過二肢時，僅靠近兩側之二肢可計入，內部繫筋、內層箍筋對扭力無效（土木401-112 §9.5.4.3 解說）。剪力由全部 ${sh.nlegs} 肢平均分擔。`));
+  }else o.push(eq(`\\frac{A_v}{s}=\\frac{V_s}{f_{yt}${sh.dV!==sh.d?'(\\pi D/4)':'d'}}=${d(sh.AvS_shear,5)}
+    \\ \\Rightarrow\\ s\\le\\frac{A_v}{A_v/s}=\\frac{${d(sh.Av,3)}}{${d(sh.AvS_shear,5)}}=${d(sh.s_str,2)}\\ \\text{cm}`));
   o.push(`<table class="no-break"><thead><tr><th class="l">${t} 向間距上限</th><th>值 (cm)</th></tr></thead><tbody>
     <tr><td class="l">強度需求（剪力+扭矩）</td><td>${d(sh.s_str,2)}</td></tr>
     <tr><td class="l">最小剪力鋼筋量 A_v,min</td><td>${d(sh.s_minAv,2)}</td></tr>
@@ -6047,10 +6660,10 @@ function selfTest(){
 
   // 剪力控制組合須為各組合中最嚴者（V_c 隨 N_u 變，最大 V_u 未必控制）
   for(const sh of [M.shX,M.shY]){
-    const maxD=Math.max(...sh.all.map(c=>c.AvS_tot)), anyFail=sh.all.some(c=>c.sectionFail||c.sectOver);
+    const maxD=Math.max(...sh.all.map(c=>c.AoS)), anyFail=sh.all.some(c=>c.sectionFail||c.sectOver);
     T(`剪力 ${sh.dir.toUpperCase()} 向控制組合為最嚴者`,
-      anyFail ? (sh.sectionFail||sh.sectOver) : sh.AvS_tot>=maxD-1e-12,
-      `控制「${esc(sh.ctrl.L.name)}」(A_v/s)_{tot}=${f(sh.AvS_tot,5)}；全組合最大 ${f(maxD,5)} cm²/cm（共 ${sh.all.length} 組）`);
+      anyFail ? (sh.sectionFail||sh.sectOver) : sh.AoS>=maxD-1e-12,
+      `控制「${esc(sh.ctrl.L.name)}」外圍單肢 A_o/s=${f(sh.AoS,5)}；全組合最大 ${f(maxD,5)} cm²/cm（共 ${sh.all.length} 組）`);
   }
 
   // 圓形：半圓面積與形心解析解
@@ -6084,10 +6697,20 @@ function selfTest(){
   const z=cv.pts.filter(p=>Math.abs(p.Pn)<0.02*cv.Po);
   T('純彎附近 M_n 穩定（對稱配筋）', z.length>0, z.length? `P_n≈0 處 M_n=${f(z[0].Mn/TFM,0)} tf·m`:'無取樣點');
 
-  // 8) D/C 自洽：把控制點依 1/DC 縮放後 D/C 應 = 1
-  const C=M.ctrlFlex, k=1/Math.max(C.dc,1e-9);
-  const scaled=biaxialDC(M.cvX,M.cvY,M.pX,M.pY,m,{Pu:C.Lk.Pu*k,Mux:C.Lk.Mux*k,Muy:C.Lk.Muy*k});
+  // 8) D/C 自洽：把控制點依 1/DC 縮放後 D/C 應 = 1（撓曲本身之 D/C，不含扣除扭力縱筋之重算）
+  const C=M.ctrlFlex, k=1/Math.max(C.bi.dc,1e-9);
+  const scaled=biaxialDC(M.cvX,M.cvY,M.pX,M.pY,m,{Pu:C.Lk.Pu*k,Mux:C.Lk.Mux*k,Muy:C.Lk.Muy*k},M.S3);
   T('D/C 定偏心自洽（縮放後應=1.000）', Math.abs(scaled.dc-1)<0.02, `縮放後 D/C=${f(scaled.dc,4)}`);
+
+  // 8b) 雙軸精確解退化：彎矩幾乎只繞單一軸時，應與該軸之單軸 P-M 結果一致
+  if(M.S3){
+    const P0 = 0.25*M.pX.cap, Mx0 = 0.6*phiMnAtP(M.cvX,m,P0), My0 = 0.6*phiMnAtP(M.cvY,m,P0);
+    const ex = biaxExactDC(M.S3, P0, Mx0, 1e-6*Mx0).dc, ux = radialDC(M.pX.poly, Mx0, P0, M.pX.cap, m.phit*M.cvX.Pnt).dc;
+    const ey = biaxExactDC(M.S3, P0, 1e-6*My0, My0).dc, uy = radialDC(M.pY.poly, My0, P0, M.pY.cap, m.phit*M.cvY.Pnt).dc;
+    // 容許 1.5%：φ 過渡區（re-entrant notch）附近兩者離散方式不同（網格內插 vs. 多邊形射線）
+    T('雙軸精確解退化為單軸時與 P-M 曲線一致', Math.abs(ex/ux-1)<0.015 && Math.abs(ey/uy-1)<0.015,
+      `繞 X：${f(ex,4)} vs ${f(ux,4)}；繞 Y：${f(ey,4)} vs ${f(uy,4)}`);
+  }
 
   // 9) φ 過渡凹口：包絡線在過渡區會有 re-entrant notch（真實現象，非錯誤）。
   //    D/C 必須取「最內側」交點才保守 —— 逐射線驗證 radialDC 確實回傳最小 t。
@@ -6117,7 +6740,8 @@ function selfTest(){
     `最大凹口深度 ${f(notch*100,2)}%；radialDC 全數回傳最小 t`);
 
   // 10) 純壓 φ 應為 φc
-  T('純壓端 φ = φ_c', Math.abs(big.phi-m.phic)<1e-9, `φ=${f(big.phi,3)}`);
+  { const ph0 = m.phiMode==='br532' ? cv.pts[cv.pts.length-1].phi : big.phi, ex0 = m.phiMode==='br532' ? m.phiBrMin : m.phic;
+    T(m.phiMode==='br532' ? '純壓端 φ = φ_min（§5.3.2）' : '純壓端 φ = φ_c', Math.abs(ph0-ex0)<1e-9, `φ=${f(ph0,3)}`); }
 
   // 11) 建議配筋：第一名（主筋＋配合橫向筋）以完整計算重驗，不得有與配筋相關之不合格，且 D/C ≤ 1
   { const R = colOptimize(), g = R.main[0];
@@ -6142,19 +6766,33 @@ function selfTest(){
 /* =========================================================================
    載重表 UI
    ========================================================================= */
+/* U8：載重表輸入單位（核心一律 tf、tf·m；SI 時顯示／輸入 kN、kN·m） */
+const KN_PER_TF = 9.80665;
+const loadUnitK = () => { const e = document.getElementById('loadUnit'); return e && e.value==='kN' ? KN_PER_TF : 1; };
 function drawLoads(){
   const tb=document.querySelector('#loadTbl tbody'); tb.innerHTML='';
+  const K = loadUnitK(), uF = K===1 ? 'tf' : 'kN', uM = K===1 ? 'tf·m' : 'kN·m';
+  document.querySelectorAll('#loadTbl thead th').forEach((th,j)=>{ const sp = th.querySelector('span'); if(!sp || j<2) return;
+    const base = sp.innerHTML.replace(/^(tf·m|kN·m|tf|kN)/, ''); sp.innerHTML = ([3,4,7].includes(j) ? uM : uF) + base; });
+  const show = v => { const x = (+v||0)*K; return K===1 ? v : +x.toFixed(3); };
   LOADS.forEach((L,i)=>{
     const tr=document.createElement('tr');
-    const cell=(k,w)=>`<td><input data-i="${i}" data-k="${k}" value="${L[k]}" style="width:${w}px;text-align:right"></td>`;
+    const cell=(k,w)=>`<td><input data-i="${i}" data-k="${k}" value="${show(L[k])}" style="width:${w}px;text-align:right"></td>`;
+    const ps = L.pos || '';
     tr.innerHTML=`<td class="l"><input data-i="${i}" data-k="name" value="${esc(L.name)}" style="width:130px"></td>`
+      +`<td><select data-i="${i}" data-k="pos" title="同名組合分列「頂」「底」時，長細效應之 M₁/M₂ 由兩端彎矩求得" style="width:52px">`
+      +['','top','bot'].map(v=>`<option value="${v}"${v===ps?' selected':''}>${v?POS_TXT[v]:'—'}</option>`).join('')+`</select></td>`
       +cell('Pu',62)+cell('Mux',68)+cell('Muy',68)+cell('Vux',58)+cell('Vuy',58)+cell('Tu',58)
       +`<td><button data-del="${i}" style="padding:2px 7px">✕</button></td>`;
     tb.appendChild(tr);
   });
   tb.querySelectorAll('input').forEach(inp=>inp.addEventListener('input',e=>{
     const i=+e.target.dataset.i,k=e.target.dataset.k;
-    LOADS[i][k] = k==='name'? e.target.value : (parseFloat(e.target.value)||0);
+    LOADS[i][k] = k==='name'? e.target.value : (parseFloat(e.target.value)||0)/loadUnitK();   // 內部 tf；保留正負號；檢核時取絕對值（P_u 壓為正）
+    render();
+  }));
+  tb.querySelectorAll('select[data-k="pos"]').forEach(sel=>sel.addEventListener('change',e=>{
+    const i=+e.target.dataset.i; if(e.target.value) LOADS[i].pos = e.target.value; else delete LOADS[i].pos;
     render();
   }));
   tb.querySelectorAll('button[data-del]').forEach(b=>b.addEventListener('click',e=>{
@@ -6207,19 +6845,6 @@ function beamGross(S){
   let Ig=0;
   for(const p of parts) Ig += p.b*p.h*p.h*p.h/12 + p.b*p.h*Math.pow(p.yc-yb,2);
   return {Ag:A, yb, yt:S.h-yb, Ig};
-}
-/* T 梁有效翼緣寬（土木401 / ACI 6.3.2） */
-function effFlange(S){
-  if(S.type!=='T') return {be:S.bw, gov:'—', cand:[]};
-  const c = S.edge
-    ? [{v:S.bw + S.L/12,        t:'b_w + L/12'},
-       {v:S.bw + 6*S.hf,        t:'b_w + 6h_f'},
-       {v:S.bw + S.sClear/2,    t:'b_w + 淨距/2'}]
-    : [{v:S.L/4,                t:'L/4'},
-       {v:S.bw + 16*S.hf,       t:'b_w + 16h_f'},
-       {v:S.sSpacing,           t:'梁中心距'}];
-  const m = c.reduce((a,b)=> b.v<a.v?b:a, c[0]);
-  return {be:m.v, gov:m.t, cand:c};
 }
 
 /* ---------- 鋼筋層 ----------
@@ -6316,19 +6941,13 @@ function beamIcr(ctx){
 function beamShearDesign(S, R, m, ctx, res, MnPos, MnNeg){
   const d = ctxDepth(ctx);
   const bw = S.bw, Ag = beamGross(S).Ag;
-  let ctrl = res[0], w=-1;
-  for(const r of res) if(Math.abs(r.k.Vu) > w){ w=Math.abs(r.k.Vu); ctrl=r; }
-  const Vu = Math.abs(ctrl.k.Vu), Tu = Math.abs(ctrl.k.Tu);
 
   // 容量設計剪力（耐震特殊抗彎構材）：M_pr 以 1.25f_y、φ=1.0
   // 正、負彎矩各用其斷面幾何（T 梁正彎矩翼板受壓）；舊版沿用檢核中斷面之幾何，負彎矩檢核時 M_pr⁺ 偏低
   const MprP = S.seismic ? (beamSolve({...ctx, g:beamShape(S,'pos'), sign:'pos'}, 1.25*m.fy)||{Mn:0}).Mn : 0;
   const MprN = S.seismic ? (beamSolve({...ctx, g:beamShape(S,'neg'), sign:'neg'}, 1.25*m.fy)||{Mn:0}).Mn : 0;
   const Ve   = S.seismic && S.ln>0 ? (MprP+MprN)/S.ln + S.Vg*TF : 0;
-  const Vdes = S.seismic ? Math.max(Ve, Vu) : Vu;
 
-  // 地震剪力佔比高且軸壓低 → V_c 歸零（梁通常 P_u ≈ 0，必然滿足）
-  const VcZero = S.seismic && Vdes>0 && ((Ve - S.Vg*TF) >= 0.5*Vdes);
   /* 土木401-112 表 22.5.5.1：配箍筋之梁箍筋間距恆受 A_v,min 控制 → 式 (a) 0.53λ√f'c·b_w·d；
      版不配剪力筋（A_v < A_v,min）→ 式 (c) 2.12λ_sλ(ρ_w)^{1/3}√f'c·b_w·d，λ_s = √(2/(1+d/25)) ≤ 1（§22.5.5.1.3），
      √f'c ≤ 26.5（§22.5.3.1）；均 ≤ 1.33λ√f'c·b_w·d。梁、版 N_u 取 0。 */
@@ -6338,44 +6957,74 @@ function beamShearDesign(S, R, m, ctx, res, MnPos, MnNeg){
   const kV = vcSlurry(m);
   const VcA = 0.53*lam*Math.sqrt(m.fc)*bw*d*kV;
   const VcC = Math.min(2.12*lamS*lam*Math.cbrt(rhoW)*Math.min(Math.sqrt(m.fc),26.5)*bw*d, 1.33*lam*Math.sqrt(m.fc)*bw*d)*kV;
-  const Vc = VcZero ? 0 : (S.slab ? VcC : VcA);
-  const VsReq = Math.max(0, Vdes/m.phiv - Vc);
   const VsMax = 2.12*Math.sqrt(m.fc)*bw*d;
   const VsTight = 1.06*Math.sqrt(m.fc)*bw*d;
-  const fail = VsReq > VsMax;
 
   const At1 = BAR[S.tieSize].A, nlegs = S.nLegs, Av = nlegs*At1;
 
-  // 扭矩：實心斷面（T 梁之 A_cp 依 ACI 22.7.6.2 含部分翼緣，此處保守僅取腹板）
+  // 扭矩：實心斷面；A_oh、p_h 取腹板閉合箍筋
   const cc = S.cover + BAR[S.tieSize].d/2;
   const Aoh = Math.max(1,(bw-2*cc))*Math.max(1,(S.h-2*cc));
   const ph = 2*((bw-2*cc)+(S.h-2*cc));
   const Ao = 0.85*Aoh, cot = 1/Math.tan(S.theta*Math.PI/180);
-  const Acp = bw*S.h, pcp = 2*(bw+S.h);
+  /* A_cp、p_cp（土木401-112 §9.2.4.4）：T 梁計入翼板外懸，每側 min(h − h_f, 4h_f)（且不超過有效翼緣）；
+     計入後 A_cp²/p_cp 反而變小時不計翼板。邊梁單側。 */
+  let Acp = bw*S.h, pcp = 2*(bw+S.h), AcpOv = 0;
+  if(S.type==='T' && S.hf > 0){
+    const nS = S.edge ? 1 : 2, ov = Math.max(0, Math.min(S.h - S.hf, 4*S.hf, ((S.be || bw) - bw)/nS));
+    const A2 = Acp + nS*ov*S.hf, p2 = pcp + 2*nS*ov;
+    if(ov > 0 && A2*A2/p2 > Acp*Acp/pcp){ Acp = A2; pcp = p2; AcpOv = ov; }
+  }
   const Tthr = m.phiv*0.265*Math.sqrt(m.fc)*(Acp*Acp/pcp);   // ACI 22.7.4.1（舊版誤用 T_cr 係數 1.06）
-  const tors = Tu > Tthr;
-  const AtS = tors ? Tu/(2*m.phiv*Ao*m.fyt*cot) : 0;
-  const Al  = tors ? AtS*ph*(m.fyt/m.fy)*cot*cot : 0;
-  // 實心斷面之剪扭上限採平方根合成
-  const lhs = Math.sqrt(Math.pow(Vdes/(bw*d),2) + (tors?Math.pow(Tu*ph/(1.7*Aoh*Aoh),2):0));
-  const rhs = m.phiv*(Vc/(bw*d) + 2.12*Math.sqrt(m.fc));
-  const over = lhs > rhs;
 
-  const AvS = VsReq>1e-9 ? VsReq/(m.fyt*d) : 0;
-  const AvStot = AvS + 2*AtS;
-  const sStr = AvStot>1e-9 ? Av/AvStot : 1e9;
   const sMin = Math.min(Av*m.fyt/(0.2*Math.sqrt(m.fc)*bw), Av*m.fyt/(3.5*bw));
-  const sCode = VsReq>VsTight ? Math.min(d/4,30) : Math.min(d/2,60);
   // 耐震加密區（土木401 §18.3.4.4）：自柱面 2h 範圍內
   const dbMin = Math.min(R.dbB, R.dbT);
   const sConf = S.seismic ? Math.min(d/4, seisKdb(m.fy)*dbMin, 15) : 1e9;   // §18.3.4.4
-  const sTors = tors ? Math.min(ph/8, 30) : 1e9;
 
-  // 版：一般不配剪力筋，須 V_u ≤ φV_c
-  const phiVc = m.phiv*Vc, slabFail = !!S.slab && Vdes > phiVc;
-  return {d,bw,Ag,ctrl,Vu,Tu,MprP,MprN,Ve,Vdes,VcZero,Vc,VsReq,VsMax,VsTight,fail,phiVc,slabFail, lam, lamS, rhoW, VcA, VcC, kV,
-          nlegs,Av,At1,Aoh,ph,Ao,cot,Acp,pcp,Tthr,tors,AtS,Al,lhs,rhs,over,
-          AvS,AvStot,sStr,sMin,sCode,sConf,sTors, confLen:2*S.h};
+  /* 逐組合檢核：扭矩通常不與最大剪力同組發生，只取 |V_u| 最大之組合會漏掉其他組合之扭矩
+     （扭矩箍筋、A_l、剪扭斷面上限）。每組合各算一次，斷面不足者優先，其次取需求間距最小者為控制組合。 */
+  const one = r => {
+    const Vu = Math.abs(r.k.Vu), Tu = Math.abs(r.k.Tu);
+    const Vdes = S.seismic ? Math.max(Ve, Vu) : Vu;
+    // 地震剪力佔比高且軸壓低 → V_c 歸零（梁通常 P_u ≈ 0，必然滿足）
+    const VcZero = S.seismic && Vdes>0 && ((Ve - S.Vg*TF) >= 0.5*Vdes);
+    const Vc = VcZero ? 0 : (S.slab ? VcC : VcA);
+    const VsReq = Math.max(0, Vdes/m.phiv - Vc);
+    const fail = VsReq > VsMax;
+    const tors = Tu > Tthr;
+    const AtS = tors ? Tu/(2*m.phiv*Ao*m.fyt*cot) : 0;
+    const Al  = tors ? AtS*ph*(m.fyt/m.fy)*cot*cot : 0;
+    // 實心斷面之剪扭上限採平方根合成
+    const lhs = Math.sqrt(Math.pow(Vdes/(bw*d),2) + (tors?Math.pow(Tu*ph/(1.7*Aoh*Aoh),2):0));
+    const rhs = m.phiv*(Vc/(bw*d) + 2.12*Math.sqrt(m.fc));
+    const over = lhs > rhs;
+    const AvS = VsReq>1e-9 ? VsReq/(m.fyt*d) : 0;
+    const AvStot = AvS + 2*AtS;                                // 式 (R9.5.4.3)，供列示
+    // 扭矩只能由外圍閉合箍（或兩件式之 U 形肋筋＋封口繫筋）承擔：肢數 > 2 時內部肢對扭力無效（§9.5.4.3 解說）
+    // → 外圍單肢需求 A_o/s = A_t/s + (A_v/s)/n_legs；n_legs = 2 時即 A_v/(A_v/s)_tot
+    const AoS = AtS + AvS/nlegs;
+    const sStr = AoS>1e-9 ? At1/AoS : 1e9;
+    const sCode = VsReq>VsTight ? Math.min(d/4,30) : Math.min(d/2,60);
+    const sTors = tors ? Math.min(ph/8, 30) : 1e9;
+    // 版：一般不配剪力筋，須 V_u ≤ φV_c
+    const phiVc = m.phiv*Vc, slabFail = !!S.slab && Vdes > phiVc;
+    return {ctrl:r, Vu, Tu, Vdes, VcZero, Vc, VsReq, fail, tors, AtS, Al, lhs, rhs, over,
+            AvS, AvStot, AoS, sStr, sCode, sTors, phiVc, slabFail, sGov: Math.min(sStr, sCode, sTors)};
+  };
+  const all = res.map(one);
+  const bad = c => c.fail || c.over || c.slabFail;
+  const worse = (a,b) => {
+    if(bad(a)!==bad(b)) return bad(a) ? a : b;
+    if(Math.abs(a.sGov-b.sGov) > 1e-9) return a.sGov < b.sGov ? a : b;
+    if(Math.abs(a.Vdes-b.Vdes) > 1e-9) return a.Vdes > b.Vdes ? a : b;
+    if(Math.abs(a.Vu-b.Vu) > 1e-9) return a.Vu > b.Vu ? a : b;
+    return a.Tu >= b.Tu ? a : b;
+  };
+  const gov = all.reduce(worse, all[0]);
+  return {d,bw,Ag,MprP,MprN,Ve, lam, lamS, rhoW, VcA, VcC, kV, VsMax, VsTight,
+          nlegs,Av,At1,Aoh,ph,Ao,cot,Acp,pcp,AcpOv,Tthr, sMin, sConf, confLen:2*S.h,
+          ...gov, all};
 }
 function ctxDepth(ctx){
   // 有效深度 d = 受壓緣至受拉鋼筋群形心
@@ -6403,20 +7052,6 @@ function beamClear(S, R){
   return {bot, top, needB, needT, okB: bot===null || bot>=needB-1e-9, okT: top===null || top>=needT-1e-9};
 }
 
-/* ---------- 裂縫控制（土木401-112 表 24.3.2） ---------- */
-function beamCrack(S, R, m, ctx){
-  const fs = (2/3)*m.fy;         // ACI 24.3.2 允許以 (2/3)f_y 代替由使用載重算得之鋼筋應力
-  const cc = S.cover;            // 至最近表面之淨保護層
-  const s1 = 38*(2800/fs) - 2.5*cc;
-  const s2 = 30*(2800/fs);
-  const sLim = Math.min(s1, s2);
-  // 受拉側鋼筋中心距：正彎矩取底筋第 1 排、負彎矩取頂筋
-  const pos = S.sign!=='neg';
-  const nRow = pos ? R.r1 : Math.round(S.nTop), dbT = pos ? R.dbB : R.dbT;
-  const sAct = S.slab ? (pos ? S.spBot : (S.spTop || S.spBot))
-             : nRow>1 ? (S.bw - 2*(S.cover+R.dt) - nRow*dbT)/(nRow-1) + dbT : S.bw;
-  return {fs, cc, s1, s2, sLim, sAct, nRow, ok:sAct<=sLim};
-}
 /* 裂縫寬度（Gergely-Lutz，ACI 224R）：w = 1.1×10⁻⁵ β f_s ∛(d_c A)（SI：MPa、mm、mm²）
    f_s 取使用載重 M_s = M_D + M_L 下開裂轉換斷面之鋼筋應力；
    A = 受拉鋼筋周圍與其同形心之混凝土面積 ÷ 根數 = 2d_c × 間距。 */
@@ -6599,15 +7234,33 @@ function colQuick(M, r2){
   const circ = M.s.type==='circle';
   const cvX = pmCurve({g:geoFor(M.s,'x'), bars:R2.bars, m:m2, axis:'x'}), pX = designPoly(cvX,m2);
   const cvY = circ ? cvX : pmCurve({g:geoFor(M.s,'y'), bars:R2.bars, m:m2, axis:'y'}), pY = circ ? pX : designPoly(cvY,m2);
+  const biax = !circ && !M.noLoads && M.res.some(q => q.Lk.Mux > 1e-9 && q.Lk.Muy > 1e-9);
+  const S3 = biax ? biaxSurface(M.s, R2.bars, m2, pX.cap, m2.phit*cvX.Pnt) : null;
   let dc = 0;
-  if(!M.noLoads) for(const q of M.res) dc = Math.max(dc, biaxialDC(cvX,cvY,pX,pY,m2,q.Lk).dc);
+  if(!M.noLoads) for(const q of M.res) dc = Math.max(dc, biaxialDC(cvX,cvY,pX,pY,m2,q.Lk,S3).dc);
+  /* 扭力縱筋：A_l,req 與主筋量無關（由剪扭設計之 A_t/s、A_cp、p_h 決定），以各扭矩組合之最大值等比例扣減後重算（同 compute） */
+  const AlReq = M.torsL && M.torsL.any ? M.torsL.AlReqMax : 0;
+  if(AlReq > 0 && !M.noLoads){
+    const kf = 1 - AlReq/Ast;
+    if(kf <= 0) dc = Infinity;
+    else{
+      const bars2 = R2.bars.map(b=>({...b, A:b.A*kf})), m3 = {...M.m, Ast:Ast*kf};
+      const cX = pmCurve({g:geoFor(M.s,'x'), bars:bars2, m:m3, axis:'x'}), qX = designPoly(cX,m3);
+      const cY = circ ? cX : pmCurve({g:geoFor(M.s,'y'), bars:bars2, m:m3, axis:'y'}), qY = circ ? qX : designPoly(cY,m3);
+      const S3b = biax ? biaxSurface(M.s, bars2, m3, qX.cap, m3.phit*cX.Pnt) : null;
+      M.res.forEach((q, i) => { const t = M.torsL.rows[i];
+        if(t && t.tors) dc = Math.max(dc, biaxialDC(cX,cY,qX,qY,m3,q.Lk,S3b).dc); });
+    }
+  }
   return {R:R2, Ast, rho:Ast/M.m.Ag*100, dc};
 }
 /* 主筋候選：各號數取「每面均勻間距」下最少根數（二分搜尋），須滿足 D/C ≤ 1、ρ_g 上下限、主筋淨距、
    耐震時主筋間距 ≤ h_x 上限（每根主筋皆設繫筋時 h_x 即主筋間距）、圓柱最少根數、基樁 ≥ 6 支且 ≥ D19；
    大於 D36 不得搭接（§25.5.1.1），續接方式為搭接時不列入。 */
+/* 建議配筋之目標 D/C 上限（0.5～1.0，預設 0.95） */
+const optDcTarget = mod => { const v = parseFloat(document.getElementById(mod==='beam' ? 'bOptDc' : 'optDc').value); return Number.isFinite(v) ? Math.max(0.5, Math.min(1, v)) : 0.95; };
 function colMainCands(M){
-  const {s, r, opt} = M, RL = rhoLimit(M), out = [];
+  const {s, r, opt} = M, RL = rhoLimit(M), out = [], DCT = optDcTarget('pylon');
   const circ = s.type==='circle', box = s.type==='box', pile = !!opt.pile;
   const dt = BAR[r.tieSize].d, lap = /^[AB]$/.test(document.getElementById('dSplice').value);
   const lapGap = Math.max(0, parseFloat(document.getElementById('dLapGap').value) || 0);
@@ -6646,7 +7299,7 @@ function colMainCands(M){
     if(lo > hi) continue;
     const memo = new Map();
     const ev = n => { if(memo.has(n)) return memo.get(n); const c = mk(n); let v = null;
-      if(c){ const q = colQuick(M, c.r2); v = {...c, q, n, pass: q.dc <= 1 + 1e-9 && q.rho >= RL.min - 1e-9}; }
+      if(c){ const q = colQuick(M, c.r2); v = {...c, q, n, pass: q.dc <= DCT + 1e-9 && q.rho >= RL.min - 1e-9}; }
       memo.set(n, v); return v; };
     let top = ev(hi), k = hi;
     while(!top && k > lo){ k--; top = ev(k); }
@@ -6669,17 +7322,20 @@ function colEvalMain(c, base, M0){
     return {M, fails: optFails(items, OPT_GRP.pMain, OPT_GRP.pTie, base)};
   });
 }
-/* 橫向筋每組長度（中心線，未計彎鉤與搭接）與每公尺用量 */
+/* 主筋每公尺用量：依鋼筋下料長度表（含錨定、彎鉤延伸與搭接）／柱淨高 */
+const optMainKgCol = M => devSchedule(M.devPlan, M).reduce((a,q)=>a+q.kg, 0)/(M.devPlan.L/100);
+/* 橫向筋每組長度（中心線，含 135°／90° 彎鉤延伸 max(6d_t, 7.5 cm)；未計彎曲伸長）與每公尺用量 */
 function colTieLen(M){
   const {s, r, R, conf} = M, dt = conf.dt;
-  if(s.type==='circle') return Math.PI*Math.max(1, s.D - 2*r.covO - dt);
+  const hk = Math.max(6*dt, 7.5);
+  if(s.type==='circle') return Math.PI*Math.max(1, s.D - 2*r.covO - dt) + (r.spiral ? 0 : 2*hk);
   const cx = Math.max(1, s.B - 2*r.covO - dt), cy = Math.max(1, s.H - 2*r.covO - dt);
   if(s.type==='box'){
     const ct = Math.max(1, s.tw - r.covO - r.covI - dt);
     const inner = R.inner ? 2*(2*R.inner.hxI + R.db + dt + 2*R.inner.hyI + R.db + dt) : 0;
-    return 2*(cx + cy) + inner + 2*(conf.tieX.length + conf.tieY.length)*ct;
+    return 2*(cx + cy) + inner + 2*(conf.tieX.length + conf.tieY.length)*(ct + 2*hk) + (R.inner ? 4 : 2)*hk;
   }
-  return 2*(cx + cy) + conf.tieX.length*cy + conf.tieY.length*cx;
+  return 2*(cx + cy) + 2*hk + conf.tieX.length*(cy + 2*hk) + conf.tieY.length*(cx + 2*hk);
 }
 const colTieKg = M => BAR[M.r.tieSize].A*colTieLen(M)*M.lay.total/M.opt.lu*100*STEEL_KG;
 
@@ -6721,6 +7377,9 @@ function colOptimize(){
     while(cur && tries < 3){
       nEval++; tries++;
       const v = colEvalMain(cur, base, M0);
+      // 目標 D/C 上限（完整計算含長細效應放大、扣除扭力縱筋）：超過時視同 D/C 不合格，試加根數
+      if(!v.fails.length && v.M.ctrlFlex.dc > optDcTarget('pylon') + 1e-9)
+        v.fails = [{lv:'bad', t:`撓曲 D/C = ${fdc(v.M.ctrlFlex.dc)} 超過目標上限 ${f(optDcTarget('pylon'),2)}`, ids:['barSize']}];
       if(!v.fails.length){ out.main.push({...cur, M:v.M}); break; }
       lastFail = {c:cur, fails:v.fails};
       // 只有 D/C 類不合格時試加根數；其他（伸展長度、淨距……）與根數無關或加根數無助
@@ -6738,7 +7397,7 @@ function colOptimize(){
   if(!out.main.length && lastFail) out.mainNote.push('最接近之候選仍不合格：' + lastFail.fails.map(optPlain).map(t=>t.slice(0,90)).join('；'));
   /* 每組主筋配上其最省之橫向筋，依「主筋＋橫向筋」合計用鋼量排序（細主筋常使 6d_b 間距上限變密，未必最省） */
   for(const g of out.main){
-    g.kgMain = g.M.Ast*100*STEEL_KG;
+    g.kgMain = optMainKgCol(g.M);
     const T = colTieCands(M0, base, g.ovr, BAR[g.size].d).ok;
     g.tie = T[0] || null;
     g.total = g.kgMain + (g.tie ? g.tie.kg : Infinity);
@@ -6769,9 +7428,12 @@ function beamEvalSign(ovr, sign){
     finally{ OPT_QUIET = false; }
   });
 }
+/* 梁主筋（底筋或頂筋）每公尺用量：依鋼筋下料長度表（含錨定、彎鉤與搭接）／梁長；版為每公尺寬 */
+const optMainKgBeam = (B, sign) => { const P = B.devPlan, rows = devSchedule(P, B).filter(q => q.id[0] === (sign==='pos' ? 'B' : 'T'));
+  return rows.length ? rows.reduce((a,q)=>a+q.kg, 0)/(P.L/100) : (sign==='pos' ? B.R.AsBot : B.R.AsTop)*100*STEEL_KG; };
 const beamStirKg = B => {
   const {S} = B, dt = BAR[S.tieSize].d, w = Math.max(1, S.bw - 2*S.cover - dt), h = Math.max(1, S.h - 2*S.cover - dt);
-  const L = 2*(w + h) + Math.max(0, Math.round(S.nLegs) - 2)*h;
+  const hk = Math.max(6*dt, 7.5), L = 2*(w + h) + 2*hk + Math.max(0, Math.round(S.nLegs) - 2)*(h + 2*hk);   // 含 135°／90° 彎鉤延伸
   return BAR[S.tieSize].A*L*B.lay.total/S.ln*100*STEEL_KG;
 };
 /* 箍筋候選：號數 × 肢數（肢數 ≤ 第 1 排底筋根數且 ≤ 12）；兩種檢核斷面皆須合格。mainOvr 為主筋覆寫 */
@@ -6827,9 +7489,11 @@ function beamOptimize(){
       const v = beamEvalSign(ovr, sign), osg = sign==='pos' ? 'neg' : 'pos', w = beamEvalSign(ovr, osg);
       // 另一檢核斷面（壓力筋改變亦影響其 D/C、裂縫等）：不得新增不合格
       const fails = optFails(v.items, grp, other, base[sign]).concat(optFails(w.items, [], other, base[osg]));
+      const dcT = optDcTarget('beam');
+      if(!fails.length && v.B.ctrl && v.B.ctrl.dc > dcT + 1e-9) fails.push({lv:'bad', t:`撓曲 D/C = ${fdc(v.B.ctrl.dc)} 超過目標上限 ${f(dcT,2)}`});
       if(fails.length){ lastFail = {g, fails}; continue; }
       const B = v.B; done.add(g.size);
-      list.push({...g, ovr, B, kg: g.As*100*STEEL_KG,
+      list.push({...g, ovr, B, kg: optMainKgBeam(B, sign),
                  isCur: sign==='pos' ? (g.size===S0.botSize && (slab ? Math.abs(g.sp-S0.spBot)<1e-6 : g.n===Math.round(S0.nBot)))
                                      : (g.size===S0.topSize && (slab ? Math.abs(g.sp-S0.spTop)<1e-6 : g.n===Math.round(S0.nTop)))});
     }
@@ -6948,6 +7612,7 @@ function optHtmlBeam(res){
 }
 function optRun(mod){
   const el = optEl(mod); if(!el) return;
+  if(isBlocked(mod)){ OPT[mod].pending = false; el.innerHTML = '<div class="alert a-bad">輸入不完整，已停止計算；請先修正參數表中標紅的欄位，再試算建議配筋。</div>'; return; }
   const t0 = performance.now();
   let res;
   try{ res = mod==='beam' ? beamOptimize() : colOptimize(); }
@@ -6955,7 +7620,7 @@ function optRun(mod){
   OPT[mod] = {stale:false, res, pending:false};
   if(!res){ el.innerHTML = '<div class="alert a-bad">目前輸入無法計算。</div>'; return; }
   el.innerHTML = SB((mod==='beam' ? optHtmlBeam(res) : optHtmlCol(res))
-    + `<div class="text-[11px] mt-2" style="color:var(--dim)">試算 ${f((performance.now()-t0)/1000,1)} 秒。用鋼量為中心線長度估算，未計彎鉤、搭接與續接器。</div>`);
+    + `<div class="text-[11px] mt-2" style="color:var(--dim)">試算 ${f((performance.now()-t0)/1000,1)} 秒。用鋼量（kg/m）：主筋依鋼筋下料長度表（含錨定、彎鉤延伸與搭接）÷ 構材長；橫向筋含彎鉤延伸；未扣彎曲伸長、未含續接器。</div>`);
   if(window.mathIn) mathIn(el);
 }
 /* 輸入改變：建議頁開著時標示「已過期」，不自動重算（大型斷面試算需數秒） */
@@ -7057,10 +7722,11 @@ const BPRESETS = {
     loads:[{name:'1.2D+1.6L', Mpos:64, Mneg:30, Vu:42, Tu:2}]}
 };
 function applyBPreset(k){
+  if(CONFIRM) CONFIRM.beam.clear();
   const P=BPRESETS[k]; if(!P) return;
   const s=(id,v)=>{const e=document.getElementById(id); if(e) e.value=v;};
   s('bType',P.type); s('bw',P.bw); s('bh',P.h); s('bhf',P.hf); s('bL',P.L);
-  s('bSpacing',P.sSpacing); s('bSclear',P.sClear); s('bEdge',P.edge?'1':'0');
+  s('bSpacing',P.sSpacing); s('bSclear',P.sClear); s('bEdge',P.iso?'2':P.edge?'1':'0'); s('bBf',P.bf||120);
   s('bfc',P.fc); s('bBotSize',P.botSize); s('bNbot',P.nBot);
   s('bTopSize',P.topSize); s('bNtop',P.nTop); s('bTieSize',P.tieSize); s('bNlegs',P.nLegs);
   s('bCover',P.cover); s('bSeismic',P.seismic?'1':'0'); s('bLn',P.ln); s('bVg',P.Vg);
@@ -7155,9 +7821,10 @@ function computeBeam(){
     bw: pos('bw',45), h: pos('bh',110), hf: Math.max(0,num('bhf',22)),
     L: pos('bL',1800), sSpacing: Math.max(0,num('bSpacing',250)),
     sClear: Math.max(0,num('bSclear',205)), edge: document.getElementById('bEdge').value==='1',
-    botSize: document.getElementById('bBotSize').value, nBot: Math.max(1,Math.round(pos('bNbot',8))),
-    topSize: document.getElementById('bTopSize').value, nTop: Math.max(0,Math.round(num('bNtop',4))),
-    tieSize: document.getElementById('bTieSize').value, nLegs: Math.max(2,Math.round(pos('bNlegs',2))),
+    flPos: ({'0':'int','1':'edge','2':'iso'})[document.getElementById('bEdge').value] || 'int', bf: Math.max(0,num('bBf',120)),
+    botSize: document.getElementById('bBotSize').value, nBot: slab ? 1 : intIn('bNbot', pos('bNbot',8), 1, '底筋根數'),
+    topSize: document.getElementById('bTopSize').value, nTop: slab ? 0 : intIn('bNtop', num('bNtop',4), 0, '頂筋根數'),
+    tieSize: document.getElementById('bTieSize').value, nLegs: slab ? 2 : intIn('bNlegs', pos('bNlegs',2), 2, '箍筋肢數'),
     cover: Math.max(0,num('bCover',4)), rowGap: 2.5, sClearBar: 2.5, dagg: Math.max(0.5,num('bDagg',2.5)),
     hoop: document.getElementById('bHoop').value==='cap' ? 'cap' : 'closed',
     botRows: 'auto',
@@ -7171,8 +7838,14 @@ function computeBeam(){
     limLive: pos('bLimLive',360), limTotal: pos('bLimTotal',240),
     fsMode:'default', Ma:0, sign: BSIGN
   };
+  if(num('bCover',4) < 0) badIn('bCover','保護層不得為負值');
+  if(num('bDagg',2.5) < 0.5) badIn('bDagg','骨材粒徑須 ≥ 0.5 cm');
+  { const su = num('bSustain',0.2); if(su < 0 || su > 1) badIn('bSustain','持續活載比例須介於 0 與 1 之間'); }
+  for(const id of ['bMD','bML','bMDn','bMLn','bVg']) if(num(id,0) < 0) badIn(id,'請填絕對值（不得為負）');
+  if(S.type==='T' && !(S.hf > 0)) badIn('bhf','T 型梁翼緣厚須 > 0（無翼緣請改選矩形）');
+  // 翼緣厚 ≥ 全深不成立，不可由程式自行改為 h/3（舊版靜默修正）
+  if(S.type==='T' && S.hf >= S.h){ badIn('bhf',`翼緣厚須小於全深 ${f(S.h,0)} cm`); S.hf = S.h/3; }
   if(S.type!=='T') S.hf=0;
-  if(S.hf >= S.h) S.hf = S.h/3;
   if(S.slab){
     // 單位寬版：b = 100 cm；鋼筋以「號數 @ 間距」輸入，每公尺根數可為小數
     S.bw = 100; S.seismic = false;
@@ -7216,9 +7889,26 @@ function computeBeam(){
     k:{Mu:Math.abs(S.sign==='pos'?(L.Mpos??L.Mu??0):(L.Mneg??0))*TFM,
        Vu:Math.abs(L.Vu)*TF, Tu:Math.abs(L.Tu)*TFM}}));
   for(const r of res) r.dc = r.k.Mu<=1e-6 ? 0 : (phiMn>0 ? r.k.Mu/phiMn : Infinity);   // Mu 已依 sign 取對應欄
-  const ctrl = res.length ? res.reduce((a,b)=> b.dc>a.dc?b:a, res[0]) : null;
+  let ctrl = res.length ? res.reduce((a,b)=> b.dc>a.dc?b:a, res[0]) : null;
 
   const sh = beamShearDesign(S,R,m,ctx,res,solPos?solPos.Mn:0,solNeg?solNeg.Mn:0);
+  /* 扭力縱筋（§9.5.4.3：與撓曲鋼筋相加；§9.6.4.3 A_l,min）：有扭矩之組合，頂、底筋等比例扣除 max(A_l, A_l,min) 後重算 φM_n。
+     本工具未建模腹板縱筋；若另配腹板筋分擔 A_l，本檢核偏保守。 */
+  const torsL = {any:false, rows:[]};
+  if(!S.slab){
+    const AsL = R.AsBot + R.AsTop, Acp = sh.Acp, ph = sh.ph;
+    for(const c of sh.all){
+      if(!c.tors) continue;
+      const a = 1.33*Math.sqrt(m.fc)*Acp/m.fy - c.AtS*ph*m.fyt/m.fy, b = 1.33*Math.sqrt(m.fc)*Acp/m.fy - (1.75*S.bw/m.fyt)*ph*m.fyt/m.fy;
+      const AlMin = Math.max(0, Math.min(a, b)), AlReq = Math.max(c.Al, AlMin), kf = 1 - AlReq/Math.max(1e-9, AsL), r = c.ctrl;
+      let phiMnR = 0;
+      if(kf > 0 && !noTen){ const so = beamSolve({...ctx, layers: ctx.layers.map(L=>({...L, A:L.A*kf}))}); phiMnR = so ? phiOf(so.eps_t, m)*so.Mn : 0; }
+      r.dc0 = r.dc; r.dcT = r.k.Mu <= 1e-6 ? (kf > 0 ? 0 : Infinity) : (phiMnR > 0 ? r.k.Mu/phiMnR : Infinity);
+      r.dc = Math.max(r.dc, r.dcT); r.AlReq = AlReq;
+      torsL.any = true; torsL.rows.push({name:r.L.name, Al:c.Al, AlMin, AlReq, kf, r, AtS:c.AtS});
+    }
+    if(torsL.any) ctrl = res.reduce((a,b)=> b.dc>a.dc?b:a, res[0]);
+  }
   const gross = beamGross(S);
   const icr = beamIcr(ctx);
   const defl = beamDeflection(S,m,ctx,gross,icr);
@@ -7254,7 +7944,7 @@ function computeBeam(){
   const leg  = S.slab ? null : beamLeg(S,sh,R);
 
   BMODEL = {S,m,R,EF,gross,icr,ctxPos,ctxNeg,ctx,solPos,solNeg,sol,phi,phiMn,phiPos,phiNeg,
-            d,AsTen,AsCom,AsMin,rho,res,ctrl,sh,defl,crack,cw,clr,sug,noTen,noLoads,
+            d,AsTen,AsCom,AsMin,rho,res,ctrl,sh,torsL,defl,crack,cw,clr,sug,noTen,noLoads,
             fin:{cands,gov,sUse,tooTight}, fin2, lay, leg};
   BMODEL.devX = devXBeam(); BMODEL.dev = beamDev(BMODEL); BMODEL.devPlan = beamDevPlan(BMODEL);
   if(BMODEL.lay) BMODEL.lay = BMODEL.devPlan.lay;
@@ -7265,18 +7955,27 @@ function computeBeam(){
    V_c 不折減（§18.3.5.2 只在 2h 內歸零），設計剪力仍取 V_e；另 s ≤ d/2（§18.3.4.6）。 */
 function beamZone2(S, m, sh){
   const Vc = 0.53*(m.lam||1)*Math.sqrt(m.fc)*sh.bw*sh.d*vcSlurry(m);     // 表 22.5.5.1 (a)
-  const VsReq = Math.max(0, sh.Vdes/m.phiv - Vc);
-  const tot = (VsReq>1e-9 ? VsReq/(m.fyt*sh.d) : 0) + 2*sh.AtS;
+  // 逐組合（同加密區）：各組合之 V_des、A_t/s 不同，取需求間距最小者
+  let best = null;
+  for(const c of (sh.all || [sh])){
+    const VsReq = Math.max(0, c.Vdes/m.phiv - Vc);
+    const AvS = VsReq>1e-9 ? VsReq/(m.fyt*sh.d) : 0;
+    const AoS = c.AtS + AvS/sh.nlegs;                       // 外圍單肢（扭矩僅外圍閉合肢有效）
+    const sStr = AoS>1e-9 ? sh.At1/AoS : 1e9;
+    const sCode = VsReq>sh.VsTight ? Math.min(sh.d/4,30) : Math.min(sh.d/2,60);
+    const sv = Math.min(sStr, sCode, c.sTors);
+    if(!best || sv < best.sv - 1e-9) best = {sv, sStr, sCode, sTors:c.sTors, VsReq};
+  }
   const cands=[];
   const push=(v,t)=>{ if(Number.isFinite(v)&&v>0&&v<1e8) cands.push({v,t}); };
-  push(tot>1e-9 ? sh.Av/tot : 1e9, '剪力+扭矩強度需求（V_c 不折減）');
+  push(best.sStr, '剪力+扭矩強度需求（V_c 不折減）');
   push(sh.sMin, '最小剪力鋼筋量 A_v,min');
-  push(VsReq>sh.VsTight ? Math.min(sh.d/4,30) : Math.min(sh.d/2,60), '規範間距上限');
+  push(best.sCode, '規範間距上限');
   push(sh.d/2, '耐震梁加密區外 d/2');
-  push(sh.sTors, '扭矩 min(p_h/8, 30)');
+  push(best.sTors, '扭矩 min(p_h/8, 30)');
   const gov = cands.reduce((a,b)=> b.v<a.v?b:a, cands[0]);
   const sUse = PRACTICAL_S.find(v=>v<=gov.v) || PRACTICAL_S[PRACTICAL_S.length-1];
-  return {cands, gov, sUse, tooTight: sUse>gov.v, Vc, VsReq};
+  return {cands, gov, sUse, tooTight: sUse>gov.v, Vc, VsReq:best.VsReq};
 }
 /* 梁箍筋肢橫向間距（§9.7.6.2.2）：≤ d 及 60 cm；V_s > 1.06√f'c·b_w·d 時 ≤ d/2 及 30 cm。
    耐震梁另以肢距估「受側撐主筋間距 ≤ 35 cm」（§18.3.4.2）。 */
@@ -7712,6 +8411,8 @@ function renderBeam(){
   const B=computeBeam(); if(!B) return null;
   const {S,m,R}=B;
   pinNA('beam', ['bhf','bSpacing','bEdge'], S.type!=='T');
+  if(S.type==='T'){ pinNA('beam', ['bSpacing'], S.flPos!=='int'); pinNA('beam', ['bSclear'], S.flPos!=='edge'); }
+  pinNA('beam', ['bBf'], !(S.type==='T' && S.flPos==='iso'));
   pinNA('beam', ['bw','bSclear','bNbot','bNtop','bTieSize','bNlegs','bHoop','bSeismic','bLn','bVg','bTheta'], S.slab);
   pinNA('beam', ['bSpBot','bSpTop','bRhoTs'], !S.slab);
   pinNA('beam', ['bWlim'], S.env!=='water');
@@ -7799,8 +8500,10 @@ function renderBeam(){
   }
   document.getElementById('bSummary').innerHTML=SB(h);
   B.badIn = collectBadInputs('beam');
+  applyBlocked('beam', B.badIn);
   renderBeamAlerts(B);
-  {
+  if(B.badIn.length) verdictBlocked(B, 'bAlerts');
+  else {
     const sh=B.sh, dcSt = !C ? 'ok' : (!Number.isFinite(C.dc)||C.dc>1) ? 'bad' : C.dc>0.9 ? 'warn' : 'ok';
     renderVerdict([
       [dcSt,'撓曲 D/C',C?fdc(C.dc):'—',C?C.L.name:'','bSummary',['bh','bBotSize','bNbot','bTopSize','bNtop','#bLoadTbl']],
@@ -7817,10 +8520,11 @@ function renderBeam(){
         return [c.okB&&c.okT?'ok':'bad','主筋淨距', mn===null?'—':(mn<0?'排不下':`${f(mn,1)} cm`), `需 ≥ ${f(Math.max(c.needB,c.needT),1)}`,'bSummary',['bNbot','bNtop','bBotSize','bTopSize','bw','bDagg']]; })(),
       ...(B.defl.na ? [] : [[B.defl.okL&&B.defl.okT?'ok':'warn','撓度',`Δ_LT ${f(B.defl.dLT,2)} / ${f(B.defl.limT,2)} cm`,'','bSummary',['bh','bML','bMD','bDeflCase','bLimTotal']]]),
       devVerdict(B.devPlan,'bDevPlan'),
+      ...(beamUncovered(B).length ? [uncovPill(beamUncovered(B), 'bAlerts')] : []),
     ],'bAlerts');
   }
   stampCalc();
-  pinStatus('beam', pinMapBeam(B));
+  pinStatus('beam', B.badIn.length ? pinMapBlocked(B) : pinMapBeam(B));
   if(document.getElementById('report').classList.contains('preview')) buildBeamReport(B);
   caseAutosave();
   optAfterRender('beam'); setupSync();
@@ -7828,13 +8532,16 @@ function renderBeam(){
 }
 
 function renderBeamAlerts(B){
-  document.getElementById('bAlerts').innerHTML=SB(alertSort(beamAlertItems(B).map(a=>alertBox('beam', a.lv, a.t, a.ids))).join(''));
+  const items = beamAlertItems(B);
+  renderConfirm('beam', items, B.badIn && B.badIn.length ? [] : beamUncovered(B));
+  document.getElementById('bAlerts').innerHTML=SB(alertSort(items.map(a=>alertBox('beam', a.lv, a.t, a.ids))).join(''));
 }
 /* 梁警示清單（純資料）：畫面警示與「建議配筋」判定共用 */
 function beamAlertItems(B){
   const {S,m}=B, A=[];
   const add=(lv,t,ids)=>A.push({lv,t,ids});
-  if(B.badIn && B.badIn.length) add('bad',`<b>輸入空白或無效（已暫以預設值計算，請補正）</b>：${B.badIn.map(b=>`${esc(b.label)} → ${b.dflt}`).join('、')}。`, B.badIn.map(b=>b.id));
+  if(B.badIn && B.badIn.length) add('bad',`<b>輸入不完整，已停止計算</b>：${B.badIn.map(b=>`${esc(b.label)}（${esc(b.why)}）`).join('、')}。修正後才顯示結果。`, B.badIn.map(b=>b.id));
+  if(B.badIn && B.badIn.length) return A;   // 停止計算：以佔位值算出之其他警示不列出
   rangeAlerts('beam', add);
   if(B.noLoads) add('warn','<b>尚未輸入載重組合</b>：目前以零載重計算，檢核結果沒有意義。', ['#bLoadTbl']);
   { // 土木401-112 表 20.2.2.4(a)：剪力肋筋／箍筋 f_yt ≤ 4200（特殊耐震系統 ≤ 5600）；扭力 ≤ 4200
@@ -7866,13 +8573,27 @@ function beamAlertItems(B){
   if(B.sol.eps_t < etTC(B.m)) add('bad',`<b>未達拉力控制</b>：ε_t = ${f(B.sol.eps_t,5)} < ε_ty + 0.003 = ${f(etTC(B.m),5)}（φ = ${f(B.phi,3)}）。P_u < 0.1f'_cA_g 之非預力梁須為拉力控制（土木401-112 §9.3.3.1、表 21.2.2）——減少拉力筋、加壓力筋或加大斷面。`, (S.sign==='neg' ? ['bNtop','bTopSize','bSpTop','bh'] : ['bNbot','bBotSize','bSpBot','bh']));
   else add('ok',`ε_t = ${f(B.sol.eps_t,5)} ≥ ε_ty + 0.003 = ${f(etTC(B.m),5)}，拉力控制，φ = ${f(B.phi,2)}（§9.3.3.1）。`, (S.sign==='neg' ? ['bNtop','bTopSize','bSpTop','bh'] : ['bNbot','bBotSize','bSpBot','bh']));
 
-  if(S.type==='T' && S.sign==='pos')
-    add('info',`T 梁有效翼緣寬 b_e = ${f(S.be,1)} cm，由 <b>${B.EF.gov}</b> 控制。受壓塊 a = ${f(B.sol.a,2)} cm ${B.sol.a<=S.hf?'≤':'＞'} h_f = ${f(S.hf,1)} cm → ${B.sol.a<=S.hf?'中性軸落在翼緣內，等同寬度 b_e 之矩形梁':'中性軸落入腹板，受壓區採翼緣＋腹板分段積分'}。`, ['bL','bSpacing','bSclear','bhf','bEdge']);
+  if(S.type==='T' && S.sign==='pos'){
+    if(B.EF.iso && !B.EF.hfOk) add('bad',`<b>單獨 T 梁翼板過薄</b>：h_f = ${f(S.hf,1)} cm ＜ 0.5b_w = ${f(0.5*S.bw,1)} cm（土木401-112 §6.3.2.2），翼板不得用以增加抗壓面積；請加厚翼板或改以矩形梁檢核。`, ['bhf','bw','bEdge']);
+    add('info',`T 梁有效翼緣寬 b_e = ${f(S.be,1)} cm（土木401-112 ${B.EF.iso?'§6.3.2.2':'表 6.3.2.1'}），由 <b>${B.EF.gov}</b> 控制。受壓塊 a = ${f(B.sol.a,2)} cm ${B.sol.a<=S.hf?'≤':'＞'} h_f = ${f(S.hf,1)} cm → ${B.sol.a<=S.hf?'中性軸落在翼緣內，等同寬度 b_e 之矩形梁':'中性軸落入腹板，受壓區採翼緣＋腹板分段積分'}。`, ['bLn','bSpacing','bSclear','bBf','bhf','bEdge']);
+  }
   if(S.type==='T' && S.sign==='neg')
     add('info',`負彎矩：翼緣受拉不計入受壓區，斷面退化為 b_w × h = ${f(S.bw,0)} × ${f(S.h,0)} cm 矩形，拉力筋改取頂筋。`, ['bType']);
 
   if(B.sh.fail) add('bad',`<b>斷面剪力不足</b>：V_s 需求 ${f(B.sh.VsReq/TF,1)} tf > 上限 2.12√f'_c·b_w·d = ${f(B.sh.VsMax/TF,1)} tf。加箍筋無效，須加大斷面。`, ['bw','bh','#bLoadTbl']);
   if(B.sh.over) add('bad',`<b>剪扭斷面應力超限</b>：${f(B.sh.lhs,1)} > ${f(B.sh.rhs,1)} kgf/cm²（實心斷面採平方根合成）。`, ['bw','bh','#bLoadTbl']);
+  { const U = beamUncovered(B); if(U.length) add('info',`<b>本工具未涵蓋、須另行檢核</b>（判定列「未涵蓋」）：${U.join('；')}。`, []); }
+  if(B.torsL && B.torsL.any){   // 扭力縱筋（§9.5.4.3、§9.6.4.3、§9.7.5）
+    const W = B.torsL.rows.reduce((a,b)=> b.AlReq>a.AlReq ? b : a), ids = ['bBotSize','bNbot','bTopSize','bNtop','#bLoadTbl'];
+    add(W.kf <= 0 ? 'bad' : 'info', `<b>扭力縱筋</b>（土木401-112 §9.5.4.3、§9.6.4.3）：A_l = ${f(W.Al,2)}、A_l,min = ${f(W.AlMin,2)} → 需 ${f(W.AlReq,2)} cm²（組合「${esc(W.name)}」）；`
+      + (W.kf <= 0 ? `<b>超過頂、底筋總量，須另配縱筋</b>。` : `頂、底筋等比例扣除後重算 φM_n，D/C ${fdc(W.r.dc0)} → ${fdc(W.r.dc)}（未計腹板縱筋，偏保守）。`), ids);
+    const dt = BAR[S.tieSize].d, vGap = S.h - 2*(S.cover + dt) - Math.max(B.R.dbB, B.R.dbT);
+    if(vGap > 30 + 1e-9) add('warn',`<b>腹板須配扭力縱筋</b>：頂、底筋垂直間距 ${f(vGap,1)} cm ＞ 30 cm，縱向扭力鋼筋應沿閉合箍筋周邊分布、間距 ≤ 30 cm（§9.7.5.1），每側腹板至少 ${Math.ceil(vGap/30)-1} 根。本工具未建模腹板縱筋，請另行配置並確認。`, ['bh','#bLoadTbl']);
+    const hMax = Math.max(B.crack ? B.crack.sAct : 0, ...[B.R.r1, Math.round(S.nTop)].filter(n=>n>1).map(n => (S.bw - 2*(S.cover+dt) - (n===B.R.r1?B.R.dbB:B.R.dbT))/(n-1)));
+    if(hMax > 30 + 1e-9) add('bad',`<b>扭力縱筋間距不足</b>：頂／底筋中心距 ${f(hMax,1)} cm ＞ 30 cm（§9.7.5.1）。`, ['bNbot','bNtop']);
+    const sMax = Math.max(B.fin.sUse, B.fin2 ? B.fin2.sUse : 0), dNeed = Math.max(0.042*sMax, 0.95), dMin = Math.min(B.R.dbB, B.R.nTop>0 || S.nTop>0 ? B.R.dbT : B.R.dbB);
+    if(dMin < dNeed - 1e-9) add('bad',`<b>扭力縱筋直徑不足</b>：d_b = ${f(dMin*10,1)} mm ＜ max(0.042s, 9.5 mm) = ${f(dNeed*10,1)} mm（§9.7.5.2，s = ${f(sMax,1)} cm）。`, ['bBotSize','bTopSize','bTieSize']);
+  }
   if(B.sh.VcZero) add('warn',`耐震：地震剪力佔設計剪力 ≥ 50% 且軸壓甚低 → <b>V_c = 0</b>，全部剪力由箍筋承擔（土木401 §18.3.5.2）。`, ['bSeismic','bVg','#bLoadTbl']);
   if(S.seismic){
     add(B.sh.Ve>B.sh.Vu?'info':'ok',`容量設計剪力 V_e = (M_pr1+M_pr2)/l_n + V_g = ${f(B.sh.Ve/TF,1)} tf，分析值 V_u = ${f(B.sh.Vu/TF,1)} tf → 設計剪力採 <b>${f(B.sh.Vdes/TF,1)} tf</b>。`, ['bLn','bVg','bSeismic']);
@@ -8047,7 +8768,7 @@ function buildBeamReport(B){
   if(S.type==='T'){
     o.push(`<div class="rp-h3">1.1 有效翼緣寬 b_e</div>`);
     o.push(eq(`b_e=\\min\\left\\{${EF.cand.map(c=>`${c.t.replace(/_/g,'_')}=${d(c.v,1)}`).join(',\\ ')}\\right\\}=${d(S.be,1)}\\ \\text{cm}`));
-    o.push(note(`控制項：<b>${EF.gov}</b>（${S.edge?'邊梁':'內梁'}）。負彎矩時翼緣受拉，不計入受壓區。`));
+    o.push(note(`控制項：<b>${EF.gov}</b>（${S.flPos==='iso'?'單獨 T 梁，§6.3.2.2':S.edge?'邊梁，腹板單側':'內梁，腹板兩側'}；土木401-112 表 6.3.2.1，ℓ_n = ${d(S.ln,0)} cm 為淨跨${EF.sw!=null?`、s_w = ${d(EF.sw,1)} cm 為腹板淨距`:''}）。負彎矩時翼緣受拉，不計入受壓區。`));
   }
   o.push(`<div class="rp-h3">1.${S.type==='T'?'2':'1'} 有效深度</div>`);
   o.push(eq(`d=\\frac{\\sum A_{si}\\,d_i}{\\sum A_{si}}\\bigg|_{\\text{受拉側}}=${d(B.d,2)}\\ \\text{cm}
@@ -8128,6 +8849,12 @@ function buildBeamReport(B){
   /* 第 5 頁：剪力與扭矩 */
   o.push(`<div class="rp-page"><div class="rp-h2">5. 剪力與扭矩</div>`);
   o.push(eq(`b_w=${d(S.bw,0)}\\ \\text{cm},\\qquad d=${d(sh.d,2)}\\ \\text{cm}`));
+  if(sh.all && sh.all.length > 1){
+    o.push(note(`各載重組合逐一檢核（設計剪力、扭矩、V_c 歸零條件各組合不同），斷面不足者優先，其次取需求間距最小者為控制組合：<b>${esc(sh.ctrl.L.name)}</b>。`));
+    o.push(`<table class="no-break"><thead><tr><th class="l">組合</th><th>V_des (tf)</th><th>T_u (tf·m)</th><th>V_s 需求 (tf)</th><th>A_t/s</th><th>強度需求 s (cm)</th><th>控制 s (cm)</th></tr></thead><tbody>`);
+    for(const c of sh.all) o.push(`<tr${c===sh.all.find(x=>x.ctrl===sh.ctrl)?' style="font-weight:700;background:#f0f0f0"':''}><td class="l">${esc(c.ctrl.L.name)}</td><td>${d(c.Vdes/TF,1)}</td><td>${d(c.Tu/TFM,1)}${c.tors?'':' (可忽略)'}</td><td>${d(c.VsReq/TF,1)}${c.fail||c.over?' ✗':''}</td><td>${d(c.AtS,5)}</td><td>${c.sStr<1e8?d(c.sStr,1):'—'}</td><td>${c.sGov<1e8?d(c.sGov,1):'—'}</td></tr>`);
+    o.push(`</tbody></table>`);
+  }
   if(S.seismic){
     o.push(`<div class="rp-h3">5.1 容量設計剪力</div>`);
     o.push(eq(`M_{pr}=M_n\\big|_{f_y\\to1.25f_y,\\ \\phi=1.0}:\\quad
@@ -8156,8 +8883,13 @@ function buildBeamReport(B){
     \\qquad V_{s,max}=2.12\\sqrt{f'_c}b_w d=${d(sh.VsMax/TF,1)}\\ \\text{tf}`));
   o.push(eq(`A_v=n_{legs}A_t=${sh.nlegs}\\times${d(sh.At1,3)}=${d(sh.Av,3)}\\ \\text{cm}^2
     \\qquad \\frac{A_v}{s}\\bigg|_{tot}=\\frac{V_s}{f_{yt}d}+2\\frac{A_t}{s}=${d(sh.AvStot,5)}`));
+  if(sh.tors) o.push(eq(`\\text{外圍閉合單肢：}\\frac{A_t}{s}+\\frac{A_v/s}{n_{legs}}=${d(sh.AtS,5)}+\\frac{${d(sh.AvS,5)}}{${sh.nlegs}}=${d(sh.AoS,5)}
+      \\ \\Rightarrow\\ s\\le\\frac{A_b}{A_o/s}=\\frac{${d(sh.At1,3)}}{${d(sh.AoS,5)}}=${d(sh.sStr,2)}\\ \\text{cm}`)
+    + note(`扭矩只能由外圍閉合箍筋承擔；肢數超過二肢時，內部各肢對扭力無效（土木401-112 §9.5.4.3 解說）。`));
   if(sh.tors){
     o.push(`<div class="rp-h3">5.${S.seismic?'3':'2'} 扭矩</div>`);
+    o.push(eq(`A_{cp}=${d(sh.Acp,0)}\\ \\text{cm}^2\\qquad p_{cp}=${d(sh.pcp,1)}\\ \\text{cm}`)
+      + (sh.AcpOv > 0 ? note(`T 梁計入翼板外懸每側 ${d(sh.AcpOv,1)} cm ＝ min(h − h_f, 4h_f)（土木401-112 §9.2.4.4）。`) : ''));
     o.push(eq(`T_u=${d(sh.Tu/TFM,1)}\\gt T_{thr}=\\phi_v\\,0.265\\sqrt{f'_c}\\frac{A_{cp}^2}{p_{cp}}=${d(sh.Tthr/TFM,1)}\\ \\text{tf}\\cdot\\text{m}\\ \\Rightarrow\\ \\text{須設計扭矩鋼筋}`));
     o.push(eq(`\\frac{A_t}{s}=\\frac{T_u}{2\\phi_v A_o f_{yt}\\cot\\theta}=${d(sh.AtS,5)}\\ \\text{cm}^2/\\text{cm}
       \\qquad A_l=\\frac{A_t}{s}p_h\\frac{f_{yt}}{f_y}\\cot^2\\theta=${d(sh.Al,2)}\\ \\text{cm}^2`));
@@ -8190,7 +8922,9 @@ function buildBeamReport(B){
   o.push(`<div class="rp-h3">6.1 裂縫控制（土木401-112 表 24.3.2）</div>`);
   o.push(eq(`f_s=\\tfrac{2}{3}f_y=${d(crack.fs,0)}\\ \\text{kgf}/\\text{cm}^2\\quad(\\text{表 24.3.2 以 2800 kgf/cm}^2\\text{ 對應 280 MPa})`));
   o.push(eq(`s\\le\\min\\left[38\\left(\\frac{2800}{f_s}\\right)-2.5c_c,\\ \\ 30\\left(\\frac{2800}{f_s}\\right)\\right]
-    =\\min\\left[38\\times${d(2800/crack.fs,3)}-2.5\\times${d(crack.cc,1)},\\ ${d(crack.s2,2)}\\right]=${d(crack.sLim,2)}\\ \\text{cm}`));
+    =\\min\\left[38\\times${d(2800/crack.fs,3)}-2.5\\times${d(crack.cc,2)},\\ ${d(crack.s2,2)}\\right]=${d(crack.sLim,2)}\\ \\text{cm}`)
+    + note(S.slab ? `c_c 取版之淨保護層 ${d(S.cover,1)} cm（版不配箍筋）。`
+                  : `c_c 為拉力主筋至受拉面之淨保護層 = 保護層（量至箍筋）＋箍筋直徑 = ${d(S.cover,1)} + ${d(R.dt,2)} = ${d(crack.cc,2)} cm（土木401-112 §24.3.2）。`));
   o.push(eq(`s_{\\text{實際}}=${d(crack.sAct,2)}\\ \\text{cm}\\ ${crack.ok?'\\le':'\\gt'}\\ ${d(crack.sLim,2)}\\ \\text{cm}
     \\quad${crack.ok?'\\checkmark':'\\textbf{✗}'}`));
 
@@ -8249,6 +8983,7 @@ function buildBeamReport(B){
     3. \\(\\phi_v=${d(m.phiv,2)}\\) 搭配土木401-112 表 22.5.5.1 之 \\(V_c\\)，勿與 AASHTO 之 \\(\\phi_v=0.90\\) 混用。<br>
     4. 撓度採土木401-112 表 24.2.3.5 之 \\(I_e\\)（Bischoff 式）；長期乘數 \\(\\xi=${d(S.xi,1)}\\)、持續活載比例 ${d(S.sustain*100,0)}%。<br>
     5. 建議配筋僅列出前 6 組，且限單一號數、最多 2 排。`));
+  { const U = beamUncovered(B); if(U.length) o.push(note(`<b>本計算書未涵蓋、須另行檢核</b>：${U.map((t,i)=>`(${i+1}) ${t}`).join('；')}。`)); }
   o.push(`</div>`);
 
   const el=document.getElementById('report');
@@ -8307,8 +9042,19 @@ const PIN_META = {
        '橋梁：s ≤ min(b/4, 6d_b, 15 cm)　·　建築：s ≤ min(b/4, 6d_b（SD490 5.5d_b、SD550 5d_b）, s_o)，s_o = 10 + (35 − h_x)/3 介於 10～15 cm',
        "V_c：建築 N_u < A_g·f'_c/20 時取 0（§18.4.6.2.1）；橋梁塑鉸區 V_c = 0.53(0.33 + F)√f'_c·A_e、非塑鉸區 0.53(1 + F)√f'_c·A_e（公路橋梁耐震設計規範 §5.3.3）。橋梁圍束筋依式 5-5～5-8，只在塑鉸區檢核。"],
       ['phEnds','—','塑鉸區位置','','決定沿柱軸向配置時，哪幾端要設加密區（塑鉸區）。建築柱兩端皆設；懸臂墩柱、橋塔通常僅底端。','',''],
+      ['scwbMbX','ΣM_nb,x','接頭梁 ΣM_nb（繞 X 軸）','tf·m','強柱弱梁（建築特殊抗彎矩構架柱）：構入接頭之梁在接頭面之標稱彎矩強度總和，作用於使柱繞 X 軸彎曲之方向（Y 向梁）。0 表示未輸入（不檢核並提醒）。',
+       '土木401-112 §18.4.3.2：ΣM_nc ≥ (6/5)ΣM_nb；T 形梁之有效翼寬內板筋應計入 M_nb；順、逆鐘向兩方向均應符合',
+       '因數化軸壓力（含地震效應）均不超過 A_gf′_c/10 之柱端得免（§18.4.3.2）；不符合時該柱之側向強度與勁度不得計入（§18.4.3.3）。'],
+      ['scwbMbY','ΣM_nb,y','接頭梁 ΣM_nb（繞 Y 軸）','tf·m','同上，使柱繞 Y 軸彎曲之方向（X 向梁）。','',''],
+      ['scwbNc','—','構入接頭之柱數','','ΣM_nc = 柱數 × M_nc（上、下柱同斷面時）；頂層柱為 1。','M_nc 取各因數化軸力下之最小標稱彎矩強度',''],
       ['lu','l_u','柱淨高','cm','長細比 kl_u/r 的 l_u；沿柱軸向配置的總長，並決定加密區長度 \\(\\displaystyle l_o=\\max\\left(h,\\ \\frac{l_u}{6},\\ 45\\text{ cm}\\right)\\)；建築柱另為 \\(\\displaystyle V_e=\\frac{2M_{pr}}{l_u}\\) 的分母（M_pr 以 1.25f_y、φ = 1 計）。','l_o 依土木401 §18.4.5.1；橋梁同公路橋梁耐震設計規範塑鉸區範圍',''],
       ['phio','φ_o','超強係數','','最大可能彎矩 M_o = φ_o·M_n，用來反算設計剪力。','RC 柱 φ_o = 1.3（公路橋梁耐震設計規範 §4.2.1）　·　僅「橋梁」設計依據使用',''],
+      ['vcRule','—','建築柱 V_c 歸零條件','','柱端加密區內 V_c 是否取 0：依 §18.4.6.2.1 須 (a) 地震引致剪力 V_e ≥ ½ 最大需求剪力且 (b) P_u < A_gf′c/20；可改為僅看 (b)（舊版作法，保守）。','非地震剪力控制之柱（滯洪池、地下室）依 (a) 保留 V_c',''],
+      ['brMnP','—','最大可能彎矩之軸力','','計算 M_o = φ_o·M_n 時之軸力：預設取各組合軸力下 M_n 之最大者（保守）；單柱得改用靜載重軸力 P_D。','公路橋梁耐震設計規範 §4.2.1：計算最大可能彎矩強度時，柱軸力得採用靜載重引致之軸力；構架式（§4.2.2）應考慮軸力變化',''],
+      ['brPD','P_D','靜載重軸力','tf','「靜載重軸力」選項之 P_D（壓為正）。','§4.2.1',''],
+      ['brVelX','V_el','彈性剪力上限（X 向）','tf','X 向設計剪力上限：取地震力為 1.2α_yF_u 倍時之彈性分析剪力；0 表示不設上限。','§4.2.1、§4.2.2：柱之設計剪力不必超過地震力 V_II 乘以 1.2α_yF_u,II 時彈性分析所得者',''],
+      ['brVelY','V_el','彈性剪力上限（Y 向）','tf','Y 向設計剪力上限，同上。','§4.2.1、§4.2.2',''],
+      ['brPe','P_e','圍束筋之軸力 P_e','tf','式 (5-6)、(5-8) 之 P_e；0 表示取各組合最大軸壓（保守）。','§5.3.4：P_e 為柱之係數化軸力',''],
       ['Lv','L_v','柱高（含帽梁）','cm','單柱橋墩（塑鉸僅底端）V_e = M_o / L_v 的分母。','§4.2.1：單柱以柱高（含帽梁）計；構架式（兩端塑鉸）改用 V_e = 2M_o / l_u（§4.2.2）　·　設計剪力取 max(V_e, V_u)',
        '柱之設計剪力不必超過地震力 VII 乘以 1.2α_yF_u,II 時彈性分析所得者；如需此上限，請於載重表自行比較。'],
       ['theta','θ','扭矩桁架角','°','A_t/s 與扭矩縱筋 A_l。','',''],
@@ -8336,11 +9082,20 @@ const PIN_META = {
     ['長細效應', [
       ['slFrame','—','側向位移支撐','','決定長細效應可忽略之門檻。',
        '建築（土木401-112 §6.2.5.1）：無側向位移支撐 kl_u/r ≤ 22；有側向位移支撐 kl_u/r ≤ 34 + 12(M_1/M_2) 且 ≤ 40　·　橋梁（公路橋梁設計規範 §7.3.5.2）：無支撐 < 22；有支撐 < 34 − 12(M_1b/M_2b)、無 40 上限；kl_u/r > 100 須二階分析',
-       '樓層抵抗側向位移之橫撐構件總勁度至少為該樓層所有柱側向勁度之 12 倍時，得視為有側向位移支撐（§6.2.5.1）。本工具只判定可否忽略，不計算彎矩放大。'],
-      ['slK','k','有效長度係數','','長細比 kl_u/r 的分子。X、Y 兩向共用同一 k 與 l_u（l_u 即「橫向筋／耐震」之柱淨高）。',
+       '樓層抵抗側向位移之橫撐構件總勁度至少為該樓層所有柱側向勁度之 12 倍時，得視為有側向位移支撐（§6.2.5.1）。不可忽略時依「二階效應處理方式」以彎矩放大法放大，或聲明輸入已含二階效應。'],
+      ['slTreat','—','二階效應處理方式','','長細效應不可忽略時：輸入為一階分析結果 → 本工具以彎矩放大法放大 M_u；已含二階效應 → 不放大。',
+       '建築 §6.6.4.5（無側移 δ = C_m/(1 − P_u/0.75P_c)）、§6.6.4.6（有側移 δ_s，另乘沿柱長 δ）、§6.2.5.3 二階彎矩 ≤ 1.4 倍一階；橋梁 §7.3.5.2(5) δ_b、δ_s（φP_c）',
+       '「已含二階效應」須為含 P-Δ 及構材 P-δ 之二階分析結果，判定列與計算書會註明此聲明。'],
+      ['slBeta','β','持續載重比','','建築 β_dns：最大因數化持續軸力／最大因數化軸力；橋梁 β_d：最大靜重彎矩／最大總載重彎矩。',
+       '建築 (EI)_eff = 0.4E_cI_g/(1+β_dns)（§6.6.4.4.4(a)）；橋梁 EI = (E_cI_g/2.5)/(1+β_d)（式 7-32）','未知時可取 0.6（解說 R6.6.4.4.4）。'],
+      ['slQ','Q','樓層穩定指數','','建築有側移構架 δ_s = 1/(1 − Q)（§6.6.4.6.2(a)，δ_s ≤ 1.5 時適用）；0 表示改以本柱 P_u/(0.75P_c) 估算 δ_s。',
+       'Q = ΣP_uΔ_o/(V_us·l_c)（式 6.6.4.4.1）','以本柱 P_c 代替樓層 ΣP_c 只適用於單柱或各柱長細比相近之樓層；多柱構架請輸入 Q 或採二階分析。'],
+      ['slK','k_x','有效長度係數（繞 X 軸）','','繞 X 軸彎曲（M_ux，迴轉半徑沿 H）之 kl_u/r。',
        '迴轉半徑 r（§6.2.5.2）：矩形 0.30 × 考量方向尺度；圓形 0.25D；箱型以全斷面 √(I_g/A_g)',
        '第一次近似分析時 k 可取 1.0（解說 R6.2.5）；橋梁有支撐構材除經分析外應為 1.0（§7.3.5.2(3)）。範本值僅為示意：建築柱 1.0、懸臂墩柱／橋塔 2.0，請依構架分析（如 Jackson-Moreland 列線圖）決定。'],
-      ['slM12','M_1/M_2','端彎矩比','','僅「有側向位移支撐」使用。',
+      ['slKy','k_y','有效長度係數（繞 Y 軸）','','繞 Y 軸彎曲（M_uy，迴轉半徑沿 B）之 kl_u/r。兩向束制條件不同時分別輸入。','',''],
+      ['slLuY','l_u,y','柱淨高（繞 Y 軸）','cm','繞 Y 軸之無支撐長度；0 表示與 l_u 相同。','',''],
+      ['slM12','M_1/M_2','端彎矩比','','有側向位移支撐之可忽略門檻；彎矩放大之 C_m（兩種構架皆用）。',
        '|M_1| ≤ |M_2|；採土木401-112 慣例：單曲率為負、雙曲率為正，範圍 −1～1。橋梁門檻 34 − 12(M_1b/M_2b) 之 M_1b/M_2b 單曲度為正，工具自動換號',
        '預設 −1（單曲率、兩端彎矩相等）最保守，門檻 = 22。']
     ]],
@@ -8350,8 +9105,9 @@ const PIN_META = {
       ['phiv','φ_v','剪力 / 扭矩','','V_s 需求 = V_des/φ_v − V_c（建築）；扭矩 A_t/s（建築與橋梁）。',"搭配土木401-112 表 22.5.5.1 之 V_c",
        'AASHTO 的 φ_v = 0.90 是為 MCFT 校準的，套在此處會偷掉 20% 剪力裕度。'],
       ['phivB','φ','橋梁剪力','','橋梁 V_s 需求 = V_des/φ − V_c。','公路橋梁耐震設計規範 §5.3.3：φ = 0.85，搭配式 5-3／5-4 之 V_c','僅「橋梁」設計依據使用。'],
+      ['brPhiMode','φ','橋梁彎矩／軸力 φ','','P-M 設計曲線之 φ：預設依土木401-112 表 21.2.2（φ_c～φ_t 依 ε_t 過渡）；可改依公路橋梁耐震設計規範 §5.3.2：軸壓應力 ≥ min(0.1f′c, P_b/A_g) 時 φ = 0.70（橫箍）／0.75（螺箍），降至 0 時線性增至 0.90。','φ 須與所用載重組合之規範配套；計算書第 1 章載明採用者','僅「橋梁」設計依據使用。'],
       ['pmaxf','—','軸力截斷（×P_o）','','φP_n,max 水平截斷線的高度。','橫箍柱 0.80',''],
-      ['alpha','α','低軸壓輪廓指數','','PCA 載重輪廓法的指數。',"P_u < 0.1f'_c·A_g 時取代 Bresler",'']
+      ['alpha','α','低軸壓輪廓指數','','PCA 載重輪廓法的指數（僅供參考值）。',"雙軸判定採旋轉中性軸精確解；P_u < 0.1f'_c·A_g 時之 PCA 參考值使用此指數",'']
     ]],
     ['伸展長度與搭接', [
       ['dEpoxy','ψ_e','鋼筋塗布','','環氧樹脂塗布鋼筋降低握裹：直線 ψ_e = 1.5（淨保護層 < 3d_b 或淨距 < 6d_b）或 1.2；彎鉤、T 頭 1.2。','土木401 §25.4.2.5、§25.4.3.2',''],
@@ -8378,11 +9134,12 @@ const PIN_META = {
       ['bw','b_w','腹板寬','cm','剪力的 b_w、A_s,min、主筋每排可排根數。','耐震：b_w ≥ max(0.3h, 25 cm)',''],
       ['bh','h','全深','cm','有效深度 d、I_g、加密區長度 2h。','',''],
       ['bhf','h_f','翼緣厚','cm','受壓區分段點：a ≤ h_f 走矩形、a > h_f 走 T 型分段積分。','',''],
-      ['bL','L','跨度','cm','有效翼緣寬 b_e 與撓度 Δ = K·M_a·L²/(E_c·I_e)。','',''],
-      ['bSpacing','—','梁中心距','cm','b_e 的候選值之一。','b_e = min(L/4, b_w+16h_f, 梁中心距)',''],
-      ['bEdge','—','梁位置','','內梁雙側翼緣、邊梁單側，b_e 公式不同。','邊梁：b_e = b_w + min(L/12, 6h_f, 淨距/2)',''],
-      ['bSclear','—','邊梁淨距','cm','邊梁 b_e 的候選值之一。','',''],
-      ['bCover','c_c','保護層','cm','有效深度 d 與裂縫控制的 c_c。','',''],
+      ['bL','L','跨度','cm','撓度 Δ = K·M_a·L²/(E_c·I_e)（有效翼緣寬改依淨跨 ℓ_n）。','',''],
+      ['bSpacing','—','梁中心距','cm','內梁：腹板淨距 s_w = 梁中心距 − b_w，b_e 之候選 b_w + s_w。','表 6.3.2.1：b_e = b_w + 2·min(8h_f, s_w/2, ℓ_n/8)，ℓ_n 為淨跨',''],
+      ['bEdge','—','梁位置','','內梁雙側翼緣、邊梁單側、單獨 T 梁（§6.3.2.2），b_e 公式不同。','邊梁：b_e = b_w + min(6h_f, s_w/2, ℓ_n/12)；單獨 T 梁：h_f ≥ 0.5b_w、b_e ≤ 4b_w',''],
+      ['bSclear','s_w','邊梁淨距','cm','邊梁與相鄰腹板之淨距 s_w，b_e 之候選 b_w + s_w/2。','',''],
+      ['bBf','b_f','單獨 T 梁翼板全寬','cm','單獨 T 梁之實際翼板寬，b_e = min(b_f, 4b_w)。','§6.3.2.2：翼板厚 h_f ≥ 0.5b_w',''],
+      ['bCover','c_c','保護層（量至箍筋外緣）','cm','有效深度 d；裂縫控制之 c_c 為主筋淨保護層 = 保護層 + d_t（版 = 保護層）。','',''],
       ['bDagg','d_agg','骨材最大粒徑','cm','主筋淨距下限之一。','','']
     ]],
     ['材料', [
@@ -8408,7 +9165,7 @@ const PIN_META = {
     ]],
     ['耐震 / 剪力', [
       ['bSeismic','—','耐震等級','','切到「特殊抗彎構材」會啟動容量設計剪力、加密區、b_w/l_n/ρ 限制與接頭面彎矩比查核。','',''],
-      ['bLn','l_n','淨跨','cm','V_e 的分母；也是沿梁軸向配置箍筋的總長（耐震梁兩端 2h 加密）。','耐震：l_n ≥ 4d',''],
+      ['bLn','l_n','淨跨','cm','T 梁有效翼緣寬（ℓ_n/8、ℓ_n/12，表 6.3.2.1）；V_e 的分母；沿梁軸向配置箍筋的總長（耐震梁兩端 2h 加密）。','耐震：l_n ≥ 4d',''],
       ['bVg','V_g','重力剪力','tf','V_e = (M_pr⁺+M_pr⁻)/l_n + V_g。','',''],
       ['bTheta','θ','扭矩桁架角','°','A_t/s 與扭矩縱筋 A_l。','',''],
       ['bphit','φ_t','拉力控制','','φM_n = φ·M_n。','ε_t ≥ ε_ty + 0.003 時 φ = 0.90（表 21.2.2）',''],
@@ -8595,10 +9352,17 @@ function pinDetail(mod){
   if(r.rule) h += `<div class="pin-dl" style="margin-top:10px">規範限制</div>
     <div class="pin-rule">${esc(r.rule)}</div>`;
   if(r.warn) h += `<div class="alert ${r.warn.indexOf('⚠')===0?'a-warn':'a-info'}" style="margin-top:10px;font-size:12px">${esc(r.warn)}</div>`;
-  st.detail.innerHTML = SB(h);
+  const off = st.detail.parentElement && st.detail.parentElement.classList.contains('det-off');
+  st.detail.innerHTML = `<button type="button" class="det-tg btn-quiet" title="收合／展開說明卡（小螢幕可讓參數表顯示更多列）">${off ? '展開說明 ▴' : '收合 ▾'}</button>` + SB(h);
 }
 
 /* 檢核結果 → 每個參數的狀態徽章（哪個參數該為此負責） */
+/* 停止計算時參數表只標出無效欄位（其餘檢核皆以佔位值算出，不顯示） */
+function pinMapBlocked(M){
+  const s = {};
+  for(const b of M.badIn) s[b.id] = {state:'bad', chip:'✗', msg:`輸入無效：${b.why}。修正後才會計算。`};
+  return s;
+}
 function pinMapPylon(M){
   const c = M.chk, s = {}, OK = {state:'ok',chip:'✓'};
   const spacingBad = c.clB < c.need || c.clH < c.need;
@@ -8644,7 +9408,9 @@ function pinMapPylon(M){
   else { const sl = colSlender(M), lt = sl.bridge ? '< ' : '≤ ';
     s.slK = sl.over100 ? {state:'bad', chip:f(sl.lam,1), msg:`kl_u/r = ${f(sl.lam,1)} > 100：須依公路橋梁設計規範 §7.3.5.1 進行二階分析。`}
       : sl.ok ? {state:'ok', chip:f(sl.lam,1)}
-      : {state:'warn', chip:f(sl.lam,1), msg:`kl_u/r = ${f(sl.lam,1)} 未滿足 ${lt}${f(sl.lim,1)}（${sl.ref}），須考慮長細效應：輸入之 P_u、M_u 須為已含二階效應之分析結果（本工具不計算彎矩放大）。`};
+      : sl.treat==='second' ? {state:'note', chip:'二階', msg:`kl_u/r = ${f(sl.lam,1)} 未滿足 ${lt}${f(sl.lim,1)}（${sl.ref}）；已聲明輸入含二階效應，不再放大。`}
+      : {state:'ok', chip:'δ', msg:`kl_u/r = ${f(sl.lam,1)} 未滿足 ${lt}${f(sl.lim,1)}（${sl.ref}）；已以彎矩放大法放大一階彎矩。`};
+    s.slKy = {state: sl.needY ? (sl.treat==='second' ? 'note' : 'ok') : 'ok', chip: f(sl.lamY,1)};
     s.slFrame = {state:'ok', chip: lt + f(sl.lim,1)};
     const bc = brCover(M);
     s.brExpo = bc ? (bc.ok ? {state:'ok', chip:'表 7.2'} : {state:'bad', chip:'保護層', msg:`保護層不足：箍筋 ${f(bc.cTie,1)}／需 ${f(bc.tie,1)} cm、主筋 ${f(bc.cMain,1)}／需 ${f(bc.main,1)} cm（公路橋梁設計規範表 7.2）。`}) : OK;
@@ -8762,18 +9528,31 @@ function pinStatus(mod, map){
     b.setAttribute('aria-pressed', String(on));
     b.querySelector('.lbl').textContent = on ? '返回設計畫面' : '預覽報告';
     b.title = on ? '關閉預覽，回到設計畫面（Esc）' : '在畫面上預覽 A4 計算書';
-    if(on){ buildActive(); window.scrollTo({top:0}); }
+    if(on){ buildActive(); window.scrollTo({top:0});
+      const P = confPending(TAB==='beam' ? 'beam' : 'pylon');
+      if(P.length) el.insertAdjacentHTML('afterbegin', `<div class="rp-unconf"><b>預覽：尚有 ${P.length} 項需確認未勾選</b>（警示分頁），確認完成前不得列印送審。</div>`); }
   };
+  const blockedNow = () => { const mod = TAB==='beam' ? 'beam' : 'pylon'; if(isBlocked(mod)){ alert(blockedMsg(mod)); return true; } return false; };
+  // U1：尚有「需確認」項目未勾選時不得列印（預覽可看，報告頂端標示未完成）
+  const confirmNow = async () => { const mod = TAB==='beam' ? 'beam' : 'pylon', P = confPending(mod); if(!P.length) return true;
+    const go = await askChoice('尚有需確認項目未完成',
+      `下列 <b>${P.length}</b> 項（本工具未涵蓋之檢核或「注意」級警示）須由設計者確認後才能列印計算書：<br>`
+      + P.slice(0,8).map(q=>'・'+esc(confKey(q.t)).slice(0,90)).join('<br>') + (P.length>8 ? '<br>…' : ''),
+      [{label:'取消', value:null}, {label:'前往警示分頁確認', value:'go', primary:true}]);
+    if(go){ setPreview(false); wsShow(document.getElementById(mod==='beam' ? 'wsB' : 'wsP'), 'warn'); }
+    return false; };
   window.setPreview = setPreview;
-  document.getElementById('btnPreview').onclick=()=>setPreview(!document.getElementById('report').classList.contains('preview'));
+  document.getElementById('btnPreview').onclick=()=>{ const on = !document.getElementById('report').classList.contains('preview'); if(on && blockedNow()) return; setPreview(on); };
   document.getElementById('rpBack').onclick=()=>setPreview(false);
   document.getElementById('rpPrint').onclick=()=>document.getElementById('btnPrint').click();
   document.addEventListener('keydown', e=>{ if(e.key==='Escape' && document.getElementById('report').classList.contains('preview')) setPreview(false); });
   document.getElementById('btnPrint').onclick=async()=>{
+    if(blockedNow()) return;
+    if(!(await confirmNow())) return;
     // KaTeX 由 CDN 載入：斷網時公式會以原始碼印出，先提醒
     if(!window.katex || !window.renderMathInElement){
       const go = await askChoice('計算書公式無法排版',
-        '公式排版元件（KaTeX）沒有載入，通常是因為目前<b>沒有網路</b>或 CDN 被防火牆擋住。現在列印，PDF 中的公式會顯示為原始碼。<br>建議連網後重新整理頁面再列印。',
+        '公式排版元件（KaTeX）沒有載入：請確認與 index.html 同資料夾之 <b>vendor/</b> 一併提供（只帶走 index.html 時改由 CDN 載入，需要網路）。現在列印，PDF 中的公式會顯示為原始碼。<br>建議連網後重新整理頁面再列印。',
         [{label:'取消', value:null}, {label:'仍要列印', value:1}]);
       if(!go) return;
     }
@@ -8878,7 +9657,14 @@ function pinStatus(mod, map){
     rerender();
   });
   document.getElementById('btnCaseSave').onclick = caseDownload;
-  document.getElementById('btnXlsx').onclick = exportXlsx;
+  document.getElementById('loadUnit').addEventListener('change', () => drawLoads());
+  document.getElementById('btnMembers').onclick = () => { memRender(); document.getElementById('memOv').classList.add('open'); };
+  document.getElementById('memClose').onclick = () => document.getElementById('memOv').classList.remove('open');
+  document.getElementById('memAdd').onclick = memAdd;
+  document.getElementById('memBatch').onclick = memBatch;
+  document.getElementById('memCsv').onclick = memCsv;
+  document.getElementById('memXlsx').onclick = memXlsx;
+  document.getElementById('btnXlsx').onclick = () => exportXlsx();
   document.getElementById('btnCaseOpen').onclick = ()=>document.getElementById('caseFile').click();
   document.getElementById('caseFile').onchange = e=>{ caseOpenFile(e.target.files[0]); e.target.value=''; };
   caseRestore();
@@ -9067,17 +9853,23 @@ document.querySelectorAll('svg[viewBox]').forEach(fitSvg);
         </div>
         <div class="imp-row">
           <span>模型</span>
-          <select id="impModel">
-            <option value="gemini-3.1-pro-preview">gemini-3.1-pro-preview（判讀圖說用這個）</option>
-            <option value="gemini-2.5-pro">gemini-2.5-pro</option>
-            <option value="gemini-3.7-flash">gemini-3.7-flash（快，但沒驗證過）</option>
-          </select>
+          <input id="impModel" list="impModelList" value="gemini-3.1-pro-preview" autocomplete="off" title="可直接輸入 Google 目前提供之模型名稱（預覽版模型下架時改填新名稱）">
+          <datalist id="impModelList">
+            <option value="gemini-3.1-pro-preview">判讀圖說用這個（預覽版，可能下架）</option>
+            <option value="gemini-2.5-pro">穩定版</option>
+            <option value="gemini-3.7-flash">快，但沒驗證過</option>
+          </datalist>
         </div>
         <div class="imp-row"><span></span>
-          <label class="imp-note"><input type="checkbox" id="impRemember" class="imp-chk" checked>
-            把金鑰記在這台瀏覽器（localStorage）　<button id="impForget" style="padding:2px 8px;font-size:11.5px">清除已存金鑰</button></label>
+          <label class="imp-note"><input type="checkbox" id="impRemember" class="imp-chk">
+            把金鑰記在這台瀏覽器（localStorage，明文；共用電腦請勿勾選）　<button id="impForget" style="padding:2px 8px;font-size:11.5px">清除已存金鑰</button></label>
         </div>
-        <div class="alert a-info imp-note" style="margin-top:12px">
+        <div class="alert a-warn imp-note" style="margin-top:12px">
+          <b>資料外傳告知：</b>圖檔會<b>完整上傳到 Google Gemini API</b>（境外雲端服務），依 Google 條款處理。公共工程與民間案件之圖說常有保密義務，
+          請確認可外傳後再使用；建議只上傳<b>裁切後之斷面詳圖</b>（不含案名、地點與圖框）。
+          <label style="display:flex;gap:6px;align-items:center;margin-top:6px"><input type="checkbox" id="impConsent">我已確認此圖檔可傳送至 Google（無保密限制或已取得授權）</label>
+        </div>
+        <div class="alert a-info imp-note" style="margin-top:8px">
           <b>這個功能會做什麼：</b>把圖檔上傳到 Google Gemini API，讀出斷面尺寸、保護層、
           鋼筋號數與<b>主筋總支數</b>，讓你逐欄勾選後填進參數表。<br>
           <b>不會做什麼：</b>不碰計算。所有數值都要你自己過目再套用；
@@ -9285,7 +10077,9 @@ document.querySelectorAll('svg[viewBox]').forEach(fitSvg);
   function open(){
     $('impOv').classList.add('open');
     const k = lsGet();
-    if(k) $('impKey').value = k;
+    if(k){ $('impKey').value = k; $('impRemember').checked = true; }   // 先前已選擇記住
+    try{ const md = localStorage.getItem('rcsd.gemini.model'); if(md) $('impModel').value = md; }catch(e){}
+    $('impConsent').checked = false;                                    // 每次上傳前重新確認
     showSetup();
   }
   function close(){ $('impOv').classList.remove('open'); }
@@ -9567,15 +10361,18 @@ document.querySelectorAll('svg[viewBox]').forEach(fitSvg);
     if(!f){ setMsg('請先選一個圖檔','warn'); return; }
     if(!key){ setMsg('請填 API 金鑰','warn'); return; }
     if(f.size > 18*1024*1024){ setMsg('檔案超過 18 MB，請先壓縮','bad'); return; }
-    if($('impRemember').checked && !lsSet(key))
-      setMsg('（這個瀏覽器不允許儲存，金鑰只在本次有效）', 'warn');
+    if(!$('impConsent').checked){ setMsg('請先閱讀「資料外傳告知」並勾選確認可傳送','warn'); return; }
+    if(!/^[\w.\-]+$/.test($('impModel').value.trim())){ setMsg('模型名稱只能含英數字、點與連字號','warn'); return; }
+    if($('impRemember').checked){ if(!lsSet(key)) setMsg('（這個瀏覽器不允許儲存，金鑰只在本次有效）', 'warn'); }
+    else lsDel();
+    try{ localStorage.setItem('rcsd.gemini.model', $('impModel').value.trim()); }catch(e){}
 
     $('impGo').disabled = true;
     setMsg('判讀中…（大張圖說約 20～60 秒）');
     try{
       const b64 = await toB64(f);
       const mime = f.type || (/\.pdf$/i.test(f.name) ? 'application/pdf' : 'image/png');
-      const model = $('impModel').value;
+      const model = $('impModel').value.trim();
       const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/'
                             + model + ':generateContent',
         {method:'POST',
@@ -9601,6 +10398,14 @@ document.querySelectorAll('svg[viewBox]').forEach(fitSvg);
     }
   }
 
+  /* ---- U2：說明卡收合（記住於本機）---- */
+  { let off = false; try{ off = localStorage.getItem('rcsd.detailOff')==='1'; }catch(e){}
+    document.querySelectorAll('.pin-mid').forEach(m => m.classList.toggle('det-off', off));
+    document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('.det-tg'); if(!b) return;
+      const on = !b.closest('.pin-mid').classList.contains('det-off');
+      document.querySelectorAll('.pin-mid').forEach(m => m.classList.toggle('det-off', on));
+      document.querySelectorAll('.det-tg').forEach(x => x.textContent = on ? '展開說明 ▴' : '收合 ▾');
+      try{ localStorage.setItem('rcsd.detailOff', on ? '1' : '0'); }catch(e){} }); }
   /* ---- 分隔線：拖曳調整說明卡高度（取代原本的固定 max-height）---- */
   document.querySelectorAll('.hsplit').forEach(function(sp){
     sp.setAttribute('role','separator');

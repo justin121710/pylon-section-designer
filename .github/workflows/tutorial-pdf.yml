@@ -1,11 +1,44 @@
-# 操作教學 PDF 必須對應每個提交的程式與教學原始檔（見 docs/tutorial/check.sh）
+# 操作教學與常見問題 PDF 須對應程式與教學原始檔（見 docs/tutorial/check.sh）。
+# 本機 pre-commit 會自動重建；本機沒有建置工具（Playwright、LibreOffice、poppler、Pillow）而以 RCSD_SKIP_PDF=1 提交時，
+# 由本工作流程在推送後重建並推回同一分支（[skip ci] 之機器人提交），並將兩份 PDF 上傳為 artifact。
+# 來自 fork 的 PR 無法推回：只檢查，過期時失敗。
 name: 操作教學 PDF 是否最新
 on:
   push:
   pull_request:
+permissions:
+  contents: write
 jobs:
-  check:
+  pdf:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: sh docs/tutorial/check.sh
+      - id: chk
+        run: sh docs/tutorial/check.sh && echo "stale=0" >> "$GITHUB_OUTPUT" || echo "stale=1" >> "$GITHUB_OUTPUT"
+      - name: PR 只檢查
+        if: github.event_name == 'pull_request' && steps.chk.outputs.stale == '1'
+        run: echo "PDF 已過期：請於本機 cd docs/tutorial && npm run build，或推送至分支由 CI 重建" && exit 1
+      - uses: actions/setup-node@v4
+        if: github.event_name == 'push' && steps.chk.outputs.stale == '1'
+        with: {node-version: 22}
+      - name: 安裝建置工具
+        if: github.event_name == 'push' && steps.chk.outputs.stale == '1'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libreoffice-calc-nogui poppler-utils fonts-noto-cjk python3-pil
+          cd docs/tutorial && npm install --no-audit --no-fund && npx playwright install --with-deps chromium
+      - name: 重建 PDF 並推回
+        if: github.event_name == 'push' && steps.chk.outputs.stale == '1'
+        run: |
+          cd docs/tutorial && node build.js && cd ../..
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "docs/RC斷面設計工具_操作教學.pdf" "docs/RC斷面設計工具_常見問題.pdf" docs/tutorial/stamp.txt
+          git commit -m "重建操作教學與常見問題 PDF [skip ci]"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tutorial-pdf
+          path: |
+            docs/RC斷面設計工具_操作教學.pdf
+            docs/RC斷面設計工具_常見問題.pdf

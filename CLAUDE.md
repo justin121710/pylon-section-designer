@@ -7,6 +7,7 @@
 - 修改 `index.html`、`calc-xlsx.js` 或教學原稿時：
   1. 若介面、操作步驟、檢核項目或規範條文有變，同步修改 `docs/tutorial/tutorial.html` 與 `docs/tutorial/faq.html` 的說明文字（必要時在 `build.js` 增加截圖）；`README.md` 亦同。
   2. 提交前執行 `sh docs/tutorial/check.sh`；過期就 `cd docs/tutorial && npm run build`，兩份 PDF 與 `stamp.txt` 與程式放在同一個提交。
+  3. 本機無法建置（缺 Playwright、LibreOffice、poppler、Pillow）時，可 `RCSD_SKIP_PDF=1 git commit …` 略過；推送後 GitHub Actions（`tutorial-pdf.yml`）會重建 PDF 並以機器人提交推回同一分支（亦上傳為 artifact）。能本機建置時仍以同一提交更新為原則。
 - 教學與常見問題中的公式與符號一律用 KaTeX（`\( … \)`），與網頁、計算書、Excel 的 LaTeX 風格一致。
 
 ## 規範依據

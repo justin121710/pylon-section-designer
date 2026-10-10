@@ -1,6 +1,7 @@
-e71ed6568226bf8f630124c39b12d345d3d5bb13  index.html
-d4433516bb4bf59321c3b812755658175acb5139  calc-xlsx.js
-8933f20d1c7cff20d32d7c552c7ac3e0b770c6b5  docs/tutorial/tutorial.html
-a54e6ee2a67c9e3b019553715ecb82a5e2b6202b  docs/tutorial/faq.html
-8b086f878eec1aae31118ee3ce91156c17201308  docs/tutorial/build.js
-53a565b86b88e62dfdd1734c42ceb8c484579a44  docs/tutorial/inputs.txt
+554d4c50c38f4b66d2fea2482491db5e1e00d6bc  index.html
+273b1e500545cb045072613102fba196b18118ba  calc-xlsx.js
+9c3d62c7623b541d7e6972a5928593ea3edbffa9  docs/tutorial/tutorial.html
+277d331b9d28d1f18b2a1061320b768f32fbf7a6  docs/tutorial/faq.html
+8831406f443d0f23e2bcb02b467a556b9d4dfe38  docs/tutorial/build.js
+635ce6488ad823bd87f9afa29a84f76eaf7a75cf  docs/tutorial/inputs.txt
+3be142a394c3e93325600949820839591714adf1  core/rc-core.js

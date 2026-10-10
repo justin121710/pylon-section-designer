@@ -3,3 +3,6 @@ design/live/
 
 # 付費授權之標準原文（如 CNS），僅供本機核對，不得提交
 specs/licensed/
+
+# npm 套件（docs/tutorial、tests）
+node_modules/

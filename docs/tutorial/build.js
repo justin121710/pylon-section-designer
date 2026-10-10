@@ -189,7 +189,7 @@ async function screenshots(browser, base){
   await preset('col', 'bldg60'); await W8(600);
   await group('材料'); await W8(200); await setv('fc', ''); await W8(500);
   await ws('warn'); await W8(300); await page.evaluate(() => document.querySelectorAll('.figs, #wsP, .ws').forEach(e => e.scrollTop = 0));
-  await shot('f-badin', [['.pin-row[data-pid="fc"]',1],['#alerts .alert',2]]);
+  await shot('f-badin', [['.pin-row[data-pid="fc"]',1],['#wsP .blk-banner',2],['#alerts .alert',3]]);
   await setv('fc', '280'); await W8(400);
   // 泥水中灌注
   await group('伸展長度與搭接'); await W8(200); await setv('dSlurry', '1'); await W8(500);
