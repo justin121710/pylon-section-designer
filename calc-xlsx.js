@@ -24,7 +24,7 @@ const FMT_SINF = '[>=1E+9]"—";0.00';
 
 /* 鋼筋規格（CNS 560）— 與主頁 BAR 相同 */
 const BARS = [['#3',0.953,0.7133],['#4',1.270,1.267],['#5',1.590,1.986],['#6',1.910,2.865],['#7',2.220,3.871],     // CNS 560 表 3
-              ['#8',2.540,5.067],['#9',2.870,6.469],['#10',3.220,8.143],['#11',3.580,10.07],['#14',4.300,14.52],['#18',5.730,25.79]];
+              ['#8',2.540,5.067],['#9',2.870,6.469],['#10',3.220,8.143],['#11',3.580,10.07],['#12',3.940,12.19],['#14',4.300,14.52],['#16',5.020,19.79],['#18',5.730,25.79]];
 const PRACTICAL_S = [30,25,20,15,12.5,10,7.5];
 
 const NMAX = 80;            // 每邊主筋／圓周主筋最多根數（座標表列數）
@@ -280,10 +280,10 @@ function buildColumn(ExcelJS, inp){
   /* ---------------- 二、材料與強度折減因數 ---------------- */
   S.section('【二、材料與強度折減因數】');
   S.item({key:'fc', label:"混凝土抗壓強度 f'c", sym:"f'c", v:inp.fc, unit:'kgf/cm²', kind:'in', fmt:'#,##0', ref:ref401('19.2'), crit:'常用 280、350、420'});
-  S.item({key:'fy', label:'主筋降伏強度 fy', sym:'fy', v:inp.fy, unit:'kgf/cm²', kind:'list', list:['2800','4200','5000'], fmt:'#,##0',
-    ref:'CNS 560；'+ref401('20.2'), note:'SD280＝2800、SD420＝4200、SD490＝5000 kgf/cm²（CNS 560）。'});
-  S.item({key:'fyt', label:'橫向筋降伏強度 fyt', sym:'fyt', v:inp.fyt, unit:'kgf/cm²', kind:'list', list:['2800','4200','5000'], fmt:'#,##0',
-    ref:'CNS 560；'+ref401('20.2'), note:'SD280＝2800、SD420＝4200、SD490＝5000 kgf/cm²（CNS 560）。'});
+  S.item({key:'fy', label:'主筋降伏強度 fy', sym:'fy', v:inp.fy, unit:'kgf/cm²', kind:'list', list:['2800','4200','5000','5600'], fmt:'#,##0',
+    ref:'CNS 560；'+ref401('20.2'), note:'SD280(W)＝2800、SD420(W)＝4200、SD490W＝5000、SD550W＝5600 kgf/cm²（CNS 560；490、550 N/mm² 換算）。'});
+  S.item({key:'fyt', label:'橫向筋降伏強度 fyt', sym:'fyt', v:inp.fyt, unit:'kgf/cm²', kind:'list', list:['2800','4200','5000','5600'], fmt:'#,##0',
+    ref:'CNS 560；'+ref401('20.2'), note:'SD280(W)＝2800、SD420(W)＝4200、SD490W＝5000、SD550W＝5600 kgf/cm²（CNS 560；490、550 N/mm² 換算）。'});
   S.item({key:'Es', label:'鋼筋彈性模數 Es', sym:'Es', v:inp.Es, unit:'kgf/cm²', kind:'in', fmt:'#,##0', ref:ref401('20.2.2.2')});
   S.item({key:'ecu', label:'混凝土極限壓應變 εcu', sym:'εcu', v:inp.ecu, unit:'無因次', kind:'in', fmt:'0.0000', ref:ref401('22.2.2.1')});
   S.item({key:'b1', label:'等值應力塊係數 β₁', sym:'β₁', f:'MAX(0.65,MIN(0.85,0.85-0.05*({fc}-280)/70))', unit:'無因次', fmt:'0.000',
@@ -1434,8 +1434,8 @@ function buildBeam(ExcelJS, inp){
   /* ---------------- 二、材料 ---------------- */
   S.section('【二、材料與強度折減因數】');
   S.item({key:'fc', label:"混凝土抗壓強度 f'c", sym:"f'c", v:inp.fc, unit:'kgf/cm²', kind:'in', fmt:'#,##0', ref:ref401('19.2')});
-  S.item({key:'fy', label:'主筋降伏強度 fy', sym:'fy', v:inp.fy, unit:'kgf/cm²', kind:'list', list:['2800','4200','5000'], fmt:'#,##0', ref:'CNS 560', note:'SD280＝2800、SD420＝4200、SD490＝5000（CNS 560）。'});
-  S.item({key:'fyt', label:'箍筋降伏強度 fyt', sym:'fyt', v:inp.fyt, unit:'kgf/cm²', kind:'list', list:['2800','4200'], fmt:'#,##0', ref:'CNS 560', note:'SD280＝2800、SD420＝4200（CNS 560）。'});
+  S.item({key:'fy', label:'主筋降伏強度 fy', sym:'fy', v:inp.fy, unit:'kgf/cm²', kind:'list', list:['2800','4200','5000','5600'], fmt:'#,##0', ref:'CNS 560', note:'SD280(W)＝2800、SD420(W)＝4200、SD490W＝5000、SD550W＝5600（CNS 560）。'});
+  S.item({key:'fyt', label:'箍筋降伏強度 fyt', sym:'fyt', v:inp.fyt, unit:'kgf/cm²', kind:'list', list:['2800','4200','5000','5600'], fmt:'#,##0', ref:'CNS 560', note:'SD280(W)＝2800、SD420(W)＝4200、SD490W＝5000、SD550W＝5600（CNS 560）。'});
   S.item({key:'Es', label:'鋼筋彈性模數 Es', sym:'Es', v:inp.Es, unit:'kgf/cm²', kind:'in', fmt:'#,##0', ref:ref401('20.2.2.2')});
   S.item({key:'ecu', label:'極限壓應變 εcu', sym:'εcu', v:inp.ecu, unit:'無因次', kind:'in', fmt:'0.0000', ref:ref401('22.2.2.1')});
   S.item({key:'b1', label:'等值應力塊係數 β₁', sym:'β₁', f:'MAX(0.65,MIN(0.85,0.85-0.05*({fc}-280)/70))', unit:'無因次', fmt:'0.000', ref:ref401('22.2.2.4.3')});

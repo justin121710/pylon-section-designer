@@ -766,9 +766,9 @@ img,video{max-width:100%;height:auto}
       <h2>② 材料</h2>
       <div class="fld"><span>f'<sub>c</sub> (kgf/cm²)</span><input id="fc" type="number" step="10" value="420"></div>
       <div class="fld"><span>f<sub>y</sub> 主筋 (kgf/cm²)</span>
-        <select id="fy"><option value="4200">4200 (SD420)</option><option value="5000">5000 (SD490)</option></select></div>
+        <select id="fy"><option value="4200">4200 (SD420／SD420W)</option><option value="5000">5000 (SD490W)</option><option value="5600">5600 (SD550W)</option></select></div>
       <div class="fld"><span>f<sub>yt</sub> 橫向筋 (kgf/cm²)</span>
-        <select id="fyt"><option value="4200">4200 (SD420)</option><option value="2800">2800 (SD280)</option><option value="5000">5000 (SD490)</option></select></div>
+        <select id="fyt"><option value="4200">4200 (SD420／SD420W)</option><option value="2800">2800 (SD280／SD280W)</option><option value="5000">5000 (SD490W)</option><option value="5600">5600 (SD550W)</option></select></div>
       <div class="fld"><span>E<sub>s</sub> (kgf/cm²)</span><input id="Es" type="number" step="10000" value="2040000"></div>
       <div class="fld"><span>ε<sub>cu</sub> (非圍束)</span><input id="ecu" type="number" step="0.0001" value="0.003"></div>
       <div class="fld"><span>ε<sub>su</sub> 箍筋極限應變</span><input id="esu" type="number" step="0.01" value="0.09"></div>
@@ -981,9 +981,9 @@ img,video{max-width:100%;height:auto}
       <h2>② 材料</h2>
       <div class="fld"><span>f'<sub>c</sub> (kgf/cm²)</span><input id="bfc" type="number" step="10" value="280"></div>
       <div class="fld"><span>f<sub>y</sub> (kgf/cm²)</span>
-        <select id="bfy"><option value="4200">4200 (SD420)</option><option value="2800">2800 (SD280)</option><option value="5000">5000 (SD490)</option></select></div>
+        <select id="bfy"><option value="4200">4200 (SD420／SD420W)</option><option value="2800">2800 (SD280／SD280W)</option><option value="5000">5000 (SD490W)</option><option value="5600">5600 (SD550W)</option></select></div>
       <div class="fld"><span>f<sub>yt</sub> (kgf/cm²)</span>
-        <select id="bfyt"><option value="4200">4200 (SD420)</option><option value="2800">2800 (SD280)</option></select></div>
+        <select id="bfyt"><option value="4200">4200 (SD420／SD420W)</option><option value="2800">2800 (SD280／SD280W)</option><option value="5000">5000 (SD490W)</option><option value="5600">5600 (SD550W)</option></select></div>
       <div class="fld"><span>E<sub>s</sub> (kgf/cm²)</span><input id="bEs" type="number" step="10000" value="2040000"></div>
       <div class="fld"><span>ε<sub>cu</sub></span><input id="becu" type="number" step="0.0001" value="0.003"></div>
     </div>
@@ -1151,9 +1151,9 @@ const BAR = {
   '#3':{d:0.953,A:0.7133}, '#4':{d:1.270,A:1.267}, '#5':{d:1.590,A:1.986},
   '#6':{d:1.910,A:2.865},  '#7':{d:2.220,A:3.871}, '#8':{d:2.540,A:5.067},
   '#9':{d:2.870,A:6.469},  '#10':{d:3.220,A:8.143},'#11':{d:3.580,A:10.07},
-  '#14':{d:4.300,A:14.52}, '#18':{d:5.730,A:25.79}
+  '#12':{d:3.940,A:12.19}, '#14':{d:4.300,A:14.52}, '#16':{d:5.020,A:19.79}, '#18':{d:5.730,A:25.79}
 };
-const MAIN_SIZES = ['#4','#5','#6','#7','#8','#9','#10','#11','#14','#18'];
+const MAIN_SIZES = ['#4','#5','#6','#7','#8','#9','#10','#11','#12','#14','#16','#18'];
 const TIE_SIZES  = ['#3','#4','#5','#6','#7'];
 const PRACTICAL_S = [30,25,20,15,12.5,10,7.5];
 
@@ -2643,6 +2643,8 @@ function colDevPlan(M){
     ref: ph ? (bldg ? (mech ? '§18.2.7.2' : '§18.4.4.3') : '公路橋梁耐震設計規範') : '表 25.5.2.1',
     msg: fits ? (mech ? `${SPLICE_TXT[sp]}設於距柱底 ${f(la,0)} cm（${why}）` : `搭接 ${f(la,0)}～${f(stag?lb2:lb,0)} cm（${why}${stag?'，錯開兩組':''}）`)
       : `可搭接範圍 ${f(Math.max(0,A1-A0),0)} cm ＜ 所需 ${zone} cm：改用機械式續接（第三類可設於任何位置）或調整鋼筋號數`});
+  if(!mech && R.db > 3.59) checks.push({lv:'bad', item:'大於 D36 之鋼筋不得搭接', need: R.db, cap: 3.58, unit:'cm', ref:'§25.5.1.1',
+    msg:`主筋 D${Math.round(R.db*10)} 大於 D36，除 §25.5.5.3 之受壓搭接例外外不得搭接 —— 改用機械式續接或改小號數`});
   if(sp==='A'){
     const okA = M.dev.o.excess <= 0.5 + 1e-9;
     checks.push({lv: okA ? 'ok' : 'bad', item:'甲級搭接適用條件', need: 2, cap: M.dev.o.excess>0 ? 1/M.dev.o.excess : 1, unit:'',
@@ -2713,6 +2715,8 @@ function beamDevPlan(B){
       ref: seis ? (mech ? '§18.2.7.2' : '§18.3.3.3') : '表 25.5.2.1',
       msg: b.fits ? (mech ? `${SPLICE_TXT[sp]}距左${sup}面 ${f(b.la,0)} cm` : `搭接 ${f(b.la,0)}～${f(stag?b.lb2:b.lb,0)} cm（${b.why}${stag?'，錯開兩組':''}）`)
         : `可搭接範圍 ${f(Math.max(0,A1-A0),0)} cm ＜ 所需 ${b.zone} cm：改用機械式續接（第三類）或不續接（通長）`});
+    if(!mech && b.d.db > 3.59) checks.push({lv:'bad', item:`${b.name}大於 D36 不得搭接`, need: b.d.db, cap: 3.58, unit:'cm', ref:'§25.5.1.1',
+      msg:`D${Math.round(b.d.db*10)} 大於 D36 不得搭接（§25.5.1.1）—— 改用機械式續接、通長配置或改小號數`});
     // 搭接淨距
     if(!mech){
       const cl = b.isTop ? B.clr.top : B.clr.bot, need = b.isTop ? B.clr.needT : B.clr.needB;
@@ -3797,6 +3801,7 @@ function devCheckIds(P, c){
   if(P.mod==='col'){
     if(/^底端/.test(it)) return ['dAncBot','dHBot','dAncCov','barSize'];
     if(/^頂端/.test(it)) return ['dAncTop','dHTop','dAncCov','barSize'];
+    if(/D36/.test(it)) return ['barSize','dSplice'];
     if(/位置/.test(it)) return ['dSplice','dStagger','barSize','lu','ph','#devPlan'];
     if(/甲級/.test(it)) return ['dSplice','dExcess'];
     if(/淨距/.test(it)) return ['dLapGap','nB','nH','nCir','barSize'];
@@ -3806,6 +3811,7 @@ function devCheckIds(P, c){
   const top = /頂筋/.test(it);
   if(/錨定/.test(it)) return ['bdAnc','bdHc','bdAncCov', top?'bTopSize':'bBotSize'];
   if(/接頭深度/.test(it)) return ['bdHc','bTopSize','bBotSize'];
+  if(/D36/.test(it)) return ['bdSplice', top?'bTopSize':'bBotSize', top?'bdLapTop':'bdLapBot'];
   if(/位置/.test(it)) return ['bdSplice', top?'bdLapTop':'bdLapBot','bdStagger','bLn','#bDevPlan'];
   if(/心距/.test(it)) return ['bdLapGap'];
   if(/淨距/.test(it)) return ['bdLapGap', top?'bNtop':'bNbot', top?'bTopSize':'bBotSize','bw'];
@@ -5155,6 +5161,11 @@ function renderAlerts(M){
     if(sl.kLow) add('info', sl.bridge
       ? `有支撐防止側移之構材 k 除經分析採較小值外應為 1.0（公路橋梁設計規範 §7.3.5.2(3)）；目前 k = ${f(sl.k,2)}，請附分析依據。`
       : `目前 k = ${f(sl.k,2)} < 1.0；第一次近似分析時 k 可取 1.0（土木401-112 解說 R6.2.5），較小值請附構架分析依據。`, ['slK']);
+  }
+  { // 土木401-112 表 20.2.2.4(a)：剪力肋筋／箍筋 f_yt ≤ 4200（特殊耐震系統 ≤ 5600）；扭力 ≤ 4200
+    const m = M.m, lim = M.opt.plastic ? 5600 : 4200, tors = [M.shX, M.shY].some(sh => sh.torsion);
+    if(m.fyt > lim + 1) add('bad',`<b>橫向筋 f_yt = ${f(m.fyt,0)} 超過剪力鋼筋設計上限 ${lim}</b>（土木401-112 表 20.2.2.4(a)：肋筋、箍筋 4200；特殊耐震系統 5600）。本工具剪力計算直接採輸入值，請改用較低等級或依上限計算。`, ['fyt']);
+    else if(tors && m.fyt > 4200 + 1) add('bad',`<b>扭力鋼筋 f_yt = ${f(m.fyt,0)} 超過 4200</b>（表 20.2.2.4(a)），請改用 SD420 以下。`, ['fyt']);
   }
   if(M.opt.code==='bridge'){   // 公路橋梁耐震設計規範 §5.2、§5.3.4、§5.8
     const m = M.m, okFy = Math.abs(m.fy-4200)<1 || Math.abs(m.fy-2800)<1;
@@ -6994,6 +7005,11 @@ function renderBeamAlerts(B){
   if(B.badIn && B.badIn.length) add('bad',`<b>輸入空白或無效（已暫以預設值計算，請補正）</b>：${B.badIn.map(b=>`${esc(b.label)} → ${b.dflt}`).join('、')}。`, B.badIn.map(b=>b.id));
   rangeAlerts('beam', add);
   if(B.noLoads) add('warn','<b>尚未輸入載重組合</b>：目前以零載重計算，檢核結果沒有意義。', ['#bLoadTbl']);
+  { // 土木401-112 表 20.2.2.4(a)：剪力肋筋／箍筋 f_yt ≤ 4200（特殊耐震系統 ≤ 5600）；扭力 ≤ 4200
+    const lim = S.seismic ? 5600 : 4200;
+    if(!S.slab && m.fyt > lim + 1) add('bad',`<b>箍筋 f_yt = ${f(m.fyt,0)} 超過剪力鋼筋設計上限 ${lim}</b>（土木401-112 表 20.2.2.4(a)）。`, ['bfyt']);
+    else if(!S.slab && B.sh && B.sh.tors && m.fyt > 4200 + 1) add('bad',`<b>扭力鋼筋 f_yt = ${f(m.fyt,0)} 超過 4200</b>（表 20.2.2.4(a)）。`, ['bfyt']);
+  }
   if(B.noTen) add('bad',`<b>無受拉鋼筋</b>：目前檢核${S.sign==='pos'?'正彎矩（底層受拉）':'負彎矩（頂層受拉）'}，但${S.sign==='pos'?'底':'頂'}層未配置鋼筋，斷面無法抵抗此方向彎矩。`, ['bNbot','bNtop','bSpBot','bSpTop']);
   const C=B.ctrl;
   if(C){
@@ -7430,7 +7446,7 @@ const PIN_META = {
       ['esu','ε_su','箍筋極限應變','','Mander 圍束混凝土的 ε_cu,c。','','']
     ]],
     ['主筋', [
-      ['barSize','—','主筋號數','','d_b 影響淨距需求與塑鉸區箍筋間距上限 6d_b。','#4 ~ #18（CNS 560）',''],
+      ['barSize','—','主筋號數','','d_b 影響淨距需求與塑鉸區箍筋間距上限 6d_b。','#4 ~ #18（D13～D57，CNS 560 表 3，含 D39、D50）',''],
       ['nB','n_B','B 向每面根數','根','中心距與淨距，進而決定繫筋根數與 h_x。','',''],
       ['nH','n_H','H 向每面根數','根','同上（H 向）。','',''],
       ['nCir','n','主筋總根數','根','沿圓周等距排列，決定主筋淨距與 A_st。','螺箍柱至少 6 根（土木401／ACI 10.7.3.1）',''],
@@ -8222,7 +8238,7 @@ document.querySelectorAll('svg[viewBox]').forEach(fitSvg);
 (function(){
   const $ = id => document.getElementById(id);
   const D2H = {10:'#3',13:'#4',16:'#5',19:'#6',22:'#7',25:'#8',
-               29:'#9',32:'#10',36:'#11',43:'#14',57:'#18'};
+               29:'#9',32:'#10',36:'#11',39:'#12',43:'#14',50:'#16',57:'#18'};
   const KEYLS = 'pylon_gemini_key';
   let SECTIONS = [], TARGETS = [], SHEET = {};
 
