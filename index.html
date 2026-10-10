@@ -359,20 +359,24 @@ body .pin-v input[type=text]{text-align:left}
   .rp-fig{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
 /* 報告在螢幕上預覽時的樣式 */
-#report.preview{display:block;background:#fff;color:#111;padding:26px;margin:14px;border-radius:10px}
+#report.preview{display:block;background:#fff;color:#111;padding:26px;margin:14px auto;border-radius:10px;
+  max-width:calc(186mm + 52px)}   /* 預覽寬＝A4 版心（210 − 2×12 mm），圖與字的比例與列印一致 */
+/* 計算書字級：內文、計算式、表格同為 12 px（列印約 9 pt）；圖內 12 號字亦為 12 px（見 fitSvg） */
+#report{font-size:12px;line-height:1.55}
+#report table{font-size:12px}
 #report.preview table th{background:#eee}
 #report.preview table th,#report.preview table td{border:1px solid #999;color:#111}
 #report table.rp-dense{font-size:11px}
 #report table.rp-dense th,#report table.rp-dense td{padding:2px 4px}
-@media print{ #report table.rp-dense{font-size:8.5pt} }
-.rp-h1{font-size:20px;font-weight:800;margin:0 0 4px}
-.rp-h2{font-size:15px;font-weight:800;margin:18px 0 7px;border-bottom:2px solid #333;padding-bottom:3px}
-.rp-h3{font-size:13.5px;font-weight:700;margin:12px 0 5px}
-.rp-eq{margin:2px 0 2px 12px;font-size:13.5px}
-.rp-eq .katex{font-size:1em}
+@media print{ #report table{font-size:9pt} #report table.rp-dense{font-size:8.25pt} }
+.rp-h1{font-size:18px;font-weight:800;margin:0 0 4px}
+.rp-h2{font-size:14px;font-weight:800;margin:18px 0 7px;border-bottom:2px solid #333;padding-bottom:3px}
+.rp-h3{font-size:12.5px;font-weight:700;margin:12px 0 5px}
+.rp-eq{margin:2px 0 2px 12px;font-size:12px}
+.rp-eq .katex,#report .katex{font-size:1.1em}   /* Computer Modern 字面較小，1.1 倍與中文等高 */
 .rp-eq .katex-display{margin:.5em 0;text-align:left}
 .rp-eq .katex-display>.katex{text-align:left;white-space:normal}
-.rp-note{font-size:11.5px;color:#444;margin:4px 0 4px 14px;line-height:1.6}
+.rp-note{font-size:11px;color:#444;margin:4px 0 4px 14px;line-height:1.6}
 .rp-fig{border:1px solid #999;padding:6px;margin:8px 0;background:#fff}
 /* P-M 圖不要占滿整個版面：縮到適中尺寸並置中。
    svgPM(forPrint) 內部已把字級放大、刻度改 5 格，縮圖後刻度仍讀得清楚。 */
@@ -3726,7 +3730,7 @@ function devReportFigs(M, P){
   if(sel.t.has('table')) o.push(`<div class="rp-h3">伸展與搭接長度</div><div style="font-size:12px">${SB(devTable(M.dev, {}))}</div>`);
   if(all.length) o.push(`<div class="rp-h3">伸展與搭接配置圖</div>`);
   for(const v of all) if(want.has(v.id)){
-    o.push(`<div class="rp-fig no-break">${v.svg}<div class="rp-lg">${SB(devLegend(v.id, P))}</div><div style="font-size:11.5px;margin-top:4px">${SB(v.fmTex)}</div></div>`);
+    o.push(`<div class="rp-fig no-break">${v.svg}<div class="rp-lg">${SB(devLegend(v.id, P))}</div><div style="font-size:12px;margin-top:4px">${SB(v.fmTex)}</div></div>`);
   }
   if(sel.t.has('checks')) o.push(`<div class="rp-h3">配置檢核</div><div style="font-size:12px">${SB(devPlanHtml(P))}</div>`);
   if(sel.t.has('sched')) o.push(`<div class="rp-h3">鋼筋下料長度表</div><div style="font-size:12px">${SB(devScheduleHtml(P, M))}</div>`);
@@ -4090,7 +4094,7 @@ function svgPM(M,axis,forPrint){
   /* 圖例（曲線＋載重組合）一律畫在座標框外的下方，兩者共用同一套兩欄格線；圖高隨載重組合數增加。
      計算書兩張圖左右並排（各約半頁寬），列印版字級 ×1.9、線寬 ×1.7，縮圖後仍清楚。 */
   const W=760,Rr=22,T=22;
-  const FS = forPrint ? 1.9 : 1, LW = forPrint ? 1.7 : 1.3;
+  const FS = forPrint ? 2.35 : 1, LW = forPrint ? 1.9 : 1.3;
   const PH = forPrint ? 640 : 430, yB = T + PH;   // 繪圖區高、x 軸（圖框底）位置
   let Hh = 0;   // 圖例排完後才知道
   const C = {ax:'#3A4652',grid:'#E2E7EC',n:'#8A97A5',d:'#0F5F6B',mc:'#6B4FA8',pt:'#6B7887',ptc:'#B03A2E',txt:'#151C24',ok:'#1E7A44',bad:'#B03A2E'};   // 列印／匯出與螢幕同色（黑白與否由使用者列印時決定）
@@ -4224,14 +4228,16 @@ function svgPM(M,axis,forPrint){
       }
       ly += (row + (col?1:0))*RH + 8*FS; }
     head('載重組合　（D/C，定偏心射線法）');
-    const nmW = colW - SW - gx - 50*FS;
+    // 名稱在半欄放不下就改單欄（整列寬），盡量不截斷組合名稱
+    const nm2 = colW - SW - gx - 50*FS, ncL = M.res.every(R2=>txtW(R2.L.name,lfs) <= nm2) ? 2 : 1;
+    const cw = ncL===2 ? colW : 2*colW, nmW = cw - SW - gx - 50*FS;
     grid(M.res.length, (i,x,y)=>{
       const R2 = M.res[i], isC = R2===M.ctrlFlex, col = isC?C.ptc:C.txt;
       o.push(ptShape(i, x+SW/2, y-lfs*0.32, 6.2*FS, isC?C.ptc:C.pt));
       let nm = R2.L.name; while(nm.length>2 && txtW(nm,lfs) > nmW) nm = nm.slice(0,-2)+'…';
       o.push(`<text x="${x+SW+gx}" y="${y}" font-size="${lfs.toFixed(1)}" fill="${col}"${isC?' font-weight="700"':''}>${esc(nm)}</text>`);
-      o.push(`<text x="${x+colW-14*FS}" y="${y}" font-size="${lfs.toFixed(1)}" text-anchor="end" fill="${R2.dc>1?C.bad:col}"${isC?' font-weight="700"':''}>${fdc(R2.dc)}</text>`);
-    });
+      o.push(`<text x="${x+cw-14*FS}" y="${y}" font-size="${lfs.toFixed(1)}" text-anchor="end" fill="${R2.dc>1?C.bad:col}"${isC?' font-weight="700"':''}>${fdc(R2.dc)}</text>`);
+    }, ncL);
     Hh = Math.ceil(ly);
   }
   o[0] = `<svg viewBox="0 0 ${W} ${Hh}" xmlns="http://www.w3.org/2000/svg" font-family="ui-sans-serif,system-ui,sans-serif">`;
@@ -7616,10 +7622,10 @@ function svgForExport(str){
   const out = new XMLSerializer().serializeToString(el); box.remove();
   return out.split('KaTeX_Math,').join('').split('KaTeX_Main,').join('');
 }
-function fitSvg(svg){
-  if(svg.dataset.fit || svg.classList.contains('logo') || svg.closest('.fig-legend, .katex, symbol')) return;
+function _fitSvg(svg){
+  if(svg.dataset.fit || svg.classList.contains('logo') || svg.closest('.fig-legend, .katex, symbol')) return null;
   const vb = (svg.getAttribute('viewBox')||'').trim().split(/[\s,]+/).map(Number);
-  if(vb.length!==4 || !(vb[2]>200)) return;
+  if(vb.length!==4 || !(vb[2]>200)) return svg;
   svg.dataset.fit = '1';
   svgRawTex(svg);
   if(!_fitHost){ _fitHost = document.createElement('div');
@@ -7635,18 +7641,28 @@ function fitSvg(svg){
   cl.remove();
   if(hasFrac){ if(bgC) bgC.removeAttribute('display'); cl.style.width = ''; cl.style.maxHeight = '';
     if(svg.parentNode) svg.parentNode.replaceChild(cl, svg); svg = cl; }
-  if(!bb || !(bb.width>20) || !(bb.height>20)) return;
+  if(!bb || !(bb.width>20) || !(bb.height>20)) return svg;
   const pad = Math.max(8, 0.015*Math.max(bb.width, bb.height));
   let x0 = Math.max(vb[0], bb.x-pad), y0 = Math.max(vb[1], bb.y-pad);
   let x1 = Math.min(vb[0]+vb[2], bb.x+bb.width+pad), y1 = Math.min(vb[1]+vb[3], bb.y+bb.height+pad);
   /* 放大倍率上限 1.4：只有一兩行字的圖（如「不適用」說明）不該被放成斗大標題；不足的寬度左右平均補回，內容仍置中 */
   const minW = vb[2]/1.4;
   if(x1-x0 < minW){ const c = (x0+x1)/2; x0 = c-minW/2; x1 = c+minW/2; }
-  if(x1-x0 > vb[2]*0.985 && y1-y0 > vb[3]*0.985) { svg.classList.add('figfit'); return; }
+  if(x1-x0 > vb[2]*0.985 && y1-y0 > vb[3]*0.985) { svg.classList.add('figfit'); return svg; }
   const nb = [x0, y0, x1-x0, y1-y0].map(v=>+v.toFixed(2));
   svg.setAttribute('viewBox', nb.join(' '));
   const bg = bgOf(svg); if(bg){ bg.setAttribute('x', nb[0]); bg.setAttribute('y', nb[1]); bg.setAttribute('width', nb[2]); bg.setAttribute('height', nb[3]); }
   svg.classList.add('figfit');
+  return svg;
+}
+/* 計算書內的圖：以「SVG 1 單位 = 1 px」定寬（不放大），圖內 12 號字＝內文 12 px（列印約 9 pt），
+   與計算式、表格同大；超過版心寬時才依比例縮小。螢幕上的圖仍滿版。 */
+function fitSvg(svg){
+  const out = _fitSvg(svg) || svg;
+  if(out && out.isConnected && out.closest('#report') && out.classList.contains('figfit')){
+    const vb = out.getAttribute('viewBox').split(/[\s,]+/).map(Number);
+    out.style.width = Math.round(vb[2]) + 'px'; out.style.maxWidth = '100%'; out.style.margin = '0 auto';
+  }
 }
 const MATH_OPT = {delimiters:[{left:'\\[',right:'\\]',display:true},{left:'\\(',right:'\\)',display:false}], fleqn:true, throwOnError:false};
 function mathIn(el){ if(window.renderMathInElement && /\\[(\[]/.test(el.textContent)) renderMathInElement(el, MATH_OPT); }
