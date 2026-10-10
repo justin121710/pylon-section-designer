@@ -805,7 +805,7 @@ img,video{max-width:100%;height:auto}
         <select id="slFrame"><option value="sway">無側向位移支撐（有側移）</option><option value="braced">有側向位移支撐（無側移）</option></select></div>
       <div class="fld"><span>有效長度係數 k</span><input id="slK" type="number" step="0.1" value="1"></div>
       <div class="fld"><span>端彎矩比 M<sub>1</sub>/M<sub>2</sub></span><input id="slM12" type="number" step="0.1" value="-1"></div>
-      <div class="fld"><span>超強係數 φ<sub>o</sub></span><input id="phio" type="number" step="0.05" value="1.25"></div>
+      <div class="fld"><span>超強係數 φ<sub>o</sub></span><input id="phio" type="number" step="0.05" value="1.3"></div>
       <div class="fld"><span>剪力跨度 L<sub>v</sub> (cm)</span><input id="Lv" type="number" step="10" value="4000"></div>
       <div class="fld"><span>扭矩桁架角 θ (°)</span><input id="theta" type="number" step="5" value="45"></div>
       <div class="fld"><span>繫筋配置</span>
@@ -830,6 +830,7 @@ img,video{max-width:100%;height:auto}
       <div class="fld"><span>φ<sub>c</sub> 壓力控制</span><input id="phic" type="number" step="0.05" value="0.65"></div>
       <div class="fld"><span>φ<sub>t</sub> 拉力控制</span><input id="phit" type="number" step="0.05" value="0.90"></div>
       <div class="fld"><span>φ<sub>v</sub> 剪力 / 扭矩</span><input id="phiv" type="number" step="0.05" value="0.75"></div>
+      <div class="fld"><span>φ 橋梁剪力</span><input id="phivB" type="number" step="0.05" value="0.85"></div>
       <div class="fld"><span>軸力截斷 (×P<sub>o</sub>)</span><input id="pmaxf" type="number" step="0.05" value="0.80"></div>
       <div class="fld"><span>低軸壓輪廓指數 α</span><input id="alpha" type="number" step="0.05" value="1.0"></div>
       <div class="fld"><span>鋼筋塗布環氧樹脂</span><select id="dEpoxy"><option value="0">否（未塗布）</option><option value="1">是（環氧樹脂塗布）</option></select></div>
@@ -1654,7 +1655,16 @@ const seisKdb = fy => fy <= 4200+1e-6 ? 6 : fy <= 5000+1e-6 ? 5.5 : 5;
 /* 土木401-112 表 22.5.5.1：A_v ≥ A_v,min 時 V_c = [0.53λ√f'c + N_u/(6A_g)]·b_w·d（式 (a)）；
    N_u/(6A_g) ≤ 0.05f'c（§22.5.5.1.2）、V_c ≤ 1.33λ√f'c·b_w·d（§22.5.5.1.1）、V_c ≥ 0。
    柱箍筋間距恆受 A_v,min 控制（finalSpacing 之 s_minAv），故採式 (a)。 */
+/* 橋梁（公路橋梁耐震設計規範 §5.3.3）：
+     塑鉸區 V_c = 0.53(0.33 + F)√f'c·A_e ≥ 0（式 5-3）；非塑鉸區 V_c = 0.53(1 + F)√f'c·A_e ≥ 0（式 5-4）
+     A_e = 0.8A_g；F = N/(140A_g)（壓）、N/(35A_g)（拉，N 為負）。與剪力方向無關。 */
+function VcBridge(m, Nu, hinge){
+  const Ae = 0.8*m.Ag, F = Nu >= 0 ? Nu/(140*m.Ag) : Nu/(35*m.Ag);
+  const vc = Math.max(0, 0.53*((hinge ? 0.33 : 1) + F)*Math.sqrt(m.fc)*Ae);
+  return {vc, base:0.53*Math.sqrt(m.fc)*Ae, zeroed: vc <= 0, ax:F, F, Ae, hinge, bridge:true, lam:1};
+}
 function VcCalc(m,bw,d,Nu,plastic,code){
+  if(code==='bridge') return VcBridge(m, Nu, plastic);
   const lam = m.lam || 1, sq = Math.sqrt(m.fc);
   const base = 0.53*lam*sq*bw*d;
   const ax = Math.min(Nu/(6*m.Ag), 0.05*m.fc);
@@ -1740,6 +1750,7 @@ function applyPreset(key){
   S('covO',P.covO); S('covI',P.covI); S('Lv',P.Lv); S('dagg',P.dagg);
   S('dbl', P.type==='box' ? '1' : '0');
   S('codeBasis', P.code || 'bridge'); S('ph', P.ph || '1'); S('lu', P.lu || 300);
+  S('phio', P.phio || 1.3); S('phivB', 0.85);   // 公路橋梁耐震設計規範 §4.2.1（RC 柱 1.3）、§5.3.3（φ = 0.85）
   S('phEnds', P.phEnds || (P.code==='bldg' ? '2' : '1'));
   // 長細比：範本值僅示意（建築框架柱 k = 1.0；懸臂墩柱、橋塔取理論值 k = 2.0），實際請依構架分析決定
   S('slFrame', P.slFrame || 'sway'); S('slK', P.slK || ((P.phEnds || (P.code==='bldg' ? '2' : '1'))==='1' ? 2 : 1)); S('slM12', P.slM12 ?? -1);
@@ -1781,7 +1792,7 @@ function compute(){
     fc: pos('fc',420), fy: parseFloat(document.getElementById('fy').value),
     fyt: parseFloat(document.getElementById('fyt').value),
     Es: pos('Es',2.04e6), ecu: pos('ecu',0.003), esu: pos('esu',0.09),
-    phic: pos('phic',0.65), phit: pos('phit',0.90), phiv: pos('phiv',0.75),
+    phic: pos('phic',0.65), phit: pos('phit',0.90), phiv: pos('phiv',0.75), phivB: pos('phivB',0.85),
     pmaxf: pos('pmaxf',0.80), alpha: pos('alpha',1.0),
     Ag, Ast
   };
@@ -1792,7 +1803,7 @@ function compute(){
     lu: pos('lu',300),
     plastic: document.getElementById('ph').value==='1',
     phEnds: document.getElementById('phEnds').value==='1' ? 1 : 2,
-    phio: pos('phio',1.25), Lv: pos('Lv',4000),
+    phio: pos('phio',1.3), Lv: pos('Lv',4000),
     brExpo: document.getElementById('brExpo').value,
     slSway: document.getElementById('slFrame').value!=='braced', slK: pos('slK',1), slM12: Math.max(-1, Math.min(1, num('slM12',-1))),
     theta: pos('theta',45), dagg: Math.max(0.5,num('dagg',2.5)),
@@ -1915,9 +1926,16 @@ function confinement(s,r,R,m,opt){
   const termC = opt.code==='bldg' && opt.plastic && s.type!=='box'
              && (opt.PuMax > 0.3*m.Ag*m.fc || m.fc > 700);
   const kf = Math.max(1, m.fc/1750 + 0.6), kn = nlSup/Math.max(1, nlSup-2);
+  /* 橋梁塑鉸區（公路橋梁耐震設計規範 §5.3.4 式 5-7、5-8）：
+     A_sh ≥ max{0.30·a·h_c·(f'c/f_yh)(A_g/A_c − 1), 0.12·a·h_c·(f'c/f_yh)(0.5 + 1.25P_e/(f'c·A_g))}
+     h_c 量至兩外側箍筋中心 = b_c − d_t；A_c 量至箍筋外緣；P_e 取各組合最大軸壓。 */
+  const bridgeAsh = opt.code==='bridge' && opt.plastic;
+  const peTerm = 0.5 + 1.25*Math.max(0, opt.PuMax)/(m.fc*m.Ag);
   const panel=(tag,g1,g2,c1,c2,Ash1,Ash2,lab1,lab2)=>{
     const Ag_w=g1*g2, Ach_w=Math.max(1,c1*c2);
-    const rq = bc => Math.max(0.3*bc*(Ag_w/Ach_w-1)*m.fc/m.fyt, 0.09*bc*m.fc/m.fyt,
+    const rq = bc => bridgeAsh
+      ? Math.max(0.30*(bc-dt)*(m.fc/m.fyt)*(Ag_w/Ach_w-1), 0.12*(bc-dt)*(m.fc/m.fyt)*peTerm)
+      : Math.max(0.3*bc*(Ag_w/Ach_w-1)*m.fc/m.fyt, 0.09*bc*m.fc/m.fyt,
                               termC ? 0.2*kf*kn*opt.PuMax/(m.fyt*Ach_w)*bc : 0);
     const bc1 = perp?c2:c1, bc2 = perp?c1:c2;
     const rq1=rq(bc1), rq2=rq(bc2);
@@ -1946,7 +1964,7 @@ function confinement(s,r,R,m,opt){
   const rho_cc = Math.min(0.06, m.Ast/(m.Ag||1));
   const sumW2 = (Math.max(2,eB.n)-1)*2*eB.clear*eB.clear;
 
-  return {walls, sAsh, wc, At, dt, eB, eH, tieX, tieY, legB, legH, supB, supH, perp, termC, kf, kn, nlSup,
+  return {walls, sAsh, wc, At, dt, eB, eH, tieX, tieY, legB, legH, supB, supH, perp, termC, kf, kn, nlSup, bridgeAsh, peTerm,
           nTieB:tieX.length, nTieH:tieY.length, pitchB, pitchH, sumW2, rho_cc,
           finalize(sUse){
             const w=this.wc, sp=Math.max(0.1,sUse-this.dt);
@@ -1970,7 +1988,9 @@ function confinementCircle(s,r,R,m,opt,At,dt){
   const Dc = Math.max(1, s.D - 2*r.covO), ds = Math.max(1, Dc - dt), Ach = Math.PI*Dc*Dc/4;
   const seis = opt.plastic, need = r.spiral || seis;
   const t1 = 0.45*(m.Ag/Ach-1)*m.fc/m.fyt;
-  const t2 = seis ? 0.12*m.fc/m.fyt : 0;
+  // 橋梁塑鉸區（公路橋梁耐震設計規範 式 5-6）：ρ_s ≥ 0.12(f'c/f_yh)(0.5 + 1.25P_e/(f'c·A_g))
+  const bridgeAsh = opt.code==='bridge' && seis, peTerm = 0.5 + 1.25*Math.max(0, opt.PuMax)/(m.fc*m.Ag);
+  const t2 = seis ? 0.12*m.fc/m.fyt*(bridgeAsh ? peTerm : 1) : 0;
   const termC = opt.code==='bldg' && seis && (opt.PuMax > 0.3*m.Ag*m.fc || m.fc > 700);
   const kf = Math.max(1, m.fc/1750 + 0.6);
   const t3 = termC ? 0.35*kf*opt.PuMax/(m.fyt*Ach) : 0;
@@ -1978,7 +1998,7 @@ function confinementCircle(s,r,R,m,opt,At,dt){
   const sAsh = rhoReq>0 ? 4*At*ds/(Dc*Dc*rhoReq) : 1e9;
   const rho_cc = Math.min(0.06, m.Ast/(m.Ag||1));
   const none = {hx:0, n:r.nCir, clear:0, everyBar:false, idx:[], ties:0};
-  return {circ:{Dc,ds,Ach,t1,t2,t3,rhoReq,need,spiral:r.spiral},
+  return {circ:{Dc,ds,Ach,t1,t2,t3,rhoReq,need,spiral:r.spiral,bridgeAsh,peTerm},
           walls:[], sAsh, wc:null, At, dt, eB:none, eH:none, tieX:[], tieY:[], legB:0, legH:0, supB:[], supH:[], perp:true,
           termC, kf, kn:1, nlSup:r.nCir, nTieB:0, nTieH:0, pitchB:R.pB, pitchH:R.pH, sumW2:0, rho_cc,
           finalize(sUse){
@@ -2013,9 +2033,16 @@ function shearDesign(s,r,R,m,opt,cv,res,dir,cvPr){
   const cvM = bldgCD ? cvPr : cv;
   let Mn = 0, PMn = res.length? res[0].Lk.Pu : 0;
   for(const R2 of res){ const v = MnAtP(cvM, R2.Lk.Pu); if(v > Mn){ Mn = v; PMn = R2.Lk.Pu; } }
+  // 橋梁（公路橋梁耐震設計規範 §4.2）：最大可能彎矩 = 1.3M_n（φ_o，RC 柱）；
+  //   單柱（塑鉸僅底端）V_e = M_o / 柱高（含帽梁，即 L_v）；構架式（兩端塑鉸）V_e = (M_頂 + M_底)/淨高 = 2M_o / l_u
   const Mo = bldgCD ? Mn : opt.phio*Mn;
-  const Ve = bldgCD ? 2*Mo/opt.lu : Mo/opt.Lv;
-  const VsMax = 2.12*Math.sqrt(m.fc)*bw*d;
+  const Ve = bldgCD ? 2*Mo/opt.lu : (opt.phEnds===2 ? 2*Mo/opt.lu : Mo/opt.Lv);
+  const bridge = opt.code==='bridge';
+  const phiS = bridge ? m.phivB : m.phiv;              // 橋梁剪力 φ = 0.85（§5.3.3）；扭矩仍依土木401 φ_v
+  const Ae = 0.8*m.Ag;
+  // 圓形橋柱 V_s = (π/2)A_h f_yh D/a（式 5-2b，D 為圍束區直徑）＝ A_v f_yt (πD/4)/a，A_v = 2A_h
+  const dV = (bridge && s.type==='circle') ? Math.PI/4*Math.max(1, s.D - 2*r.covO) : d;
+  const VsMax = bridge ? 2.12*Math.sqrt(m.fc)*Ae : 2.12*Math.sqrt(m.fc)*bw*d;
   const VsTight = 1.06*Math.sqrt(m.fc)*bw*d;
 
   // 肢數：沿剪力方向之箍筋肢，量於腹板寬度方向
@@ -2049,7 +2076,7 @@ function shearDesign(s,r,R,m,opt,cv,res,dir,cvPr){
     const Nu = ctrl.Lk.Pu, Vu = ctrl.Lk[Vukey], Tu = ctrl.Lk.Tu;
     const Vdes = (opt.plastic || opt.capShear) ? Math.max(Ve,Vu) : Vu;   // capShear：加密區外仍取容量設計剪力
     const V = VcCalc(m,bw,d,Nu,opt.plastic,opt.code);
-    const VsReq = Math.max(0, Vdes/m.phiv - V.vc);
+    const VsReq = Math.max(0, Vdes/phiS - V.vc);
     const sectionFail = VsReq > VsMax;
     const torsion = Tu > Tthr;
     const AtS = torsion ? Tu/(2*m.phiv*Ao*m.fyt*cot) : 0;     // 單肢，每單位 s
@@ -2057,8 +2084,8 @@ function shearDesign(s,r,R,m,opt,cv,res,dir,cvPr){
     // 斷面上限（中空斷面採直接相加）
     const lhs = Vdes/(bw*d) + (torsion? Tu*ph/(1.7*Aoh*Aoh) : 0);
     const rhs = m.phiv*(V.vc/(bw*d) + 2.12*Math.sqrt(m.fc));
-    const sectOver = lhs > rhs;
-    const AvS_shear = VsReq>1e-9 ? VsReq/(m.fyt*d) : 0;       // Av/s
+    const sectOver = bridge ? (torsion && lhs > rhs) : lhs > rhs;   // 橋梁：剪力上限改以 V_s ≤ 2.12√f'c·A_e；有扭矩時仍檢核剪扭合成上限
+    const AvS_shear = VsReq>1e-9 ? VsReq/(m.fyt*dV) : 0;      // Av/s
     const AvS_tot = AvS_shear + 2*AtS;
     const s_str = AvS_tot>1e-9 ? Av/AvS_tot : 1e9;
     const s_code = VsReq>VsTight ? Math.min(d/4,30) : Math.min(d/2,60);
@@ -2078,7 +2105,7 @@ function shearDesign(s,r,R,m,opt,cv,res,dir,cvPr){
   };
   const gov = all.reduce(worse, all[0]);
 
-  return {dir,bw,d,Mn,PMn,Mo,Ve,VsMax,VsTight,bldgCD,
+  return {dir,bw,d,dV,Mn,PMn,Mo,Ve,VsMax,VsTight,bldgCD,bridge,phiS,Ae,
           nlegs,Av,At1,Aoh,ph,Ao,cot,Tthr,s_minAv,s_ph,
           ...gov, all};
 }
@@ -2316,7 +2343,7 @@ function finalSpacing(M){
     push(M.conf.sAsh, M.r.spiral ? '螺箍體積比 ρ_s' : '圓箍圍束 ρ_s');
     if(M.r.spiral) push(7.5 + M.conf.dt, '螺箍淨距上限 7.5 cm');
   // A_sh 需求間距為 0（例如箱型單層無貫穿壁厚繫筋）代表無法滿足，不可被 push 的 v>0 過濾掉
-  }else if(M.opt.code!=='bldg' || M.opt.plastic) push(Math.max(M.conf.sAsh,1e-3), '圍束筋量 A_sh');
+  }else if(M.opt.plastic) push(Math.max(M.conf.sAsh,1e-3), '圍束筋量 A_sh');   // 建築柱端加密區／橋梁塑鉸區（§5.3.4）才需圍束筋
   push(M.chk.sTie, M.conf.circ ? '圓箍間距通則 min(16d_b, 48d_t, D)' : '柱箍筋間距通則 min(16d_b, 48d_t, 最小邊)');
   const gov = cands.reduce((a,b)=> b.v<a.v?b:a, cands[0]);
   // 螺箍常用間距較密（淨距仍須 ≥ 2.5 cm 且 ≥ 4/3·d_agg，另有警示檢核）
@@ -3791,7 +3818,7 @@ function devCheckIds(P, c){
 /* ---------- 輸入合理範圍（只警示、不改值）：防止 φ_t = 62、ε_cu 為負這類打錯而不自知 ---------- */
 const INPUT_RANGE = {
   pylon: {fc:[140,1050], fy:[2800,7000], fyt:[2800,7000], Es:[1.9e6,2.1e6], ecu:[0.002,0.004], esu:[0.03,0.2],
-    phic:[0.5,0.9], phit:[0.75,0.95], phiv:[0.6,0.9], pmaxf:[0.7,0.9], alpha:[0.5,2.5],
+    phic:[0.5,0.9], phit:[0.75,0.95], phiv:[0.6,0.9], phivB:[0.7,0.9], pmaxf:[0.7,0.9], alpha:[0.5,2.5],
     covO:[2,20], covI:[2,20], dagg:[0.5,5], lu:[30,10000], slK:[0.5,3], slM12:[-1,1], Lv:[10,10000], phio:[1,2], theta:[25,60],
     dExcess:[0.2,1], dAncCov:[2,15], dHBot:[10,1000], dHTop:[10,1000], dLapGap:[0,15]},
   beam: {bfc:[140,1050], bfy:[2800,7000], bfyt:[2800,7000], bEs:[1.9e6,2.1e6], becu:[0.002,0.004],
@@ -4604,7 +4631,7 @@ function colXlsxInput(){
               legB: c.legB, legH: c.legH, nlSup: c.nlSup,
               everyB: c.eB.everyBar?1:0, everyH: c.eH.everyBar?1:0,
               hxB: c.eB.hx, hxH: c.eH.hx, legGx: (L.find(g=>g.dir==='x')||{}).gap||0, legGy: (L.find(g=>g.dir==='y')||{}).gap||0}; })(),
-    phio:num('phio',1.25), Lv:num('Lv',400), lu:num('lu',300), theta:num('theta',45), ashPerp:g('ashPair')!=='para',
+    phio:num('phio',1.3), phivB:num('phivB',0.85), Lv:num('Lv',400), lu:num('lu',300), theta:num('theta',45), ashPerp:g('ashPair')!=='para',
     brExpo:g('brExpo'), slSway:g('slFrame')!=='braced', slK:num('slK',1), slM12:Math.max(-1,Math.min(1,num('slM12',-1))),
     phEnds: g('phEnds')==='1' ? 1 : 2, layTotal: MODEL && MODEL.lay ? MODEL.lay.total : 60,
     dev: devOpts('d'), devX: devXCol(),
@@ -4809,7 +4836,7 @@ function render(){
   const isC = M.s.type==='circle';
   pinNA('pylon', ['B','H','nB','nH','tieLayout','ashPair'], isC);
   pinNA('pylon', ['Dia','nCir','spiral'], !isC);
-  pinNA('pylon', ['phio','Lv'], M.opt.code==='bldg');
+  pinNA('pylon', ['phio','Lv','phivB'], M.opt.code==='bldg');
   pinNA('pylon', ['phEnds'], !M.opt.plastic);
   pinNA('pylon', ['slM12'], M.opt.slSway);           // 端彎矩比只用於無側移
   pinNA('pylon', ['brExpo'], M.opt.code!=='bridge');  // 公路橋梁設計規範表 7.2 只用於橋梁
@@ -5085,11 +5112,13 @@ function renderAlerts(M){
 
   for(const sh of [M.shX,M.shY]){
     const t=sh.dir.toUpperCase();
-    if(sh.sectionFail) add('bad',`<b>${t} 向斷面不足</b>：V_s 需求 ${f(sh.VsReq/TF,0)} tf > 上限 2.12√f'c·b_w·d = ${f(sh.VsMax/TF,0)} tf。<b>加箍筋無效，必須加大斷面或提高 f'c</b>。`, ['B','H','Dia','tw','#loadTbl']);
+    if(sh.sectionFail) add('bad',`<b>${t} 向斷面不足</b>：V_s 需求 ${f(sh.VsReq/TF,0)} tf > 上限 ${sh.bridge?"2.12√f'c·A_e（公路橋梁耐震設計規範 §5.3.3）":"2.12√f'c·b_w·d"} = ${f(sh.VsMax/TF,0)} tf。<b>加箍筋無效，必須加大斷面或提高 f'c</b>。`, ['B','H','Dia','tw','#loadTbl']);
     if(sh.sectOver) add('bad',`<b>${t} 向剪力+扭矩斷面應力超限</b>：${f(sh.lhs,1)} > ${f(sh.rhs,1)} kgf/cm²（中空斷面採直接相加）。`, ['B','H','Dia','tw','#loadTbl']);
-    if(sh.V.zeroed) add('warn',`${t} 向（控制組合「${esc(sh.ctrl.L.name)}」）：${M.opt.code==='bldg'?'柱端加密區且 N_u':'塑鉸區且 N_u'} = ${f(sh.Nu/TF,0)} tf < ${M.opt.code==='bldg'?"A_g·f'c/20":"0.1f'c·A_g"} = ${f(vcZeroRatio(M.opt.code)*M.m.fc*M.m.Ag/TF,0)} tf → <b>V_c 取 0</b>，全部剪力由箍筋承擔。`, ['ph','#loadTbl']);
-    if(sh.Nu<0) add('warn',`${t} 向：控制組合為<b>軸拉</b>（N_u = ${f(sh.Nu/TF,0)} tf），V_c 改用分母 35 之公式並夾至 ≥ 0。`, ['#loadTbl']);
-    if(M.opt.plastic && sh.Ve>sh.Vu) add('info',`${t} 向：<b>容量設計控制</b>。V_e = ${sh.bldgCD?'\\(\\displaystyle \\frac{2M_{pr}}{l_u}\\)':'\\(\\displaystyle \\frac{\\phi_o M_n}{L_v}\\)'} = ${f(sh.Ve/TF,0)} tf > 分析值 V_u = ${f(sh.Vu/TF,0)} tf，設計剪力採 V_e。`, ['ph','phio','Lv','lu']);
+    if(sh.V.zeroed) add('warn', sh.bridge
+      ? `${t} 向（控制組合「${esc(sh.ctrl.L.name)}」）：N = ${f(sh.Nu/TF,0)} tf，V_c = 0.53(${sh.V.hinge?'0.33':'1'} + F)√f'c·A_e ≤ 0 → <b>V_c 取 0</b>，全部剪力由箍筋承擔（公路橋梁耐震設計規範 §5.3.3）。`
+      : `${t} 向（控制組合「${esc(sh.ctrl.L.name)}」）：柱端加密區且 N_u = ${f(sh.Nu/TF,0)} tf < A_g·f'c/20 = ${f(vcZeroRatio(M.opt.code)*M.m.fc*M.m.Ag/TF,0)} tf → <b>V_c 取 0</b>，全部剪力由箍筋承擔。`, ['ph','#loadTbl']);
+    if(sh.Nu<0 && sh.bridge) add('warn',`${t} 向：控制組合為<b>軸拉</b>（N = ${f(sh.Nu/TF,0)} tf），F = N/(35A_g)，V_c 夾至 ≥ 0。`, ['#loadTbl']);
+    if(M.opt.plastic && sh.Ve>sh.Vu) add('info',`${t} 向：<b>容量設計控制</b>。V_e = ${sh.bldgCD?'\\(\\displaystyle \\frac{2M_{pr}}{l_u}\\)':M.opt.phEnds===2?'\\(\\displaystyle \\frac{2\\phi_o M_n}{l_u}\\)':'\\(\\displaystyle \\frac{\\phi_o M_n}{L_v}\\)'} = ${f(sh.Ve/TF,0)} tf > 分析值 V_u = ${f(sh.Vu/TF,0)} tf，設計剪力採 V_e。`, ['ph','phio','Lv','lu','phEnds']);
   }
   if(document.getElementById('envWater').value==='water' && M.r.covO < 5)
     add('warn',`水工／環境結構：外側保護層 ${f(M.r.covO,1)} cm ＜ 5 cm，建議至少 5 cm（參考 ACI 350）。`, ['covO']);
@@ -5125,6 +5154,16 @@ function renderAlerts(M){
     if(sl.kLow) add('info', sl.bridge
       ? `有支撐防止側移之構材 k 除經分析採較小值外應為 1.0（公路橋梁設計規範 §7.3.5.2(3)）；目前 k = ${f(sl.k,2)}，請附分析依據。`
       : `目前 k = ${f(sl.k,2)} < 1.0；第一次近似分析時 k 可取 1.0（土木401-112 解說 R6.2.5），較小值請附構架分析依據。`, ['slK']);
+  }
+  if(M.opt.code==='bridge'){   // 公路橋梁耐震設計規範 §5.2、§5.3.4、§5.8
+    const m = M.m, okFy = Math.abs(m.fy-4200)<1 || Math.abs(m.fy-2800)<1;
+    if(m.fc < 210) add('bad',`<b>混凝土強度不足</b>：f'c = ${f(m.fc,0)} < 210 kgf/cm²（公路橋梁耐震設計規範 §5.2）。`, ['fc']);
+    else if(m.fc > 420) add('warn',`f'c = ${f(m.fc,0)} > 420 kgf/cm²：抵抗地震力構材之 f'c 不宜高於 420（§5.2）。`, ['fc']);
+    if(!okFy) add('bad',`<b>主筋材質</b>：f_y = ${f(m.fy,0)}；承受地震引致彎矩與軸力之構材主筋應符合 CNS 560 SD420W 或 SD280W（§5.2）。`, ['fy']);
+    else add('info',`主筋須採 CNS 560 <b>W 級（可銲）</b>鋼筋：f_y = ${f(m.fy,0)} → SD${f(m.fy/10,0)}W（§5.2）。`, ['fy']);
+    if(M.opt.plastic && m.fyt > m.fy + 1) add('bad',`<b>圍束鋼筋降伏強度</b> f_yt = ${f(m.fyt,0)} > 主筋 f_y = ${f(m.fy,0)}：圍束鋼筋之規定降伏強度不可大於主筋（§5.3.4）。`, ['fyt','fy']);
+    const dmin = Math.min(M.s.B, M.s.H), ar = M.opt.lu/dmin;
+    if(ar < 2.5) add('bad',`<b>柱淨高／斷面深度 = ${f(ar,2)} < 2.5</b>：應視為壁式橋墩設計（公路橋梁耐震設計規範 §5.1、§5.8），本工具未涵蓋壁式橋墩之韌性規定。`, ['lu','B','H','Dia']);
   }
   { const bc = brCover(M);
     if(bc) add(bc.ok?'ok':'bad', `${bc.ok?'':'<b>保護層不足</b>：'}橋梁保護層（${bc.t}）：箍筋 ${f(bc.cTie,1)} cm ${bc.okTie?'≥':'＜'} ${f(bc.tie,1)}、主筋 ${f(bc.cMain,1)} cm ${bc.okMain?'≥':'＜'} ${f(bc.main,1)} cm（公路橋梁設計規範 §7.1.5 表 7.2）。`, ['covO','brExpo','tieSize']);
@@ -5307,12 +5346,13 @@ function buildReport(M){
   if(M.conf.circ){
     const cc=M.conf.circ;
     o.push(`<div class="rp-h2">7. ${r.spiral?'螺旋箍筋':'圓形箍筋'}體積比 ρ_s</div>`);
-    o.push(eq(`\\rho_s\\ \\ge\\ \\max\\left\\{0.45\\left(\\frac{A_g}{A_{ch}}-1\\right)\\frac{f'_c}{f_{yt}}${M.opt.plastic?`,\\ \\ 0.12\\frac{f'_c}{f_{yt}}`:''}${M.conf.termC?`,\\ \\ 0.35k_f\\frac{P_u}{f_{yt}A_{ch}}`:''}\\right\\}`));
+    if(cc.bridgeAsh) o.push(note(`橋梁塑鉸區依公路橋梁耐震設計規範 §5.3.4 式 (5-5)、(5-6)；P_e 取各組合最大軸壓 ${d(M.opt.PuMax/TF,0)} tf，\\(0.5+\\dfrac{1.25P_e}{f'_cA_g}=${d(cc.peTerm,4)}\\)。`));
+    o.push(eq(`\\rho_s\\ \\ge\\ \\max\\left\\{0.45\\left(\\frac{A_g}{A_{ch}}-1\\right)\\frac{f'_c}{f_{yt}}${M.opt.plastic?(cc.bridgeAsh?`,\\ \\ 0.12\\frac{f'_c}{f_{yt}}\\left(0.5+\\frac{1.25P_e}{f'_cA_g}\\right)`:`,\\ \\ 0.12\\frac{f'_c}{f_{yt}}`):''}${M.conf.termC?`,\\ \\ 0.35k_f\\frac{P_u}{f_{yt}A_{ch}}`:''}\\right\\}`));
     if(!cc.need) o.push(note(`圓形箍筋且非耐震區：不需檢核 ρ_s（以橫箍柱間距通則控制）。`));
     o.push(eq(`D_c=D-2c_o=${d(s.D,0)}-2\\times${d(r.covO,1)}=${d(cc.Dc,1)}\\ \\text{cm},\\quad
       A_{ch}=\\frac{\\pi D_c^2}{4}=${d(cc.Ach,0)}\\ \\text{cm}^2,\\quad d_s=D_c-d_t=${d(cc.ds,2)}\\ \\text{cm}`));
     o.push(eq(`0.45\\left(\\frac{${d(M.Ag,0)}}{${d(cc.Ach,0)}}-1\\right)\\frac{${d(m.fc,0)}}{${d(m.fyt,0)}}=${d(cc.t1,5)}
-      ${M.opt.plastic?`,\\qquad 0.12\\frac{${d(m.fc,0)}}{${d(m.fyt,0)}}=${d(cc.t2,5)}`:''}${M.conf.termC?`,\\qquad 0.35k_f\\frac{P_u}{f_{yt}A_{ch}}=${d(cc.t3,5)}`:''}`));
+      ${M.opt.plastic?`,\\qquad 0.12\\frac{${d(m.fc,0)}}{${d(m.fyt,0)}}${cc.bridgeAsh?`\\times${d(cc.peTerm,4)}`:''}=${d(cc.t2,5)}`:''}${M.conf.termC?`,\\qquad 0.35k_f\\frac{P_u}{f_{yt}A_{ch}}=${d(cc.t3,5)}`:''}`));
     if(cc.need) o.push(eq(`\\rho_s=\\frac{A_{sp}\\,\\pi d_s}{\\frac{\\pi D_c^2}{4}\\,s}=\\frac{4A_{sp}d_s}{D_c^2\\,s}
       \\ \\Rightarrow\\ s\\le\\frac{4A_{sp}d_s}{D_c^2\\,\\rho_{s,req}}=\\frac{4\\times${d(M.conf.At,3)}\\times${d(cc.ds,2)}}{${d(cc.Dc,1)}^2\\times${d(cc.rhoReq,5)}}=${d(M.conf.sAsh,2)}\\ \\text{cm}`));
     o.push(`<div class="rp-h2">8. 橫向鋼筋細則</div>`);
@@ -5325,12 +5365,17 @@ function buildReport(M){
       \\ ${M.chk.clB>=M.chk.need?'\\ge':'\\lt'}\\ ${d(M.chk.need,2)}\\ \\text{cm}`));
   }else{
   o.push(`<div class="rp-h2">7. 耐震圍束筋量 A_sh</div>`);
+  if(M.conf.bridgeAsh){
+    o.push(note(`橋梁塑鉸區依公路橋梁耐震設計規範 §5.3.4 式 (5-7)、(5-8)：h_c 為柱心在所考慮方向之尺寸，<b>量至兩外側箍筋之中心</b>（h_c = b_c − d_t）；A_c 量至箍筋外緣；
+      P_e 取各組合最大軸壓 ${d(M.opt.PuMax/TF,0)} tf，\\(0.5+\\dfrac{1.25P_e}{f'_cA_g}=${d(M.conf.peTerm,4)}\\)。`));
+    o.push(eq(`\\frac{A_{sh}}{a\\,h_c}\\ \\ge\\ \\max\\left\\{0.30\\frac{f'_c}{f_{yh}}\\left(\\frac{A_g}{A_c}-1\\right),\\ \\ 0.12\\frac{f'_c}{f_{yh}}\\left(0.5+\\frac{1.25P_e}{f'_cA_g}\\right)\\right\\}`));
+  }else
   o.push(eq(`\\frac{A_{sh}}{s\\,b_c}\\ \\ge\\ \\max\\left\\{0.3\\left(\\frac{A_g}{A_{ch}}-1\\right)\\frac{f'_c}{f_{yt}},
     \\ \\ 0.09\\frac{f'_c}{f_{yt}}${M.conf.termC?`,\\ \\ 0.2k_fk_n\\frac{P_u}{f_{yt}A_{ch}}`:''}\\right\\}`));
   if(M.conf.termC) o.push(note(`P_u,max = ${d(M.opt.PuMax/TF,0)} tf${M.opt.PuMax>0.3*M.Ag*m.fc?" ＞ 0.3A_g f'_c":''}${m.fc>700?"；f'_c ＞ 700 kgf/cm²":''}
     → 適用第三式（土木401 §18.4.5.4(c)）：k_f = ${d(M.conf.kf,3)}、k_n = n_l/(n_l−2) = ${M.conf.nlSup}/${M.conf.nlSup-2} = ${d(M.conf.kn,3)}。
     此時每一根主筋皆須以箍角或耐震彎鉤側撐（土木401 §18.4.5.2(f)）。`));
-  if(M.opt.code==='bldg' && !M.opt.plastic) o.push(note(`本斷面非柱端加密區，A_sh 為耐震圍束需求，<b>不納入箍筋間距控制</b>，下表僅供參考。`));
+  if(!M.opt.plastic) o.push(note(`本斷面非${M.opt.code==='bldg'?'柱端加密區':'塑鉸區'}，A_sh 為耐震圍束需求，<b>不納入箍筋間距控制</b>，下表僅供參考。`));
   o.push(note(M.s.type==='box'
     ? `規範原文係針對實心柱。中空箱型依決議<b>拆為四片獨立牆片</b>逐片檢核：每片視為厚 t_w、長 L 之矩形，
        核心尺寸 \\(c_1=L-2c_o\\)（沿壁長）、\\(c_2=t_w-c_o-c_i\\)（貫穿壁厚）。`
@@ -5356,10 +5401,19 @@ function buildReport(M){
   o.push(`<div class="rp-h3">7.1 控制部位逐步代入（${esc(wc.tag)}　—　${esc(clab)}）</div>`);
   o.push(eq(`\\frac{A_g}{A_{ch}}=\\frac{${d(wc.g1,0)}\\times${d(wc.g2,0)}}{${d(wc.c1,1)}\\times${d(wc.c2,1)}}
     =\\frac{${d(wc.Ag_w,0)}}{${d(wc.Ach_w,0)}}=${d(wc.Ag_w/wc.Ach_w,4)}`));
+  if(M.conf.bridgeAsh){
+    const hc = cbc - M.conf.dt;
+    o.push(eq(`h_c=b_c-d_t=${d(cbc,1)}-${d(M.conf.dt,2)}=${d(hc,2)}\\ \\text{cm}`));
+    o.push(eq(`\\left(\\frac{A_{sh}}{a}\\right)_{req}=\\max\\left\\{0.30\\times${d(hc,2)}\\times\\frac{${d(m.fc,0)}}{${d(m.fyt,0)}}\\times(${d(wc.Ag_w/wc.Ach_w,4)}-1),
+      \\ 0.12\\times${d(hc,2)}\\times\\frac{${d(m.fc,0)}}{${d(m.fyt,0)}}\\times${d(M.conf.peTerm,4)}\\right\\}`));
+    o.push(eq(`=\\max\\{${d(0.30*hc*(wc.Ag_w/wc.Ach_w-1)*m.fc/m.fyt,4)},\\ ${d(0.12*hc*m.fc/m.fyt*M.conf.peTerm,4)}\\}
+      =${d(crq,4)}\\ \\text{cm}^2/\\text{cm}`));
+  }else{
   o.push(eq(`\\left(\\frac{A_{sh}}{s}\\right)_{req}=\\max\\left\\{0.3\\times${d(cbc,1)}\\times(${d(wc.Ag_w/wc.Ach_w,4)}-1)\\times\\frac{${d(m.fc,0)}}{${d(m.fyt,0)}},
     \\ 0.09\\times${d(cbc,1)}\\times\\frac{${d(m.fc,0)}}{${d(m.fyt,0)}}\\right\\}`));
   o.push(eq(`=\\max\\{${d(0.3*cbc*(wc.Ag_w/wc.Ach_w-1)*m.fc/m.fyt,4)},\\ ${d(0.09*cbc*m.fc/m.fyt,4)}\\}
     =${d(crq,4)}\\ \\text{cm}^2/\\text{cm}`));
+  }
   o.push(eq(`s\\le\\frac{A_{sh,prov}}{(A_{sh}/s)_{req}}=\\frac{${d(cAsh,2)}}{${d(crq,4)}}=${d(cs,2)}\\ \\text{cm}`));
 
   o.push(`<div class="rp-h2">8. 繫筋排布與彎鉤</div>`);
@@ -5455,7 +5509,7 @@ function buildReport(M){
   o.push(`<div class="rp-h2">附註</div>`);
   o.push(note(`1. 本工具<b>不計算</b>彎矩放大係數，只判定長細效應可否忽略（建築 §6.2.5.1；橋梁依公路橋梁設計規範 §7.3.5.2）。輸入之 \\(P_u,M_u\\) 須為已含 P-Δ 之大變形幾何非線性分析結果。<br>
     2. 塑性形心僅對<b>對稱配筋</b>成立；非對稱配筋之結果不適用。<br>
-    3. \\(\\phi_v=${d(m.phiv,2)}\\) 係搭配土木401-112 表 22.5.5.1 之 \\(V_c\\)，勿與 AASHTO 之 \\(\\phi_v=0.90\\)（搭配 MCFT）混用。<br>
+    3. ${M.opt.code==='bridge'?`橋梁剪力依公路橋梁耐震設計規範 §5.3.3（\\(\\phi=${d(m.phivB,2)}\\)、\\(V_c\\) 式 5-3／5-4），扭矩依土木401（\\(\\phi_v=${d(m.phiv,2)}\\)）。`:`\\(\\phi_v=${d(m.phiv,2)}\\) 係搭配土木401-112 表 22.5.5.1 之 \\(V_c\\)，勿與 AASHTO 之 \\(\\phi_v=0.90\\)（搭配 MCFT）混用。`}<br>
     4. 中空斷面之剪力+扭矩斷面上限採<b>直接相加</b>（非平方根合成）。`));
   o.push(`</div>`);
 
@@ -5565,11 +5619,20 @@ function shearReport(M,sh){
     o.push(`<div class="rp-note">超強彎矩取各載重組合軸力下 M_n 之最大者（P_u = ${d(sh.PMn/TF,0)} tf）。</div>`);
     o.push(eq(`M_n(P_u=${d(sh.PMn/TF,0)}\\text{tf})=${d(sh.Mn/TFM,0)}\\ \\text{tf}\\cdot\\text{m}\\quad\\Rightarrow\\quad
       M_o=\\phi_o M_n=${d(M.opt.phio,2)}\\times${d(sh.Mn/TFM,0)}=${d(sh.Mo/TFM,0)}\\ \\text{tf}\\cdot\\text{m}`));
-    o.push(eq(`V_e=\\frac{M_o}{L_v}=\\frac{${d(sh.Mo/TFM,0)}\\times100}{${d(M.opt.Lv,0)}}=${d(sh.Ve/TF,1)}\\ \\text{tf}
+    o.push(note(M.opt.phEnds===2
+      ? `構架式橋墩（兩端塑鉸）：V_e = (柱頂 + 柱底最大可能彎矩)／淨高（公路橋梁耐震設計規範 §4.2.2），最大可能彎矩 = φ_o·M_n（RC 柱 φ_o = 1.3，§4.2.1）。`
+      : `單柱橋墩：V_e = 最大可能彎矩／柱高（含帽梁，即 L_v）（公路橋梁耐震設計規範 §4.2.1），最大可能彎矩 = φ_o·M_n（RC 柱 φ_o = 1.3）。`));
+    o.push(eq(`${M.opt.phEnds===2 ? `V_e=\\frac{2M_o}{l_u}=\\frac{2\\times${d(sh.Mo/TFM,0)}\\times100}{${d(M.opt.lu,0)}}` : `V_e=\\frac{M_o}{L_v}=\\frac{${d(sh.Mo/TFM,0)}\\times100}{${d(M.opt.Lv,0)}}`}=${d(sh.Ve/TF,1)}\\ \\text{tf}
       \\qquad V_{des}=\\max(V_e,\\;V_u)=\\max(${d(sh.Ve/TF,1)},\\;${d(sh.Vu/TF,1)})=${d(sh.Vdes/TF,1)}\\ \\text{tf}`));
   } else o.push(eq(`V_{des}=V_u=${d(sh.Vdes/TF,1)}\\ \\text{tf}\\quad(\\text{非塑鉸區，不作容量設計})`));
 
-  if(sh.V.zeroed){
+  if(sh.bridge){
+    const V = sh.V;
+    o.push(eq(`F=\\frac{N}{${sh.Nu>=0?140:35}A_g}=\\frac{${d(sh.Nu,0)}}{${sh.Nu>=0?140:35}\\times${d(M.Ag,0)}}=${d(V.F,4)},\\qquad A_e=0.8A_g=${d(V.Ae,0)}\\ \\text{cm}^2`));
+    o.push(eq(`V_c=0.53(${V.hinge?'0.33':'1'}+F)\\sqrt{f'_c}\\,A_e=0.53\\times(${V.hinge?'0.33':'1'}+${d(V.F,4)})\\times${d(Math.sqrt(m.fc),3)}\\times${d(V.Ae,0)}
+      =${d(V.vc,0)}\\ \\text{kgf}=${d(V.vc/TF,1)}\\ \\text{tf}${V.zeroed?'\\ \\Rightarrow\\ \\boxed{V_c=0}':''}`));
+    o.push(note(`公路橋梁耐震設計規範 §5.3.3：${V.hinge?'塑鉸區式 (5-3)':'非塑鉸區式 (5-4)'}；F 於軸壓取 N/(140A_g)、軸拉取 N/(35A_g)；V_c ≥ 0。`));
+  }else if(sh.V.zeroed){
     const zr = vcZeroRatio(M.opt.code);
     o.push(eq(`N_u=${d(sh.Nu/TF,0)}\\ \\text{tf}\\lt ${zr===0.05?"A_gf'_c/20":"0.1f'_cA_g"}=${d(zr*m.fc*M.Ag/TF,0)}\\ \\text{tf}
       \\ \\Rightarrow\\ \\boxed{V_c=0}\\quad(\\text{${zr===0.05?'柱端加密區':'塑鉸區'}折減})`));
@@ -5581,9 +5644,10 @@ function shearReport(M,sh){
     o.push(note(`土木401-112 表 22.5.5.1 式 (a)（A_v ≥ A_v,min）：N_u/(6A_g) ≤ 0.05f'c${V.ax<sh.Nu/(6*M.Ag)-1e-9?'（已取上限）':''}；
       V_c ≤ 1.33λ√f'c·b_w·d${capped?'（已取上限）':''}；軸拉時 N_u 取負值，V_c 不小於 0。`));
   }
-  o.push(eq(`V_s=\\frac{V_{des}}{\\phi_v}-V_c=\\frac{${d(sh.Vdes/TF,1)}}{${d(m.phiv,2)}}-${d(sh.V.vc/TF,1)}
+  o.push(eq(`V_s=\\frac{V_{des}}{\\phi}-V_c=\\frac{${d(sh.Vdes/TF,1)}}{${d(sh.phiS,2)}}-${d(sh.V.vc/TF,1)}
     =${d(sh.VsReq/TF,1)}\\ \\text{tf}
-    \\qquad V_{s,max}=2.12\\sqrt{f'_c}\\,b_wd=${d(sh.VsMax/TF,0)}\\ \\text{tf}`));
+    \\qquad V_{s,max}=${sh.bridge?"2.12\\sqrt{f'_c}\\,A_e":"2.12\\sqrt{f'_c}\\,b_wd"}=${d(sh.VsMax/TF,0)}\\ \\text{tf}`));
+  if(sh.bridge) o.push(note(`橋梁剪力 φ = ${d(sh.phiS,2)}（公路橋梁耐震設計規範 §5.3.3）；V_s 上限 2.12√f'c·A_e。${M.s.type==='circle'?`圓形橋柱 V_s = (π/2)A_h f_yh D/a（式 5-2b），即以 A_v = 2A_h、有效深度 πD/4 = ${d(sh.dV,2)} cm 計（D 為圍束區直徑）。`:'V_s = A_sh f_yh d/a（式 5-2a）。'}扭矩部分仍依土木401（φ_v = ${d(m.phiv,2)}）。`));
   if(sh.sectionFail) o.push(`<div style="color:#c00;font-weight:800;margin-left:14px">✗ V_s 需求超過上限 → 斷面不足，加箍筋無效</div>`);
   o.push(eq(`n_{legs}=${sh.nlegs},\\qquad A_v=n_{legs}A_{t}=${sh.nlegs}\\times${d(sh.At1,3)}=${d(sh.Av,3)}\\ \\text{cm}^2`));
   if(sh.torsion){
@@ -5596,7 +5660,7 @@ function shearReport(M,sh){
       \\phi_v\\left(\\frac{V_c}{b_wd}+2.12\\sqrt{f'_c}\\right)=${d(sh.rhs,2)}\\ \\text{kgf/cm}^2
       \\ \\ ${sh.sectOver?'\\;\\textbf{✗}':'\\;\\checkmark'}`));
   }else o.push(`<div class="rp-note">T_u = ${d(sh.Tu/TFM,1)} tf·m ≤ 門檻 φT_th = φ·0.265√f'c·A_cp²/p_cp = ${d(sh.Tthr/TFM,1)} tf·m，扭矩可忽略（ACI 22.7.4.1）。</div>`);
-  o.push(eq(`\\frac{A_v}{s}\\bigg|_{tot}=\\frac{V_s}{f_{yt}d}+2\\frac{A_t}{s}=${d(sh.AvS_shear,5)}+${d(2*sh.AtS,5)}
+  o.push(eq(`\\frac{A_v}{s}\\bigg|_{tot}=\\frac{V_s}{f_{yt}${sh.dV!==sh.d?'(\\pi D/4)':'d'}}+2\\frac{A_t}{s}=${d(sh.AvS_shear,5)}+${d(2*sh.AtS,5)}
     =${d(sh.AvS_tot,5)}\\ \\Rightarrow\\ s\\le\\frac{A_v}{(A_v/s)_{tot}}=${d(sh.s_str,2)}\\ \\text{cm}`));
   o.push(`<table class="no-break"><thead><tr><th class="l">${t} 向間距上限</th><th>值 (cm)</th></tr></thead><tbody>
     <tr><td class="l">強度需求（剪力+扭矩）</td><td>${d(sh.s_str,2)}</td></tr>
@@ -7376,13 +7440,14 @@ const PIN_META = {
       ['spiral','—','圓柱橫向筋型式','','螺箍：φ_c = 0.75、軸力截斷 0.85P_o，並須滿足螺箍體積比 ρ_s；圓箍：同矩形橫箍柱 0.65／0.80。',
        "ρ_s ≥ 0.45(A_g/A_ch − 1)f'_c/f_yt；耐震另 ≥ 0.12f'_c/f_yt　·　螺箍淨距 2.5～7.5 cm",
        '切換型式時 φ_c 與軸力截斷會自動改為對應的規範值（若你未自訂）。'],
-      ['ph','—','塑鉸區／柱端加密區','','開啟後啟動容量設計剪力、V_c 依軸壓歸零、加密區箍筋間距與 A_sh 圍束檢核。',
+      ['ph','—','塑鉸區／柱端加密區','','開啟後啟動容量設計剪力、塑鉸區 V_c 公式、加密區箍筋間距與 A_sh 圍束檢核。',
        '橋梁：s ≤ min(b/4, 6d_b, 15 cm)　·　建築：s ≤ min(b/4, 6d_b（SD490 5.5d_b、SD550 5d_b）, s_o)，s_o = 10 + (35 − h_x)/3 介於 10～15 cm',
-       "V_c 取 0 的門檻：橋梁 N_u < 0.1f'_c·A_g；建築 N_u < A_g·f'_c/20。"],
+       "V_c：建築 N_u < A_g·f'_c/20 時取 0（§18.4.6.2.1）；橋梁塑鉸區 V_c = 0.53(0.33 + F)√f'_c·A_e、非塑鉸區 0.53(1 + F)√f'_c·A_e（公路橋梁耐震設計規範 §5.3.3）。橋梁圍束筋依式 5-5～5-8，只在塑鉸區檢核。"],
       ['phEnds','—','塑鉸區位置','','決定沿柱軸向配置時，哪幾端要設加密區（塑鉸區）。建築柱兩端皆設；懸臂墩柱、橋塔通常僅底端。','',''],
       ['lu','l_u','柱淨高','cm','長細比 kl_u/r 的 l_u；沿柱軸向配置的總長，並決定加密區長度 \\(\\displaystyle l_o=\\max\\left(h,\\ \\frac{l_u}{6},\\ 45\\text{ cm}\\right)\\)；建築柱另為 \\(\\displaystyle V_e=\\frac{2M_{pr}}{l_u}\\) 的分母（M_pr 以 1.25f_y、φ = 1 計）。','l_o 依土木401 §18.4.5.1；橋梁同公路橋梁耐震設計規範塑鉸區範圍',''],
-      ['phio','φ_o','超強係數','','塑鉸超強彎矩 M_o = φ_o·M_n，用來反算設計剪力。','V_e = φ_o·M_n / L_v　（僅「橋梁」設計依據使用）',''],
-      ['Lv','L_v','剪力跨度','cm','V_e 的分母。','設計剪力取 max(V_e, V_u)　（僅「橋梁」設計依據使用）',''],
+      ['phio','φ_o','超強係數','','最大可能彎矩 M_o = φ_o·M_n，用來反算設計剪力。','RC 柱 φ_o = 1.3（公路橋梁耐震設計規範 §4.2.1）　·　僅「橋梁」設計依據使用',''],
+      ['Lv','L_v','柱高（含帽梁）','cm','單柱橋墩（塑鉸僅底端）V_e = M_o / L_v 的分母。','§4.2.1：單柱以柱高（含帽梁）計；構架式（兩端塑鉸）改用 V_e = 2M_o / l_u（§4.2.2）　·　設計剪力取 max(V_e, V_u)',
+       '柱之設計剪力不必超過地震力 VII 乘以 1.2α_yF_u,II 時彈性分析所得者；如需此上限，請於載重表自行比較。'],
       ['theta','θ','扭矩桁架角','°','A_t/s 與扭矩縱筋 A_l。','',''],
       ['tieLayout','—','繫筋配置','','每隔一根 vs 每一根，直接改變 A_sh 提供量。','規範：每隔一根縱筋須側向支撐，且距被支撐筋淨距 ≤ 15 cm',''],
       ['ashPair','b_c','A_sh 之 b_c 配對','','A_sh/(s·b_c) 的分母取哪個方向的核心尺寸。',
@@ -7403,8 +7468,9 @@ const PIN_META = {
     ['規範係數', [
       ['phic','φ_c','壓力控制','','P-M 設計曲線在壓控段的折減。','土木401 橫箍柱 0.65',''],
       ['phit','φ_t','拉力控制','','拉控段折減與 φ 過渡終點。','',''],
-      ['phiv','φ_v','剪力 / 扭矩','','V_s 需求 = V_des/φ_v − V_c。',"搭配土木401-112 表 22.5.5.1 之 V_c",
+      ['phiv','φ_v','剪力 / 扭矩','','V_s 需求 = V_des/φ_v − V_c（建築）；扭矩 A_t/s（建築與橋梁）。',"搭配土木401-112 表 22.5.5.1 之 V_c",
        'AASHTO 的 φ_v = 0.90 是為 MCFT 校準的，套在此處會偷掉 20% 剪力裕度。'],
+      ['phivB','φ','橋梁剪力','','橋梁 V_s 需求 = V_des/φ − V_c。','公路橋梁耐震設計規範 §5.3.3：φ = 0.85，搭配式 5-3／5-4 之 V_c','僅「橋梁」設計依據使用。'],
       ['pmaxf','—','軸力截斷（×P_o）','','φP_n,max 水平截斷線的高度。','橫箍柱 0.80',''],
       ['alpha','α','低軸壓輪廓指數','','PCA 載重輪廓法的指數。',"P_u < 0.1f'_c·A_g 時取代 Bresler",'']
     ]],
