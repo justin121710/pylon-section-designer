@@ -209,7 +209,16 @@ body.rp-open #app,body.rp-open #appBeam{display:none!important}
 .fig-legend .it{display:flex;align-items:center;gap:6px}
 .fig-legend svg{width:auto;height:14px;display:block;flex-shrink:0}
 .fig-legend .nm{color:var(--txt)}
-.pm-box{max-width:760px;margin:0 auto}
+.pm-box{margin:0 auto}
+/* fitSvg 收緊 viewBox 後圖會依區塊寬放大；高度設上限，過高的圖改為以高度為準、水平置中 */
+svg.figfit{max-height:max(360px,calc(100vh - 170px))}
+#report svg.figfit{max-height:240mm}
+/* 畫面上的 KaTeX 公式：與內文同大小，分式上下排列會撐高行距 */
+.ws .katex,.pin-detail .katex{font-size:1.18em}
+.dev-fm{line-height:2.1}
+.cut-off{margin:8px 0 4px}
+body .al-btn.al-on{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}
+body .al-btn.al-on:hover{background:var(--acc-h)}
 .seg.wrap{display:flex;flex-wrap:wrap;margin:4px 0 8px}
 body .seg.wrap button{padding:4px 10px;font-size:12px}
 .seg .seg-sep{width:1px;align-self:stretch;background:#C5CED6;margin:3px 6px}
@@ -745,7 +754,7 @@ img,video{max-width:100%;height:auto}
       <div class="fld"><span>搭接錯開</span><select id="dStagger"><option value="0">不錯開</option><option value="1">錯開 50%（間隔 ≥ l<sub>st</sub>）</option></select></div>
       <div class="fld"><span>非接觸搭接心距 (cm)</span><input id="dLapGap" type="number" step="0.5" value="0"></div>
       <div class="text-[11.5px] mt-1" style="color:var(--dim)">
-        φ 過渡：φ = φ<sub>c</sub> + (φ<sub>t</sub>−φ<sub>c</sub>)(ε<sub>t</sub>−ε<sub>ty</sub>)/(0.005−ε<sub>ty</sub>)，ε<sub>ty</sub> = <b id="oEty" class="mono">—</b>
+        φ 過渡：\(\displaystyle \phi=\phi_c+(\phi_t-\phi_c)\frac{\varepsilon_t-\varepsilon_{ty}}{0.005-\varepsilon_{ty}}\)，ε<sub>ty</sub> = <b id="oEty" class="mono">—</b>
       </div>
     </div>
 
@@ -1088,6 +1097,11 @@ function _sbOne(t){
 /* 以 \( … \) 為界切開，偶數段（一般 HTML）才做轉換，奇數段（數學式）原樣保留 */
 const SB = html => String(html).split(/(\\\([\s\S]*?\\\)|\\\[[\s\S]*?\\\])/)
   .map((seg,i)=> i%2 ? seg : _sbOne(seg)).join('');
+
+/* 行內公式：\( … \) 交給 KaTeX；\displaystyle 讓分式維持上下排列的全尺寸（同預覽報告）。
+   數字的千分位逗號在數學模式會被當成標點多加空白，以 {,} 包起來。 */
+const KT = t => `\\(\\displaystyle ${t}\\)`;
+const kn = (x,p) => f(x,p).replace(/,/g,'{,}');
 
 function svgTxt(t, fs){
   fs = fs || 12;
@@ -2206,11 +2220,11 @@ function devTable(D, opt){
   const sm = t => `<div style="font-size:11px;color:var(--dim)">${t}</div>`;
   const row = (k, fn, sub) => `<tr><td class="l">${k}${sub?sm(sub):''}</td>${c(fn)}</tr>`;
   let h = `<table style="width:100%"><thead><tr><th class="l">項目（土木401-112）</th>${D.sets.map(st=>`<th>${st.name}${st.face?`<div style="font-weight:400;font-size:11px">${st.face} 控制</div>`:''}</th>`).join('')}</tr></thead><tbody>`;
-  h += row('直線受拉 l_d（§25.4.2.4）', d=>cm(d.ld)+sm(`ψ_t ${f(d.psiT,1)}·ψ_e ${f(d.psiE,1)}·ψ_s ${f(d.psiS,1)}；c_b ${f(d.cb,1)}、K_tr ${f(d.Ktr,2)}、(c_b+K_tr)/d_b = ${f(d.conf,2)}${d.confRaw>2.5?'（上限）':''}${d.exc<1?`；×${f(d.exc,2)}`:''}`)
+  h += row('直線受拉 l_d（§25.4.2.4）', d=>cm(d.ld)+sm(`ψ_t ${f(d.psiT,1)}·ψ_e ${f(d.psiE,1)}·ψ_s ${f(d.psiS,1)}；c_b ${f(d.cb,1)}、K_tr ${f(d.Ktr,2)}、\\(\\displaystyle \\frac{c_b+K_{tr}}{d_b}\\) = ${f(d.conf,2)}${d.confRaw>2.5?'（上限）':''}${d.exc<1?`；×${f(d.exc,2)}`:''}`)
     + (d.ktrBad ? `<div style="font-size:11px;color:var(--bad)">f_y ≥ 5600 且中心距 ＜ 15 cm：K_tr = ${f(d.Ktr,2)} ＜ 0.5d_b = ${f(d.ktrNeed,2)}（§25.4.2.2）</div>` : ''));
   h += row('標準彎鉤 l_dh（§25.4.3.1）', d=>cm(d.ldh)+sm(`ψ_e ${f(d.psiEh,1)}·ψ_r ${f(d.psiR,1)}·ψ_o ${f(d.psiO,2)}·ψ_c ${f(d.psiC,3)}${d.big?'（大於 D36：ψ_r 1.6、ψ_o 1.25）':''}；90° 延伸 12d_b = ${f(d.ext90,1)}、內徑 ${f(d.bendD,1)}`),
     '量自臨界斷面至彎鉤外緣；不適用超量折減');
-  h += row('標準彎鉤 前版式（§25.4.3.6，可擇用）', d=> d.fcCap ? cm(d.ldhA)+sm(`0.075ψ_e f_y d_b/√f'c，f'c 取 ≤ ${d.fcCap}${d.lam<1?'、輕質 ×1.3':''}；尚可乘表 25.4.3.8 之 0.7（保護層）、0.8（箍筋圍束）`)
+  h += row('標準彎鉤 前版式（§25.4.3.6，可擇用）', d=> d.fcCap ? cm(d.ldhA)+sm(`\\(\\displaystyle \\frac{0.075\\psi_e f_y d_b}{\\sqrt{f'_c}}\\)，f'c 取 ≤ ${d.fcCap}${d.lam<1?'、輕質 ×1.3':''}；尚可乘表 25.4.3.8 之 0.7（保護層）、0.8（箍筋圍束）`)
     : `<span style="color:var(--warn)">不適用</span>${sm('大於 D36')}`);
   h += row('擴頭 l_dt（§25.4.4.2）', d=> d.headOK ? cm(d.ldt)+sm(`ψ_p ${f(d.psiR,1)}·ψ_o ${f(d.psiO,2)}·ψ_c ${f(d.psiC,3)}；需 A_brg ≥ 4A_b、HA 級擴頭`)
     : `<span style="color:var(--warn)">不適用</span>${sm(d.headFail.join('、'))}`);
@@ -2459,7 +2473,7 @@ function beamDevPlan(B){
         const g = X.gap > 0 ? X.gap : b.d.db, clr = cl + b.d.db - g - b.d.db;
         b.clrLap = clr;
         checks.push({lv: clr >= need - 1e-9 ? 'ok' : 'bad', item:`${b.name}搭接處淨距`, need, cap: clr, unit:'cm', ref:'§25.5.1.2、§25.2.1',
-          msg: `${X.gap>0?'非接觸':'接觸'}搭接：淨距 ${f(clr,1)} cm ${clr>=need-1e-9?'≥':'＜'} max(2.5, d_b, 4/3·d_agg) = ${f(need,1)} cm`});
+          msg: `${X.gap>0?'非接觸':'接觸'}搭接：淨距 ${f(clr,1)} cm ${clr>=need-1e-9?'≥':'＜'} \\(\\displaystyle \\max\\left(2.5,\\ d_b,\\ \\frac{4}{3}d_{agg}\\right)\\) = ${f(need,1)} cm`});
         if(X.gap > 0){
           const gl = Math.min(b.lap/5, 15);
           checks.push({lv: X.gap <= gl + 1e-9 ? 'ok' : 'bad', item:`${b.name}非接觸搭接心距`, need: X.gap, cap: gl, unit:'cm', ref:'§25.5.1.3',
@@ -2517,8 +2531,8 @@ function beamDevPlan(B){
         checks.push({lv: cut.okThird ? 'ok' : 'bad', item:'負彎矩筋延伸過反曲點', need: devUp(nT/3), cap: nC, unit:'根', ref:'§9.7.3.8.4',
           msg: `通長 ${nC} 根 ${cut.okThird?'≥':'＜'} 1/3 × ${nT} 根，延伸過反曲點 ≥ max(d, 12d_b, l_n/16) = ${f(cut.contExt,0)} cm`});
         if(cut.inTen) checks.push({lv: cut.okV ? 'ok' : 'warn', item:'截斷點位於拉力區', need: cut.VuX/TF, cap: 2/3*cut.phiVn/TF, unit:'tf', ref:'§9.7.3.5',
-          msg: cut.okV ? `V_u(截斷點) = ${f(cut.VuX/TF,1)} ≤ (2/3)φV_n = ${f(2/3*cut.phiVn/TF,1)} tf，符合 (a)`
-            : `V_u = ${f(cut.VuX/TF,1)} ＞ (2/3)φV_n = ${f(2/3*cut.phiVn/TF,1)} tf：不符 (a)，須依 (b) 或 (c) 另行檢核或加設箍筋`});
+          msg: cut.okV ? `V_u(截斷點) = ${f(cut.VuX/TF,1)} ≤ \\(\\displaystyle \\frac{2}{3}\\phi V_n\\) = ${f(2/3*cut.phiVn/TF,1)} tf，符合 (a)`
+            : `V_u = ${f(cut.VuX/TF,1)} ＞ \\(\\displaystyle \\frac{2}{3}\\phi V_n\\) = ${f(2/3*cut.phiVn/TF,1)} tf：不符 (a)，須依 (b) 或 (c) 另行檢核或加設箍筋`});
       }
     }
   }
@@ -3275,8 +3289,9 @@ function devLegend(view, P, forPrint){
   L(`<line x1="1" y1="6" x2="33" y2="6" stroke="${C.bad}" stroke-width="2"/>`, '不符（NG）');
   return `<div class="fig-legend">${it.join('')}</div>`;
 }
-function devFormula(view, P, M, setIdx){
+function devFormula(view, P, M, setIdx, tex){
   const st = P.mod==='col' ? M.dev.sets[0] : (setIdx===1 && M.dev.sets[1] ? M.dev.sets[1] : M.dev.sets[0]), x = st.d;
+  if(tex) return devFormulaTex(view, P, M, x);
   const n = (v,p) => f(v,p);
   const seis = P.mod==='beam' && P.seis;
   switch(view){
@@ -3293,6 +3308,46 @@ function devFormula(view, P, M, setIdx){
     case 'mech': return `機械式續接：抗拉／抗壓強度 ≥ 1.25f_y（§25.5.7.1）；第二類另須發展至規定抗拉強度，第三類另須承受多次反復非彈性應變（§18.2.7.1）；第一、二類不得設於接頭面或降伏臨界斷面 2h 內，柱中央 1/2 淨高除外（§18.2.7.2）`;
     case 'cut': { const c = P.cut; if(!c || c.na) return c ? c.na : '截斷點分析未開啟。';
       return `w = 8(M_u⁻ + M_u⁺)/l_n² ；反曲點 x_0：M(x) = −M_u⁻ + w·x(l_n − x)/2 = 0 → <b>${f(c.x0,0)} cm</b>；理論截斷 M(x) = −φM_n,通長 → ${f(c.xc||0,0)} cm；截斷點 = max(${f(c.xc||0,0)} + ${f(c.ext,0)}, l_d = ${c.ld}) = <b>${f(c.xCut,0)} cm</b>（§9.7.3.3、§9.7.3.4）`; }
+    default: return '';
+  }
+}
+/* 網頁卡片與計算書用：條文代入行改以 KaTeX 排版（分式上下排列，與預覽報告一致）。
+   Excel 仍用上方純文字版（plainFm），儲存格無法排分式。 */
+function devFormulaTex(view, P, M, x){
+  const n = (v,p) => kn(v,p), seis = P.mod==='beam' && P.seis;
+  switch(view){
+    case 'straight': return KT(`l_d=\\frac{f_y\\,\\psi_t\\psi_e\\psi_s}{3.5\\lambda\\sqrt{f'_c}\\cdot\\dfrac{c_b+K_{tr}}{d_b}}\\,d_b
+        =\\frac{${n(x.fy,0)}\\times${n(x.psiTE,2)}\\times${n(x.psiS,1)}}{3.5\\times${n(x.lam,2)}\\times${n(x.sq,2)}\\times${n(x.conf,3)}}\\times${n(x.db,2)}=${n(x.ld0,1)}`)
+      + ` → <b>${devUp(x.ld)} cm</b>（≥ 30；§25.4.2.4）`
+      + (seis&&x.ldS ? `；耐震接頭內直線 ${KT(`${x.top?'3.25':'2.5'}\\,l_{dh}`)} = <b>${devUp(x.ldS)} cm</b>（§18.5.5.3）` : '');
+    case 'hook90': case 'hook180': case 'hookCmp':
+      return KT(`l_{dh}=\\frac{f_y\\psi_e\\psi_r\\psi_o\\psi_c}{23\\lambda\\sqrt{f'_c}}\\,d_b^{1.5}
+        =\\frac{${n(x.fy,0)}\\times${n(x.psiEh,1)}\\times${n(x.psiR,1)}\\times${n(x.psiO,2)}\\times${n(x.psiC,3)}}{23\\times${n(x.lam,2)}\\times${n(x.sq,2)}}\\times${n(x.db,2)}^{1.5}=${n(x.ldh0,1)}`)
+        + ` → <b>${devUp(x.ldh)} cm</b>（${KT('\\ge\\max(8d_b,\\ 15)')}；§25.4.3.1）`
+        + (view==='hookCmp' && x.fcCap ? `；前版式 ${KT(`\\frac{0.075\\psi_e f_y d_b}{\\sqrt{f'_c}}=${n(x.ldhA0,1)}`)} → <b>${devUp(x.ldhA)} cm</b>（§25.4.3.6）` : '')
+        + (seis && x.ldhS ? `；耐震接頭內 ${KT(`\\frac{0.06f_y d_b}{\\lambda\\sqrt{f'_c}}`)} = <b>${devUp(x.ldhS)} cm</b>（§18.5.5.1）` : '');
+    case 'head': return x.headOK
+      ? KT(`l_{dt}=\\frac{f_y\\psi_e\\psi_p\\psi_o\\psi_c}{32\\sqrt{f'_c}}\\,d_b^{1.5}
+        =\\frac{${n(x.fy,0)}\\times${n(x.psiEh,1)}\\times${n(x.psiR,1)}\\times${n(x.psiO,2)}\\times${n(x.psiC,3)}}{32\\times${n(x.sq,2)}}\\times${n(x.db,2)}^{1.5}=${n(x.ldt0,1)}`)
+        + ` → <b>${devUp(x.ldt)} cm</b>（§25.4.4.2）`
+      : `擴頭不適用（§25.4.4.1）：${x.headFail.join('、')}`;
+    case 'comp': return KT(`l_{dc}=\\max\\!\\left(\\frac{0.075f_y\\psi_r}{\\lambda\\sqrt{f'_c}},\\ 0.0044f_y\\psi_r\\right)d_b
+        =\\max(${n(0.075*x.fy*x.psiRc/(x.lam*x.sq),1)},\\ ${n(0.0044*x.fy*x.psiRc,1)})\\times${n(x.db,2)}`)
+      + ` → <b>${devUp(x.ldc)} cm</b>（${KT(`\\psi_r=${n(x.psiRc,2)}`)}，≥ 20；§25.4.9.2）`;
+    case 'lap': case 'stagger': { const k = P.sp==='A'?'1.0':'1.3';
+      return KT(`l_{st}=${k}\\,\\psi_g\\,l_d=${k}\\times${n(x.psiG,2)}\\times${n(x.ld0,1)}`)
+        + ` = <b>${devUp(P.sp==='A'?x.lapA:x.lapB)} cm</b>（≥ 30；表 25.5.2.1，搭接不適用超量折減 §25.5.1.4）`; }
+    case 'lapC': return '受壓搭接 ' + KT((x.fy<=4200 ? `0.0073f_y d_b=0.0073\\times${n(x.fy,0)}\\times${n(x.db,2)}` : `(0.013f_y-24)\\,d_b`)
+        + (x.fc<210 ? '\\times\\frac{4}{3}' : ''))
+      + ` = <b>${devUp(x.lapC)} cm</b>（≥ 30；§25.5.5.1）`;
+    case 'joint': return KT(`l_{dh}=\\frac{0.06f_y d_b}{\\lambda\\sqrt{f'_c}}=\\frac{0.06\\times${n(x.fy,0)}\\times${n(x.db,2)}}{${n(x.lam,2)}\\times${n(x.sq,2)}}`)
+      + ` = <b>${devUp(x.ldhS||0)} cm</b>（§18.5.5.1）；直線 = ${KT(`${x.top?'3.25':'2.5'}\\times l_{dh}`)} = <b>${devUp(x.ldS||0)} cm</b>（§18.5.5.3）；接頭深度 ≥ ${P.jReq?f(P.jReq,1):'—'} cm（§18.5.2.3）`;
+    case 'mech': return `機械式續接：抗拉／抗壓強度 ≥ ${KT('1.25f_y')}（§25.5.7.1）；第二類另須發展至規定抗拉強度，第三類另須承受多次反復非彈性應變（§18.2.7.1）；第一、二類不得設於接頭面或降伏臨界斷面 ${KT('2h')} 內，柱中央 ${KT('\\frac{1}{2}')} 淨高除外（§18.2.7.2）`;
+    case 'cut': { const c = P.cut; if(!c || c.na) return c ? c.na : '截斷點分析未開啟。';
+      return KT(`w=\\frac{8\\,(M_u^-+M_u^+)}{l_n^2}`) + '；反曲點 ' + KT(`x_0`) + '：'
+        + KT(`M(x)=-M_u^-+\\frac{w\\,x\\,(l_n-x)}{2}=0`) + ` → <b>${f(c.x0,0)} cm</b>；理論截斷 `
+        + KT(`M(x)=-\\phi M_n`) + `（通長筋）→ ${f(c.xc||0,0)} cm；截斷點 = `
+        + KT(`\\max(${n(c.xc||0,0)}+${n(c.ext,0)},\\ l_d=${c.ld})`) + ` = <b>${f(c.xCut,0)} cm</b>（§9.7.3.3、§9.7.3.4）`; }
     default: return '';
   }
 }
@@ -3332,9 +3387,17 @@ function devCardRender(mod, M){
     try{ localStorage.setItem('rcsd.devview', JSON.stringify(DEVVIEW)); }catch(err){}
     devCardRender(mod, M);
   };
-  document.getElementById(pre+'ElevWrap').innerHTML = devViewSvg(cur, M, P, set, false);
-  const fm = devFormula(cur, P, M, set);
-  document.getElementById(pre+'Legend').innerHTML = SB(devLegend(cur, P) + (fm ? `<div class="dev-fm">${fm}</div>` : ''));
+  /* 截斷點分析預設關閉：不畫空圖，改放可直接跳到參數列的連結（同警示的連結樣式） */
+  const cutOff = cur==='cut' && !P.cut && document.getElementById('bdCut');
+  document.getElementById(pre+'ElevWrap').innerHTML = cutOff
+    ? `<div class="alert a-warn al-x al-has cut-off"><div class="al-t"><b>截斷點分析目前關閉</b>（頂筋全數通長）。開啟後才會計算反曲點、理論截斷點與截斷點位置，並繪製彎矩圖。</div>
+        <div class="al-go"><span class="al-k">去開啟</span>${alertBtnHtml(mod, 'bdCut')}<button type="button" class="al-btn al-on" data-cut-on>直接開啟分析</button></div></div>`
+    : devViewSvg(cur, M, P, set, false);
+  if(cutOff) document.getElementById(pre+'ElevWrap').querySelector('[data-cut-on]').onclick = () => {
+    const s = document.getElementById('bdCut'); s.value = '1'; s.dispatchEvent(new Event('change', {bubbles:true}));
+  };
+  const fm = devFormula(cur, P, M, set, true);
+  document.getElementById(pre+'Legend').innerHTML = cutOff ? '' : SB(devLegend(cur, P) + (fm ? `<div class="dev-fm">${fm}</div>` : ''));
 }
 /* 計算書／Excel 用：全部視圖（梁之端部與搭接細部分底、頂筋） */
 function devAllViews(M, P){
@@ -3343,7 +3406,7 @@ function devAllViews(M, P){
     const sets = P.mod==='beam' && P.top && !['all','mech','cut','joint'].includes(id) ? [0,1] : [0];
     if(id==='joint' && P.top) sets.push(1);
     for(const s of sets) out.push({id, set:s, title: t + (P.mod==='beam' && P.top && !['all','mech','cut'].includes(id) ? `（${s?'頂筋':'底筋'}）` : ''),
-      svg: devViewSvg(id, M, P, s, true), fm: devFormula(id, P, M, s)});
+      svg: devViewSvg(id, M, P, s, true), fm: devFormula(id, P, M, s), fmTex: devFormula(id, P, M, s, true)});
   }
   return out;
 }
@@ -3529,7 +3592,7 @@ function devReportFigs(M, P){
   if(sel.t.has('table')) o.push(`<div class="rp-h3">伸展與搭接長度</div><div style="font-size:12px">${SB(devTable(M.dev, {}))}</div>`);
   if(all.length) o.push(`<div class="rp-h3">伸展與搭接配置圖</div>`);
   for(const v of all) if(want.has(v.id)){
-    o.push(`<div class="rp-fig no-break">${v.svg}<div style="font-size:11.5px;margin-top:4px">${SB(v.fm)}</div></div>`);
+    o.push(`<div class="rp-fig no-break">${v.svg}<div style="font-size:11.5px;margin-top:4px">${SB(v.fmTex)}</div></div>`);
   }
   if(sel.t.has('checks')) o.push(`<div class="rp-h3">配置檢核</div><div style="font-size:12px">${SB(devPlanHtml(P))}</div>`);
   if(sel.t.has('sched')) o.push(`<div class="rp-h3">鋼筋下料長度表</div><div style="font-size:12px">${SB(devScheduleHtml(P, M))}</div>`);
@@ -4428,12 +4491,12 @@ function elevInfoCol(M){
     <td>${r.tieSize} @ ${f(z.s,1)}</td><td>${z.note||'—'}</td><td>${z.n}</td></tr>`).join('');
   let h = `<table style="width:100%"><thead><tr><th class="l">區段</th><th>範圍 (cm)</th><th>長度 (cm)</th><th>配置</th><th>餘數（置於中央）</th><th>數量 (${unit})</th></tr></thead>
     <tbody>${rows}<tr style="font-weight:700"><td class="l">合計</td><td></td><td>${f(M.opt.lu,0)}</td><td></td><td></td><td>${lay.total}</td></tr></tbody></table>`;
-  if(M.opt.plastic && !lay.full) h += `<div style="margin-top:6px">加密區長度 l<sub>o</sub> = max(h = ${f(lay.hMax,0)}, l<sub>u</sub>/6 = ${f(M.opt.lu/6,0)}, 45) = <b>${f(lay.lo,0)} cm</b>（土木401 §18.4.5.1）；
+  if(M.opt.plastic && !lay.full) h += `<div style="margin-top:6px">加密區長度 l<sub>o</sub> = \\(\\displaystyle \\max\\left(h=${kn(lay.hMax,0)},\\ \\frac{l_u}{6}=${kn(M.opt.lu/6,0)},\\ 45\\right)\\) = <b>${f(lay.lo,0)} cm</b>（土木401 §18.4.5.1）；
     一般區間距由「${esc(M.fin2.gov.tag)}」控制（≤ ${f(M.fin2.gov.v,2)} cm）。</div>`;
   else if(M.opt.plastic) h += `<div style="margin-top:6px">加密區長度 l<sub>o</sub> = ${f(lay.lo,0)} cm，兩端加密區相接或中段不足一個間距，<b>全長以加密區間距配置</b>。</div>`;
   else h += `<div style="margin-top:6px">本斷面設為「一般斷面」（非塑鉸區），全長以同一間距配置。若為耐震柱，請將「塑鉸區／柱端加密區」切為「是」以分區配置。</div>`;
   for(const g of M.legs)
-    h += `<div style="margin-top:3px;color:var(--${g.ok?'ok':g.soft?'warn':'bad'})">${g.dir.toUpperCase()} 向剪力之箍筋肢橫向間距 ${f(g.gap,1)} cm ${g.ok?'≤':'＞'} ${g.tight?'min(d/2, 30)':'min(d, 60)'} = ${f(g.lim,1)} cm（${g.how}；土木401 §10.7.6.5.2）</div>`;
+    h += `<div style="margin-top:3px;color:var(--${g.ok?'ok':g.soft?'warn':'bad'})">${g.dir.toUpperCase()} 向剪力之箍筋肢橫向間距 ${f(g.gap,1)} cm ${g.ok?'≤':'＞'} ${g.tight?'\\(\\displaystyle \\min\\left(\\frac{d}{2},\\ 30\\right)\\)':'\\(\\displaystyle \\min(d,\\ 60)\\)'} = ${f(g.lim,1)} cm（${g.how}；土木401 §10.7.6.5.2）</div>`;
   return h;
 }
 function renderSummary(M){
@@ -4500,7 +4563,7 @@ function renderSummary(M){
   h+=row('N_u (tf)',f(X.Nu/TF,0),f(Y.Nu/TF,0));
   h+=row('V_u 分析值 (tf)',f(X.Vu/TF,1),f(Y.Vu/TF,1));
   h+=row('M_n,max（各組合 P_u 取大）(tf·m)',f(X.Mn/TFM,0),f(Y.Mn/TFM,0));
-  h+=row('V_e = φ_o·M_n/L_v (tf)',f(X.Ve/TF,1),f(Y.Ve/TF,1));
+  h+=row('\\(\\displaystyle V_e=\\frac{\\phi_o M_n}{L_v}\\) (tf)',f(X.Ve/TF,1),f(Y.Ve/TF,1));
   h+=row('設計剪力 V_des (tf)',`<b>${f(X.Vdes/TF,1)}</b>`,`<b>${f(Y.Vdes/TF,1)}</b>`);
   h+=row('V_c (tf)',f(X.V.vc/TF,1)+(X.V.zeroed?' <span style="color:var(--warn)">(塑鉸歸零)</span>':''),
                     f(Y.V.vc/TF,1)+(Y.V.zeroed?' <span style="color:var(--warn)">(塑鉸歸零)</span>':''));
@@ -4540,7 +4603,7 @@ function renderAlerts(M){
   if(Math.min(chk.clB,chk.clH) < 0)
     add('bad',`<b>斷面內放不下主筋</b>：依目前保護層、箍筋與主筋號數，相鄰主筋已重疊（計算淨距 ${f(Math.min(chk.clB,chk.clH),2)} cm）。請減少根數、改用較小號數或檢查保護層與斷面尺寸。`, ['nB','nH','nCir','barSize','covO','tieSize']);
   else if(chk.clB<nd||chk.clH<nd)
-    add('bad',`<b>主筋淨距不足</b>：B 邊 ${f(chk.clB,2)} cm、H 邊 ${f(chk.clH,2)} cm，需求 ≥ max(4.0, 1.5d_b=${f(1.5*M.R.db,2)}, 4/3·d_agg=${f(4/3*M.opt.dagg,2)}) = <b>${f(nd,2)} cm</b>。混凝土無法澆置密實（註：4 cm 為柱之規定，非梁的 2.5 cm）。`, ['nB','nH','nCir','barSize','dagg','covO']);
+    add('bad',`<b>主筋淨距不足</b>：B 邊 ${f(chk.clB,2)} cm、H 邊 ${f(chk.clH,2)} cm，需求 ≥ max(4.0, 1.5d_b=${f(1.5*M.R.db,2)}, \\(\\displaystyle \\frac{4}{3}d_{agg}\\)=${f(4/3*M.opt.dagg,2)}) = <b>${f(nd,2)} cm</b>。混凝土無法澆置密實（註：4 cm 為柱之規定，非梁的 2.5 cm）。`, ['nB','nH','nCir','barSize','dagg','covO']);
   else add('ok',`主筋淨距 B 邊 ${f(chk.clB,2)} / H 邊 ${f(chk.clH,2)} cm ≥ 需求 ${f(nd,2)} cm。`, ['nB','nH','nCir','barSize','dagg']);
 
   if(chk.layerGap!==null && chk.layerGap<2.5)
@@ -4550,7 +4613,7 @@ function renderAlerts(M){
     const cc=M.conf.circ, clr=M.fin.sUse-M.conf.dt;
     if(M.R.bars.length < (M.r.spiral?6:4)) add('bad',`<b>主筋根數不足</b>：${M.r.spiral?'螺箍':'圓箍'}柱至少 ${M.r.spiral?6:4} 根（目前 ${M.R.bars.length} 根）。`, ['nCir','spiral']);
     if(cc.need) add('info',`${M.r.spiral?'螺箍':'圓箍'}體積比需求 ρ_s ≥ ${f(cc.rhoReq*100,3)} %（${cc.rhoReq===cc.t1?"0.45(A_g/A_ch−1)f'c/f_yt":cc.rhoReq===cc.t2?"0.12f'c/f_yt":"0.35k_f P_u/(f_yt A_ch)"} 控制）→ s ≤ ${f(M.conf.sAsh,2)} cm。`, ['tieSize','spiral','covO']);
-    if(M.r.spiral && clr < chk.spMinClr) add('bad',`<b>螺箍淨距過小</b>：s − d_t = ${f(clr,1)} cm ＜ ${f(chk.spMinClr,1)} cm（max(2.5, 4/3·d_agg)），混凝土無法澆置。請改用較大號數的螺箍。`, ['tieSize']);
+    if(M.r.spiral && clr < chk.spMinClr) add('bad',`<b>螺箍淨距過小</b>：s − d_t = ${f(clr,1)} cm ＜ ${f(chk.spMinClr,1)} cm（\\(\\displaystyle \\max\\left(2.5,\\ \\frac{4}{3}d_{agg}\\right)\\)），混凝土無法澆置。請改用較大號數的螺箍。`, ['tieSize']);
   }else
   if(M.opt.ctie){
     const eB = M.conf.eB, eH = M.conf.eH;
@@ -4582,7 +4645,7 @@ function renderAlerts(M){
     if(sh.sectOver) add('bad',`<b>${t} 向剪力+扭矩斷面應力超限</b>：${f(sh.lhs,1)} > ${f(sh.rhs,1)} kgf/cm²（中空斷面採直接相加）。`, ['B','H','Dia','tw','#loadTbl']);
     if(sh.V.zeroed) add('warn',`${t} 向（控制組合「${esc(sh.ctrl.L.name)}」）：${M.opt.code==='bldg'?'柱端加密區且 N_u':'塑鉸區且 N_u'} = ${f(sh.Nu/TF,0)} tf < ${M.opt.code==='bldg'?"A_g·f'c/20":"0.1f'c·A_g"} = ${f(vcZeroRatio(M.opt.code)*M.m.fc*M.m.Ag/TF,0)} tf → <b>V_c 取 0</b>，全部剪力由箍筋承擔。`, ['ph','#loadTbl']);
     if(sh.Nu<0) add('warn',`${t} 向：控制組合為<b>軸拉</b>（N_u = ${f(sh.Nu/TF,0)} tf），V_c 改用分母 35 之公式並夾至 ≥ 0。`, ['#loadTbl']);
-    if(M.opt.plastic && sh.Ve>sh.Vu) add('info',`${t} 向：<b>容量設計控制</b>。V_e = ${sh.bldgCD?'2M_pr/l_u':'φ_o·M_n/L_v'} = ${f(sh.Ve/TF,0)} tf > 分析值 V_u = ${f(sh.Vu/TF,0)} tf，設計剪力採 V_e。`, ['ph','phio','Lv','lu']);
+    if(M.opt.plastic && sh.Ve>sh.Vu) add('info',`${t} 向：<b>容量設計控制</b>。V_e = ${sh.bldgCD?'\\(\\displaystyle \\frac{2M_{pr}}{l_u}\\)':'\\(\\displaystyle \\frac{\\phi_o M_n}{L_v}\\)'} = ${f(sh.Ve/TF,0)} tf > 分析值 V_u = ${f(sh.Vu/TF,0)} tf，設計剪力採 V_e。`, ['ph','phio','Lv','lu']);
   }
   if(document.getElementById('envWater').value==='water' && M.r.covO < 5)
     add('warn',`水工／環境結構：外側保護層 ${f(M.r.covO,1)} cm ＜ 5 cm，建議至少 5 cm（參考 ACI 350）。`, ['covO']);
@@ -4597,8 +4660,8 @@ function renderAlerts(M){
     add('info',`沿柱軸向配置（l_u = ${f(M.opt.lu,0)} cm）：`+L.zones.map(z=>`${z.tag} ${f(z.b-z.a,0)} cm @ ${f(z.s,1)} ×${z.n}`).join('、')+`，共 <b>${L.total}</b> ${u}。`, ['lu','ph','phEnds','#elevInfo']); }
   for(const g of M.legs) if(!g.ok)
     add(g.soft?'warn':'bad', g.soft
-      ? `${g.dir.toUpperCase()} 向箱壁內外層箍筋肢相距 ${f(g.gap,1)} cm ＞ ${g.tight?'min(d/2, 30)':'min(d, 60)'} = ${f(g.lim,1)} cm（土木401 §10.7.6.5.2 係針對柱；厚壁箱型以此檢核偏保守，僅供參考）。厚壁可於壁中加設一層箍筋或壁內繫筋。`
-      : `<b>${g.dir.toUpperCase()} 向箍筋肢橫向間距過大</b>：${f(g.gap,1)} cm ＞ ${g.tight?'min(d/2, 30)':'min(d, 60)'} = ${f(g.lim,1)} cm（土木401 §10.7.6.5.2）。請增設繫筋或改為每根主筋皆設。`, ['tieLayout','dbl','tieSize']);
+      ? `${g.dir.toUpperCase()} 向箱壁內外層箍筋肢相距 ${f(g.gap,1)} cm ＞ ${g.tight?'\\(\\displaystyle \\min\\left(\\frac{d}{2},\\ 30\\right)\\)':'\\(\\displaystyle \\min(d,\\ 60)\\)'} = ${f(g.lim,1)} cm（土木401 §10.7.6.5.2 係針對柱；厚壁箱型以此檢核偏保守，僅供參考）。厚壁可於壁中加設一層箍筋或壁內繫筋。`
+      : `<b>${g.dir.toUpperCase()} 向箍筋肢橫向間距過大</b>：${f(g.gap,1)} cm ＞ ${g.tight?'\\(\\displaystyle \\min\\left(\\frac{d}{2},\\ 30\\right)\\)':'\\(\\displaystyle \\min(d,\\ 60)\\)'} = ${f(g.lim,1)} cm（土木401 §10.7.6.5.2）。請增設繫筋或改為每根主筋皆設。`, ['tieLayout','dbl','tieSize']);
 
   if(M.conf.sAsh===M.fin.gov.v) add('info',`<b>圍束筋量 A_sh 為控制項</b> —— 橋塔塑鉸區常見情形，箍筋間距由圍束需求而非剪力強度決定。`, ['tieSize','tieLayout']);
   if(M.cf.MD) add('info',`Mander 圍束：f'_cc = ${f(M.cf.MD.fcc,0)} kgf/cm²（提升 ${f((M.cf.MD.fcc/M.m.fc-1)*100,1)}%）、ε_cu,c = ${f(M.cf.MD.ecu,4)}、k_e = ${f(M.cf.ke,3)}、ρ_s = ${f(M.cf.rho_s*100,3)}%。虛線即為保護層剝落後之圍束核心容量。`, ['tieSize','#pmWrap']);
@@ -4774,7 +4837,7 @@ function buildReport(M){
       \\ \\Rightarrow\\ s\\le\\frac{4A_{sp}d_s}{D_c^2\\,\\rho_{s,req}}=\\frac{4\\times${d(M.conf.At,3)}\\times${d(cc.ds,2)}}{${d(cc.Dc,1)}^2\\times${d(cc.rhoReq,5)}}=${d(M.conf.sAsh,2)}\\ \\text{cm}`));
     o.push(`<div class="rp-h2">8. 橫向鋼筋細則</div>`);
     o.push(note(r.spiral
-      ? `螺旋箍筋須連續，淨距 2.5～7.5 cm 且 ≥ 4/3·d_agg（土木401／ACI 25.7.3）；端部加繞 1.5 圈錨定，續接採搭接 48d_t 以上或機械式續接。
+      ? `螺旋箍筋須連續，淨距 2.5～7.5 cm 且 ≥ \\(\\displaystyle \\frac{4}{3}d_{agg}\\)（土木401／ACI 25.7.3）；端部加繞 1.5 圈錨定，續接採搭接 48d_t 以上或機械式續接。
          螺箍柱主筋至少 6 根，強度折減 φ_c = 0.75、軸力截斷 0.85P_o。`
       : `圓形箍筋兩端以 135° 耐震彎鉤搭接並伸入核心（延伸 ≥ max(6d_b, 7.5 cm) = ${d(M.chk.hook135,2)} cm），
          相鄰層搭接位置沿圓周輪流錯開。圓箍柱屬橫箍柱，φ_c = 0.65、軸力截斷 0.80P_o。`));
@@ -4826,7 +4889,7 @@ function buildReport(M){
     <tr><td class="l">每面主筋根數 n（含角隅）(根)</td><td>${r.nB}</td><td>${r.nH}</td></tr>
     <tr><td class="l">中心距 (cm)</td><td>${d(M.chk.pB,2)}</td><td>${d(M.chk.pH,2)}</td></tr>
     <tr><td class="l">淨距 = 中心距 − d_b (cm)</td><td>${d(M.chk.clB,2)}</td><td>${d(M.chk.clH,2)}</td></tr>
-    <tr><td class="l">淨距需求 max(4.0, 1.5d_b, 4/3·d_agg) (cm)</td><td>${d(M.chk.need,2)}</td><td>${d(M.chk.need,2)}</td></tr>
+    <tr><td class="l">淨距需求 \\(\\displaystyle \\max\\left(4.0,\\ 1.5d_b,\\ \\frac{4}{3}d_{agg}\\right)\\) (cm)</td><td>${d(M.chk.need,2)}</td><td>${d(M.chk.need,2)}</td></tr>
     <tr><td class="l">須每根支撐？</td>${[M.chk.clB,M.chk.clH].map(cl=>`<td>${cl>15?'是（淨距 ＞ 15 cm）':M.opt.ctie?'否；採用自訂配置':M.opt.tieAll?'否；採用每根皆設（使用者選擇）':'否（每隔一根）'}</td>`).join('')}</tr>
     <tr><td class="l">繫筋根數（每面）(根)</td><td><b>${M.chk.tiesB}</b></td><td><b>${M.chk.tiesH}</b></td></tr>
     <tr><td class="l">h_x 被支撐筋中心距 (cm，≤ 35)</td><td>${d(M.chk.hxMaxB,2)}</td><td>${d(M.chk.hxMaxH,2)}</td></tr>
@@ -5895,7 +5958,7 @@ function beamLeg(S, sh, R){
   const L0 = x => +(x+S.bw/2).toFixed(1);
   return {gap, lim, tight, seis, ok: gap <= lim + 1e-9, lay, gB: lay.gB, gT: lay.gT,
           pos: [...lay.legsB].sort((a,b)=>a-b).map(L0), posT: [...lay.legsT].sort((a,b)=>a-b).map(L0), fewBars: lay.fewBars,
-          rule: seis ? '耐震梁受側撐主筋間距 ≤ 35 cm（§18.3.4.2，以肢距估）' : `${tight?'min(d/2, 30)':'min(d, 60)'}（§9.7.6.2.2）`};
+          rule: seis ? '耐震梁受側撐主筋間距 ≤ 35 cm（§18.3.4.2，以肢距估）' : `${tight?'\\(\\displaystyle \\min\\left(\\frac{d}{2},\\ 30\\right)\\)':'\\(\\displaystyle \\min(d,\\ 60)\\)'}（§9.7.6.2.2）`};
 }
 
 /* ---------- 梁立面：沿梁軸向箍筋配置 ---------- */
@@ -6277,7 +6340,7 @@ function renderBeam(){
   h+=kv('檢核斷面', S.slab ? (S.sign==='pos'?'正彎矩（頂面受壓、底層受拉）':'負彎矩（底面受壓、頂層受拉）')
                           : (S.sign==='pos'?'跨中正彎矩（翼緣受壓）':'支承負彎矩（翼緣受拉）'));
   h+=kv('控制組合', C?esc(C.L.name):'—');
-  h+=`<div class="kv"><span>D/C = M_u / φM_n</span><b ${dcCol}>${C?fdc(C.dc):'—'}</b></div>`;
+  h+=`<div class="kv"><span>D/C = \\(\\displaystyle \\frac{M_u}{\\phi M_n}\\)</span><b ${dcCol}>${C?fdc(C.dc):'—'}</b></div>`;
   h+=kv('φM_n', f(B.phiMn/TFM,1)+' tf·m');
   h+=kv('中性軸 c / 應力塊 a', `${f(B.sol.c,2)} / ${f(B.sol.a,2)} cm`);
   h+=kv('ε_t（最外拉力筋）', f(B.sol.eps_t,5)+`　φ = ${f(B.phi,3)}`);
@@ -6285,7 +6348,7 @@ function renderBeam(){
   h+=kv('A_s（受壓）', f(B.AsCom,1)+' cm²');
   { const c=B.clr, t=(v,need)=> v===null ? '—' : `${f(v,1)}（需 ≥ ${f(need,1)}）`;
     h+=kv('主筋淨距 底／頂', `${t(c.bot,c.needB)}／${t(c.top,c.needT)} cm`, c.okB&&c.okT?'style="color:var(--ok)"':'style="color:var(--bad)"'); }
-  h+=kv('ρ = A_s/(b_w·d)', f(B.rho*100,3)+' %');
+  h+=kv('\\(\\displaystyle \\rho=\\frac{A_s}{b_w d}\\)', f(B.rho*100,3)+' %');
   h+=`</div><div>`;
   if(S.slab){
     h+=kv('配筋（每公尺寬）', `底 ${bBarTxt(S,'bot')}　頂 ${bBarTxt(S,'top')}`, F.tooTight?'style="color:var(--bad)"':'style="color:var(--ok)"');
@@ -6380,10 +6443,10 @@ function renderBeamAlerts(B){
 
   { const c=B.clr;
     if(c.bot!==null && c.bot<0) add('bad',`<b>底筋排不下</b>：計算淨距 ${f(c.bot,2)} cm，鋼筋已重疊。`, ['bNbot','bBotSize','bw','bSpBot']);
-    else if(!c.okB) add('bad',`<b>底筋淨距不足</b>：${f(c.bot,2)} cm ＜ max(2.5, d_b, 4/3·d_agg) = ${f(c.needB,2)} cm（土木401 §25.2.1）。${S.slab?'請加大間距或改用較細鋼筋。':'請減少單排根數（改兩排）、改用較細鋼筋或加寬腹板。'}`, ['bNbot','bBotSize','bw','bDagg','bSpBot']);
+    else if(!c.okB) add('bad',`<b>底筋淨距不足</b>：${f(c.bot,2)} cm ＜ \\(\\displaystyle \\max\\left(2.5,\\ d_b,\\ \\frac{4}{3}d_{agg}\\right)\\) = ${f(c.needB,2)} cm（土木401 §25.2.1）。${S.slab?'請加大間距或改用較細鋼筋。':'請減少單排根數（改兩排）、改用較細鋼筋或加寬腹板。'}`, ['bNbot','bBotSize','bw','bDagg','bSpBot']);
     if(c.top!==null && c.top<0) add('bad',`<b>頂筋排不下</b>：計算淨距 ${f(c.top,2)} cm，鋼筋已重疊。`, ['bNtop','bTopSize','bw','bSpTop']);
-    else if(!c.okT) add('bad',`<b>頂筋淨距不足</b>：${f(c.top,2)} cm ＜ max(2.5, d_b, 4/3·d_agg) = ${f(c.needT,2)} cm（土木401 §25.2.1）。${S.slab?'請加大間距或改用較細鋼筋。':'頂筋為單排，請減少根數、改用較粗號數減少根數或加寬腹板。'}`, ['bNtop','bTopSize','bw','bDagg','bSpTop']);
-    if(c.okB && c.okT) add('ok',`主筋淨距：底 ${c.bot===null?'—':f(c.bot,2)}、頂 ${c.top===null?'—':f(c.top,2)} cm，皆 ≥ max(2.5, d_b, 4/3·d_agg)。`, ['bNbot','bNtop','bw','bDagg']);
+    else if(!c.okT) add('bad',`<b>頂筋淨距不足</b>：${f(c.top,2)} cm ＜ \\(\\displaystyle \\max\\left(2.5,\\ d_b,\\ \\frac{4}{3}d_{agg}\\right)\\) = ${f(c.needT,2)} cm（土木401 §25.2.1）。${S.slab?'請加大間距或改用較細鋼筋。':'頂筋為單排，請減少根數、改用較粗號數減少根數或加寬腹板。'}`, ['bNtop','bTopSize','bw','bDagg','bSpTop']);
+    if(c.okB && c.okT) add('ok',`主筋淨距：底 ${c.bot===null?'—':f(c.bot,2)}、頂 ${c.top===null?'—':f(c.top,2)} cm，皆 ≥ \\(\\displaystyle \\max\\left(2.5,\\ d_b,\\ \\frac{4}{3}d_{agg}\\right)\\)。`, ['bNbot','bNtop','bw','bDagg']);
   }
   if(B.sol.eps_t < 0.004) add('bad',`<b>鋼筋量過多</b>：ε_t = ${f(B.sol.eps_t,5)} < 0.004。梁為受撓構材，須維持足夠韌性（土木401 / ACI 9.3.3.1）。`, ['bNbot','bBotSize','bh']);
   else if(B.sol.eps_t < 0.005) add('warn',`ε_t = ${f(B.sol.eps_t,5)} 落在過渡區，φ = ${f(B.phi,3)} < 0.90。`, ['bNbot','bBotSize','bh']);
@@ -6407,11 +6470,11 @@ function renderBeamAlerts(B){
     if(S.ln < 4*B.d) add('bad',`<b>淨跨不足</b>：l_n = ${f(S.ln,0)} < 4d = ${f(4*B.d,0)} cm，不適用梁之規定（土木401 §18.3.2.1）。`, ['bLn']);
     add('info',`「任一斷面 M_n ≥ 25% 端部最大值」需整根梁的彎矩包絡線，<b>本工具無法由單一斷面判斷</b>，請另行檢核。`);
   }
-  add(B.crack.ok?'ok':'bad',`裂縫控制（ACI 24.3.2）：底排鋼筋中心距 ${f(B.crack.sAct,1)} cm ${B.crack.ok?'≤':'＞'} 上限 min(38·(2855/f_s) − 2.5c_c, 30·(2855/f_s)) = ${f(B.crack.sLim,1)} cm　（f_s = ⅔f_y = ${f(B.crack.fs,0)} kgf/cm²）`, ['bNbot','bBotSize','bCover']);
+  add(B.crack.ok?'ok':'bad',`裂縫控制（ACI 24.3.2）：底排鋼筋中心距 ${f(B.crack.sAct,1)} cm ${B.crack.ok?'≤':'＞'} 上限 \\(\\displaystyle \\min\\left(38\\cdot\\frac{2855}{f_s}-2.5c_c,\\ 30\\cdot\\frac{2855}{f_s}\\right)\\) = ${f(B.crack.sLim,1)} cm　（\\(\\displaystyle f_s=\\frac{2}{3}f_y\\) = ${f(B.crack.fs,0)} kgf/cm²）`, ['bNbot','bBotSize','bCover']);
   if(B.defl.na) add('info','撓度以跨中正彎矩斷面檢核；目前檢核支承負彎矩斷面，不判定撓度。');
   else add(B.defl.okL&&B.defl.okT?'ok':'warn',
-    `撓度：即時活載 Δ_L = ${f(B.defl.dL,3)} cm ${B.defl.okL?'≤':'＞'} L/${f(S.limLive,0)} = ${f(B.defl.limL,3)} cm；`+
-    `長期總撓度 Δ_LT = ${f(B.defl.dLT,3)} cm ${B.defl.okT?'≤':'＞'} L/${f(S.limTotal,0)} = ${f(B.defl.limT,3)} cm。`+
+    `撓度：即時活載 Δ_L = ${f(B.defl.dL,3)} cm ${B.defl.okL?'≤':'＞'} \\(\\displaystyle \\frac{L}{${S.limLive}}\\) = ${f(B.defl.limL,3)} cm；`+
+    `長期總撓度 Δ_LT = ${f(B.defl.dLT,3)} cm ${B.defl.okT?'≤':'＞'} \\(\\displaystyle \\frac{L}{${S.limTotal}}\\) = ${f(B.defl.limT,3)} cm。`+
     `<br>M_cr = ${f(B.defl.Mcr/TFM,1)} tf·m，I_g = ${f(B.defl.Ig,0)}、I_cr = ${f(B.defl.Icr,0)}、I_e = ${f(B.defl.Ie,0)} cm⁴，λ_Δ = ${f(B.defl.lam,3)}。`, ['bh','bML','bMD','bDeflCase','bLimLive','bLimTotal']);
   if(S.slab){
     if(B.fin.tooTight) add('bad',`<b>版主筋間距過大</b>：${f(B.fin.sUse,1)} cm ＞ min(3h, 45) = ${f(B.fin.gov.v,1)} cm（土木401／ACI 7.7.2.3）。`, ['bSpBot','bSpTop']);
@@ -6631,7 +6694,7 @@ function buildBeamReport(B){
     for(const g of B.sug) o.push(`<tr><td class="l">${g.label}</td><td>${g.rows}</td><td>${d(g.As,1)}</td>
       <td>${d(g.d,1)}</td><td>${d(g.eps_t,4)}</td><td>${d(g.phiMn/TFM,1)}</td><td>${d((g.ratio-1)*100,1)}%</td></tr>`);
     o.push(`</tbody></table>`);
-    o.push(note(`篩選條件：φM_n ≥ M_u、A_s ≥ A_s,min、ε_t ≥ 0.004、主筋淨距 ≥ max(2.5, d_b, 4/3·d_agg)、排數 ≤ 2。
+    o.push(note(`篩選條件：φM_n ≥ M_u、A_s ≥ A_s,min、ε_t ≥ 0.004、主筋淨距 ≥ \\(\\displaystyle \\max\\left(2.5,\\ d_b,\\ \\frac{4}{3}d_{agg}\\right)\\)、排數 ≤ 2。
       每組皆依實際排數重算形心與有效深度 d，非以單排近似。`));
   }
   o.push(`</div>`);
@@ -6787,11 +6850,11 @@ const PIN_META = {
       ['tw','t_w','壁厚','cm','箱型剪力的 b_w = 2t_w；也決定主筋能否排雙層。','需容納 外保護層 + 箍筋 + 雙層主筋','']    ,
       ['covO','c_o','外側保護層','cm','主筋位置 d_i、圍束核心尺寸 A_ch。','橋塔外露面慣用 7.5；海洋環境 10',''],
       ['covI','c_i','內側保護層','cm','內層主筋位置與牆片核心厚度 b_c,t。','',''],
-      ['dagg','d_agg','骨材最大粒徑','cm','主筋淨距下限之一。','淨距 ≥ max(4.0, 1.5d_b, 4/3·d_agg)　（4 cm 為柱之規定，非梁的 2.5）','']
+      ['dagg','d_agg','骨材最大粒徑','cm','主筋淨距下限之一。','淨距 ≥ \\(\\displaystyle \\max\\left(4.0,\\ 1.5d_b,\\ \\frac{4}{3}d_{agg}\\right)\\)　（4 cm 為柱之規定，非梁的 2.5）','']
     ]],
     ['材料', [
       ['fc',"f'_c",'混凝土抗壓強度','kgf/cm²',"β₁、E_c、V_c、A_sh 需求、Mander f'_cc 全部由它導出。","β₁ = max(0.65, min(0.85, 0.85 − 0.05(f'_c−280)/70))",''],
-      ['fy','f_y','主筋降伏強度','kgf/cm²','鋼筋應力上限與 ε_ty（φ 過渡起點）。','ε_ty = f_y / E_s',''],
+      ['fy','f_y','主筋降伏強度','kgf/cm²','鋼筋應力上限與 ε_ty（φ 過渡起點）。','\\(\\displaystyle \\varepsilon_{ty}=\\frac{f_y}{E_s}\\)',''],
       ['fyt','f_yt','橫向筋降伏強度','kgf/cm²',"V_s、A_sh 需求、Mander 圍束壓力 f'_l。",'',''],
       ['Es','E_s','鋼筋彈性模數','kgf/cm²','鋼筋應變→應力的斜率。','',''],
       ['ecu','ε_cu','混凝土極限壓應變','','非圍束 P-M 曲線的應變上限。','圍束值 ε_cu,c 由 Mander 另算',''],
@@ -6813,7 +6876,7 @@ const PIN_META = {
        '橋梁：s ≤ min(b/4, 6d_b, 15 cm)　·　建築：s ≤ min(b/4, 6d_b（SD490 5.5d_b、SD550 5d_b）, s_o)，s_o = 10 + (35 − h_x)/3 介於 10～15 cm',
        "V_c 取 0 的門檻：橋梁 N_u < 0.1f'_c·A_g；建築 N_u < A_g·f'_c/20。"],
       ['phEnds','—','塑鉸區位置','','決定沿柱軸向配置時，哪幾端要設加密區（塑鉸區）。建築柱兩端皆設；懸臂墩柱、橋塔通常僅底端。','',''],
-      ['lu','l_u','柱淨高','cm','沿柱軸向配置的總長，並決定加密區長度 l_o = max(h, l_u/6, 45 cm)；建築柱另為 V_e = 2M_pr/l_u 的分母（M_pr 以 1.25f_y、φ = 1 計）。','l_o 依土木401 §18.4.5.1；橋梁同公路橋梁耐震設計規範塑鉸區範圍',''],
+      ['lu','l_u','柱淨高','cm','沿柱軸向配置的總長，並決定加密區長度 \\(\\displaystyle l_o=\\max\\left(h,\\ \\frac{l_u}{6},\\ 45\\text{ cm}\\right)\\)；建築柱另為 \\(\\displaystyle V_e=\\frac{2M_{pr}}{l_u}\\) 的分母（M_pr 以 1.25f_y、φ = 1 計）。','l_o 依土木401 §18.4.5.1；橋梁同公路橋梁耐震設計規範塑鉸區範圍',''],
       ['phio','φ_o','超強係數','','塑鉸超強彎矩 M_o = φ_o·M_n，用來反算設計剪力。','V_e = φ_o·M_n / L_v　（僅「橋梁」設計依據使用）',''],
       ['Lv','L_v','剪力跨度','cm','V_e 的分母。','設計剪力取 max(V_e, V_u)　（僅「橋梁」設計依據使用）',''],
       ['theta','θ','扭矩桁架角','°','A_t/s 與扭矩縱筋 A_l。','',''],
@@ -7077,14 +7140,14 @@ function pinMapPylon(M){
   const c = M.chk, s = {}, OK = {state:'ok',chip:'✓'};
   const spacingBad = c.clB < c.need || c.clH < c.need;
   const clrMsg = v => `目前淨距 ${f(v,2)} cm ＜ 需求 ${f(c.need,2)} cm。`
-    + `需求取 max(4.0, 1.5d_b, 4/3·d_agg)，不足時混凝土無法澆置密實 —— 減少根數或改小號數。`;
+    + `需求取 \\(\\displaystyle \\max\\left(4.0,\\ 1.5d_b,\\ \\frac{4}{3}d_{agg}\\right)\\)，不足時混凝土無法澆置密實 —— 減少根數或改小號數。`;
   s.nB = c.clB < c.need ? {state:'bad',chip:'淨距',msg:'B 邊'+clrMsg(c.clB)} : OK;
   s.nH = c.clH < c.need ? {state:'bad',chip:'淨距',msg:'H 邊'+clrMsg(c.clH)} : OK;
   s.nCir = c.clB < c.need ? {state:'bad',chip:'淨距',msg:'沿圓周'+clrMsg(c.clB)}
          : (M.r.spiral && M.R.bars.length<6) ? {state:'bad',chip:'≥6',msg:'螺箍柱主筋至少 6 根。'} : OK;
   s.spiral = M.conf.circ ? {state:'ok',chip:M.r.spiral?'φ0.75':'φ0.65'} : OK;
   s.dagg = spacingBad ? {state:'warn',chip:'⚠',
-    msg:'目前淨距不足，而骨材粒徑會抬高淨距需求（需求含 4/3·d_agg 這一項）。'} : OK;
+    msg:'目前淨距不足，而骨材粒徑會抬高淨距需求（需求含 \\(\\displaystyle \\frac{4}{3}d_{agg}\\) 這一項）。'} : OK;
   s.barSize = spacingBad ? {state:'warn',chip:'⚠',
       msg:'目前主筋淨距不足，改小號數是最直接的解法。'}
             : (c.rho<1||c.rho>4) ? {state:'warn',chip:'ρ',
@@ -7339,6 +7402,55 @@ function pinStatus(mod, map){
   document.getElementById('caseFile').onchange = e=>{ caseOpenFile(e.target.files[0]); e.target.value=''; };
   caseRestore();
 })();
+/* ---------- 圖面置中填滿＋畫面公式排版 ----------
+   各繪圖函式以固定 viewBox（多為 760 寬）出圖，內容常只佔其中一部分，留下大片空白、圖顯得小。
+   插入 DOM 後量測實際內容範圍，把 viewBox 收緊到內容＋邊距，圖即在區塊內置中放大填滿。
+   只動 DOM 上的 SVG；Excel／PNG 匯出用的是繪圖函式回傳的字串，不受影響。
+   量測在畫面外的複本上做：隱藏分頁裡的圖 display:none，getBBox 會量成 0。 */
+let _fitHost = null;
+function fitSvg(svg){
+  if(svg.dataset.fit || svg.classList.contains('logo') || svg.closest('.fig-legend, .katex, symbol')) return;
+  const vb = (svg.getAttribute('viewBox')||'').trim().split(/[\s,]+/).map(Number);
+  if(vb.length!==4 || !(vb[2]>200)) return;
+  svg.dataset.fit = '1';
+  if(!_fitHost){ _fitHost = document.createElement('div');
+    _fitHost.style.cssText = 'position:absolute;left:-20000px;top:0;width:800px;visibility:hidden;pointer-events:none';
+    document.body.appendChild(_fitHost); }
+  const cl = svg.cloneNode(true); cl.style.width = '800px'; cl.style.maxHeight = 'none';
+  const bgOf = el => [...el.children].find(r => r.tagName==='rect' && !r.getAttribute('x') && !r.getAttribute('y')
+    && +r.getAttribute('width')===vb[2] && +r.getAttribute('height')===vb[3]);
+  const bgC = bgOf(cl); if(bgC) bgC.setAttribute('display','none');
+  _fitHost.appendChild(cl);
+  let bb = null; try{ bb = cl.getBBox(); }catch(e){}
+  cl.remove();
+  if(!bb || !(bb.width>20) || !(bb.height>20)) return;
+  const pad = Math.max(8, 0.015*Math.max(bb.width, bb.height));
+  let x0 = Math.max(vb[0], bb.x-pad), y0 = Math.max(vb[1], bb.y-pad);
+  let x1 = Math.min(vb[0]+vb[2], bb.x+bb.width+pad), y1 = Math.min(vb[1]+vb[3], bb.y+bb.height+pad);
+  /* 放大倍率上限 1.4：只有一兩行字的圖（如「不適用」說明）不該被放成斗大標題；不足的寬度左右平均補回，內容仍置中 */
+  const minW = vb[2]/1.4;
+  if(x1-x0 < minW){ const c = (x0+x1)/2; x0 = c-minW/2; x1 = c+minW/2; }
+  if(x1-x0 > vb[2]*0.985 && y1-y0 > vb[3]*0.985) { svg.classList.add('figfit'); return; }
+  const nb = [x0, y0, x1-x0, y1-y0].map(v=>+v.toFixed(2));
+  svg.setAttribute('viewBox', nb.join(' '));
+  const bg = bgOf(svg); if(bg){ bg.setAttribute('x', nb[0]); bg.setAttribute('y', nb[1]); bg.setAttribute('width', nb[2]); bg.setAttribute('height', nb[3]); }
+  svg.classList.add('figfit');
+}
+const MATH_OPT = {delimiters:[{left:'\\[',right:'\\]',display:true},{left:'\\(',right:'\\)',display:false}], fleqn:true, throwOnError:false};
+function mathIn(el){ if(window.renderMathInElement && /\\[(\[]/.test(el.textContent)) renderMathInElement(el, MATH_OPT); }
+function figTidy(root){
+  if(root.nodeType!==1) root = root.parentElement; if(!root || !root.isConnected || root.closest('.katex') || (_fitHost && _fitHost.contains(root))) return;
+  (root.tagName==='svg' ? [root] : root.querySelectorAll('svg[viewBox]')).forEach(fitSvg);
+  mathIn(root);
+}
+new MutationObserver(recs => {
+  const seen = new Set();
+  for(const r of recs) for(const nd of r.addedNodes){ const el = nd.nodeType===1 ? nd : nd.parentElement; if(el && !seen.has(el)) seen.add(el); }
+  seen.forEach(figTidy);
+}).observe(document.body, {childList:true, subtree:true});
+/* KaTeX 以 defer 載入，可能晚於第一次重算：載入後補排一次 */
+window.addEventListener('load', () => mathIn(document.body));
+document.querySelectorAll('svg[viewBox]').forEach(fitSvg);
 </script>
 
 <!-- ===================== 從圖說匯入 ===================== -->
