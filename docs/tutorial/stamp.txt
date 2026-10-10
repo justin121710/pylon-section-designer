@@ -1,5 +1,5 @@
-9c22fc695a38d3c5f0524f84585dc3d62ed84e97  index.html
-b9daa74fdfd52a5506604cb3a5e9394915ca2ce6  calc-xlsx.js
-b0696bd9e4411e164b0efe76bebd996c5f61280a  docs/tutorial/tutorial.html
+0fe29b8d23d08c8131e737d07f498ef8e1947bcb  index.html
+cb8232db986a409334b267e8b902609715c68ec9  calc-xlsx.js
+257411d0b2742a1366524ddfab235eed65ac6b29  docs/tutorial/tutorial.html
 896da37b8de1c5533c32d8e7082db7ccaacfd836  docs/tutorial/build.js
 cd4f0994d1989589b147673064d0d38b9aa6a771  docs/tutorial/inputs.txt

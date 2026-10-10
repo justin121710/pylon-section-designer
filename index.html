@@ -835,6 +835,7 @@ img,video{max-width:100%;height:auto}
       <div class="fld"><span>低軸壓輪廓指數 α</span><input id="alpha" type="number" step="0.05" value="1.0"></div>
       <div class="fld"><span>鋼筋塗布環氧樹脂</span><select id="dEpoxy"><option value="0">否（未塗布）</option><option value="1">是（環氧樹脂塗布）</option></select></div>
       <div class="fld"><span>混凝土單位重</span><select id="dLight"><option value="1">常重混凝土（λ = 1.0）</option><option value="0.75">輕質混凝土（λ = 0.75）</option></select></div>
+      <div class="fld" title="建築物基礎構造設計規範 §7.6.2：於泥水中灌注混凝土時，剪力強度折減 25%、鋼筋握持長度增加 30%，f'c ≥ 210 kgf/cm²"><span>混凝土澆置方式</span><select id="dSlurry"><option value="0">一般澆置</option><option value="1">泥水中灌注（連續壁、場鑄樁）</option></select></div>
       <div class="fld"><span>超量鋼筋折減 A<sub>s,req</sub>/A<sub>s,prov</sub></span><input id="dExcess" type="number" step="0.05" value="1"></div>
       <div class="fld"><span>彎鉤／T 頭圍束（ψ<sub>r</sub>、ψ<sub>p</sub>）</span><select id="dPsiR"><option value="1">有平行圍束筋　ψ = 1.0</option><option value="1.6">無　ψ = 1.6</option></select></div>
       <div class="fld"><span>彎鉤／T 頭位置（ψ<sub>o</sub>）</span><select id="dPsiO"><option value="1">柱核心內／側蓋夠厚　1.0</option><option value="1.25">其他　ψ = 1.25</option></select></div>
@@ -1041,6 +1042,7 @@ img,video{max-width:100%;height:auto}
         <option value="0.20" selected>0.20</option><option value="0.25">0.25</option><option value="0.30">0.30</option></select></div>
       <div class="fld"><span>鋼筋塗布環氧樹脂</span><select id="bdEpoxy"><option value="0">否（未塗布）</option><option value="1">是（環氧樹脂塗布）</option></select></div>
       <div class="fld"><span>混凝土單位重</span><select id="bdLight"><option value="1">常重混凝土（λ = 1.0）</option><option value="0.75">輕質混凝土（λ = 0.75）</option></select></div>
+      <div class="fld" title="建築物基礎構造設計規範 §7.6.2：於泥水中灌注混凝土時，剪力強度折減 25%、鋼筋握持長度增加 30%，f'c ≥ 210 kgf/cm²"><span>混凝土澆置方式</span><select id="bdSlurry"><option value="0">一般澆置</option><option value="1">泥水中灌注（連續壁、場鑄樁）</option></select></div>
       <div class="fld"><span>超量鋼筋折減 A<sub>s,req</sub>/A<sub>s,prov</sub></span><input id="bdExcess" type="number" step="0.05" value="1"></div>
       <div class="fld"><span>彎鉤／T 頭圍束（ψ<sub>r</sub>、ψ<sub>p</sub>）</span><select id="bdPsiR"><option value="1">有平行圍束筋　ψ = 1.0</option><option value="1.6">無　ψ = 1.6</option></select></div>
       <div class="fld"><span>彎鉤／T 頭位置（ψ<sub>o</sub>）</span><select id="bdPsiO"><option value="1">柱核心內／側蓋夠厚　1.0</option><option value="1.25">其他　ψ = 1.25</option></select></div>
@@ -1659,10 +1661,20 @@ const seisKdb = fy => fy <= 4200+1e-6 ? 6 : fy <= 5000+1e-6 ? 5.5 : 5;
 /* 橋梁（公路橋梁耐震設計規範 §5.3.3）：
      塑鉸區 V_c = 0.53(0.33 + F)√f'c·A_e ≥ 0（式 5-3）；非塑鉸區 V_c = 0.53(1 + F)√f'c·A_e ≥ 0（式 5-4）
      A_e = 0.8A_g；F = N/(140A_g)（壓）、N/(35A_g)（拉，N 為負）。與剪力方向無關。 */
+/* 泥水中灌注（建築物基礎構造設計規範 §7.6.2）：混凝土剪力強度折減 25% → V_c × 0.75 */
+const vcSlurry = m => m.slurry ? 0.75 : 1;
+/* 泥水中灌注之警示（柱、梁共用） */
+function slurryAlerts(m, add, fcId, selId){
+  if(!m.slurry) return;
+  if(m.fc < 210) add('bad',`<b>泥水中灌注混凝土強度不足</b>：f'c = ${f(m.fc,0)} ＜ 210 kgf/cm²（建築物基礎構造設計規範 §7.6.2 第 2 款；作為永久構造物時適用）。`, [fcId]);
+  add('info',`泥水中灌注（建築物基礎構造設計規範 §7.6.2）：V_c 已乘 0.75、伸展與搭接長度已乘 1.3。輸入之 f'c 為規定抗壓強度；`
+    + `供料應提高一級（§7.6.2），場鑄樁之澆注強度應再提高 35 kgf/cm²（§5.6.3 第 2 款），配比可參考表-解 7.6-1。`, [selId, fcId]);
+}
+const SLURRY_VC_NOTE = '泥水中灌注：依建築物基礎構造設計規範 §7.6.2 第 2 款，混凝土剪力強度折減 25%，V_c 乘 0.75（V_s 上限仍依原式）。';
 function VcBridge(m, Nu, hinge){
-  const Ae = 0.8*m.Ag, F = Nu >= 0 ? Nu/(140*m.Ag) : Nu/(35*m.Ag);
-  const vc = Math.max(0, 0.53*((hinge ? 0.33 : 1) + F)*Math.sqrt(m.fc)*Ae);
-  return {vc, base:0.53*Math.sqrt(m.fc)*Ae, zeroed: vc <= 0, ax:F, F, Ae, hinge, bridge:true, lam:1};
+  const Ae = 0.8*m.Ag, F = Nu >= 0 ? Nu/(140*m.Ag) : Nu/(35*m.Ag), kV = vcSlurry(m);
+  const vc0 = Math.max(0, 0.53*((hinge ? 0.33 : 1) + F)*Math.sqrt(m.fc)*Ae);
+  return {vc:vc0*kV, vc0, kV, base:0.53*Math.sqrt(m.fc)*Ae, zeroed: vc0 <= 0, ax:F, F, Ae, hinge, bridge:true, lam:1};
 }
 function VcCalc(m,bw,d,Nu,plastic,code){
   if(code==='bridge') return VcBridge(m, Nu, plastic);
@@ -1673,7 +1685,8 @@ function VcCalc(m,bw,d,Nu,plastic,code){
   vc = Math.max(0,vc);                                  // 軸拉時可能為負 → 夾到 0
   const zeroed = plastic && Nu < vcZeroRatio(code)*m.fc*m.Ag;
   if(zeroed) vc = 0;
-  return {vc, base, zeroed, ax, lam};
+  const kV = vcSlurry(m);
+  return {vc:vc*kV, vc0:vc, kV, base, zeroed, ax, lam};
 }
 
 /* =========================================================================
@@ -1799,6 +1812,7 @@ function compute(){
   };
   m.b1 = beta1(m.fc); m.ety = m.fy/m.Es; m.Ec = Ecof(m.fc); m.circle = type==='circle';
   m.lam = parseFloat(document.getElementById('dLight').value) || 1;      // 輕質混凝土 λ（剪力與伸展長度共用）
+  m.slurry = document.getElementById('dSlurry').value==='1';             // 泥水中灌注（基礎構造設計規範 §7.6.2）
   const opt = {
     code: document.getElementById('codeBasis').value==='bridge' ? 'bridge' : 'bldg',
     lu: pos('lu',300),
@@ -2420,16 +2434,23 @@ function devLength(o){
   const ldhS = joint ? ldhS0*psiEh : null;                       // §18.5.5.5 環氧樹脂
   const ldS = joint ? (o.top ? 3.25 : 2.5)*ldhS0*psiE : null;
   const ldtS = joint && !headFail.length ? Math.max(0.06*o.fy*db/(lam*sq), 8*db, 15) : null;
-  return {db, fy:o.fy, fc:o.fc, lam, sq, big, top:o.top, psiT, psiE, psiTE, psiS, psiG, cb, Ktr, Atr:o.Atr, s:o.s, n:o.n,
+  // 泥水中灌注（建築物基礎構造設計規範 §7.6.2）：依第 25 章算得之握持長度再增加 30%（含規範下限後）
+  const kSl = o.slurry ? 1.3 : 1, sl = v => v===null ? null : v*kSl;
+  const out = {kSl, db, fy:o.fy, fc:o.fc, lam, sq, big, top:o.top, psiT, psiE, psiTE, psiS, psiG, cb, Ktr, Atr:o.Atr, s:o.s, n:o.n,
           cSp:o.cSp, confRaw, conf, ktrNeed, ktrBad: ktrNeed>0 && Ktr < ktrNeed-1e-9, exc, ld0, ld,
           psiC, psiEh, psiR, psiO, ldh0, ldh, fcCap, ldhA0, ldhA, bendD, ext90:12*db, ext180:Math.max(4*db,6.5),
           headFail, headOK:!headFail.length, ldt0, ldt, psiRc, ldc, lapA, lapB, lapC, ldhS0, ldhS, ldS, ldtS};
+  return kSl===1 ? out : Object.assign(out, {ld:sl(ld), ldh:sl(ldh), ldhA:sl(ldhA), ldt:sl(ldt), ldc:sl(ldc), lapA:sl(lapA), lapB:sl(lapB), lapC:sl(lapC),
+          ldhS:sl(ldhS), ldS:sl(ldS), ldtS:sl(ldtS),
+          ldBase:ld, ldhBase:ldh, ldhABase:ldhA, ldtBase:ldt, ldcBase:ldc, lapABase:lapA, lapBBase:lapB, lapCBase:lapC,
+          ldhSBase:ldhS, ldSBase:ldS, ldtSBase:ldtS});
 }
+const SLURRY_DEV_NOTE = '泥水中灌注：依建築物基礎構造設計規範 §7.6.2 第 2 款，鋼筋握持長度增加 30%，上列直線、彎鉤、擴頭、受壓伸展長度及搭接長度均已乘 1.3（先依土木401 第 25 章計算並取規範下限，再乘 1.3）。';
 function devOpts(pre){
   const g = id => document.getElementById(pre+id).value;
   let ex = num(pre+'Excess', 1); if(!(ex>0) || ex>1) ex = 1;
   return {epoxy:g('Epoxy')==='1', lambda:parseFloat(g('Light'))||1, excess:ex,
-          psiR:parseFloat(g('PsiR'))||1, psiO:parseFloat(g('PsiO'))||1};
+          psiR:parseFloat(g('PsiR'))||1, psiO:parseFloat(g('PsiO'))||1, slurry:g('Slurry')==='1'};
 }
 /* 柱主筋：矩形逐面計算（K_tr 取垂直於該面之箍筋肢數，n 取該面根數），取 l_d 較大者；圓形、箱型 K_tr 保守取 0 */
 function colDev(M){
@@ -2484,7 +2505,7 @@ function devTable(D, opt){
     h += row('耐震梁柱接頭內 直線 l_d（§18.5.5.3）', d=> d.ldS ? cm(d.ldS)+sm(`${d.top?'頂筋 3.25':'2.5'} × §18.5.5.1 長度`) : '—', '須貫穿柱圍束核心；核心外部分 ×1.6（§18.5.5.4）');
   }
   h += `</tbody></table><div style="margin-top:6px;font-size:12px;color:var(--dim)">數值已無條件進位至 cm。K_tr 以箍筋 @ ${f(D.sLap,1)} cm（搭接所在之一般區）計算${D.o.excess<1?`；超量鋼筋折減 ${f(D.o.excess,2)} 僅用於直線 l_d 與受壓 l_dc（耐震構材不適用，§25.4.10.2）`:''}。
-    ${opt.colNote||''}</div>`;
+    ${D.o.slurry ? SLURRY_DEV_NOTE : ''}${opt.colNote||''}</div>`;
   return h;
 }
 
@@ -2775,7 +2796,7 @@ function beamDevPlan(B){
         cut.inTen = cut.xCut < cut.x0 - 1e-6;
         if(cut.inTen){
           const zAt = cut.xCut, z = (layOut.zones||[]).find(q => zAt >= q.a-1e-6 && zAt <= q.b+1e-6) || {act: B.fin.sUse, hot:true};
-          const Vc = (seis && zAt < 2*S.h) ? 0 : 0.53*(m.lam||1)*Math.sqrt(m.fc)*S.bw*B.d;
+          const Vc = (seis && zAt < 2*S.h) ? 0 : 0.53*(m.lam||1)*Math.sqrt(m.fc)*S.bw*B.d*vcSlurry(m);
           const Vs = B.sh.Av*m.fyt*B.d/z.act, phiVn = m.phiv*(Vc + Vs), VuX = Vu*Math.max(0, 1 - 2*zAt/L);
           Object.assign(cut, {Vc, Vs, phiVn, VuX, okV: VuX <= 2/3*phiVn + 1e-9});
         }
@@ -3216,8 +3237,8 @@ function svgDevLap(view, M, P, setIdx, forPrint){
   let ny = Y(band) + 64;
   ny = 15 + wrapT(o, 16, ny, `${P.X.gap>0?`非接觸搭接，心距 ${f(P.X.gap,1)} cm${P.mod==='beam'?`（受撓構材 ≤ min(l_st/5, 15) = ${f(Math.min(lap/5,15),1)}，§25.5.1.3）`:''}`:'接觸搭接（兩筋並靠）'}；搭接處與相鄰鋼筋淨距依 §25.2.1`, 11, C.dim, 500);
   if(view==='stagger') wrapT(o, 16, ny, `甲級條件：\\frac{A_{s,使用}}{A_{s,需求}} ≥ 2，且搭接長度內被搭接者 ≤ 50%（錯開即滿足後者）；否則一律乙級 1.3ψ_g l_d（表 25.5.2.1）`, 11, C.dim, 500, 20);
-  else if(view==='lapC') wrapT(o, 16, ny, `受壓搭接 §25.5.5.1：${d.fy<=4200?'0.0073f_y d_b':'(0.013f_y − 24)d_b'}${d.fc<210?' × 4/3':''} ≥ 30 cm；柱受拉時須改用拉力搭接`, 11, C.dim, 500);
-  else wrapT(o, 16, ny, `乙級 1.3ψ_g l_d = ${lapB} cm、甲級 1.0ψ_g l_d = ${lapA} cm（ψ_g = ${f(d.psiG,2)}）；搭接不適用超量鋼筋折減（§25.5.1.4）`, 11, C.dim, 500);
+  else if(view==='lapC') wrapT(o, 16, ny, `受壓搭接 §25.5.5.1：${d.fy<=4200?'0.0073f_y d_b':'(0.013f_y − 24)d_b'}${d.fc<210?' × 4/3':''} ≥ 30 cm${d.kSl>1?'，× 1.3（泥水中灌注）':''}；柱受拉時須改用拉力搭接`, 11, C.dim, 500);
+  else wrapT(o, 16, ny, `乙級 1.3ψ_g l_d${d.kSl>1?' × 1.3':''} = ${lapB} cm、甲級 1.0ψ_g l_d${d.kSl>1?' × 1.3':''} = ${lapA} cm（ψ_g = ${f(d.psiG,2)}${d.kSl>1?'；× 1.3 為泥水中灌注':''}）；搭接不適用超量鋼筋折減（§25.5.1.4）`, 11, C.dim, 500);
   devInset(o, W - 214, Y(band) + 50, 200, 140, M, P, setIdx, C);
   nm = st.name + (st.face ? `（${st.face}控制）` : '');
   T(o, 16, 22, `${view==='stagger'?'錯開搭接':view==='lapC'?'受壓搭接':'受拉搭接'}：${nm}`, 13.5, C.txt, null, true);
@@ -3334,7 +3355,7 @@ function svgColDev(M, forPrint, mechView){
     segs.push({a:0, b:zc, l1:`續接器距柱底 ${f(zc,0)} cm`, l2: P.mech ? SPLICE_TXT[P.sp] : '機械式續接（示意）', hot:true});
   }else{
     if(la > 0.5) segs.push({a:0, b:la, l1:`${f(la,0)} cm`, l2:''});
-    segs.push({a:la, b:lb, l1:`${P.sp==='A'?'甲級':'乙級'}搭接 ${lap} cm`, l2:`${P.sp==='A'?'1.0':'1.3'}ψ_g l_d，${P.why}`, hot:true, bad:!P.fits, meas:true});
+    segs.push({a:la, b:lb, l1:`${P.sp==='A'?'甲級':'乙級'}搭接 ${lap} cm`, l2:`${P.sp==='A'?'1.0':'1.3'}ψ_g l_d${M.dev.sets[0].d.kSl>1?' × 1.3（泥水中灌注）':''}，${P.why}`, hot:true, bad:!P.fits, meas:true});
     if(P.stag) segs.push({a:P.la2, b:P.lb2, l1:`第二組 ${lap} cm（錯開）`, l2:'', hot:true, bad:!P.fits, meas:true});
     const zEnd = P.stag ? P.lb2 : lb;
     if(L - zEnd > 0.5) segs.push({a:zEnd, b:L, l1:`${f(L-zEnd,0)} cm`, l2:''});
@@ -3560,20 +3581,24 @@ function devLegendItems(view, P){
 }
 function devFormula(view, P, M, setIdx, tex){
   const st = P.mod==='col' ? M.dev.sets[0] : (setIdx===1 && M.dev.sets[1] ? M.dev.sets[1] : M.dev.sets[0]), x = st.d;
-  if(tex) return devFormulaTex(view, P, M, x);
-  const n = (v,p) => f(v,p);
+  const out = tex ? devFormulaTex(view, P, M, x) : devFormulaTxt(view, P, M, x);
+  return out && x.kSl > 1 && !['mech','cut'].includes(view)
+    ? out + `；× 1.3 為泥水中灌注之握持長度增加 30%（建築物基礎構造設計規範 §7.6.2）` : out;
+}
+function devFormulaTxt(view, P, M, x){
+  const n = (v,p) => f(v,p), ks = x.kSl > 1 ? ' × 1.3' : '';
   const seis = P.mod==='beam' && P.seis;
   switch(view){
-    case 'straight': return `l_d = f_y·ψ_tψ_eψ_s / [3.5λ√f'c·(c_b+K_tr)/d_b] · d_b = ${n(x.fy,0)}×${n(x.psiTE,2)}×${n(x.psiS,1)} / (3.5×${n(x.lam,2)}×${n(x.sq,2)}×${n(x.conf,3)}) × ${n(x.db,2)} = ${n(x.ld0,1)} → <b>${devUp(x.ld)} cm</b>（≥ 30；§25.4.2.4）${seis&&x.ldS?`；耐震接頭內直線 ${x.top?'3.25':'2.5'}l_dh = <b>${devUp(x.ldS)} cm</b>（§18.5.5.3）`:''}`;
+    case 'straight': return `l_d = f_y·ψ_tψ_eψ_s / [3.5λ√f'c·(c_b+K_tr)/d_b] · d_b = ${n(x.fy,0)}×${n(x.psiTE,2)}×${n(x.psiS,1)} / (3.5×${n(x.lam,2)}×${n(x.sq,2)}×${n(x.conf,3)}) × ${n(x.db,2)} = ${n(x.ld0,1)}${ks} → <b>${devUp(x.ld)} cm</b>（≥ 30；§25.4.2.4）${seis&&x.ldS?`；耐震接頭內直線 ${x.top?'3.25':'2.5'}l_dh = <b>${devUp(x.ldS)} cm</b>（§18.5.5.3）`:''}`;
     case 'hook90': case 'hook180': case 'hookCmp':
-      return `l_dh = f_yψ_eψ_rψ_oψ_c / (23λ√f'c) · d_b^1.5 = ${n(x.fy,0)}×${n(x.psiEh,1)}×${n(x.psiR,1)}×${n(x.psiO,2)}×${n(x.psiC,3)} / (23×${n(x.lam,2)}×${n(x.sq,2)}) × ${n(x.db,2)}^1.5 = ${n(x.ldh0,1)} → <b>${devUp(x.ldh)} cm</b>（≥ max(8d_b, 15)；§25.4.3.1）`
-        + (view==='hookCmp' && x.fcCap ? `；前版式 0.075ψ_e f_y d_b/√f'c = ${n(x.ldhA0,1)} → <b>${devUp(x.ldhA)} cm</b>（§25.4.3.6）` : '')
-        + (seis && x.ldhS ? `；耐震接頭內 0.06f_y d_b/(λ√f'c) = <b>${devUp(x.ldhS)} cm</b>（§18.5.5.1）` : '');
-    case 'head': return x.headOK ? `l_dt = f_yψ_eψ_pψ_oψ_c / (32√f'c) · d_b^1.5 = ${n(x.fy,0)}×${n(x.psiEh,1)}×${n(x.psiR,1)}×${n(x.psiO,2)}×${n(x.psiC,3)} / (32×${n(x.sq,2)}) × ${n(x.db,2)}^1.5 = ${n(x.ldt0,1)} → <b>${devUp(x.ldt)} cm</b>（§25.4.4.2）` : `擴頭不適用（§25.4.4.1）：${x.headFail.join('、')}`;
-    case 'comp': return `l_dc = max(0.075f_yψ_r/(λ√f'c), 0.0044f_yψ_r)·d_b = max(${n(0.075*x.fy*x.psiRc/(x.lam*x.sq),1)}, ${n(0.0044*x.fy*x.psiRc,1)}) × ${n(x.db,2)} → <b>${devUp(x.ldc)} cm</b>（ψ_r = ${n(x.psiRc,2)}，≥ 20；§25.4.9.2）`;
-    case 'lap': case 'stagger': return `l_st = ${P.sp==='A'?'1.0':'1.3'}ψ_g l_d = ${P.sp==='A'?'1.0':'1.3'}×${n(x.psiG,2)}×${n(x.ld0,1)} = <b>${devUp(P.sp==='A'?x.lapA:x.lapB)} cm</b>（≥ 30；表 25.5.2.1，搭接不適用超量折減 §25.5.1.4）`;
-    case 'lapC': return `受壓搭接 = ${x.fy<=4200?`0.0073f_y d_b = 0.0073×${n(x.fy,0)}×${n(x.db,2)}`:`(0.013f_y − 24)d_b`}${x.fc<210?' × 4/3':''} = <b>${devUp(x.lapC)} cm</b>（≥ 30；§25.5.5.1）`;
-    case 'joint': return `l_dh = 0.06f_y d_b/(λ√f'c) = 0.06×${n(x.fy,0)}×${n(x.db,2)}/(${n(x.lam,2)}×${n(x.sq,2)}) = <b>${devUp(x.ldhS||0)} cm</b>（§18.5.5.1）；直線 = ${x.top?'3.25':'2.5'}×l_dh = <b>${devUp(x.ldS||0)} cm</b>（§18.5.5.3）；接頭深度 ≥ ${P.jReq?f(P.jReq,1):'—'} cm（§18.5.2.3）`;
+      return `l_dh = f_yψ_eψ_rψ_oψ_c / (23λ√f'c) · d_b^1.5 = ${n(x.fy,0)}×${n(x.psiEh,1)}×${n(x.psiR,1)}×${n(x.psiO,2)}×${n(x.psiC,3)} / (23×${n(x.lam,2)}×${n(x.sq,2)}) × ${n(x.db,2)}^1.5 = ${n(x.ldh0,1)}${ks} → <b>${devUp(x.ldh)} cm</b>（≥ max(8d_b, 15)；§25.4.3.1）`
+        + (view==='hookCmp' && x.fcCap ? `；前版式 0.075ψ_e f_y d_b/√f'c = ${n(x.ldhA0,1)}${ks} → <b>${devUp(x.ldhA)} cm</b>（§25.4.3.6）` : '')
+        + (seis && x.ldhS ? `；耐震接頭內 0.06f_y d_b/(λ√f'c)${ks} = <b>${devUp(x.ldhS)} cm</b>（§18.5.5.1）` : '');
+    case 'head': return x.headOK ? `l_dt = f_yψ_eψ_pψ_oψ_c / (32√f'c) · d_b^1.5 = ${n(x.fy,0)}×${n(x.psiEh,1)}×${n(x.psiR,1)}×${n(x.psiO,2)}×${n(x.psiC,3)} / (32×${n(x.sq,2)}) × ${n(x.db,2)}^1.5 = ${n(x.ldt0,1)}${ks} → <b>${devUp(x.ldt)} cm</b>（§25.4.4.2）` : `擴頭不適用（§25.4.4.1）：${x.headFail.join('、')}`;
+    case 'comp': return `l_dc = max(0.075f_yψ_r/(λ√f'c), 0.0044f_yψ_r)·d_b = max(${n(0.075*x.fy*x.psiRc/(x.lam*x.sq),1)}, ${n(0.0044*x.fy*x.psiRc,1)}) × ${n(x.db,2)}${ks} → <b>${devUp(x.ldc)} cm</b>（ψ_r = ${n(x.psiRc,2)}，≥ 20；§25.4.9.2）`;
+    case 'lap': case 'stagger': return `l_st = ${P.sp==='A'?'1.0':'1.3'}ψ_g l_d = ${P.sp==='A'?'1.0':'1.3'}×${n(x.psiG,2)}×${n(x.ld0,1)}${ks} = <b>${devUp(P.sp==='A'?x.lapA:x.lapB)} cm</b>（≥ 30；表 25.5.2.1，搭接不適用超量折減 §25.5.1.4）`;
+    case 'lapC': return `受壓搭接 = ${x.fy<=4200?`0.0073f_y d_b = 0.0073×${n(x.fy,0)}×${n(x.db,2)}`:`(0.013f_y − 24)d_b`}${x.fc<210?' × 4/3':''}${ks} = <b>${devUp(x.lapC)} cm</b>（≥ 30；§25.5.5.1）`;
+    case 'joint': return `l_dh = 0.06f_y d_b/(λ√f'c) = 0.06×${n(x.fy,0)}×${n(x.db,2)}/(${n(x.lam,2)}×${n(x.sq,2)})${ks} = <b>${devUp(x.ldhS||0)} cm</b>（§18.5.5.1）；直線 = ${x.top?'3.25':'2.5'}×l_dh = <b>${devUp(x.ldS||0)} cm</b>（§18.5.5.3）；接頭深度 ≥ ${P.jReq?f(P.jReq,1):'—'} cm（§18.5.2.3）`;
     case 'mech': return `機械式續接：抗拉／抗壓強度 ≥ 1.25f_y（§25.5.7.1）；第二類另須發展至規定抗拉強度，第三類另須承受多次反復非彈性應變（§18.2.7.1）；第一、二類不得設於接頭面或降伏臨界斷面 2h 內，柱中央 1/2 淨高除外（§18.2.7.2）`;
     case 'cut': { const c = P.cut; if(!c || c.na) return c ? c.na : '截斷點分析未開啟。';
       return `w = 8(M_u⁻ + M_u⁺)/l_n² ；反曲點 x_0：M(x) = −M_u⁻ + w·x(l_n − x)/2 = 0 → <b>${f(c.x0,0)} cm</b>；理論截斷 M(x) = −φM_n,通長 → ${f(c.xc||0,0)} cm；截斷點 = max(${f(c.xc||0,0)} + ${f(c.ext,0)}, l_d = ${c.ld}) = <b>${f(c.xCut,0)} cm</b>（§9.7.3.3、§9.7.3.4）`; }
@@ -3583,34 +3608,34 @@ function devFormula(view, P, M, setIdx, tex){
 /* 網頁卡片與計算書用：條文代入行改以 KaTeX 排版（分式上下排列，與預覽報告一致）。
    Excel 仍用上方純文字版（plainFm），儲存格無法排分式。 */
 function devFormulaTex(view, P, M, x){
-  const n = (v,p) => kn(v,p), seis = P.mod==='beam' && P.seis;
+  const n = (v,p) => kn(v,p), seis = P.mod==='beam' && P.seis, ks = x.kSl > 1 ? ' × 1.3' : '';
   switch(view){
     case 'straight': return KT(`l_d=\\frac{f_y\\,\\psi_t\\psi_e\\psi_s}{3.5\\lambda\\sqrt{f'_c}\\cdot\\dfrac{c_b+K_{tr}}{d_b}}\\,d_b
         =\\frac{${n(x.fy,0)}\\times${n(x.psiTE,2)}\\times${n(x.psiS,1)}}{3.5\\times${n(x.lam,2)}\\times${n(x.sq,2)}\\times${n(x.conf,3)}}\\times${n(x.db,2)}=${n(x.ld0,1)}`)
-      + ` → <b>${devUp(x.ld)} cm</b>（≥ 30；§25.4.2.4）`
+      + `${ks} → <b>${devUp(x.ld)} cm</b>（≥ 30；§25.4.2.4）`
       + (seis&&x.ldS ? `；耐震接頭內直線 ${KT(`${x.top?'3.25':'2.5'}\\,l_{dh}`)} = <b>${devUp(x.ldS)} cm</b>（§18.5.5.3）` : '');
     case 'hook90': case 'hook180': case 'hookCmp':
       return KT(`l_{dh}=\\frac{f_y\\psi_e\\psi_r\\psi_o\\psi_c}{23\\lambda\\sqrt{f'_c}}\\,d_b^{1.5}
         =\\frac{${n(x.fy,0)}\\times${n(x.psiEh,1)}\\times${n(x.psiR,1)}\\times${n(x.psiO,2)}\\times${n(x.psiC,3)}}{23\\times${n(x.lam,2)}\\times${n(x.sq,2)}}\\times${n(x.db,2)}^{1.5}=${n(x.ldh0,1)}`)
-        + ` → <b>${devUp(x.ldh)} cm</b>（${KT('\\ge\\max(8d_b,\\ 15)')}；§25.4.3.1）`
-        + (view==='hookCmp' && x.fcCap ? `；前版式 ${KT(`\\frac{0.075\\psi_e f_y d_b}{\\sqrt{f'_c}}=${n(x.ldhA0,1)}`)} → <b>${devUp(x.ldhA)} cm</b>（§25.4.3.6）` : '')
-        + (seis && x.ldhS ? `；耐震接頭內 ${KT(`\\frac{0.06f_y d_b}{\\lambda\\sqrt{f'_c}}`)} = <b>${devUp(x.ldhS)} cm</b>（§18.5.5.1）` : '');
+        + `${ks} → <b>${devUp(x.ldh)} cm</b>（${KT('\\ge\\max(8d_b,\\ 15)')}；§25.4.3.1）`
+        + (view==='hookCmp' && x.fcCap ? `；前版式 ${KT(`\\frac{0.075\\psi_e f_y d_b}{\\sqrt{f'_c}}=${n(x.ldhA0,1)}`)}${ks} → <b>${devUp(x.ldhA)} cm</b>（§25.4.3.6）` : '')
+        + (seis && x.ldhS ? `；耐震接頭內 ${KT(`\\frac{0.06f_y d_b}{\\lambda\\sqrt{f'_c}}`)}${ks} = <b>${devUp(x.ldhS)} cm</b>（§18.5.5.1）` : '');
     case 'head': return x.headOK
       ? KT(`l_{dt}=\\frac{f_y\\psi_e\\psi_p\\psi_o\\psi_c}{32\\sqrt{f'_c}}\\,d_b^{1.5}
         =\\frac{${n(x.fy,0)}\\times${n(x.psiEh,1)}\\times${n(x.psiR,1)}\\times${n(x.psiO,2)}\\times${n(x.psiC,3)}}{32\\times${n(x.sq,2)}}\\times${n(x.db,2)}^{1.5}=${n(x.ldt0,1)}`)
-        + ` → <b>${devUp(x.ldt)} cm</b>（§25.4.4.2）`
+        + `${ks} → <b>${devUp(x.ldt)} cm</b>（§25.4.4.2）`
       : `擴頭不適用（§25.4.4.1）：${x.headFail.join('、')}`;
     case 'comp': return KT(`l_{dc}=\\max\\!\\left(\\frac{0.075f_y\\psi_r}{\\lambda\\sqrt{f'_c}},\\ 0.0044f_y\\psi_r\\right)d_b
         =\\max(${n(0.075*x.fy*x.psiRc/(x.lam*x.sq),1)},\\ ${n(0.0044*x.fy*x.psiRc,1)})\\times${n(x.db,2)}`)
-      + ` → <b>${devUp(x.ldc)} cm</b>（${KT(`\\psi_r=${n(x.psiRc,2)}`)}，≥ 20；§25.4.9.2）`;
+      + `${ks} → <b>${devUp(x.ldc)} cm</b>（${KT(`\\psi_r=${n(x.psiRc,2)}`)}，≥ 20；§25.4.9.2）`;
     case 'lap': case 'stagger': { const k = P.sp==='A'?'1.0':'1.3';
       return KT(`l_{st}=${k}\\,\\psi_g\\,l_d=${k}\\times${n(x.psiG,2)}\\times${n(x.ld0,1)}`)
-        + ` = <b>${devUp(P.sp==='A'?x.lapA:x.lapB)} cm</b>（≥ 30；表 25.5.2.1，搭接不適用超量折減 §25.5.1.4）`; }
+        + `${ks} = <b>${devUp(P.sp==='A'?x.lapA:x.lapB)} cm</b>（≥ 30；表 25.5.2.1，搭接不適用超量折減 §25.5.1.4）`; }
     case 'lapC': return '受壓搭接 ' + KT((x.fy<=4200 ? `0.0073f_y d_b=0.0073\\times${n(x.fy,0)}\\times${n(x.db,2)}` : `(0.013f_y-24)\\,d_b`)
         + (x.fc<210 ? '\\times\\frac{4}{3}' : ''))
-      + ` = <b>${devUp(x.lapC)} cm</b>（≥ 30；§25.5.5.1）`;
+      + `${ks} = <b>${devUp(x.lapC)} cm</b>（≥ 30；§25.5.5.1）`;
     case 'joint': return KT(`l_{dh}=\\frac{0.06f_y d_b}{\\lambda\\sqrt{f'_c}}=\\frac{0.06\\times${n(x.fy,0)}\\times${n(x.db,2)}}{${n(x.lam,2)}\\times${n(x.sq,2)}}`)
-      + ` = <b>${devUp(x.ldhS||0)} cm</b>（§18.5.5.1）；直線 = ${KT(`${x.top?'3.25':'2.5'}\\times l_{dh}`)} = <b>${devUp(x.ldS||0)} cm</b>（§18.5.5.3）；接頭深度 ≥ ${P.jReq?f(P.jReq,1):'—'} cm（§18.5.2.3）`;
+      + `${ks} = <b>${devUp(x.ldhS||0)} cm</b>（§18.5.5.1）；直線 = ${KT(`${x.top?'3.25':'2.5'}\\times l_{dh}`)} = <b>${devUp(x.ldS||0)} cm</b>（§18.5.5.3）；接頭深度 ≥ ${P.jReq?f(P.jReq,1):'—'} cm（§18.5.2.3）`;
     case 'mech': return `機械式續接：抗拉／抗壓強度 ≥ ${KT('1.25f_y')}（§25.5.7.1）；第二類另須發展至規定抗拉強度，第三類另須承受多次反復非彈性應變（§18.2.7.1）；第一、二類不得設於接頭面或降伏臨界斷面 ${KT('2h')} 內，柱中央 ${KT('\\frac{1}{2}')} 淨高除外（§18.2.7.2）`;
     case 'cut': { const c = P.cut; if(!c || c.na) return c ? c.na : '截斷點分析未開啟。';
       return KT(`w=\\frac{8\\,(M_u^-+M_u^+)}{l_n^2}`) + '；反曲點 ' + KT(`x_0`) + '：'
@@ -4881,36 +4906,37 @@ function colDevNote(M){
 function devReport(D, eq, d, note, sel){
   const o = [], F = k => !sel || sel.f.has(k);
   for(const st of D.sets){
-    const x = st.d;
+    const x = st.d, K = k => x.kSl > 1 ? `${d(x[k+'Base'],1)}\\times1.3=\\mathbf{${d(x[k],1)}}` : `\\mathbf{${d(x[k],1)}}`;
     o.push(`<div class="rp-h3">${st.name}${st.face?`（${st.face}控制）`:''}：d_b = ${d(x.db,2)} cm，f_y = ${d(x.fy,0)}、f'_c = ${d(x.fc,0)} kgf/cm²</div>`);
     if(F('ld')) o.push(eq(`\\psi_t=${d(x.psiT,1)},\\ \\psi_e=${d(x.psiE,1)}\\ (\\psi_t\\psi_e\\le1.7),\\ \\psi_s=${d(x.psiS,1)},\\ \\lambda=${d(x.lam,2)},\\ \\sqrt{f'_c}=${d(x.sq,2)}\\ (\\le 26.5)`));
     if(F('ld')) o.push(eq(`c_b=${d(x.cb,2)}\\ \\text{cm},\\quad K_{tr}=${x.Ktr>0?`\\frac{40A_{tr}}{s\\,n}=\\frac{40\\times${d(x.Atr,3)}}{${d(x.s,1)}\\times${x.n}}=`:''}${d(x.Ktr,3)},\\quad
       \\frac{c_b+K_{tr}}{d_b}=${d(x.confRaw,3)}${x.confRaw>2.5?'\\to 2.5':''}`));
     if(F('ld')) o.push(eq(`l_d=\\frac{f_y}{3.5\\lambda\\sqrt{f'_c}}\\cdot\\frac{\\psi_t\\psi_e\\psi_s}{(c_b+K_{tr})/d_b}\\,d_b
       =\\frac{${d(x.fy,0)}}{3.5\\times${d(x.lam,2)}\\times${d(x.sq,2)}}\\cdot\\frac{${d(x.psiTE,2)}\\times${d(x.psiS,1)}}{${d(x.conf,3)}}\\times${d(x.db,2)}
-      =${d(x.ld0,1)}\\ \\Rightarrow\\ l_d=\\max(${x.exc<1?`${d(x.exc,2)}\\times`:''}${d(x.ld0,1)},\\ 30)=\\mathbf{${d(x.ld,1)}}\\ \\text{cm}`));
+      =${d(x.ld0,1)}\\ \\Rightarrow\\ l_d=\\max(${x.exc<1?`${d(x.exc,2)}\\times`:''}${d(x.ld0,1)},\\ 30)=${K('ld')}\\ \\text{cm}`));
     if(x.ktrBad && F('ld')) o.push(note(`f_y ≥ 5600 且主筋中心距 ＜ 15 cm：K_tr = ${d(x.Ktr,2)} ＜ 0.5d_b = ${d(x.ktrNeed,2)}，不符 §25.4.2.2，須加密橫向鋼筋。`));
     if(F('ldh')) o.push(eq(`\\psi_c=${x.fc<420?`\\frac{f'_c}{1050}+0.6=`:''}${d(x.psiC,3)},\\quad
       l_{dh}=\\frac{f_y\\psi_e\\psi_r\\psi_o\\psi_c}{23\\lambda\\sqrt{f'_c}}d_b^{1.5}
       =\\frac{${d(x.fy,0)}\\times${d(x.psiEh,1)}\\times${d(x.psiR,1)}\\times${d(x.psiO,2)}\\times${d(x.psiC,3)}}{23\\times${d(x.lam,2)}\\times${d(x.sq,2)}}\\times${d(x.db,2)}^{1.5}
-      =${d(x.ldh0,1)}\\ \\Rightarrow\\ l_{dh}=\\max(${d(x.ldh0,1)},\\ 8d_b,\\ 15)=\\mathbf{${d(x.ldh,1)}}\\ \\text{cm}`));
+      =${d(x.ldh0,1)}\\ \\Rightarrow\\ l_{dh}=\\max(${d(x.ldh0,1)},\\ 8d_b,\\ 15)=${K('ldh')}\\ \\text{cm}`));
     if(x.fcCap && F('ldh')) o.push(eq(`\\text{前版式（§25.4.3.6）：}l_{dh}=\\frac{0.075\\psi_e f_y}{\\sqrt{f'_c}}d_b${x.lam<1?'\\times1.3':''}
-      =\\frac{0.075\\times${d(x.psiEh,1)}\\times${d(x.fy,0)}}{\\sqrt{${d(Math.min(x.fc,x.fcCap),0)}}}\\times${d(x.db,2)}=${d(x.ldhA0,1)}\\ \\Rightarrow\\ \\mathbf{${d(x.ldhA,1)}}\\ \\text{cm}`));
+      =\\frac{0.075\\times${d(x.psiEh,1)}\\times${d(x.fy,0)}}{\\sqrt{${d(Math.min(x.fc,x.fcCap),0)}}}\\times${d(x.db,2)}=${d(x.ldhA0,1)}\\ \\Rightarrow\\ ${K('ldhA')}\\ \\text{cm}`));
     if(F('ldh')) o.push(note(`標準彎鉤：90° 延伸 12d_b = ${d(x.ext90,1)} cm、180° 延伸 max(4d_b, 6.5) = ${d(x.ext180,1)} cm，彎曲內徑 ${d(x.bendD,1)} cm（§25.3.1）。
       前版式適用 f'c 上限依 §25.4.3.5（本筋 ${x.fcCap||'—'} kgf/cm²），並得乘表 25.4.3.8 之修正因數。`));
     if(x.headOK && F('ldt')) o.push(eq(`l_{dt}=\\frac{f_y\\psi_e\\psi_p\\psi_o\\psi_c}{32\\sqrt{f'_c}}d_b^{1.5}
       =\\frac{${d(x.fy,0)}\\times${d(x.psiEh,1)}\\times${d(x.psiR,1)}\\times${d(x.psiO,2)}\\times${d(x.psiC,3)}}{32\\times${d(x.sq,2)}}\\times${d(x.db,2)}^{1.5}
-      =${d(x.ldt0,1)}\\ \\Rightarrow\\ l_{dt}=\\max(${d(x.ldt0,1)},\\ 8d_b,\\ 15)=\\mathbf{${d(x.ldt,1)}}\\ \\text{cm}`));
+      =${d(x.ldt0,1)}\\ \\Rightarrow\\ l_{dt}=\\max(${d(x.ldt0,1)},\\ 8d_b,\\ 15)=${K('ldt')}\\ \\text{cm}`));
     else if(!x.headOK && F('ldt')) o.push(note(`擴頭鋼筋不適用（§25.4.4.1）：${x.headFail.join('、')}。`));
-    if(F('ldc')) o.push(eq(`l_{dc}=\\max\\left(\\frac{0.075f_y\\psi_r}{\\lambda\\sqrt{f'_c}},\\ 0.0044f_y\\psi_r\\right)d_b\\ (\\psi_r=${d(x.psiRc,2)})\\ \\Rightarrow\\ l_{dc}=\\mathbf{${d(x.ldc,1)}}\\ \\text{cm}`));
-    if(F('lap')) o.push(eq(`\\psi_g=${d(x.psiG,2)},\\quad \\text{乙級}=1.3\\psi_g l_d=\\mathbf{${d(x.lapB,1)}},\\quad \\text{甲級}=\\psi_g l_d=${d(x.lapA,1)},\\quad
-      \\text{受壓搭接}=${x.fy<=4200?'0.0073f_yd_b':'(0.013f_y-24)d_b'}${x.fc<210?'\\times\\tfrac43':''}=\\mathbf{${d(x.lapC,1)}}\\ \\text{cm}`));
-    if(x.ldhS && F('joint')) o.push(eq(`\\text{耐震梁柱接頭（§18.5.5）：}l_{dh}=\\frac{0.06f_y d_b}{\\lambda\\sqrt{f'_c}}${x.psiEh>1?'\\times1.2':''}=\\mathbf{${d(x.ldhS,1)}},\\quad
-      l_d=${x.top?'3.25':'2.5'}l_{dh}${x.psiE>1?`\\times${d(x.psiE,1)}`:''}=\\mathbf{${d(x.ldS,1)}}\\ \\text{cm}`));
+    if(F('ldc')) o.push(eq(`l_{dc}=\\max\\left(\\frac{0.075f_y\\psi_r}{\\lambda\\sqrt{f'_c}},\\ 0.0044f_y\\psi_r\\right)d_b\\ (\\psi_r=${d(x.psiRc,2)})\\ \\Rightarrow\\ l_{dc}=${K('ldc')}\\ \\text{cm}`));
+    if(F('lap')) o.push(eq(`\\psi_g=${d(x.psiG,2)},\\quad \\text{乙級}=1.3\\psi_g l_d=${K('lapB')},\\quad \\text{甲級}=\\psi_g l_d${x.kSl>1?'\\times1.3':''}=${d(x.lapA,1)},\\quad
+      \\text{受壓搭接}=${x.fy<=4200?'0.0073f_yd_b':'(0.013f_y-24)d_b'}${x.fc<210?'\\times\\tfrac43':''}=${K('lapC')}\\ \\text{cm}`));
+    if(x.ldhS && F('joint')) o.push(eq(`\\text{耐震梁柱接頭（§18.5.5）：}l_{dh}=\\frac{0.06f_y d_b}{\\lambda\\sqrt{f'_c}}${x.psiEh>1?'\\times1.2':''}=${K('ldhS')},\\quad
+      l_d=${x.top?'3.25':'2.5'}l_{dh}${x.psiE>1?`\\times${d(x.psiE,1)}`:''}=${K('ldS')}\\ \\text{cm}`));
   }
   o.push(note(`依據土木401-112 第 25 章及 §18.5.5（kgf-cm 制公式）。ψ_g 僅用於搭接（表 25.5.2.1），不用於伸展長度；
     超量鋼筋折減僅用於直線 l_d 與受壓 l_dc（§25.4.10）。彎鉤／擴頭之 ψ_r、ψ_p、ψ_o 依設計者輸入之錨定條件；
     K_tr 以箍筋 @ ${d(D.sLap,1)} cm 計，圓形與箱型保守取 0（§25.4.2.4 允許 K_tr = 0）。`));
+  if(D.o.slurry) o.push(note(SLURRY_DEV_NOTE));
   return o.join('');
 }
 
@@ -5129,6 +5155,7 @@ function renderAlerts(M){
   }
   if(document.getElementById('envWater').value==='water' && M.r.covO < 5)
     add('warn',`水工／環境結構：外側保護層 ${f(M.r.covO,1)} cm ＜ 5 cm，建議至少 5 cm（參考 ACI 350）。`, ['covO']);
+  slurryAlerts(M.m, add, 'fc', 'dSlurry');
   if(M.conf.termC) add('warn',`P_u,max = ${f(M.opt.PuMax/TF,0)} tf ${M.opt.PuMax>0.3*M.m.Ag*M.m.fc?"＞ 0.3A_g·f'c":"（f'c ＞ 700）"}：A_sh 另加第三式 0.2k_f k_n P_u/(f_yt A_ch)，且<b>每一根主筋都須側撐</b>（土木401 §18.4.5.2(f)、18.4.5.4(c)）。`, ['tieLayout','#loadTbl']);
   if(M.fin.tooTight) add('bad',`<b>實務間距無解</b>：需求 s = ${f(M.fin.gov.v,2)} cm（${M.fin.gov.tag}）已小於最小實務間距 ${M.fin.sMin} cm。`, ['tieSize','tieLayout','dbl']);
   else add('ok',`採用 ${M.r.tieSize} @ ${f(M.fin.sUse,1)} cm（控制項：${M.fin.gov.tag}，需求 ≤ ${f(M.fin.gov.v,2)} cm）。`, ['tieSize','tieLayout']);
@@ -5642,20 +5669,21 @@ function shearReport(M,sh){
     const V = sh.V;
     o.push(eq(`F=\\frac{N}{${sh.Nu>=0?140:35}A_g}=\\frac{${d(sh.Nu,0)}}{${sh.Nu>=0?140:35}\\times${d(M.Ag,0)}}=${d(V.F,4)},\\qquad A_e=0.8A_g=${d(V.Ae,0)}\\ \\text{cm}^2`));
     o.push(eq(`V_c=0.53(${V.hinge?'0.33':'1'}+F)\\sqrt{f'_c}\\,A_e=0.53\\times(${V.hinge?'0.33':'1'}+${d(V.F,4)})\\times${d(Math.sqrt(m.fc),3)}\\times${d(V.Ae,0)}
-      =${d(V.vc,0)}\\ \\text{kgf}=${d(V.vc/TF,1)}\\ \\text{tf}${V.zeroed?'\\ \\Rightarrow\\ \\boxed{V_c=0}':''}`));
+      =${d(V.vc0,0)}${V.kV<1?`\\times0.75=${d(V.vc,0)}`:''}\\ \\text{kgf}=${d(V.vc/TF,1)}\\ \\text{tf}${V.zeroed?'\\ \\Rightarrow\\ \\boxed{V_c=0}':''}`));
     o.push(note(`公路橋梁耐震設計規範 §5.3.3：${V.hinge?'塑鉸區式 (5-3)':'非塑鉸區式 (5-4)'}；F 於軸壓取 N/(140A_g)、軸拉取 N/(35A_g)；V_c ≥ 0。`));
   }else if(sh.V.zeroed){
     const zr = vcZeroRatio(M.opt.code);
     o.push(eq(`N_u=${d(sh.Nu/TF,0)}\\ \\text{tf}\\lt ${zr===0.05?"A_gf'_c/20":"0.1f'_cA_g"}=${d(zr*m.fc*M.Ag/TF,0)}\\ \\text{tf}
       \\ \\Rightarrow\\ \\boxed{V_c=0}\\quad(\\text{${zr===0.05?'柱端加密區':'塑鉸區'}折減})`));
   }else{
-    const V=sh.V, capped = V.vc >= 1.33*V.lam*Math.sqrt(m.fc)*sh.bw*sh.d - 1e-6;
+    const V=sh.V, capped = V.vc0 >= 1.33*V.lam*Math.sqrt(m.fc)*sh.bw*sh.d - 1e-6;
     o.push(eq(`V_c=\\left(0.53\\lambda\\sqrt{f'_c}+\\frac{N_u}{6A_g}\\right)b_wd
       =\\left(0.53\\times${d(V.lam,2)}\\times${d(Math.sqrt(m.fc),3)}+${d(sh.Nu/(6*M.Ag),3)}\\right)\\times${d(sh.bw,1)}\\times${d(sh.d,2)}
-      =${d(sh.V.vc,0)}\\ \\text{kgf}=${d(sh.V.vc/TF,1)}\\ \\text{tf}`));
+      =${d(sh.V.vc0,0)}${V.kV<1?`\\times0.75=${d(sh.V.vc,0)}`:''}\\ \\text{kgf}=${d(sh.V.vc/TF,1)}\\ \\text{tf}`));
     o.push(note(`土木401-112 表 22.5.5.1 式 (a)（A_v ≥ A_v,min）：N_u/(6A_g) ≤ 0.05f'c${V.ax<sh.Nu/(6*M.Ag)-1e-9?'（已取上限）':''}；
       V_c ≤ 1.33λ√f'c·b_w·d${capped?'（已取上限）':''}；軸拉時 N_u 取負值，V_c 不小於 0。`));
   }
+  if(sh.V.kV<1) o.push(note(SLURRY_VC_NOTE));
   o.push(eq(`V_s=\\frac{V_{des}}{\\phi}-V_c=\\frac{${d(sh.Vdes/TF,1)}}{${d(sh.phiS,2)}}-${d(sh.V.vc/TF,1)}
     =${d(sh.VsReq/TF,1)}\\ \\text{tf}
     \\qquad V_{s,max}=${sh.bridge?"2.12\\sqrt{f'_c}\\,A_e":"2.12\\sqrt{f'_c}\\,b_wd"}=${d(sh.VsMax/TF,0)}\\ \\text{tf}`));
@@ -5991,8 +6019,9 @@ function beamShearDesign(S, R, m, ctx, res, MnPos, MnNeg){
   const lam = m.lam || 1;
   const AsT = S.sign==='pos' ? R.AsBot : R.AsTop, rhoW = AsT/(bw*d);
   const lamS = Math.min(1, Math.sqrt(2/(1 + d/25)));
-  const VcA = 0.53*lam*Math.sqrt(m.fc)*bw*d;
-  const VcC = Math.min(2.12*lamS*lam*Math.cbrt(rhoW)*Math.min(Math.sqrt(m.fc),26.5)*bw*d, 1.33*lam*Math.sqrt(m.fc)*bw*d);
+  const kV = vcSlurry(m);
+  const VcA = 0.53*lam*Math.sqrt(m.fc)*bw*d*kV;
+  const VcC = Math.min(2.12*lamS*lam*Math.cbrt(rhoW)*Math.min(Math.sqrt(m.fc),26.5)*bw*d, 1.33*lam*Math.sqrt(m.fc)*bw*d)*kV;
   const Vc = VcZero ? 0 : (S.slab ? VcC : VcA);
   const VsReq = Math.max(0, Vdes/m.phiv - Vc);
   const VsMax = 2.12*Math.sqrt(m.fc)*bw*d;
@@ -6028,7 +6057,7 @@ function beamShearDesign(S, R, m, ctx, res, MnPos, MnNeg){
 
   // 版：一般不配剪力筋，須 V_u ≤ φV_c
   const phiVc = m.phiv*Vc, slabFail = !!S.slab && Vdes > phiVc;
-  return {d,bw,Ag,ctrl,Vu,Tu,MprP,MprN,Ve,Vdes,VcZero,Vc,VsReq,VsMax,VsTight,fail,phiVc,slabFail, lam, lamS, rhoW, VcA, VcC,
+  return {d,bw,Ag,ctrl,Vu,Tu,MprP,MprN,Ve,Vdes,VcZero,Vc,VsReq,VsMax,VsTight,fail,phiVc,slabFail, lam, lamS, rhoW, VcA, VcC, kV,
           nlegs,Av,At1,Aoh,ph,Ao,cot,Acp,pcp,Tthr,tors,AtS,Al,lhs,rhs,over,
           AvS,AvStot,sStr,sMin,sCode,sConf,sTors, confLen:2*S.h};
 }
@@ -6362,6 +6391,7 @@ function computeBeam(){
   };
   m.b1 = beta1(m.fc); m.ety = m.fy/m.Es; m.Ec = Ecof(m.fc);
   m.lam = parseFloat(document.getElementById('bdLight').value) || 1;     // 輕質混凝土 λ（剪力與伸展長度共用）
+  m.slurry = document.getElementById('bdSlurry').value==='1';            // 泥水中灌注（基礎構造設計規範 §7.6.2）
 
   const R = beamBars(S);
   const gPos = beamShape(S,'pos'), gNeg = beamShape(S,'neg');
@@ -6437,7 +6467,7 @@ function computeBeam(){
 /* ---------- 耐震梁：加密區（自柱面 2h）以外之箍筋間距 ----------
    V_c 不折減（§18.3.5.2 只在 2h 內歸零），設計剪力仍取 V_e；另 s ≤ d/2（§18.3.4.6）。 */
 function beamZone2(S, m, sh){
-  const Vc = 0.53*(m.lam||1)*Math.sqrt(m.fc)*sh.bw*sh.d;     // 表 22.5.5.1 (a)
+  const Vc = 0.53*(m.lam||1)*Math.sqrt(m.fc)*sh.bw*sh.d*vcSlurry(m);     // 表 22.5.5.1 (a)
   const VsReq = Math.max(0, sh.Vdes/m.phiv - Vc);
   const tot = (VsReq>1e-9 ? VsReq/(m.fyt*sh.d) : 0) + 2*sh.AtS;
   const cands=[];
@@ -7086,6 +7116,7 @@ function renderBeamAlerts(B){
     if(S.slab && S.rhoTs < 0.003) add('warn',`水工／環境結構：版最小鋼筋比 ρ_min = ${f(S.rhoTs,4)}，ACI 350 依伸縮縫間距要求約 0.003～0.005。`, ['bRhoTs']);
     add('info',`水工加嚴<b>未包含</b> ACI 350 的環境耐久係數 S_d（放大需求強度）；若設計準則要求，請將 S_d 乘入輸入之 M_u、V_u。`);
   }
+  slurryAlerts(m, add, 'bfc', 'bdSlurry');
   add('info',`<b>本模組為第一階段 RC 梁</b>，不含預力。預力梁（有效預力、施工/使用階段應力、f_ps）為第二階段。`);
   devAlerts(B.devPlan, add);
   document.getElementById('bAlerts').innerHTML=SB(alertSort(A).join(''));
@@ -7297,10 +7328,11 @@ function buildBeamReport(B){
   if(sh.VcZero) o.push(eq(`\\text{地震剪力佔比}\\ge50\\%\\ \\Rightarrow\\ \\boxed{V_c=0}\\quad(\\text{土木401 §18.3.5.2})`));
   else if(S.slab) o.push(eq(`\\lambda_s=\\sqrt{\\frac{2}{1+d/25}}=${d(sh.lamS,3)},\\quad \\rho_w=\\frac{A_s}{b_wd}=${d(sh.rhoW,5)},\\quad
     V_c=2.12\\lambda_s\\lambda(\\rho_w)^{1/3}\\sqrt{f'_c}\\,b_wd=2.12\\times${d(sh.lamS,3)}\\times${d(sh.lam,2)}\\times${d(Math.cbrt(sh.rhoW),4)}\\times${d(Math.min(Math.sqrt(m.fc),26.5),3)}\\times${d(S.bw,0)}\\times${d(sh.d,2)}
-    =${d(sh.Vc,0)}\\ \\text{kgf}=${d(sh.Vc/TF,2)}\\ \\text{tf}`)
+    ${sh.kV<1?`\\times0.75`:''}=${d(sh.Vc,0)}\\ \\text{kgf}=${d(sh.Vc/TF,2)}\\ \\text{tf}`)
     + note(`版不配剪力筋（A_v < A_v,min），依土木401-112 表 22.5.5.1 式 (c)，含尺寸效應 λ_s（§22.5.5.1.3）；V_c ≤ 1.33λ√f'c·b_w·d。`));
-  else o.push(eq(`V_c=0.53\\lambda\\sqrt{f'_c}\\,b_w d=0.53\\times${d(sh.lam,2)}\\times\\sqrt{${d(m.fc,0)}}\\times${d(S.bw,0)}\\times${d(sh.d,2)}
+  else o.push(eq(`V_c=0.53\\lambda\\sqrt{f'_c}\\,b_w d${sh.kV<1?'\\times0.75':''}=0.53\\times${d(sh.lam,2)}\\times\\sqrt{${d(m.fc,0)}}\\times${d(S.bw,0)}\\times${d(sh.d,2)}${sh.kV<1?'\\times0.75':''}
     =${d(sh.Vc,0)}\\ \\text{kgf}=${d(sh.Vc/TF,1)}\\ \\text{tf}\\quad(\\text{表 22.5.5.1 (a)，}A_v\\ge A_{v,min})`));
+  if(sh.kV<1 && !sh.VcZero) o.push(note(SLURRY_VC_NOTE));
   if(S.slab){
     o.push(eq(`\\phi V_c=${d(m.phiv,2)}\\times${d(sh.Vc/TF,2)}=${d(sh.phiVc/TF,2)}\\ \\text{tf}\\quad
       ${sh.slabFail?'\\lt':'\\ge'}\\quad V_u=${d(sh.Vdes/TF,2)}\\ \\text{tf}\\ \\ ${sh.slabFail?'\\textbf{✗ 版厚不足}':'\\checkmark\\ (\\text{不需剪力筋})'}`));
@@ -7494,6 +7526,9 @@ const PIN_META = {
     ['伸展長度與搭接', [
       ['dEpoxy','ψ_e','鋼筋塗布','','環氧樹脂塗布鋼筋降低握裹：直線 ψ_e = 1.5（淨保護層 < 3d_b 或淨距 < 6d_b）或 1.2；彎鉤、T 頭 1.2。','土木401 §25.4.2.5、§25.4.3.2',''],
       ['dLight','λ','混凝土單位重','','輕質混凝土 λ = 0.75：剪力 V_c 折減、伸展長度放大；擴頭鋼筋僅適用常重混凝土。','土木401 §19.2.4、§22.5.5.1、§25.4.1.4',''],
+      ['dSlurry','—','混凝土澆置方式','','泥水中灌注（連續壁、場鑄樁）：混凝土剪力強度 V_c × 0.75（折減 25%），直線、彎鉤、擴頭、受壓伸展長度與搭接長度 × 1.3（增加 30%），且 f\'c 不得小於 210 kgf/cm²。',
+       '建築物基礎構造設計規範 §7.6.2 第 2 款（本文係對鋼筋混凝土地下牆而言）',
+       '同條並要求「提高一級強度供料」；場鑄樁於水中或泥水中澆注時，澆注強度應再提高 35 kgf/cm²（§5.6.3 第 2 款）。輸入之 f\'c 為規定抗壓強度。'],
       ['dExcess','—','超量鋼筋折減','','直線、彎鉤與受壓伸展長度可乘 A_s,req/A_s,prov（填 1＝不折減）。耐震構材、搭接與 T 頭不適用。','土木401 §25.4.10',''],
       ['dPsiR','ψ_r／ψ_p','彎鉤／T 頭圍束','','彎鉤（ψ_r）與 T 頭（ψ_p）周圍有平行圍束筋：#11 以下且 A_th ≥ 0.4A_hs（T 頭 A_tt ≥ 0.3A_hs）或鋼筋中心距 s ≥ 6d_b 時取 1.0，否則 1.6。','土木401 §25.4.3.2、§25.4.4.3',''],
       ['dPsiO','ψ_o','彎鉤／T 頭位置','','#11 以下彎鉤或 T 頭止於柱核心內且側保護層 ≥ 6.5 cm，或側保護層 ≥ 6d_b 時取 1.0，否則 1.25。','土木401 §25.4.3.2、§25.4.4.3',''],
@@ -7565,6 +7600,9 @@ const PIN_META = {
     ['伸展長度與搭接', [
       ['bdEpoxy','ψ_e','鋼筋塗布','','環氧樹脂塗布鋼筋降低握裹：直線 ψ_e = 1.5（淨保護層 < 3d_b 或淨距 < 6d_b）或 1.2；彎鉤、T 頭 1.2。','土木401 §25.4.2.5、§25.4.3.2',''],
       ['bdLight','λ','混凝土單位重','','輕質混凝土 λ = 0.75：剪力 V_c 折減、伸展長度放大；擴頭鋼筋僅適用常重混凝土。','土木401 §19.2.4、§22.5.5.1、§25.4.1.4',''],
+      ['bdSlurry','—','混凝土澆置方式','','泥水中灌注（連續壁、場鑄樁）：混凝土剪力強度 V_c × 0.75（折減 25%），直線、彎鉤、擴頭、受壓伸展長度與搭接長度 × 1.3（增加 30%），且 f\'c 不得小於 210 kgf/cm²。',
+       '建築物基礎構造設計規範 §7.6.2 第 2 款（本文係對鋼筋混凝土地下牆而言）',
+       '同條並要求「提高一級強度供料」；場鑄樁於水中或泥水中澆注時，澆注強度應再提高 35 kgf/cm²（§5.6.3 第 2 款）。輸入之 f\'c 為規定抗壓強度。'],
       ['bdExcess','—','超量鋼筋折減','','直線、彎鉤與受壓伸展長度可乘 A_s,req/A_s,prov（填 1＝不折減）。耐震構材、搭接與 T 頭不適用。','土木401 §25.4.10',''],
       ['bdPsiR','ψ_r／ψ_p','彎鉤／T 頭圍束','','彎鉤（ψ_r）與 T 頭（ψ_p）周圍有平行圍束筋：#11 以下且 A_th ≥ 0.4A_hs（T 頭 A_tt ≥ 0.3A_hs）或鋼筋中心距 s ≥ 6d_b 時取 1.0，否則 1.6。','土木401 §25.4.3.2、§25.4.4.3',''],
       ['bdPsiO','ψ_o','彎鉤／T 頭位置','','#11 以下彎鉤或 T 頭止於柱核心內且側保護層 ≥ 6.5 cm，或側保護層 ≥ 6d_b 時取 1.0，否則 1.25。','土木401 §25.4.3.2、§25.4.4.3',''],
