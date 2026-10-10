@@ -397,6 +397,8 @@ function buildColumn(ExcelJS, inp){
     expr:'min(D/2, 60 cm)', ref:'建築物基礎構造設計規範 §5.6.3 解說 2（建議）'});
   S.item({key:'phio', label:'超強係數 φo（橋梁）', sym:'φo', v:inp.phio, unit:'無因次', kind:'in', fmt:'0.00', crit:'僅橋梁使用；最大可能彎矩 Mo = φo·Mn，RC 柱 1.3', ref:'公路橋梁耐震設計規範 §4.2.1'});
   S.item({key:'Lv', label:'柱高（含帽梁）Lv（橋梁）', sym:'Lv', v:inp.Lv, unit:'cm', kind:'in', fmt:'#,##0', crit:'單柱（塑鉸僅底端）Ve = Mo/Lv；構架式（兩端）Ve = 2Mo/lu', ref:'公路橋梁耐震設計規範 §4.2.1、§4.2.2'});
+  S.item({key:'vcRule', label:'建築柱 Vc 歸零條件', v:inp.vcRule==='b'?'僅依軸力 (b)（保守）':'§18.4.6.2.1 (a) 且 (b)', kind:'list', list:['§18.4.6.2.1 (a) 且 (b)','僅依軸力 (b)（保守）'],
+    crit:'(a) 地震引致剪力 Ve ≧ ½ 最大需求剪力；(b) Pu < Agf\'c/20；兩者同時成立時 Vc = 0', ref:ref401('18.4.6.2.1')});
   S.item({key:'brMnP', label:'最大可能彎矩之軸力（橋梁單柱）', v:inp.brMnP==='dead'?'靜載重軸力 PD':'各組合取大', kind:'list', list:['各組合取大','靜載重軸力 PD'],
     crit:'§4.2.1：單柱計算最大可能彎矩強度時柱軸力得採用靜載重引致之軸力；構架式（§4.2.2）恆取各組合', ref:'公路橋梁耐震設計規範 §4.2.1'});
   S.item({key:'brPD', label:'靜載重軸力 PD', sym:'PD', v:inp.brPD||0, unit:'tf', kind:'in', fmt:'#,##0', ref:'公路橋梁耐震設計規範 §4.2.1'});
@@ -1246,7 +1248,7 @@ function buildLoadSheet(ws, R, loads){
       put(ws,cVd+n, r(`IF(${on},IF({isPH}=1,MAX({Ve${ax}}*1000,${Vu}),${Vu})/1000,"")`),{fmt:'#,##0.0'});
       // 橋梁（公路橋梁耐震設計規範 §5.3.3）：Vc = 0.53(0.33 + F)√f'c·Ae（塑鉸區）／0.53(1 + F)√f'c·Ae，F = N/(140Ag)（壓）、N/(35Ag)（拉）
       const Fb = `IF(${Nu}>=0,${Nu}/(140*{Ag}),${Nu}/(35*{Ag}))`;
-      put(ws,cVc+n, r(`IF(${on},IF({isBldg}=0,MAX(0,0.53*(IF({isPH}=1,0.33,1)+${Fb})*SQRT({fc})*{Ae}),IF(AND({isPH}=1,${Nu}<0.05*{fc}*{Ag}),0,MAX(0,MIN((0.53*{dvLam}*SQRT({fc})+MIN(${Nu}/(6*{Ag}),0.05*{fc}))*{bw${ax}}*{d${ax}},1.33*{dvLam}*SQRT({fc})*{bw${ax}}*{d${ax}}))))*{dvkV}/1000,"")`),{fmt:'#,##0.0'});
+      put(ws,cVc+n, r(`IF(${on},IF({isBldg}=0,MAX(0,0.53*(IF({isPH}=1,0.33,1)+${Fb})*SQRT({fc})*{Ae}),IF(AND({isPH}=1,${Nu}<0.05*{fc}*{Ag},OR({vcRule}="僅依軸力 (b)（保守）",{Ve${ax}}>=0.5*${cVd}${n}-1E-9)),0,MAX(0,MIN((0.53*{dvLam}*SQRT({fc})+MIN(${Nu}/(6*{Ag}),0.05*{fc}))*{bw${ax}}*{d${ax}},1.33*{dvLam}*SQRT({fc})*{bw${ax}}*{d${ax}}))))*{dvkV}/1000,"")`),{fmt:'#,##0.0'});
       put(ws,cVs+n, r(`IF(${on},MAX(0,${cVd}${n}/{phS}-${cVc}${n}),"")`),{fmt:'#,##0.0'});
     }
     put(ws,'T'+n, r(`IF(${on},--(ABS(G${n})>{Tth}),"")`));
@@ -1413,6 +1415,7 @@ function buildA4Column(ws, S, R, inp, jRow, sumRows){
   ws.pageSetup.printTitlesRow = `${t}:${t2}`;
   a.input('工程名稱', inp.meta && inp.meta.project || '');
   a.input('構件名稱／編號', inp.meta && inp.meta.member || '');
+  a.input('程式版本／雜湊', inp.meta && inp.meta.version ? `v${inp.meta.version}｜程式 ${inp.meta.codeHash}｜輸入 SHA-256 ${String(inp.meta.inputHash).slice(0,16)}` : '');
   a.input('設計者／檢核者', '');
   a.input('計算日期／版次', new Date().toLocaleDateString('zh-TW')+'／第 1 版');
 
@@ -2035,6 +2038,7 @@ function buildA4Beam(ws, R, inp, jRow, sumRows){
   const t2=a.row(); ws.mergeCells(t2,2,t2,6); const tc2=ws.getCell(t2,2); tc2.value='單位：kgf、cm（力顯示 tf、彎矩 tf·m）'; tc2.font={name:FONT,size:9}; tc2.alignment={horizontal:'center'};
   ws.pageSetup.printTitlesRow=`${t}:${t2}`;
   a.input('工程名稱', inp.meta&&inp.meta.project||''); a.input('構件名稱／編號', inp.meta&&inp.meta.member||'');
+  a.input('程式版本／雜湊', inp.meta && inp.meta.version ? `v${inp.meta.version}｜程式 ${inp.meta.codeHash}｜輸入 SHA-256 ${String(inp.meta.inputHash).slice(0,16)}` : '');
   a.input('設計者／檢核者',''); a.input('計算日期／版次', new Date().toLocaleDateString('zh-TW')+'／第 1 版');
   a.chap('一、設計依據');
   a.para('1.1','混凝土結構設計規範（土木401），內政部國土管理署；撓曲、剪力、扭矩、裂縫控制與撓度依該規範（以 ACI 318 為基礎）。',28);

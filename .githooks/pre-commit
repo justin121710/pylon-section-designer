@@ -6,6 +6,11 @@ ROOT=$(git rev-parse --show-toplevel) || exit 1
 cd "$ROOT" || exit 1
 sh docs/tutorial/check.sh >/dev/null 2>&1 && exit 0
 
+# 本機沒有建置工具時：RCSD_SKIP_PDF=1 git commit … 可略過，推送後由 CI（tutorial-pdf.yml）重建並推回
+if [ "${RCSD_SKIP_PDF:-0}" = "1" ]; then
+  echo "! 略過操作教學 PDF 重建（RCSD_SKIP_PDF=1）：推送後由 GitHub Actions 重建並推回本分支"; exit 0
+fi
+
 # 只有部分暫存時無法保證建置內容等於提交內容
 for f in $(grep -v '^#' docs/tutorial/inputs.txt | sed '/^[[:space:]]*$/d'); do
   if ! git diff --quiet -- "$f"; then

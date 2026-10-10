@@ -19,7 +19,7 @@ function item(wb, label){
   return out;
 }
 
-test('Excel 計算書與網頁一致（C1～C4、H2、H5、M1～M8）', {skip: !hasSoffice && '未安裝 LibreOffice（soffice）'}, async () => {
+test('Excel 計算書與網頁一致（C1～C4、H2、H5、M1～M9）', {skip: !hasSoffice && '未安裝 LibreOffice（soffice）'}, async () => {
   const app = await openApp(), page = app.page;
   const exportAs = async name => {
     const [dl] = await Promise.all([page.waitForEvent('download', {timeout:120000}), page.click('#btnXlsx')]);
@@ -75,10 +75,15 @@ test('Excel 計算書與網頁一致（C1～C4、H2、H5、M1～M8）', {skip: !
       drawLoads(); render(); });
     web.pair = await page.evaluate(() => MODEL.res.map(q => ({dc: q.dc, dx: q.Lk.slx.d, dy: q.Lk.sly.d})));
     await exportAs('pair');
+    // M9：低軸壓但非地震剪力控制 → 保留 V_c；第 2 組地震控制 → V_c = 0
+    await page.evaluate(() => { applyPreset('bldg60'); document.getElementById('vcRule').value = 'ab';
+      LOADS = [{name:'A', Pu:30, Mux:20, Muy:0, Vux:0, Vuy:200, Tu:0}, {name:'B', Pu:30, Mux:20, Muy:0, Vux:0, Vuy:10, Tu:0}]; drawLoads(); render(); });
+    web.vc = await page.evaluate(() => MODEL.shY.all.map(c => c.V.vc/1000));
+    await exportAs('vc');
   }finally{ await app.close(); }
 
   const out = path.join(TMP, 'out');
-  execFileSync('soffice', ['--headless', '--convert-to', 'xlsx', '--outdir', out, ...['rect', 'tors', 'beam', 'slBr', 'slBd', 'deck', 'edge', 'br', 'flat', 'pair'].map(n => path.join(TMP, n + '.xlsx'))],
+  execFileSync('soffice', ['--headless', '--convert-to', 'xlsx', '--outdir', out, ...['rect', 'tors', 'beam', 'slBr', 'slBd', 'deck', 'edge', 'br', 'flat', 'pair', 'vc'].map(n => path.join(TMP, n + '.xlsx'))],
     {stdio:'ignore', timeout:300000});
   const load = async n => { const wb = new ExcelJS.Workbook(); await wb.xlsx.readFile(path.join(out, n + '.xlsx')); return wb; };
   const near = (a, b, rel, msg) => assert.ok(Math.abs(a - b) <= rel*Math.abs(b), `${msg}：Excel ${a}，網頁 ${b}`);
@@ -127,6 +132,11 @@ test('Excel 計算書與網頁一致（C1～C4、H2、H5、M1～M8）', {skip: !
   const flat = await load('flat');
   near(val(flat.getWorksheet('載重組合').getCell('M4').value), web.flat, 0.01, '寬扁斷面低軸壓 D/C（有限值）');
 
+  const vcS = (await load('vc')).getWorksheet('載重組合');
+  assert.ok(web.vc[0] > 0 && web.vc[1] === 0, 'M9 前提');
+  // LibreOffice 存回之公式結果為 0 時，ExcelJS 讀不到 result 欄位 → 視為 0
+  const num0 = c => { const v = c.value; return (v && typeof v === 'object' && 'formula' in v && !('result' in v)) ? 0 : val(v); };
+  web.vc.forEach((v, i) => { const x = num0(vcS.getCell('R' + (4 + i))); assert.ok(Math.abs(x - v) <= 0.005*Math.max(1, v), `M9 第 ${i+1} 組 Y 向 V_c：Excel ${x}，網頁 ${v}`); });
   const pr = (await load('pair')).getWorksheet('載重組合');
   web.pair.forEach((w, i) => {
     near(val(pr.getCell('AS' + (4 + i)).value), w.dx, 0.002, `頂／底配對第 ${i+1} 列 δx`);

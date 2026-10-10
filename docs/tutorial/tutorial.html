@@ -89,7 +89,7 @@ pre { font-family: "DejaVu Sans Mono", "WenQuanYi Zen Hei Mono", monospace; font
 
 <section class="chap">
   <h2>1. 開啟工具與設定設計對象</h2>
-  <p>開啟網頁後會出現三個步驟的開場視窗（底色不透明，不受背景畫面干擾）：<b>① 設計對象與斷面 → ② 載重組合 → ③ 建議配筋</b>。只要有載重組合，就可以直接求出合格且省料的配筋，選定後才進入主畫面；也可以在任一步按「直接進入主畫面」自行輸入配筋。</p>
+  <p>開啟網頁後會出現三個步驟的開場視窗（底色不透明，不受背景畫面干擾）：<b>① 設計對象與斷面 → ② 載重組合 → ③ 建議配筋</b>。只要有載重組合，就可以直接求出合格且省料的配筋，選定後才進入主畫面；也可以在任一步按「直接進入主畫面」自行輸入配筋；勾選「下次開啟不再顯示」即直接進入主畫面（左上「變更」或狀態列之設計依據、斷面型式切換仍可使用）。</p>
   <figure><img src="img/01-setup.png"><figcaption>圖 1　開場視窗第 ① 步：設計對象與斷面</figcaption></figure>
   <ol>
     <li><span class="n">1</span><b>構件類型</b>：選「柱斷面」或「梁／版斷面」。</li>
@@ -189,6 +189,7 @@ pre { font-family: "DejaVu Sans Mono", "WenQuanYi Zen Hei Mono", monospace; font
     <li><span class="n">1</span>把資料貼進文字框。可以直接從 Excel 複製（Tab 分隔），數字可帶千分位逗號；或用逗號分隔的文字。</li>
     <li><span class="n">2</span>按「套用 CSV」。</li>
   </ol>
+  <p>載重表上方「輸入單位」可切換 tf、tf·m 或 <b>kN、kN·m</b>（SI）；表內數值與 CSV 皆依所選單位，計算核心維持 kgf-cm。</p>
   <pre>柱：名稱,Pu,Mux,Muy,Vux,Vuy,Tu[,位置]   （位置選填：頂／底，或 top／bot）
 梁：名稱,Mu+,Mu-,Vu,Tu      （Mu+、Mu- 皆填絕對值）
 標題列可以留著，會自動略過；空白數值欄視為 0</pre>
@@ -307,7 +308,8 @@ pre { font-family: "DejaVu Sans Mono", "WenQuanYi Zen Hei Mono", monospace; font
 <section class="chap">
   <figure><img src="img/17-report-sl.png"><figcaption>圖 18　計算書內容：每條公式展開「公式 → 代入 → 化簡 → 單位」</figcaption></figure>
   <p>計算書每條公式展開四層，方便審查者逐式手算複核。內容依序為斷面與材料、配筋圖、P-M、剪力與扭矩、圍束、軸向配置、伸展與搭接、<b>長細效應判定</b>、附註與簽署欄。</p>
-  <div class="warn"><b>斷網時</b>若公式元件沒有載入，按列印會先跳出「計算書公式無法排版」，可取消、連網並重新整理後再印；選「仍要列印」則公式會以原始碼印出。</div>
+  <div class="warn"><b>需確認項目</b>判定列「需確認」不為 0 時（本工具未涵蓋之檢核、「注意」級警示），按列印會先跳出提醒：請到「警示」分頁逐項檢視並勾選，全部確認後才能列印；預覽頂端會標示未完成。</div>
+  <div class="note"><b>可追溯性</b>計算書表頭印出程式版本、程式碼雜湊與輸入 SHA-256；公式元件與 Excel 函式庫隨附於 <code>vendor/</code>，離線或公司內網亦可排版與匯出（只帶走 <code>index.html</code> 時才需連 CDN）。</div>
 </section>
 
 <section class="chap">
@@ -335,6 +337,12 @@ pre { font-family: "DejaVu Sans Mono", "WenQuanYi Zen Hei Mono", monospace; font
     <li>按「<b>儲存案件</b>」下載 <code>.json</code>：交付複核、留存版次、換電腦都靠它。建議每根構件存一個檔，例如 <code>C1.json</code>。</li>
     <li>按「<b>開啟案件</b>」選擇 .json，即可還原完全相同的輸入（含載重、自訂繫筋位置、輸出項目選擇）。</li>
     <li>瀏覽器封鎖本機儲存（無痕模式、封鎖網站資料、空間已滿）時，頂列會常駐顯示「⚠ 本機自動保存無法使用，請記得按『儲存案件』」。</li>
+  </ul>
+  <h3>構件清單（多構件）</h3>
+  <ul>
+    <li>按頂列「<b>構件清單</b>」，以「加入／更新目前構件」將目前輸入存成一筆（以構件名稱＋模組為鍵，重複加入即更新）。</li>
+    <li>「<b>批次計算總表</b>」逐一套用每筆構件並列出撓曲 D/C、不合格與需確認項數，完成後還原原本畫面；可「總表匯出 CSV」或「批次匯出 Excel」（逐構件一份計算書）。</li>
+    <li>按構件列的「開啟」即可還原該構件繼續編修；構件清單也會隨「儲存案件」一併存入 .json。</li>
   </ul>
   <h3>切換範本的保護</h3>
   <figure><img src="img/20-preset-ask.png"><figcaption>圖 21　切換範本前的確認視窗</figcaption></figure>
@@ -417,7 +425,8 @@ pre { font-family: "DejaVu Sans Mono", "WenQuanYi Zen Hei Mono", monospace; font
   <table>
     <tr><th style="width:52mm">現象</th><th style="width:48mm">可能原因</th><th>處理方式</th></tr>
     <tr><td>計算書公式顯示為原始碼，或列印時跳出「公式無法排版」</td><td>斷網或 CDN 被防火牆擋住</td><td>連網後重新整理頁面再列印</td></tr>
-    <tr><td>匯出 Excel 失敗</td><td>斷網或 CDN 被擋</td><td>換網路後重試</td></tr>
+    <tr><td>匯出 Excel 失敗</td><td>只帶走 <code>index.html</code>、缺 <code>vendor/</code>，且無法連 CDN</td><td>與 <code>vendor/</code> 一起放置，或換網路後重試</td></tr>
+    <tr><td>按列印跳出「尚有需確認項目未完成」</td><td>需確認項目尚未勾選</td><td>到警示分頁逐項勾選</td></tr>
     <tr><td>換範本時跳出「覆蓋目前的輸入」</td><td>輸入已和範本不同</td><td>要保留就選「先儲存再套用」</td></tr>
     <tr><td>CSV 套用後提示「略過 N 行」</td><td>標題列、欄位不足或數值不是數字</td><td>依提示的行號修正後重貼；標題列可忽略</td></tr>
     <tr><td>頂列顯示「本機自動保存無法使用」</td><td>無痕模式或瀏覽器封鎖網站資料</td><td>改用一般視窗，或記得手動「儲存案件」</td></tr>
