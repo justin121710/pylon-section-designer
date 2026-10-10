@@ -306,7 +306,7 @@ function buildColumn(ExcelJS, inp){
   S.item({key:'pmaxf', label:'最大軸力截斷係數', sym:'—', v:inp.pmaxf, unit:'×Po', kind:'in', fmt:'0.00', ref:ref401('22.4.2.1'),
     crit:'橫箍 0.80、螺箍 0.85', note:'橫箍柱 Pn,max = 0.80Po；螺箍柱 0.85Po（土木401 §22.4.2.1）。'});
   S.item({key:'alpha', label:'雙軸載重輪廓指數 α', sym:'α', v:inp.alpha, unit:'無因次', kind:'in', fmt:'0.00',
-    crit:"Pu < 0.1f'c·Ag 時採載重輪廓法", ref:'非規範明列條文，係 PCA 載重輪廓法（Bresler 載重輪廓）慣用作法；α = 1.0 為保守值'});
+    crit:"雙軸參考值：Pu < 0.1f'c·Ag 時之載重輪廓法（判定採旋轉中性軸精確解）", ref:'非規範明列條文，係 PCA 載重輪廓法（Bresler 載重輪廓）慣用作法；α = 1.0 為保守值'});
 
   /* ---------------- 三、主筋與橫向鋼筋 ---------------- */
   S.section('【三、主筋與橫向鋼筋配置】');
@@ -397,23 +397,63 @@ function buildColumn(ExcelJS, inp){
   S.item({key:'slFr', label:'側向位移支撐（長細效應）', v:inp.slSway===false?'無側移':'有側移', kind:'list', list:['有側移','無側移'],
     crit:'有側移＝無側向位移支撐；無側移＝有側向位移支撐', ref:ref401('6.2.5.1')+'；公路橋梁設計規範 §7.3.5.2',
     note:'有側移＝無側向位移支撐；無側移＝有側向位移支撐。樓層橫撐構件總勁度至少為該樓層所有柱側向勁度之 12 倍時，得視為有側向位移支撐（土木401-112 §6.2.5.1）。'});
-  S.item({key:'slK', label:'有效長度係數 k', sym:'k', v:inp.slK??1, unit:'無因次', kind:'in', fmt:'0.00', crit:'X、Y 兩向共用', ref:ref401('6.2.5.1'),
+  S.item({key:'slK', label:'有效長度係數 kx（繞 X 軸）', sym:'kx', v:inp.slK??1, unit:'無因次', kind:'in', fmt:'0.00', crit:'繞 X 軸彎曲（Mux）', ref:ref401('6.2.5.1'),
     note:'請依構架分析決定；第一次近似分析時可取 1.0（解說 R6.2.5）；橋梁有支撐構材除經分析外應為 1.0（公路橋梁設計規範 §7.3.5.2(3)）；懸臂柱理論值 2.0。'});
-  S.item({key:'slM12', label:'端彎矩比 M1/M2（無側移）', sym:'M1/M2', v:inp.slM12??-1, unit:'無因次', kind:'in', fmt:'0.00', crit:'土木401-112 慣例：單曲率為負、雙曲率為正，−1～1（橋梁 M1b/M2b = −本值）', ref:ref401('6.2.5.1')});
+  S.item({key:'slKy', label:'有效長度係數 ky（繞 Y 軸）', sym:'ky', v:inp.slKy??inp.slK??1, unit:'無因次', kind:'in', fmt:'0.00', crit:'繞 Y 軸彎曲（Muy）', ref:ref401('6.2.5.1')});
+  S.item({key:'slLuY', label:'柱淨高 lu,y（繞 Y 軸；0＝同 lu）', sym:'lu,y', v:inp.slLuY||0, unit:'cm', kind:'in', fmt:'#,##0', ref:ref401('6.2.5.1')});
+  S.item({key:'luY', label:'　計算用 lu,y', sym:'lu,y', f:'IF({slLuY}>0,{slLuY},{lu})', unit:'cm', fmt:'#,##0', ref:'—'});
+  S.item({key:'slM12', label:'端彎矩比 M1/M2', sym:'M1/M2', v:inp.slM12??-1, unit:'無因次', kind:'in', fmt:'0.00', crit:'土木401-112 慣例：單曲率為負、雙曲率為正，−1～1（橋梁 M1b/M2b = −本值）；無側移之門檻與彎矩放大之 Cm', ref:ref401('6.2.5.1、6.6.4.5.3')});
+  S.item({key:'slTr', label:'二階效應處理方式', v:inp.slTreat==='second'?'已含二階':'一階（本表放大）', kind:'list', list:['一階（本表放大）','已含二階'],
+    crit:'長細效應不可忽略時：一階＝以彎矩放大法放大 Mu；已含二階＝輸入已含 P-Δ 與 P-δ，不放大', ref:ref401('6.6.4')+'；公路橋梁設計規範 §7.3.5.2(5)'});
+  S.item({key:'slBeta', label:'持續載重比 β', sym:'β', v:inp.slBeta??0.6, unit:'無因次', kind:'in', fmt:'0.00', crit:'建築 βdns；橋梁 βd（靜重彎矩／總載重彎矩）', ref:ref401('6.6.4.4.4')+'；公路橋梁設計規範 式 7-31、7-32'});
+  S.item({key:'slQ', label:'樓層穩定指數 Q（0＝以本柱 Pc 計）', sym:'Q', v:inp.slQ||0, unit:'無因次', kind:'in', fmt:'0.000', crit:'建築有側移 δs = 1/(1 − Q)，δs ≦ 1.5 時適用', ref:ref401('6.6.4.6.2')});
   S.item({key:'slRx', label:'迴轉半徑 rx（繞 X 軸，沿 H 向）', sym:'rx', unit:'cm', fmt:'0.00',
     f:'IF({isCirc}=1,0.25*{Din},IF({isBox}=1,SQRT(({Be}*{He}^3-MAX(0,{Be}-2*{tw})*MAX(0,{He}-2*{tw})^3)/12/{Ag}),0.3*{He}))',
     expr:'矩形 0.30H；圓形 0.25D；箱型 √(Ig/Ag)', ref:ref401('6.2.5.2')});
   S.item({key:'slRy', label:'迴轉半徑 ry（繞 Y 軸，沿 B 向）', sym:'ry', unit:'cm', fmt:'0.00',
     f:'IF({isCirc}=1,0.25*{Din},IF({isBox}=1,SQRT(({He}*{Be}^3-MAX(0,{He}-2*{tw})*MAX(0,{Be}-2*{tw})^3)/12/{Ag}),0.3*{Be}))',
     expr:'矩形 0.30B；圓形 0.25D；箱型 √(Ig/Ag)', ref:ref401('6.2.5.2')});
+  S.item({key:'slLamX', label:'長細比 kx·lu/rx（繞 X 軸）', sym:'k·lu/r', unit:'無因次', fmt:'0.0', f:'{slK}*{lu}/{slRx}', ref:ref401('6.2.5.1')});
+  S.item({key:'slLamY', label:'長細比 ky·lu,y/ry（繞 Y 軸）', sym:'k·lu/r', unit:'無因次', fmt:'0.0', f:'{slKy}*{luY}/{slRy}', ref:ref401('6.2.5.1')});
   S.item({key:'slLam', label:'長細比 k·lu/r（兩向取大）', sym:'k·lu/r', unit:'無因次', fmt:'0.0',
-    f:'{slK}*{lu}/MIN({slRx},{slRy})', expr:'k·lu / min(rx, ry)', ref:ref401('6.2.5.1')});
+    f:'MAX({slLamX},{slLamY})', expr:'max(kx·lu/rx, ky·lu,y/ry)', ref:ref401('6.2.5.1')});
   S.item({key:'slLim', label:'可忽略長細效應之上限', sym:'—', unit:'無因次', fmt:'0.0',
     f:'IF({slFr}="無側移",IF({isBldg}=1,MIN(34+12*MAX(-1,MIN(1,{slM12})),40),34+12*MAX(-1,MIN(1,{slM12}))),22)',
     expr:'建築：有側移 22；無側移 min(34 + 12·M1/M2, 40)。橋梁：有側移 22；無側移 34 − 12(M1b/M2b)，無 40 上限', ref:ref401('6.2.5.1')+'；公路橋梁設計規範 §7.3.5.2(4)'});
-  S.item({key:'slOK', label:'　旗標：可忽略長細效應', f:'IF({isBldg}=1,--({slLam}<={slLim}),--({slLam}<{slLim}))', expr:'建築 ≦；橋梁 <', ref:'—'});
-  S.item({key:'slJ', label:'長細效應', sym:'—', unit:'—', f:'IF(AND({isBldg}=0,{slLam}>100),"kl/r > 100：須二階分析（§7.3.5.1）",IF({slOK}=1,"可忽略","須考慮（Pu、Mu 須含二階效應）"))',
-    crit:'超過上限時：Pu、Mu 須為含二階效應之分析結果（建築另須二階彎矩 ≦ 1.4 倍一階彎矩）', ref:ref401('6.2.5.1、6.2.5.3')+'；公路橋梁設計規範 §7.3.5.2'});
+  S.item({key:'slNX', label:'　旗標：繞 X 軸須考慮', f:'IF({isPile}=1,0,IF({isBldg}=1,--({slLamX}>{slLim}),--({slLamX}>={slLim})))', expr:'建築 >；橋梁 ≧', ref:'—'});
+  S.item({key:'slNY', label:'　旗標：繞 Y 軸須考慮', f:'IF({isPile}=1,0,IF({isBldg}=1,--({slLamY}>{slLim}),--({slLamY}>={slLim})))', ref:'—'});
+  S.item({key:'slOK', label:'　旗標：可忽略長細效應', f:'--AND({slNX}=0,{slNY}=0)', ref:'—'});
+  S.item({key:'slMag', label:'　旗標：以彎矩放大法放大', f:'--AND({slOK}=0,{slTr}="一階（本表放大）",{isPile}=0)', ref:'—'});
+  S.item({key:'IgX', label:'Ig（繞 X 軸）', sym:'Igx', unit:'cm⁴', fmt:'#,##0',
+    f:'IF({isCirc}=1,PI()*{Din}^4/64,({Be}*{He}^3-IF({isBox}=1,MAX(0,{Be}-2*{tw})*MAX(0,{He}-2*{tw})^3,0))/12)', ref:ref401('6.6.3.1.1')});
+  S.item({key:'IgY', label:'Ig（繞 Y 軸）', sym:'Igy', unit:'cm⁴', fmt:'#,##0',
+    f:'IF({isCirc}=1,PI()*{Din}^4/64,({He}*{Be}^3-IF({isBox}=1,MAX(0,{He}-2*{tw})*MAX(0,{Be}-2*{tw})^3,0))/12)', ref:ref401('6.6.3.1.1')});
+  S.item({key:'slCm', label:'Cm', sym:'Cm', unit:'無因次', fmt:'0.000', f:'IF({isBldg}=1,0.6-0.4*{slM12},MAX(0.4,0.6+0.4*(-{slM12})))',
+    expr:'建築 0.6 − 0.4M1/M2（§6.6.4.5.3a）；橋梁 0.6 + 0.4M1b/M2b ≧ 0.4（式 7-33）', ref:ref401('6.6.4.5.3')+'；公路橋梁設計規範 §7.3.5.2(5)'});
+  S.item({key:'slKf', label:'勁度折減係數（0.75 或 φ）', sym:'K', unit:'無因次', fmt:'0.00', f:'IF({isBldg}=1,0.75,{phic})', expr:'建築 0.75（式 6.6.4.5.2）；橋梁 φ（式 7-28、7-29，取 φc）', ref:ref401('6.6.4.5.2')});
+  for(const [ax,Ig,k,lu] of [['X','{IgX}','{slK}','{lu}'],['Y','{IgY}','{slKy}','{luY}']]){
+    // 無側移型（建築 δns；橋梁 δb）：有側移構架時以 k = 1.0；有側移型（δs）：建築 βds = 0
+    S.item({key:'PcN'+ax, label:`Pc（${ax} 向，δns／δb 用）`, sym:'Pc', unit:'tf', fmt:'#,##0',
+      f:`PI()^2*IF({isBldg}=1,0.4*{Ec}*${Ig}/(1+{slBeta}),{Ec}*${Ig}/2.5/(1+{slBeta}))/(IF({slFr}="有側移",1,${k})*${lu})^2/1000`,
+      expr:'π²EI/(k·lu)²；建築 (EI)eff = 0.4EcIg/(1+βdns)；橋梁 EI = (EcIg/2.5)/(1+βd)；有側移時 k 取 1.0', ref:ref401('6.6.4.4.2、6.6.4.4.4')+'；公路橋梁設計規範 式 7-30、7-32'});
+    S.item({key:'PcS'+ax, label:`Pc（${ax} 向，δs 用）`, sym:'Pc', unit:'tf', fmt:'#,##0',
+      f:`PI()^2*IF({isBldg}=1,0.4*{Ec}*${Ig},{Ec}*${Ig}/2.5/(1+{slBeta}))/(${k}*${lu})^2/1000`,
+      expr:'建築 βds = 0；以本柱 Pc 代替 ΣPc', ref:ref401('6.6.4.6.2')+'；公路橋梁設計規範 式 7-29'});
+  }
+  S.item({key:'slDmax', label:'彎矩放大係數 δ（各組合最大）', sym:'δ', unit:'無因次', fmt:FMT_INF, f:"MAX('載重組合'!AS4:AT"+(3+NCB)+')', ref:ref401('6.6.4')});
+  S.item({key:'slJ', label:'長細效應', sym:'—', unit:'—',
+    f:'IF({isPile}=1,"不適用（基樁）",IF(AND({isBldg}=0,{slLam}>100),"kl/r > 100：須二階分析（§7.3.5.1）",IF({slOK}=1,"可忽略",IF({slTr}="已含二階","須考慮：輸入已含二階效應","彎矩放大（δ 詳「載重組合」AS、AT 欄）"))))',
+    crit:'不可忽略時以彎矩放大法放大一階彎矩，或聲明輸入已含二階效應；建築二階彎矩 ≦ 1.4 倍一階（§6.2.5.3）', ref:ref401('6.2.5、6.6.4')+'；公路橋梁設計規範 §7.3.5.2'});
+  // 強柱弱梁（建築特殊抗彎矩構架柱，§18.4.3.2）
+  S.item({key:'scwbNc', label:'構入接頭之柱數', v:inp.scwbNc||2, unit:'根', kind:'in', fmt:'0', crit:'上、下皆有柱 2；頂層 1', ref:ref401('18.4.3.2')});
+  S.item({key:'scwbMbX', label:'接頭梁 ΣMnb（繞 X 軸）', sym:'ΣMnb', v:inp.scwbMbX||0, unit:'tf·m', kind:'in', fmt:'#,##0.0', crit:'0＝未輸入', ref:ref401('18.4.3.2')});
+  S.item({key:'scwbMbY', label:'接頭梁 ΣMnb（繞 Y 軸）', sym:'ΣMnb', v:inp.scwbMbY||0, unit:'tf·m', kind:'in', fmt:'#,##0.0', crit:'0＝未輸入', ref:ref401('18.4.3.2')});
+  S.item({key:'scwbMncX', label:'Mnc（繞 X 軸，各組合軸力下最小）', sym:'Mnc', unit:'tf·m', fmt:'#,##0.0', f:"MIN('載重組合'!AB4:AB"+(3+NCB)+')', ref:ref401('18.4.3.2')});
+  S.item({key:'scwbMncY', label:'Mnc（繞 Y 軸，各組合軸力下最小）', sym:'Mnc', unit:'tf·m', fmt:'#,##0.0', f:"MIN('載重組合'!AC4:AC"+(3+NCB)+')', ref:ref401('18.4.3.2')});
+  S.item({key:'scwbEx', label:'　旗標：軸壓 ≦ Agf′c/10 得免', f:"--(MAX('載重組合'!B4:B"+(3+NCB)+')<={Ag}*{fc}/10/1000)', ref:ref401('18.4.3.2')});
+  S.item({key:'scwbJ', label:'強柱弱梁', sym:'ΣMnc ≧ 1.2ΣMnb', unit:'—',
+    f:'IF(OR({isBldg}=0,{isPH}=0),"不適用",IF({scwbEx}=1,"得免（軸壓 ≦ Agf′c/10）",IF(OR({scwbMbX}<=0,{scwbMbY}<=0),"未輸入 ΣMnb（須另行檢核）",IF(AND({scwbNc}*{scwbMncX}>=1.2*{scwbMbX},{scwbNc}*{scwbMncY}>=1.2*{scwbMbY}),"符合","不符"))))',
+    crit:'ΣMnc = 柱數 × Mnc ≧ (6/5)ΣMnb；不符時柱之側向強度與勁度不得計入（§18.4.3.3）', ref:ref401('18.4.3.2')});
   S.item({key:'theta', label:'扭矩桁架角 θ', sym:'θ', v:inp.theta, unit:'°', kind:'in', fmt:'0', crit:'非預力構材取 45°', ref:ref401('22.7.6.1.2')});
   S.item({key:'pair', label:'Ash 之 bc 配對', v:inp.ashPerp?'垂直（肢的跨距）':'平行（量至肢外緣）', kind:'list', list:['垂直（肢的跨距）','平行（量至肢外緣）'],
     crit:'解說 R18.4.5.4：bc 為垂直構成 Ash 之箍筋肢之核心尺度（＝垂直）；「平行」僅供比較', ref:ref401('18.4.5.4、解說 R18.4.5.4'),
@@ -436,8 +476,8 @@ function buildColumn(ExcelJS, inp){
   S.item({key:'cap', label:'設計最大軸力', sym:'φPn,max', f:'IF({isPile}=1,0.55*0.8*{Po},{phic}*{pmaxf}*{Po})', unit:'tf', fmt:'#,##0', expr:'φc × 截斷係數 × Po；基樁 0.55 × 0.80 × Po', ref:'土木401-112 §22.4.2.1、表 13.4.3.2(a)、表 22.4.2.1(e)'});
   S.item({key:'Pnt', label:'純拉標稱強度', sym:'Pnt', f:'-{fy}*{Ast}/1000', unit:'tf', fmt:'#,##0', expr:'−fy·Ast', ref:ref401('22.4.3')});
   S.item({key:'phiPnt', label:'設計純拉強度', sym:'φPnt', f:'{phit}*{Pnt}', unit:'tf', fmt:'#,##0', ref:ref401('21.2.2')});
-  S.item({key:'Pbr', label:'Bresler／載重輪廓分界', sym:"0.1f'cAg", f:'0.1*{fc}*{Ag}/1000', unit:'tf', fmt:'#,##0',
-    expr:"Pu ≧ 0.1f'c·Ag 用 Bresler 倒數式，否則用載重輪廓法", ref:'非規範明列條文，係雙軸彎曲慣用分界（Bresler 倒數式之適用範圍）'});
+  S.item({key:'Pbr', label:'Bresler／載重輪廓分界（參考值用）', sym:"0.1f'cAg", f:'0.1*{fc}*{Ag}/1000', unit:'tf', fmt:'#,##0',
+    expr:"雙軸判定採旋轉中性軸精確解（網頁計算之匯出值）；參考值：Pu ≧ 0.1f'c·Ag 用 Bresler 倒數式，否則用載重輪廓法", ref:'非規範明列條文，係雙軸彎曲慣用分界（Bresler 倒數式之適用範圍）'});
   S.item({key:'DCmax', label:'撓曲應力比 D/C（各組合最大）', sym:'D/C', f:"MAX('載重組合'!M4:M"+(3+NCB)+')', unit:'無因次', fmt:FMT_INF,
     expr:'定偏心射線法：載重點沿 (Mu, Pu) 射線與 φ 包絡線交點', crit:'≦ 1.0 合格', ref:ref401('22.4、10.5.1')});
   S.item({key:'DCctrl', label:'控制組合', f:"IFERROR(INDEX('載重組合'!A4:A"+(3+NCB)+",MATCH({DCmax},'載重組合'!M4:M"+(3+NCB)+',0)),"—")', expr:'D/C 最大者', ref:'—'});
@@ -620,8 +660,11 @@ function buildColumn(ExcelJS, inp){
   addSum({label:'橋梁主筋材質 fy（SD420W／SD280W）', need:'—', cap:{f:'{fy}'}, ratio:'—', judge:{f:'IF({isBldg}=1,"N/A",IF(OR({fy}=4200,{fy}=2800),"PASS","FAIL"))'}, note:'須為 CNS 560 W 級（可銲）', ref:'公路橋梁耐震設計規範 §5.2', fmt:'0'});
   addSum({label:'橋梁圍束筋 fyt ≦ 主筋 fy', need:{f:'{fyt}'}, cap:{f:'{fy}'}, ratio:{f:'{fyt}/{fy}'}, judge:{f:'IF(OR({isBldg}=1,{isPH}=0),"N/A",IF({fyt}<={fy},"PASS","FAIL"))'}, ref:'公路橋梁耐震設計規範 §5.3.4', fmt:'0'});
   addSum({label:'橋梁 柱淨高／斷面深度', need:2.5, cap:{f:'{lu}/MIN({Be},{He})'}, ratio:{f:'2.5/({lu}/MIN({Be},{He}))'}, judge:{f:'IF({isBldg}=1,"N/A",IF({lu}/MIN({Be},{He})>=2.5,"PASS","FAIL"))'}, note:'< 2.5 應視為壁式橋墩（本表未涵蓋）', ref:'公路橋梁耐震設計規範 §5.1、§5.8', fmt:'0.00'});
-  addSum({label:'長細比 k·lu/r', need:{f:'{slLam}'}, cap:{f:'{slLim}'}, ratio:{f:'{slLam}/{slLim}'}, judge:{f:'IF({isPile}=1,"N/A",IF(AND({isBldg}=0,{slLam}>100),"FAIL",IF({slOK}=1,"PASS","二階")))'},
-    note:'「二階」＝長細效應不可忽略：Pu、Mu 須含二階效應（不計入總判定 FAIL）；橋梁 kl/r > 100 判 FAIL（須依 §7.3.5.1 分析）', ref:ref401('6.2.5.1、6.2.5.3')+'；公路橋梁設計規範 §7.3.5.2', fmt:'0.0'});
+  addSum({label:'強柱弱梁 ΣMnc ≧ 1.2ΣMnb', need:{f:'1.2*MAX({scwbMbX},{scwbMbY})'}, cap:{f:'{scwbNc}*MIN({scwbMncX},{scwbMncY})'}, ratio:{f:'IFERROR(1.2*MAX({scwbMbX},{scwbMbY})/({scwbNc}*MIN({scwbMncX},{scwbMncY})),0)'},
+    judge:{f:'IF(OR({isBldg}=0,{isPH}=0),"N/A",IF({scwbEx}=1,"PASS",IF(OR({scwbMbX}<=0,{scwbMbY}<=0),"未輸入",IF({scwbJ}="符合","PASS","FAIL"))))'},
+    note:'建築特殊抗彎矩構架柱；「未輸入」＝未輸入接頭梁 ΣMnb，須另行檢核（不計入總判定 FAIL）', ref:ref401('18.4.3.2'), fmt:'#,##0.0'});
+  addSum({label:'長細比 k·lu/r', need:{f:'{slLam}'}, cap:{f:'{slLim}'}, ratio:{f:'{slLam}/{slLim}'}, judge:{f:'IF({isPile}=1,"N/A",IF(AND({isBldg}=0,{slLam}>100),"FAIL",IF({slOK}=1,"PASS",IF({slTr}="已含二階","二階",IF(OR({slDmax}>=1E9,AND({isBldg}=1,{slDmax}>1.4)),"FAIL","PASS")))))'},
+    note:'不可忽略時：一階輸入以彎矩放大法放大後由撓曲 D/C 檢核（建築 δ > 1.4 或構材挫屈判 FAIL）；「二階」＝設計者聲明輸入已含二階效應；橋梁 kl/r > 100 判 FAIL（須依 §7.3.5.1 分析）', ref:ref401('6.2.5.1、6.2.5.3')+'；公路橋梁設計規範 §7.3.5.2', fmt:'0.0'});
   addSum({label:'橋梁保護層 箍筋／主筋（cm）', need:{f:'IF({isBldg}=1,0,{brTie})'}, cap:{f:'{covO}'}, ratio:{f:'IF({isBldg}=1,0,MAX({brTie}/{covO},{brMain}/({covO}+{dt})))'},
     judge:{f:'IF({isBldg}=1,"N/A",IF(AND({covO}>={brTie}-1E-9,{covO}+{dt}>={brMain}-1E-9),"PASS","FAIL"))'}, note:'箍筋保護層 = co；主筋保護層 = co + dt', ref:'公路橋梁設計規範 §7.1.5 表 7.2'});
   { const PJ = c => ({f:`IF({isPile}=0,"N/A",IF(${c},"PASS","FAIL"))`}), RB = '建築物基礎構造設計規範 §5.6.3';
@@ -652,8 +695,8 @@ function buildColumn(ExcelJS, inp){
   /* ---------------- 十、注意事項 ---------------- */
   S.section('【十、注意事項與使用說明】');
   S.text('色碼圖例：淺藍底＋藍字粗體＋藍框＝手動輸入格；黃底＋藍字粗體＋金框＝附下拉選單之輸入格（可輸入表列外之值）；白底黑字細灰框＝公式；綠字＝連結其他工作表；淺琥珀底＝總判定。', {h:32});
-  S.text('1. P-M 互制以中性軸深度 c 於 0.02D～5D 對數取樣 '+NPM+' 點，等值應力塊 a = min(β₁c, D)；與網頁（220 點）之 D/C 可能於小數第三位有差。雙軸載重輪廓法以 '+NIT+' 次二分迭代求解。', {h:30});
-  S.text('2. 長細效應只判定可否忽略（第四節；建築依土木401-112 §6.2.5.1，橋梁依公路橋梁設計規範 §7.3.5.2），不計算彎矩放大：不可忽略時，輸入之 Pu、Mu 須為已含二階效應（P-Δ）之分析結果。塑性形心僅對對稱配筋成立。', {h:30});
+  S.text('1. P-M 互制以中性軸深度 c 於 0.02D～5D 對數取樣 '+NPM+' 點，等值應力塊 a = min(β₁c, D)；與網頁（220 點）之 D/C 可能於小數第三位有差。雙軸 D/C 採網頁旋轉中性軸精確解之匯出值（修改輸入不重算）；參考用之載重輪廓法以 '+NIT+' 次二分迭代求解。', {h:40});
+  S.text('2. 長細效應（第四節）：不可忽略時，一階分析之 Mu 以彎矩放大法放大（建築 §6.6.4；橋梁公路橋梁設計規範 §7.3.5.2(5)，「載重組合」AS～AV 欄）後檢核，或由設計者聲明輸入已含二階效應。塑性形心僅對對稱配筋成立。', {h:30});
   S.text("3a. 橋梁剪力依公路橋梁耐震設計規範 §5.3.3：φ = 0.85；塑鉸區 Vc = 0.53(0.33 + F)√f'c·Ae、非塑鉸區 0.53(1 + F)√f'c·Ae（Ae = 0.8Ag，F = N/140Ag 壓、N/35Ag 拉），Vs ≦ 2.12√f'c·Ae；扭矩仍依土木401。橋梁塑鉸區圍束筋依式 5-5～5-8。", {h:32});
   S.text("3. 建築剪力 Vc 依土木401-112 表 22.5.5.1 式 (a)：Vc = [0.53λ√f'c + Nu/(6Ag)]·bw·d，Nu/(6Ag) ≦ 0.05f'c、Vc ≦ 1.33λ√f'c·bw·d、Vc ≧ 0；箍筋間距恆受 Av,min 控制，故 Av ≧ Av,min 成立（逐組合詳「載重組合」O、R、AI、AJ 欄）。", {h:32});
   S.text('4. Mander 圍束混凝土曲線為參考資訊，未列入本表（不影響設計判定）。扭矩門檻未計軸壓增益（保守）。箱型牆片之 Ash 拆解非規範明列條文，請自行確認。', {h:30});
@@ -1114,15 +1157,17 @@ const POLY_N = NPM + 2;     // 多邊形點數
 /* ---------- 載重組合：輸入＋逐組合 D/C、剪力 ---------- */
 function buildLoadSheet(ws, R, loads){
   const name='載重組合', r = f => ({f:R(f,name)});
-  ws.columns = Array(42).fill(0).map((_,j)=>({width: j===0?22:11}));
+  ws.columns = Array(50).fill(0).map((_,j)=>({width: j===0?22:11}));
   put(ws,'A1','載重組合（已乘載重因數之設計值；Pu 壓為正）',{sec:true});
+  put(ws,'I2','雙軸（兩向彎矩皆非零之矩形／箱型）D/C 採旋轉中性軸精確解，AQ 欄為匯出當下網頁計算值，在 Excel 內修改輸入不會重算；L、AR 欄之 Bresler／PCA 為公式參考值，不作判定。有扭矩須設計之組合，D/C 另取 AX 欄（主筋扣除扭力縱筋 Aℓ 後之網頁值）之較大者。');
   const heads = {A:'組合名稱',B:'Pu (tf)',C:'Mux (tf·m)',D:'Muy (tf·m)',E:'Vux (tf)',F:'Vuy (tf)',G:'Tu (tf·m)',
-    H:'有效：1',I:'X 射線 D/C',J:'Y 射線 D/C',K:'方法',L:'Bresler D/C',M:'D/C',
+    H:'有效：1',I:'X 射線 D/C',J:'Y 射線 D/C',K:'方法',L:'Bresler D/C（參考）',M:'D/C',
     N:'X:Vdes (tf)',O:'X:Vc (tf)',P:'X:Vs 需求 (tf)',Q:'Y:Vdes (tf)',R:'Y:Vc (tf)',S:'Y:Vs 需求 (tf)',
     T:'扭矩須設計',U:'At/s (cm²/cm)',V:'X:(Av/s)tot',W:'Y:(Av/s)tot',X:'X:s 強度 (cm)',Y:'Y:s 強度 (cm)',Z:'X:s 規範 (cm)',AA:'Y:s 規範 (cm)',
     AB:'X:Mn@Pu (tf·m)',AC:'Y:Mn@Pu (tf·m)',AD:'X:Mpr@Pu (tf·m)',AE:'Y:Mpr@Pu (tf·m)',AF:'X 斷面不足',AG:'Y 斷面不足',AH:'s 扭矩 (cm)',
     AI:'一般區 X:Vc (tf)',AJ:'一般區 Y:Vc (tf)',AK:'一般區 X:s 強度',AL:'一般區 Y:s 強度',AM:'一般區 X:s 規範',AN:'一般區 Y:s 規範',
-    AO:'施工偏心 |Pu|·e (tf·m)',AP:'檢核合彎矩 Mr (tf·m)'};
+    AO:'施工偏心 |Pu|·e (tf·m)',AP:'檢核合彎矩 Mr (tf·m)',AQ:'雙軸精確解 D/C（網頁值）',AR:'PCA D/C（參考）',AS:'δx',AT:'δy',AU:'設計 Mux (tf·m)',AV:'設計 Muy (tf·m)',
+    AW:'扭力縱筋 Aℓ,req (cm²，網頁值)',AX:'扣除 Aℓ 後 D/C（網頁值）'};
   Object.entries(heads).forEach(([c,h])=>put(ws,c+'3',h,{head:true}));
   const pmLook = (sheet, Pcol, Mcol, P) => {
     const rng = c => `'${sheet}'!$${c}$${PM_H+1}:$${c}$${PM_H+NPM}`;
@@ -1136,16 +1181,32 @@ function buildLoadSheet(ws, R, loads){
     put(ws,'H'+n,{f:`IF(A${n}="",0,1)`});
     // 基樁施工偏心（圓形）：合彎矩加 |Pu|·e（e 為 cm → /100 換算 m）
     put(ws,'AO'+n, r(`IF(H${n}=1,IF({isCirc}=1,ABS(B${n})*{eP}/100,0),"")`),{fmt:'#,##0.0'});
-    put(ws,'AP'+n, r(`IF(H${n}=1,IF({isCirc}=1,SQRT(C${n}^2+D${n}^2)+AO${n},ABS(C${n})),"")`),{fmt:'#,##0.0'});
+    put(ws,'AP'+n, r(`IF(H${n}=1,IF({isCirc}=1,SQRT(AU${n}^2+AV${n}^2)+AO${n},AU${n}),"")`),{fmt:'#,##0.0'});
     const on = `H${n}=1`;
-    const Mx=`ABS(C${n})`, My=`ABS(D${n})`;
+    // 長細效應：彎矩放大（不可忽略且輸入為一階分析時）；最小偏心距 Pu(1.5 + 0.03h) 兩軸不同時施加
+    for(const [ax,col,Mc,h] of [['X','AS','AU','{He}'],['Y','AT','AV','{Be}']]){
+      const Pu = `B${n}`, amp = (Pc, Cm) => `IF(${Pu}>={slKf}*${Pc},${BIG},MAX(1,${Cm}/(1-${Pu}/({slKf}*${Pc}))))`;
+      const dn = amp(`{PcN${ax}}`, '{slCm}'), ds = amp(`{PcS${ax}}`, '1');
+      const dsB = `IF(AND({slQ}>0,{slQ}<1),IF(1/(1-{slQ})<=1.5,MAX(1,1/(1-{slQ})),${ds}),${ds})`;
+      const d = `IF({slFr}="有側移",IF({isBldg}=1,MIN(${BIG},${dsB}*${dn}),MAX(${dn},${ds})),${dn})`;
+      put(ws,col+n, r(`IF(${on},IF(AND({slMag}=1,{slN${ax}}=1,${Pu}>0),${d},1),"")`),{fmt:FMT_INF});
+    }
+    const M2m = h => `B${n}*(1.5+0.03*${h})/100`, ap = ax => `AND({slMag}=1,{slN${ax}}=1,B${n}>0)`;
+    put(ws,'AU'+n, r(`IF(${on},IF(${ap('X')},IF(AND(ABS(C${n})<1E-9,ABS(D${n})>1E-9),0,AS${n}*MAX(ABS(C${n}),${M2m('{He}')})),ABS(C${n})),"")`),{fmt:'#,##0.0'});
+    put(ws,'AV'+n, r(`IF(${on},IF(${ap('Y')},IF(ABS(D${n})<1E-9,0,AT${n}*MAX(ABS(D${n}),${M2m('{Be}')})),ABS(D${n})),"")`),{fmt:'#,##0.0'});
+    const Mx=`AU${n}`, My=`AV${n}`;
     // 單軸射線 D/C（由「射線交點」取 1/min t）
     put(ws,'I'+n,{f:`IF(${on},'射線交點'!${colL(1+i)}${RAY_DC_ROW},"")`},{fmt:FMT_INF});
     put(ws,'J'+n,{f:`IF(${on},'射線交點'!${colL(1+NCB+i)}${RAY_DC_ROW},"")`},{fmt:FMT_INF});
-    put(ws,'K'+n, r(`IF(NOT(${on}),"",IF({isCirc}=1,"圓形：合彎矩",IF(AND(${Mx}<1E-9,${My}<1E-9),"純軸力",IF(${My}<1E-9,"單軸（繞 X）",IF(${Mx}<1E-9,"單軸（繞 Y）",IF(B${n}>={Pbr},"Bresler 倒數式","PCA 載重輪廓法"))))))`));
-    // Bresler 之 P_o 取未截斷之 φc·Po（以 φPn,max 代入會高估容量）
-    put(ws,'L'+n, r(`IF(K${n}="Bresler 倒數式",IFERROR(B${n}/(1/(1/(B${n}/I${n})+1/(B${n}/J${n})-1/({phic}*{Po}))),${BIG}),"")`),{fmt:FMT_INF});
-    put(ws,'M'+n, {f:`IF(NOT(${on}),"",CHOOSE(MATCH(K${n},{"圓形：合彎矩","純軸力","單軸（繞 X）","單軸（繞 Y）","Bresler 倒數式","PCA 載重輪廓法"},0),ABS(I${n}),ABS(I${n}),I${n},J${n},L${n},'雙軸迭代'!${colL(1+i)}${BIS_DC_ROW}))`},{fmt:FMT_INF});
+    put(ws,'K'+n, r(`IF(NOT(${on}),"",IF({isCirc}=1,"圓形：合彎矩",IF(AND(${Mx}<1E-9,${My}<1E-9),"純軸力",IF(${My}<1E-9,"單軸（繞 X）",IF(${Mx}<1E-9,"單軸（繞 Y）","旋轉中性軸（精確解）")))))`));
+    // 參考值：Bresler（P_o 取未截斷之 φc·Po）／PCA 載重輪廓法；判定採 AQ 欄之精確解（網頁值）
+    put(ws,'L'+n, r(`IF(AND(K${n}="旋轉中性軸（精確解）",B${n}>={Pbr}),IFERROR(B${n}/(1/(1/(B${n}/I${n})+1/(B${n}/J${n})-1/({phic}*{Po}))),${BIG}),"")`),{fmt:FMT_INF});
+    put(ws,'AQ'+n, L && Number.isFinite(L.dcEx) ? L.dcEx : null, {fmt:FMT_INF});
+    put(ws,'AR'+n, r(`IF(AND(K${n}="旋轉中性軸（精確解）",B${n}<{Pbr}),'雙軸迭代'!${colL(1+i)}${BIS_DC_ROW},"")`),{fmt:FMT_INF});
+    // 扭力縱筋（§9.5.4.3、§9.6.4.3）：主筋等比例扣除 max(Aℓ, Aℓ,min) 後之 D/C，為匯出當下網頁計算值
+    put(ws,'AW'+n, L && Number.isFinite(L.AlReq) ? L.AlReq : null, {fmt:'#,##0.0'});
+    put(ws,'AX'+n, L && L.dcT != null ? (Number.isFinite(L.dcT) ? L.dcT : BIG) : null, {fmt:FMT_INF});
+    put(ws,'M'+n, {f:`IF(NOT(${on}),"",MAX(CHOOSE(MATCH(K${n},{"圓形：合彎矩","純軸力","單軸（繞 X）","單軸（繞 Y）","旋轉中性軸（精確解）"},0),ABS(I${n}),ABS(I${n}),I${n},J${n},IF(ISNUMBER(AQ${n}),AQ${n},${BIG})),IF(ISNUMBER(AX${n}),AX${n},0)))`},{fmt:FMT_INF});
     // 剪力（容量設計彎矩之平面配對見「檢核表」Mcd：X 向剪力取 P-M_Y、Y 向剪力取 P-M_X，與網頁 shearMoCurve 相同）
     for(const [ax,V,cVd,cVc,cVs] of [['x','E','N','O','P'],['y','F','Q','R','S']]){
       const Nu=`B${n}*1000`, Vu=`ABS(${V}${n})*1000`;
@@ -1202,7 +1263,7 @@ function buildRaySheet(ws, R){
     for(let i=0;i<NCB;i++){
       const col = colL(1+side*NCB+i), lr = 4+i;
       put(ws,col+'2',{f:`'載重組合'!A${lr}&"${side===0?'（X）':'（Y）'}"`},{head:true});
-      put(ws,col+'3', r(side===0 ? `IF({isCirc}=1,SQRT('載重組合'!C${lr}^2+'載重組合'!D${lr}^2)+N('載重組合'!AO${lr}),ABS('載重組合'!C${lr}))` : `ABS('載重組合'!D${lr})`),{fmt:'#,##0.0'});
+      put(ws,col+'3', r(side===0 ? `IF({isCirc}=1,SQRT('載重組合'!AU${lr}^2+'載重組合'!AV${lr}^2)+N('載重組合'!AO${lr}),N('載重組合'!AU${lr}))` : `N('載重組合'!AV${lr})`),{fmt:'#,##0.0'});
       put(ws,col+'5',{f:`N('載重組合'!B${lr})`},{fmt:'#,##0.0'});
       const Mu=`${col}$3`, Pu=`${col}$5`;
       for(let k=1;k<POLY_N;k++){
@@ -1239,8 +1300,8 @@ function buildBisectSheet(ws, R){
   for(let i=0;i<NCB;i++){
     const col=colL(1+i), lr=4+i;
     put(ws,col+'2',{f:`'載重組合'!A${lr}`},{head:true});
-    put(ws,col+'3',{f:`--AND('載重組合'!H${lr}=1,'載重組合'!K${lr}="PCA 載重輪廓法")`});
-    const Pu=`'載重組合'!$B$${lr}`, Mx=`ABS('載重組合'!$C$${lr})`, My=`ABS('載重組合'!$D$${lr})`;
+    put(ws,col+'3',r(`--AND('載重組合'!H${lr}=1,'載重組合'!K${lr}="旋轉中性軸（精確解）",'載重組合'!B${lr}<{Pbr})`));
+    const Pu=`'載重組合'!$B$${lr}`, Mx=`N('載重組合'!$AU$${lr})`, My=`N('載重組合'!$AV$${lr})`;
     const util = lam => `IF(OR(${phiMnAt('P-M_X',`${lam}*${Pu}`)}<=0,${phiMnAt('P-M_Y',`${lam}*${Pu}`)}<=0),1E9,(${lam}*${Mx}/(${phiMnAt('P-M_X',`${lam}*${Pu}`)}))^{alpha}+(${lam}*${My}/(${phiMnAt('P-M_Y',`${lam}*${Pu}`)}))^{alpha})`;
     for(let j=0;j<NIT;j++){
       const b=B0+4*j;
@@ -1354,9 +1415,9 @@ function buildA4Column(ws, S, R, inp, jRow, sumRows){
 
   a.chap('三、設計假設');
   a.para('3.1','P-M 互制採應變相容與等值矩形應力塊（土木401 §22.2），a = min(β₁c, D)；純壓、純拉點直接以 Po、−fy·Ast 接上。',28);
-  a.para('3.2',{f:'"雙軸彎曲：Pu ≧ 0.1f\'c·Ag = "&TEXT({Pbr},"#,##0")&" tf 時採 Bresler 倒數式，否則採載重輪廓法（α = "&TEXT({alpha},"0.00")&"）；圓形斷面以合彎矩檢核。"'},28);
+  a.para('3.2',{f:'"雙軸彎曲：矩形／箱型斷面以旋轉中性軸（等效應力塊、離散鋼筋、φ 依 εt）直接求解，D/C 為匯出當下網頁計算值（「載重組合」AQ 欄，於 Excel 修改輸入不重算）；Bresler 倒數式（Pu ≧ "&TEXT({Pbr},"#,##0")&" tf）與載重輪廓法（α = "&TEXT({alpha},"0.00")&"）僅列為參考。圓形斷面以合彎矩檢核。"'},40);
   a.para('3.3',{f:'IF({isBldg}=1,"容量設計剪力 Ve = 2Mpr/lu，Mpr 以 1.25fy、φ = 1.0 計，lu = "&TEXT({lu},"#,##0")&" cm（土木401 §18.4.6.1）。",IF({phEnds}="兩端","容量設計剪力 Ve = 2φo·Mn/lu（構架式），φo = "&TEXT({phio},"0.00")&"、lu = "&TEXT({lu},"#,##0")&" cm（公路橋梁耐震設計規範 §4.2.2）。","容量設計剪力 Ve = φo·Mn/Lv（單柱），φo = "&TEXT({phio},"0.00")&"、Lv = "&TEXT({Lv},"#,##0")&" cm（公路橋梁耐震設計規範 §4.2.1）。"))'},28);
-  a.para('3.4',"未納入：彎矩放大（長細效應僅依 §6.2.5.1 判定可否忽略，不可忽略時輸入須已含 P-Δ）、土木401-112 §22.5.5.1 新式 Vc 之尺寸效應 λs、Mander 圍束混凝土強度（僅參考）、扭矩門檻之軸壓增益。",28);
+  a.para('3.4',"長細效應不可忽略時以彎矩放大法放大一階彎矩（有側移 δs 以本柱 Pc 或樓層 Q 計）；未納入：土木401-112 §22.5.5.1 新式 Vc 之尺寸效應 λs、Mander 圍束混凝土強度（僅參考）、扭矩門檻之軸壓增益。",28);
 
   ws.getRow(a.n).addPageBreak();
   a.chap('四、計算過程');
@@ -1436,8 +1497,8 @@ function buildA4Column(ws, S, R, inp, jRow, sumRows){
   a.para('6.3',{f:'IF(\'檢核表\'!E'+jRow+'="PASS","本斷面各項檢核均符合規定，可供施工圖說使用。","本斷面有檢核項目不符規定，應調整斷面或配筋後重新計算。")'},26);
 
   a.chap('七、限制與注意事項');
-  a.para('7.1','P-M 以 '+NPM+' 點離散；雙軸載重輪廓法以 '+NIT+' 次二分迭代；與網頁結果可能於小數第三位有差。',26);
-  a.para('7.2','未計彎矩放大（長細效應僅判定可否忽略）、未計剪力尺寸效應 λs、扭矩門檻未計軸壓增益；箱型牆片 Ash 拆解為關鍵假設，須自行確認；bc 配對依解說 R18.4.5.4（垂直）。',28);
+  a.para('7.1','P-M 以 '+NPM+' 點離散；雙軸 D/C 為網頁旋轉中性軸精確解之匯出值（於 Excel 修改輸入、載重不會重算，請回網頁重新匯出）；參考用之載重輪廓法以 '+NIT+' 次二分迭代；與網頁結果可能於小數第三位有差。',40);
+  a.para('7.2','有側移構架之 δs 以本柱 Pc 代替樓層 ΣPc（多柱樓層請輸入 Q）、未計剪力尺寸效應 λs、扭矩門檻未計軸壓增益；箱型牆片 Ash 拆解為關鍵假設，須自行確認；bc 配對依解說 R18.4.5.4（垂直）。',28);
   a.para('7.3','輸入資料（尺寸、材料、載重）須經設計者核實；版次修改應更新封面版次。',22);
   a.para('7.4','色碼：淺藍底藍框＝輸入；黃底金框＝下拉輸入；白底細灰框＝公式；綠字＝連結；淺琥珀底＝總判定。',26);
   waterParas(a, inp, 5);
@@ -1588,7 +1649,8 @@ function buildBeam(ExcelJS, inp){
   S.item({key:'phi', label:'強度折減因數 φ', sym:'φ', f:'IF({et}<={ety},{phic},IF({et}>={ety}+0.003,{phit},{phic}+({phit}-{phic})*({et}-{ety})/0.003))', unit:'無因次', fmt:'0.000', ref:ref401('21.2.2')});
   S.item({key:'phiMn', label:'設計彎矩強度 φMn', sym:'φMn', f:'IF({AsT}<=0,0,{phi}*{Mn})', unit:'tf·m', fmt:'#,##0.00', expr:'受拉側無鋼筋時取 0', ref:ref401('9.5.1.1')});
   S.item({key:'MuMax', label:'需求彎矩 Mu（各組合最大）', sym:'Mu', f:"MAX('載重組合'!G4:G"+(3+NCB)+')', unit:'tf·m', fmt:'#,##0.00', expr:'依檢核斷面取 Mu⁺ 或 Mu⁻', ref:'—'});
-  S.item({key:'DC', label:'撓曲 D/C', sym:'D/C', f:'IF({MuMax}<=1E-6,0,IF({phiMn}>0,{MuMax}/{phiMn},1E9))', unit:'無因次', fmt:FMT_INF, crit:'≦ 1.0', ref:ref401('9.5.1.1')});
+  S.item({key:'DC', label:'撓曲 D/C', sym:'D/C', f:"MAX(IF({MuMax}<=1E-6,0,IF({phiMn}>0,{MuMax}/{phiMn},1E9)),MAX('載重組合'!AB4:AB"+(3+NCB)+'))', unit:'無因次', fmt:FMT_INF,
+    expr:'Mu/φMn；有扭矩須設計之組合另取主筋扣除扭力縱筋 Aℓ 後之 D/C（「載重組合」AB 欄，網頁值）', crit:'≦ 1.0', ref:ref401('9.5.1.1、9.5.4.3')});
   S.item({key:'Mpos', label:'φMn⁺（正彎矩，耐震用）', f:"'撓曲求解'!F3", unit:'tf·m', fmt:'#,##0.00', kind:'link', ref:ref401('18.3.3.2')});
   S.item({key:'Mneg', label:'φMn⁻（負彎矩，耐震用）', f:"'撓曲求解'!F4", unit:'tf·m', fmt:'#,##0.00', kind:'link', ref:ref401('18.3.3.2')});
   S.item({key:'MprP', label:'Mpr⁺（1.25fy、φ=1）', f:"'撓曲求解'!F5", unit:'tf·m', fmt:'#,##0.00', kind:'link', ref:ref401('18.3.5.1')});
@@ -1622,8 +1684,15 @@ function buildBeam(ExcelJS, inp){
   S.item({key:'cc', label:'扭矩：箍筋中心至外緣', f:'{cover}+{dt}/2', unit:'cm', fmt:'0.00', ref:'—'});
   S.item({key:'Aoh', label:'Aoh', sym:'Aoh', f:'MAX(1,{bw}-2*{cc})*MAX(1,{h}-2*{cc})', unit:'cm²', fmt:'#,##0', ref:ref401('22.7.6.1')});
   S.item({key:'ph', label:'ph', sym:'ph', f:'2*(({bw}-2*{cc})+({h}-2*{cc}))', unit:'cm', fmt:'#,##0.0', ref:ref401('22.7.6.1')});
-  S.item({key:'Tth', label:'可忽略扭矩門檻 φTth', sym:'φTth', f:'{phiv}*0.265*SQRT({fc})*({bw}*{h})^2/(2*({bw}+{h}))/100000', unit:'tf·m', fmt:'#,##0.00',
-    expr:"φ·0.265√f'c·Acp²/pcp（Acp 保守僅取腹板）", ref:ref401('22.7.4.1')});
+  S.item({key:'tOv', label:'扭矩：翼板每側外懸寬', unit:'cm', fmt:'0.0',
+    f:'IF({isT}=1,MAX(0,MIN({h}-{hf},4*{hf},({be}-{bw})/IF({edge}="邊梁（單側翼緣）",1,2))),0)', expr:'min(h − hf, 4hf)，且不超過有效翼緣', ref:ref401('9.2.4.4')+' (a)'});
+  S.item({key:'tNs', label:'　翼板外懸側數', f:'IF({edge}="邊梁（單側翼緣）",1,2)', ref:ref401('9.2.4.4')});
+  S.item({key:'tFl', label:'　旗標：計入翼板', f:'--AND({tOv}>0,({bw}*{h}+{tNs}*{tOv}*{hf})^2/(2*({bw}+{h})+2*{tNs}*{tOv})>({bw}*{h})^2/(2*({bw}+{h})))',
+    expr:'計入後 Acp²/pcp 較大才計入', ref:ref401('9.2.4.4')+' (b)'});
+  S.item({key:'Acp', label:'扭矩：外周包圍面積', sym:'Acp', f:'{bw}*{h}+{tFl}*{tNs}*{tOv}*{hf}', unit:'cm²', fmt:'#,##0', ref:ref401('9.2.4.4、22.7.4.1')});
+  S.item({key:'pcp', label:'扭矩：外周長', sym:'pcp', f:'2*({bw}+{h})+{tFl}*2*{tNs}*{tOv}', unit:'cm', fmt:'#,##0.0', ref:ref401('9.2.4.4、22.7.4.1')});
+  S.item({key:'Tth', label:'可忽略扭矩門檻 φTth', sym:'φTth', f:'{phiv}*0.265*SQRT({fc})*{Acp}^2/{pcp}/100000', unit:'tf·m', fmt:'#,##0.00',
+    expr:"φ·0.265√f'c·Acp²/pcp（T 梁依 §9.2.4.4 計入翼板）", ref:ref401('22.7.4.1')});
   S.item({key:'tors', label:'須設計扭矩', f:'--({Tu}>{Tth})', ref:ref401('22.7.4.1')});
   S.item({key:'AtS', label:'扭矩 At/s', sym:'At/s', f:'IF({tors}=1,{Tu}*100000/(2*{phiv}*0.85*{Aoh}*{fyt}/TAN({theta}*PI()/180)),0)', unit:'cm²/cm', fmt:'0.00000', ref:ref401('22.7.6.1')});
   S.item({key:'Al', label:'扭矩縱筋 Al', sym:'Al', f:'{AtS}*{ph}*{fyt}/{fy}/TAN({theta}*PI()/180)^2', unit:'cm²', fmt:'0.00', ref:ref401('22.7.6.1')});
@@ -1801,11 +1870,11 @@ function buildBeam(ExcelJS, inp){
 
 function buildBeamLoads(ws, R, loads){
   const nm='載重組合', r=f=>({f:R(f,nm)});
-  ws.columns=[24,12,12,12,12,4,14,12,12].concat(Array(17).fill(11)).map(w=>({width:w}));
+  ws.columns=[24,12,12,12,12,4,14,12,12].concat(Array(19).fill(11)).map(w=>({width:w}));
   put(ws,'A1','梁／版載重組合（已乘載重因數；每公尺寬或每梁）',{sec:true});
   ['組合名稱','Mu⁺ (tf·m)','Mu⁻ (tf·m)','Vu (tf)','Tu (tf·m)','','檢核用 Mu (tf·m)','|Vu| (tf)','D/C',
    'Vdes (tf)','Vc 歸零','Vc (tf)','Vs 需求 (tf)','扭矩須設計','At/s (cm²/cm)','剪扭超限','s 強度 (cm)','s 規範 (cm)','s 扭矩 (cm)','斷面不足','s 控制 (cm)','排序鍵',
-   '一般區 Vs (tf)','一般區 s 強度','一般區 s 規範','一般區 s 控制'].forEach((h,j)=>{ if(h) put(ws,colL(j)+'3',h,{head:true}); });
+   '一般區 Vs (tf)','一般區 s 強度','一般區 s 規範','一般區 s 控制','Aℓ,req (cm²，網頁值)','扣除 Aℓ 後 D/C（網頁值）'].forEach((h,j)=>{ if(h) put(ws,colL(j)+'3',h,{head:true}); });
   put(ws,'J2','逐組合剪扭檢核（扭矩不一定與最大剪力同組）：斷面不足者優先，其次需求間距最小者控制；扭矩僅外圍閉合肢有效（土木401-112 §9.5.4.3 解說）');
   for(let i=0;i<NCB;i++){
     const n=4+i, L=loads[i];
@@ -1813,7 +1882,10 @@ function buildBeamLoads(ws, R, loads){
     ['Mpos','Mneg','Vu','Tu'].forEach((k,j)=>put(ws,colL(1+j)+n, L?(+L[k]||0):null, {input:true, fmt:'#,##0.00'}));
     put(ws,'G'+n, r(`IF(A${n}="","",IF({isPos}=1,ABS(B${n}),ABS(C${n})))`),{fmt:'#,##0.00'});
     put(ws,'H'+n, {f:`IF(A${n}="","",ABS(D${n}))`},{fmt:'#,##0.00'});
-    put(ws,'I'+n, r(`IF(A${n}="","",IF(G${n}<=1E-6,0,IF({phiMn}>0,G${n}/{phiMn},1E9)))`),{fmt:FMT_INF});
+    // 扭力縱筋（§9.5.4.3、§9.6.4.3）：頂、底筋等比例扣除 max(Aℓ, Aℓ,min) 後之 D/C（AB 欄，網頁值）取較大者
+    put(ws,'AA'+n, L && Number.isFinite(L.AlReq) ? L.AlReq : null, {fmt:'#,##0.0'});
+    put(ws,'AB'+n, L && L.dcT != null ? (Number.isFinite(L.dcT) ? L.dcT : BIG) : null, {fmt:FMT_INF});
+    put(ws,'I'+n, r(`IF(A${n}="","",MAX(IF(G${n}<=1E-6,0,IF({phiMn}>0,G${n}/{phiMn},1E9)),IF(ISNUMBER(AB${n}),AB${n},0)))`),{fmt:FMT_INF});
     const on = `A${n}<>""`, T = `ABS(E${n})`;
     put(ws,'J'+n, r(`IF(${on},IF({isS}=1,MAX({Ve},H${n}),H${n}),"")`),{fmt:'#,##0.00'});
     put(ws,'K'+n, r(`IF(${on},--AND({isS}=1,J${n}>0,({Ve}-{Vg})>=0.5*J${n}),"")`));
@@ -2177,9 +2249,10 @@ function buildColumnChartData(ws, R){
   ['M_x','P','M_y','P'].forEach((h,j)=>put(ws,colL(18+j)+'2',['載重 Mx','載重 P','載重 My','載重 P'][j],{head:true}));
   for(let i=0;i<NCB;i++){
     const lr=4+i, on=`'載重組合'!H${lr}=1`;
-    put(ws,'S'+(3+i), r(`IF(${on},IF({isCirc}=1,SQRT('載重組合'!C${lr}^2+'載重組合'!D${lr}^2)+N('載重組合'!AO${lr}),ABS('載重組合'!C${lr})),${NA})`),{fmt:'#,##0.0'});
+    // 設計彎矩（長細效應放大後，「載重組合」AU、AV 欄）
+    put(ws,'S'+(3+i), r(`IF(${on},IF({isCirc}=1,SQRT('載重組合'!AU${lr}^2+'載重組合'!AV${lr}^2)+N('載重組合'!AO${lr}),'載重組合'!AU${lr}),${NA})`),{fmt:'#,##0.0'});
     put(ws,'T'+(3+i), {f:`IF(${on},'載重組合'!B${lr},${NA})`},{fmt:'#,##0.0'});
-    put(ws,'U'+(3+i), {f:`IF(${on},ABS('載重組合'!D${lr}),${NA})`},{fmt:'#,##0.0'});
+    put(ws,'U'+(3+i), {f:`IF(${on},'載重組合'!AV${lr},${NA})`},{fmt:'#,##0.0'});
     put(ws,'V'+(3+i), {f:`IF(${on},'載重組合'!B${lr},${NA})`},{fmt:'#,##0.0'});
   }
   // 標稱曲線補純拉、純壓端點（X：Y、Z 欄；Y：AA、AB 欄），列 3 ~ NPM+4

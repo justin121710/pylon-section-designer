@@ -1,4 +1,4 @@
-/* Excel 計算書回歸：匯出 .xlsx → LibreOffice 重算 → 與網頁值比較（C1～C4 之 Excel 公式）。
+/* Excel 計算書回歸：匯出 .xlsx → LibreOffice 重算 → 與網頁值比較（C1～C4、H2、H5 之 Excel 公式）。
    需要 LibreOffice（soffice）；未安裝時略過。 */
 'use strict';
 const test = require('node:test');
@@ -19,7 +19,7 @@ function item(wb, label){
   return out;
 }
 
-test('Excel 計算書與網頁一致（C1～C4）', {skip: !hasSoffice && '未安裝 LibreOffice（soffice）'}, async () => {
+test('Excel 計算書與網頁一致（C1～C4、H2、H5）', {skip: !hasSoffice && '未安裝 LibreOffice（soffice）'}, async () => {
   const app = await openApp(), page = app.page;
   const exportAs = async name => {
     const [dl] = await Promise.all([page.waitForEvent('download', {timeout:120000}), page.click('#btnXlsx')]);
@@ -36,16 +36,27 @@ test('Excel 計算書與網頁一致（C1～C4）', {skip: !hasSoffice && '未�
     await page.evaluate(() => { applyPreset('bldg60'); LOADS.forEach(L => { L.Tu = 6; }); drawLoads(); render(); });
     web.tors = await page.evaluate(() => ({sX: MODEL.shX.s_str, sY: MODEL.shY.s_str, dc: MODEL.res.map(q => q.dc)}));
     await exportAs('tors');
+    // H2：長細效應彎矩放大（單軸載重 → D/C 由 Excel 公式計算，可比對 δ 與 D/C）
+    for(const [nm, k, loads] of [['slBr', 'pier100', [{name:'X', Pu:280, Mux:196, Muy:0, Vux:52, Vuy:0, Tu:0}, {name:'Y', Pu:120, Mux:0, Muy:152, Vux:0, Vuy:44, Tu:0}]],
+                                 ['slBd', 'pond80', [{name:'X', Pu:430, Mux:58, Muy:0, Vux:19, Vuy:0, Tu:0}, {name:'0', Pu:520, Mux:0, Muy:0, Vux:0, Vuy:0, Tu:0}]]]){
+      await page.evaluate(([k, loads]) => { applyPreset(k); LOADS = loads; drawLoads(); render(); }, [k, loads]);
+      web[nm] = await page.evaluate(() => MODEL.res.map(q => ({dc: q.dc, dx: q.Lk.slx.d, dy: q.Lk.sly.d})));
+      await exportAs(nm);
+    }
     // C4：梁兩組合
     await page.evaluate(() => { document.getElementById('tabBeam').click(); applyBPreset('bldgBeam');
       BLOADS = [{name:'A', Mpos:20, Mneg:35, Vu:30, Tu:0}, {name:'B', Mpos:20, Mneg:35, Vu:28, Tu:4}]; drawBLoads(); renderBeam(); });
     web.beam = await page.evaluate(() => ({ctrl: BMODEL.sh.ctrl.L.name, sStr: BMODEL.sh.sStr, sUse: BMODEL.fin.sUse,
       s2gov: BMODEL.fin2.gov.v, s2: BMODEL.fin2.sUse}));
     await exportAs('beam');
+    // H5：T 梁 A_cp 依 §9.2.4.4 計入翼板（T_u 提高至須設計扭矩，D/C 含扣除扭力縱筋）
+    await page.evaluate(() => { applyBPreset('deckT'); BLOADS.forEach(L => { L.Tu = 6; }); drawBLoads(); renderBeam(); });
+    web.deck = await page.evaluate(() => ({Acp: BMODEL.sh.Acp, Tth: BMODEL.sh.Tthr/1e5, dc: BMODEL.ctrl.dc, tors: BMODEL.torsL.any}));
+    await exportAs('deck');
   }finally{ await app.close(); }
 
   const out = path.join(TMP, 'out');
-  execFileSync('soffice', ['--headless', '--convert-to', 'xlsx', '--outdir', out, ...['rect', 'tors', 'beam'].map(n => path.join(TMP, n + '.xlsx'))],
+  execFileSync('soffice', ['--headless', '--convert-to', 'xlsx', '--outdir', out, ...['rect', 'tors', 'beam', 'slBr', 'slBd', 'deck'].map(n => path.join(TMP, n + '.xlsx'))],
     {stdio:'ignore', timeout:300000});
   const load = async n => { const wb = new ExcelJS.Workbook(); await wb.xlsx.readFile(path.join(out, n + '.xlsx')); return wb; };
   const near = (a, b, rel, msg) => assert.ok(Math.abs(a - b) <= rel*Math.abs(b), `${msg}：Excel ${a}，網頁 ${b}`);
@@ -60,9 +71,25 @@ test('Excel 計算書與網頁一致（C1～C4）', {skip: !hasSoffice && '未�
   const L = tors.getWorksheet('載重組合');
   web.tors.dc.forEach((dc, i) => near(val(L.getCell('M' + (4 + i)).value), dc, 0.005, `第 ${i+1} 組 D/C`));
 
+  for(const nm of ['slBr', 'slBd']){
+    const L2 = (await load(nm)).getWorksheet('載重組合');
+    web[nm].forEach((w, i) => {
+      assert.ok(w.dx > 1 || w.dy > 1 || i > 0, `${nm} 第 1 組應有彎矩放大`);
+      near(val(L2.getCell('AS' + (4 + i)).value), w.dx, 0.002, `${nm} 第 ${i+1} 組 δx`);
+      near(val(L2.getCell('AT' + (4 + i)).value), w.dy, 0.002, `${nm} 第 ${i+1} 組 δy`);
+      near(val(L2.getCell('M' + (4 + i)).value), w.dc, 0.005, `${nm} 第 ${i+1} 組 D/C（放大後）`);
+    });
+  }
+
   const beam = await load('beam');
   assert.equal(item(beam, '剪扭控制組合'), web.beam.ctrl);
   near(item(beam, '剪扭強度需求間距'), web.beam.sStr, 0.001, '梁剪扭強度需求間距');
   assert.equal(item(beam, '採用箍筋間距（梁）'), web.beam.sUse);
   near(item(beam, '加密區外控制需求間距'), web.beam.s2gov, 0.001, '梁加密區外控制需求間距');
+
+  const deck = await load('deck');
+  assert.ok(web.deck.tors, 'deckT（T_u = 6）應須設計扭矩');
+  near(item(deck, '扭矩：外周包圍面積'), web.deck.Acp, 1e-9, 'T 梁 A_cp（§9.2.4.4）');
+  near(item(deck, '可忽略扭矩門檻 φTth'), web.deck.Tth, 1e-6, 'T 梁 φT_th');
+  near(item(deck, '撓曲 D/C'), web.deck.dc, 0.002, 'T 梁 D/C（含扣除扭力縱筋）');
 });

@@ -4,7 +4,8 @@
      C2 雙軸 Bresler 倒數式之 P_o（未截斷 φ_c·P_o）
      C3 剪扭合併時扭矩只由外圍閉合肢承擔（土木401-112 §9.5.4.3 解說）
      C4 梁剪力／扭矩逐組合檢核（扭矩不一定與最大剪力同組）
-   另含單軸 P-M 逐點驗算（核心基準）與全部範本不得出現不合格。 */
+     H1 雙軸 D/C 採旋轉中性軸精確解（與獨立程式一致、0.1f'cA_g 前後連續、退化為單軸）
+   另含單軸 P-M 逐點驗算（核心基準）與全部範本不得出現不合格。H2～H8 見 high.test.js，獨立求解器比對見 independent.test.js。 */
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -91,15 +92,15 @@ test('C1：橋梁矩形墩（200×300）V_e = φ_o·M_n/L_v 取同一平面之 M
 });
 
 /* ------------------------------------------------------------------ */
-test('C2：Bresler 倒數式使用未截斷之 φ_c·P_o', async () => {
+test('C2：Bresler 參考值使用未截斷之 φ_c·P_o', async () => {
   for(const k of ['bldg60', 'pond80', 'pier100', 'box300']){
     const rows = await page.evaluate(k => {
       applyPreset(k);
-      return MODEL.res.filter(q => q.bi.method.startsWith('Bresler')).map(q => ({
-        name: q.L.name, Pu: q.Lk.Pu, dc: q.dc, Pnx: q.bi.Pnx, Pny: q.bi.Pny, Po: q.bi.Po,
+      return MODEL.res.filter(q => q.bi.ref && q.bi.ref.method.startsWith('Bresler')).map(q => ({
+        name: q.L.name, Pu: q.Lk.Pu, dc: q.bi.ref.dc, Pnx: q.bi.ref.Pnx, Pny: q.bi.ref.Pny, Po: q.bi.ref.Po,
         phiPo: MODEL.m.phic*MODEL.cvX.Po, cap: MODEL.pX.cap}));
     }, k);
-    assert.ok(rows.length, `${k} 應有 Bresler 組合`);
+    assert.ok(rows.length, `${k} 應有 Bresler 參考值`);
     for(const q of rows){
       near(q.Po, q.phiPo, 1e-12, `${k}「${q.name}」之 φP_o`);
       assert.ok(q.Po > q.cap, 'φP_o 應大於截斷後之 φP_n,max');
@@ -108,20 +109,41 @@ test('C2：Bresler 倒數式使用未截斷之 φ_c·P_o', async () => {
   }
 });
 
-test('C2：Bresler D/C 不低於旋轉中性軸精確解（範本組合）', async () => {
-  /* 精確解：旋轉中性軸、等效應力塊、離散鋼筋、φ 依 ε_t、沿定偏心射線求交（90×90 纖維、91 個方向角），
-     為審查時以獨立程式求得之值；Bresler（正確 P_o）在這些組合應略為保守。 */
+test('H1：雙軸 D/C 採旋轉中性軸精確解，與獨立求解一致', async () => {
+  /* 期望值：審查時以獨立程式（90×90 混凝土纖維、91 個中性軸方向角、離散鋼筋、φ 依 ε_t、沿定偏心射線二分）求得，
+     未呼叫工具任何計算函式。工具以多邊形裁切（解析）＋ c 對數網格內插，容許 ±0.006。 */
   const EXACT = {
-    bldg60: {'1.2D+1.6L': 0.504, '1.2D+L+E (X)': 0.718, '1.2D+L+E (Y)': 0.692},
-    pond80: {'1.2D+1.6L（頂版覆土）': 0.542, '1.2D+1.0L+E (X)': 0.553, '1.2D+1.0L+E (Y)': 0.541},
-    pier100: {'D+L': 0.295, '地震 X': 0.678, '地震 Y': 0.678},
-    box300: {'D+L': 0.239, '地震 X': 0.652, '地震 Y': 0.618}
+    bldg60: {'1.2D+1.6L': 0.504, '1.2D+L+E (X)': 0.718, '1.2D+L+E (Y)': 0.692, '0.9D+E': 0.577},
+    pond80: {'1.2D+1.6L（頂版覆土）': 0.542, '1.2D+1.0L+E (X)': 0.553, '1.2D+1.0L+E (Y)': 0.541, '0.9D+E（滿水浮力）': 0.376},
+    pier100: {'D+L': 0.295, '地震 X': 0.678, '地震 Y': 0.678, '最小軸力': 0.672},
+    box300: {'D+L': 0.239, '地震 X': 0.652, '地震 Y': 0.618, '最小軸力': 0.762}
   };
   for(const [k, ex] of Object.entries(EXACT)){
-    const dc = await page.evaluate(k => { applyPreset(k); return Object.fromEntries(MODEL.res.map(q => [q.L.name, q.dc])); }, k);
-    for(const [name, v] of Object.entries(ex))
-      assert.ok(dc[name] >= v - 0.002, `${k}「${name}」D/C ${dc[name].toFixed(3)} 不得低於精確解 ${v}`);
+    // 期望值依範本原始配筋（橋墩柱 6×6-#8、橋塔 19×25-#8）與未放大之輸入彎矩求得 → 聲明「輸入已含二階效應」以免放大；
+    // 比對撓曲本身之 D/C（q.bi.dc，未扣除扭力縱筋）
+    const r = await page.evaluate(k => { applyPreset(k); const set = (id, v) => { document.getElementById(id).value = v; };
+      set('slTreat', 'second');
+      if(k === 'pier100') set('barSize', '#8');
+      if(k === 'box300'){ set('barSize', '#8'); set('nB', 19); set('nH', 25); }
+      render(); return Object.fromEntries(MODEL.res.map(q => [q.L.name, {dc: q.bi.dc, method: q.bi.method}])); }, k);
+    for(const [name, v] of Object.entries(ex)){
+      assert.equal(r[name].method, '旋轉中性軸（精確解）', `${k}「${name}」之判定方法`);
+      assert.ok(Math.abs(r[name].dc - v) <= 0.006, `${k}「${name}」D/C ${r[name].dc.toFixed(4)} 與獨立精確解 ${v} 不符`);
+    }
   }
+});
+
+test('H1：雙軸 D/C 在 P_u = 0.1f′cA_g 前後連續，且退化為單軸時與 P-M 曲線一致', async () => {
+  const r = await page.evaluate(() => {
+    applyPreset('pier100');
+    const M = MODEL, m = M.m, L = M.res[1].Lk, thr = 0.1*m.fc*m.Ag;
+    const dc = P => biaxialDC(M.cvX, M.cvY, M.pX, M.pY, m, {Pu: P, Mux: L.Mux, Muy: L.Muy}, M.S3).dc;
+    const P0 = 0.3*M.pX.cap, Mx = 0.5*phiMnAtP(M.cvX, m, P0);
+    return {below: dc(0.999*thr), above: dc(1.001*thr),
+            ex: biaxExactDC(M.S3, P0, Mx, 1e-7*Mx).dc, uni: radialDC(M.pX.poly, Mx, P0, M.pX.cap, m.phit*M.cvX.Pnt).dc};
+  });
+  assert.ok(Math.abs(r.below - r.above) < 0.003, `切換點前後 D/C ${r.below} → ${r.above} 不連續`);
+  near(r.ex, r.uni, 0.005, '退化為繞 X 軸單軸');
 });
 
 /* ------------------------------------------------------------------ */
