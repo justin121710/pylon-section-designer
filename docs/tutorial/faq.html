@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>RC 斷面設計工具 常見問題</title>
+<!-- 常見問題（FAQ）原稿：由 build.js 截圖並列印為 docs/RC斷面設計工具_常見問題.pdf。公式與符號一律以 KaTeX \( … \) 排版 -->
+<link rel="stylesheet" href="node_modules/katex/dist/katex.min.css">
+<script src="node_modules/katex/dist/katex.min.js"></script>
+<script src="node_modules/katex/dist/contrib/auto-render.min.js"></script>
+<style>
+@page { size: A4; margin: 16mm 15mm 16mm 15mm; }
+* { box-sizing: border-box; }
+body { font-family: "WenQuanYi Zen Hei", "Noto Sans CJK TC", sans-serif; color: #1f2937; font-size: 10.5pt; line-height: 1.65; margin: 0; }
+h1 { font-size: 22pt; margin: 0 0 6mm; color: #0f4c5c; }
+h2 { font-size: 15pt; color: #0f4c5c; border-bottom: 2px solid #0f4c5c; padding-bottom: 2mm; margin: 0 0 4mm; break-after: avoid; }
+h3 { font-size: 11.5pt; margin: 5mm 0 2mm; color: #111827; break-after: avoid; }
+p { margin: 0 0 2.5mm; }
+ol, ul { margin: 0 0 3mm; padding-left: 6mm; }
+li { margin-bottom: 1.2mm; }
+.chap { break-before: page; }
+.n { display: inline-block; width: 5.2mm; height: 5.2mm; border-radius: 50%; background: #e11d48; color: #fff; font: 700 8.5pt/5.2mm Arial; text-align: center; margin-right: 1mm; vertical-align: 0.2mm; }
+figure { margin: 3mm 0 4mm; break-inside: avoid; text-align: center; }
+figure img { max-width: 100%; max-height: 98mm; width: auto; border: 1px solid #d1d5db; border-radius: 2mm; }
+figure.half img { max-width: 72%; max-height: 102mm; }
+figure.small img { max-width: 58%; max-height: 150mm; }
+.katex { font-size: 1.08em; }
+figcaption { font-size: 9pt; color: #6b7280; margin-top: 1.5mm; }
+.tip, .warn, .note { border-radius: 2mm; padding: 2.5mm 3.5mm; margin: 3mm 0; font-size: 9.8pt; break-inside: avoid; }
+.tip { background: #ecfdf5; border-left: 4px solid #059669; }
+.warn { background: #fff7ed; border-left: 4px solid #ea580c; }
+.note { background: #eff6ff; border-left: 4px solid #2563eb; }
+.tip b:first-child, .warn b:first-child, .note b:first-child { margin-right: 1.5mm; }
+table { border-collapse: collapse; width: 100%; margin: 2mm 0 4mm; font-size: 9.6pt; break-inside: avoid; }
+th, td { border: 1px solid #d1d5db; padding: 1.6mm 2.2mm; text-align: left; vertical-align: top; }
+th { background: #f3f4f6; }
+code { font-family: "DejaVu Sans Mono", monospace; font-size: 9pt; background: #f3f4f6; padding: 0.3mm 1mm; border-radius: 1mm; }
+pre { font-family: "DejaVu Sans Mono", "WenQuanYi Zen Hei Mono", monospace; font-size: 8.8pt; background: #f3f4f6; padding: 3mm; border-radius: 2mm; white-space: pre-wrap; break-inside: avoid; }
+.cover { height: 250mm; display: flex; flex-direction: column; justify-content: center; }
+.cover .sub { font-size: 13pt; color: #374151; margin-bottom: 14mm; }
+.cover .meta { font-size: 10pt; color: #6b7280; }
+.toc { columns: 2; column-gap: 10mm; font-size: 10.5pt; }
+.toc div { margin-bottom: 1.6mm; }
+.flow { display: flex; flex-wrap: wrap; gap: 2mm; align-items: center; margin: 3mm 0 5mm; }
+.flow span { background: #0f4c5c; color: #fff; border-radius: 1.5mm; padding: 1.2mm 2.5mm; font-size: 9.5pt; }
+.flow i { color: #9ca3af; font-style: normal; }
+.q { break-inside: avoid-page; margin: 0 0 5mm; }
+.q h3 { margin: 0 0 1.5mm; padding: 1.4mm 2.5mm; background: #f0f7f8; border-left: 4px solid #0f4c5c; border-radius: 1mm; font-size: 11pt; }
+.q.long { break-inside: auto; }
+.part { break-before: page; }
+.toc a { color: inherit; text-decoration: none; }
+</style>
+</head>
+<body>
+
+<section class="cover">
+  <h1>RC 斷面設計工具<br>常見問題（FAQ）</h1>
+  <div class="sub">工程師／技師版：操作流程與工程實務問答<br>附操作截圖，與《操作教學》同步建置</div>
+  <div class="meta">細部公式與條號見 README.md；操作步驟見《RC斷面設計工具_操作教學.pdf》<br>全程 kgf-cm 制；載重表輸入為 tf、tf·m；條號依土木401-112<br><br><span id="ver">（版本資訊於建置時寫入）</span></div>
+</section>
+
+<section class="chap">
+  <h2>目錄</h2>
+  <div class="toc">
+    <div>一、入門與操作流程（Q1～Q5）</div>
+    <div>二、輸入參數與載重組合（Q6～Q11b）</div>
+    <div>三、設計依據、\(\phi\) 值與規範選擇（Q12～Q15）</div>
+    <div>四、柱斷面與基樁（Q16～Q26）</div>
+    <div>五、梁／版斷面（Q27～Q34）</div>
+    <div>六、橫向鋼筋與沿軸向配置（Q35～Q39）</div>
+    <div>七、伸展長度、搭接與錨定（Q40～Q46）</div>
+    <div>八、計算書、PDF 與 Excel 輸出（Q47～Q50）</div>
+    <div>九、從圖說匯入（Q51～Q53）</div>
+    <div>十、案件存檔、複核與資料安全（Q54～Q56）</div>
+    <div>十一、適用範圍、限制與驗證（Q57～Q59）</div>
+    <div>十二、疑難排解</div>
+  </div>
+  <div class="note" style="margin-top:8mm"><b>怎麼讀</b>每題先給結論，再說明原因與條號。圖中紅色編號對應文字中的 <span class="n">1</span> 等標記。截圖由建置程式自動產生，與目前程式版本一致。</div>
+</section>
+
+<section class="chap">
+  <h2>一、入門與操作流程</h2>
+
+  <div class="q"><h3>Q1. 這個工具需要安裝嗎？可以離線用嗎？</h3>
+  <p>不需要安裝，也沒有後端。整個工具就是一個 <code>index.html</code>，用瀏覽器開啟即可（或由 GitHub Pages 發布）。離線時介面與所有計算照常運作，只有兩件事需要網路：</p>
+  <ul><li>計算書中的數學公式排版（KaTeX 由 CDN 載入）：斷網時公式不會排版。</li>
+  <li>「匯出 Excel」（按下時才由 CDN 載入 ExcelJS）與「從圖說匯入」（呼叫 Gemini API）。</li></ul></div>
+
+  <div class="q long"><h3>Q2. 一個斷面從頭到尾的標準操作流程是什麼？</h3>
+  <figure class="half"><img src="img/01-setup.png"><figcaption>圖 1　開場的「設計對象」視窗</figcaption></figure>
+  <ol>
+    <li>開啟頁面後跳出「設計對象」視窗（圖 1）：選構件類型 <span class="n">1</span>、斷面型式 <span class="n">2</span>、預設範本 <span class="n">3</span>，填構件名稱 <span class="n">4</span>，選設計依據 <span class="n">5</span> 與環境 <span class="n">6</span>，按「開始設計」<span class="n">7</span>。之後可由左上角按鈕隨時變更。</li>
+    <li>在中間參數表依左側導軌逐組修改尺寸、材料、配筋（或用「從圖說匯入」帶入）。</li>
+    <li>在「載重組合」輸入或貼上 CSV；柱另在「長細效應」群組設定側向位移支撐、\(k\) 與 \(M_1/M_2\)。</li>
+    <li>看頂列下方的判定膠囊（撓曲 \(D/C\)、剪力、箍筋、\(\rho_g\)、淨距、警示數），點膠囊會跳到對應結果卡片。</li>
+    <li>到「警示」分頁逐項處理 ✗ 不符與 ! 注意；點訊息旁的參數按鈕可直接跳到該輸入格。</li>
+    <li>確認「軸向配置」「伸展長度」分頁的配置與檢核。</li>
+    <li>「預覽報告」檢查計算書，再「列印／存成 PDF」或「匯出 Excel」。</li>
+    <li>「儲存案件」下載 <code>.json</code> 留存或交付複核。</li>
+  </ol></div>
+
+  <div class="q"><h3>Q3. 「預設範本」和「構件名稱」有什麼差別？</h3>
+  <p>範本只是一組<b>起始值</b>（尺寸、材料、配筋、載重），載入後通常會再修改；下拉選單只顯示名稱、不含尺寸。構件名稱是你給這根構件的編號，只出現在計算書標題、列印檔名與 Excel 封面，<b>不影響計算</b>。</p>
+  <figure class="half"><img src="img/20-preset-ask.png"><figcaption>圖 2　輸入已修改時切換範本，會先詢問如何處理</figcaption></figure>
+  <p>重新選擇範本會把數值回到範本預設值。若目前輸入或載重已和上次套用的範本不同，工具會先跳出確認視窗（圖 2 <span class="n">1</span>），可選「先儲存再套用」（下載 <code>.json</code> 後再覆蓋）、「直接套用」或「取消」。</p></div>
+
+  <div class="q"><h3>Q4. 判定膠囊與參數狀態的 ✓、i、!、✗ 分別代表什麼？</h3>
+  <figure><img src="img/09-verdict.png"><figcaption>圖 3　頂列下方的判定膠囊</figcaption></figure>
+  <table><tr><th style="width:18mm">符號</th><th>意義</th></tr>
+    <tr><td>✓</td><td>通過</td></tr>
+    <tr><td><i>i</i></td><td>需你確認（假設或配對選擇等），<b>不是錯誤</b></td></tr>
+    <tr><td>!</td><td>注意，例如 \(D/C\) 介於 0.9～1.0、餘裕不足</td></tr>
+    <tr><td>✗</td><td>不符</td></tr></table>
+  <p>參數表只有在「有檢核且通過」或有例外時才標記；<b>狀態欄留白代表該列沒有對應檢核</b>，不是漏算。</p></div>
+
+  <div class="q"><h3>Q5. 右側結果區的分頁有哪些？</h3>
+  <figure><img src="img/02-layout.png"><figcaption>圖 4　畫面配置；<span class="n">6</span> 為結果分頁</figcaption></figure>
+  <p>斷面與 P-M／結果摘要／軸向配置／伸展長度／（梁另有：載重組合）／警示（帶件數）／自測（圖 4 <span class="n">6</span>）。所有卡片都保留在頁面上、只是切換顯示，所以計算書與 Excel 匯出不受目前停在哪個分頁影響。</p></div>
+</section>
+
+<section class="chap">
+  <h2>二、輸入參數與載重組合</h2>
+
+  <div class="q"><h3>Q6. 載重的正負號怎麼定？單位是什麼？</h3>
+  <ul><li>柱：\(P_u\) <b>壓為正、拉為負</b>（tf）；\(M_{ux}\)、\(M_{uy}\)（tf·m）；\(V_{ux}\)、\(V_{uy}\)（tf）；\(T_u\)（tf·m）。</li>
+  <li>梁／版：\(M_u^{+}\) 跨中正彎矩、\(M_u^{-}\) 支承負彎矩，<b>皆填絕對值</b>（tf·m）；\(V_u\)（tf）；\(T_u\)（tf·m）。依斷面上方「正／負彎矩」切換鈕取用對應欄。</li></ul>
+  <figure class="half"><img src="img/05-loads.png"><figcaption>圖 5　柱的載重組合表：<span class="n">1</span> 表格、<span class="n">2</span> 新增一列、<span class="n">3</span> 貼上 CSV</figcaption></figure></div>
+
+  <div class="q long"><h3>Q7. 結構分析軟體輸出很多組合，怎麼一次匯入？</h3>
+  <p>柱與梁／版模組的載重表都有「貼上 CSV」，每行一組：</p>
+<pre>名稱,Pu,Mux,Muy,Vux,Vuy,Tu        ← 柱（標題列可留著，會自動略過）
+1.2D+1.6L,850,42.5,8.0,12.0,3.5,0
+0.9D+1.0E,320,96.0,30.0,38.0,11.0,0
+
+名稱,Mu+,Mu-,Vu,Tu                ← 梁／版
+1.2D+1.6L,168,0,52,3</pre>
+  <figure class="half"><img src="img/06-csv.png"><figcaption>圖 6　貼上 CSV：<span class="n">1</span> 貼入、<span class="n">2</span> 套用</figcaption></figure>
+  <ul><li>逗號或 Tab 分隔；從 Excel 直接複製時以 Tab 分欄，數字可帶千分位逗號（如 <code>1,200</code>）。</li>
+  <li>標題列、欄位不足、數值欄不是數字的行會略過，並在下方列出被略過的行號與原因；空白數值欄視為 0。</li>
+  <li>若表中已有組合，會詢問「取代全部」或「附加在後面」（圖 7）。工具會自動找出控制組合。</li></ul>
+  <figure class="half"><img src="img/07-csv-ask.png"><figcaption>圖 7　表中已有組合時的詢問</figcaption></figure></div>
+
+  <div class="q"><h3>Q8. 載重全部填好了，為什麼控制剪力的組合不是 \(V_u\) 最大的那組？</h3>
+  <p>因為 \(V_c\) 隨軸力 \(N_u\) 改變；在塑鉸區軸壓低於門檻時 \(V_c=0\)。低軸壓（或軸拉）組合常常需要最多箍筋。工具會<b>逐組合各算一次</b>，以強度需求 \((A_v/s)_{tot}\) 最大者為控制組合，並在「結果摘要」與計算書列出逐組合明細（圖 8 <span class="n">1</span>）。</p>
+  <figure><img src="img/f-shear.png"><figcaption>圖 8　剪力逐組合明細（範本「橋墩柱」）：各組合 \(N_u\)、\(V_c\)、\(V_s\) 需求與強度需求間距</figcaption></figure></div>
+
+  <div class="q"><h3>Q9. 欄位不小心清空或打錯字會怎樣？</h3>
+  <p>數值欄空白或非數字時，計算改用預設值，但該欄會<b>標紅框</b>（圖 9 <span class="n">1</span>）並列入警示（<span class="n">2</span>，附採用的預設值），不會靜默帶過。沒有任何載重組合時以零載重佔位並警示「檢核結果沒有意義」。</p>
+  <figure><img src="img/f-badin.png"><figcaption>圖 9　把 \(f'_c\) 清空後：參數列標紅框、警示列出採用的預設值</figcaption></figure></div>
+
+  <div class="q long"><h3>Q10. 輸入的 \(M_u\) 應該是一階還是二階分析結果？工具會檢查長細比嗎？</h3>
+  <p>工具會<b>判定長細效應可否忽略</b>，但<b>不計算彎矩放大</b>。在參數群組「長細效應」設定側向位移支撐 <span class="n">1</span>、有效長度係數 \(k\) <span class="n">2</span>、端彎矩比 \(M_1/M_2\)（僅「有側向位移支撐」用；單曲率為負、雙曲率為正），\(l_u\) 沿用柱淨高。</p>
+  <figure><img src="img/04-slender.png"><figcaption>圖 10　「長細效應」群組與右側說明</figcaption></figure>
+  <ul><li>\(r\)：矩形 \(0.30\times\) 考量方向尺度、圓形 \(0.25D\)、箱型 \(\sqrt{I_g/A_g}\)；X、Y 兩向取 \(kl_u/r\) 較大者。</li>
+  <li><b>建築</b>（土木401-112 §6.2.5.1）：無側向位移支撐 \(kl_u/r\le 22\)；有側向位移支撐 \(kl_u/r\le 34+12(M_1/M_2)\) 且 \(\le 40\)。第一次近似分析時 \(k\) 可取 1.0（解說 R6.2.5）。</li>
+  <li><b>橋梁</b>（公路橋梁設計規範 §7.3.5.2）：無支撐 \(kl_u/r\lt 22\)；有支撐 \(kl_u/r\lt 34-12(M_{1b}/M_{2b})\)，無 40 上限；有支撐構材 \(k\) 除經分析外為 1.0；<b>\(kl_u/r\gt 100\) 判不合格</b>，須依 §7.3.5.1 進行二階分析。</li></ul>
+  <p>可忽略時一階分析結果即可使用；<b>超過門檻時，輸入必須是已含二階效應（P-Δ／P-δ）的分析結果</b>（建築另限二階彎矩 \(\le 1.4\) 倍一階彎矩，§6.2.5.3）。範本的 \(k\) 值只是示意，請依構架分析決定。</p></div>
+
+  <div class="q"><h3>Q11. 水工結構要乘 ACI 350 的環境耐久係數 \(S_d\)，工具會自動乘嗎？</h3>
+  <p>不會。「水工・環境結構（加嚴）」只處理保護層 \(\ge 5\ \text{cm}\) 警示、使用載重裂縫寬度（Gergely-Lutz，容許值 0.10～0.30 mm）與版最小鋼筋比 0.003。若設計準則要求 \(S_d\)，請<b>自行將 \(S_d\) 乘入輸入之 \(M_u\)、\(V_u\)</b>。</p></div>
+
+  <div class="q long"><h3>Q11a. 連續壁或場鑄樁是在泥水中灌注混凝土，強度要折減嗎？</h3>
+  <p>要。參數表「伸展長度與搭接」組的「混凝土澆置方式」選「泥水中灌注」（圖 11 <span class="n">1</span>），工具依《建築物基礎構造設計規範》§7.6.2 第 2 款：</p>
+  <ul><li>混凝土剪力強度 \(V_c\) 乘 0.75（折減 25%），\(V_s\) 上限不變；箍筋需求會因此增加。</li>
+  <li>所有伸展長度與搭接長度乘 1.3（握持長度增加 30%）。計算書與 Excel 的代入式會寫出 \(\times 0.75\)、\(\times 1.3\)。</li>
+  <li>\(f'_c\) 不得小於 210 kgf/cm²（永久構造物）。</li></ul>
+  <figure><img src="img/f-slurry.png"><figcaption>圖 11　「混凝土澆置方式」與右側條文說明</figcaption></figure>
+  <p>輸入的 \(f'_c\) 是<b>規定抗壓強度</b>；同條要求供料提高一級，場鑄樁澆注強度另須再提高 35 kgf/cm²（§5.6.3），這是配比與施工的要求，不會改變斷面計算。</p></div>
+
+  <div class="q long"><h3>Q11b. 滯洪池、水池要用國內哪本規範？工具算的是 L1 還是 L2 地震？</h3>
+  <ul><li>國內《下水道工程設施標準》只有「水密性構造」「應考慮空池時之浮力作用」（第 40 條）等定性要求，沒有保護層、裂縫寬度或最小鋼筋比的數值，所以水工加嚴的數值仍依 ACI 350／224R。</li>
+  <li>《下水道設施耐震設計及解說》3.7.3 規定滯洪池、雨水調節池屬水槽結構；表 4.5 規定 Level 1 地震動用<b>容許應力法</b>、Level 2 地震動用<b>極限狀態設計法</b>。</li>
+  <li>本工具是強度設計，<b>只對應 Level 2</b>。Level 1 與常時的容許應力檢核（防止開裂漏水）需另行計算。</li>
+  <li>載重要自行計算後輸入。選「水工結構」後，警示（圖 12 <span class="n">1</span>）、計算書與 Excel 會列出來源：滿水與空槽（4.2.6）、空池浮力、最不利地下水位（建築物基礎構造設計規範 §2.6）、靜止土壓 \(K_0\ge 0.5\)（§7.3.1）、M-O 地震土壓（受束制時 \(k_h\) 取 1.5 倍 PGA）、Westergaard 動水壓 \(P_{WE}=\tfrac{7}{12}k_h\gamma_w bH^2\)（§7.3.6 解說）。</li></ul>
+  <figure><img src="img/f-water.png"><figcaption>圖 12　水工結構的「載重來源與檢核定位」警示（範本「滯洪池頂版」）</figcaption></figure></div>
+</section>
+
+<section class="chap">
+  <h2>三、設計依據、\(\phi\) 值與規範選擇</h2>
+
+  <div class="q long"><h3>Q12. 「建築物」和「橋梁」兩種設計依據差在哪裡？</h3>
+  <p>斷面強度（應力塊、P-M、扭矩）與彎矩 \(\phi\) 兩者都用土木401；橋梁的剪力、圍束筋與耐震細則改依公路橋梁耐震設計規範：</p>
+  <table>
+    <tr><th style="width:24mm">項目</th><th>建築物（建築物耐震設計規範）</th><th>橋梁（公路橋梁耐震設計規範）</th></tr>
+    <tr><td>容量設計剪力</td><td>\(V_e=2M_{pr}/l_u\)（\(1.25f_y\)、\(\phi=1\)）</td><td>單柱 \(\phi_oM_n/L_v\)（\(L_v\) 為柱高含帽梁）、構架式 \(2\phi_oM_n/l_u\)；\(\phi_o=1.3\)（§4.2）</td></tr>
+    <tr><td>剪力 \(\phi\) 與 \(V_c\)</td><td>\(\phi_v=0.75\)；表 22.5.5.1，加密區 \(N_u\lt A_gf'_c/20\) 時 \(V_c=0\)</td><td>\(\phi=0.85\)；塑鉸區 \(0.53(0.33+F)\sqrt{f'_c}A_e\)、非塑鉸區 \(0.53(1+F)\sqrt{f'_c}A_e\)（§5.3.3）</td></tr>
+    <tr><td>圍束筋</td><td>表 18.4.5.4（\(b_c\) 量至外緣）</td><td>式 5-5～5-8（\(h_c\) 量至外側箍筋中心；只在塑鉸區）（§5.3.4）</td></tr>
+    <tr><td>材料</td><td>—</td><td>\(f'_c\) 210～420；主筋 SD420W／SD280W；圍束筋 \(f_{yt}\le f_y\)（§5.2、§5.3.4）</td></tr>
+    <tr><td>加密區間距</td><td>\(\min(b/4,\ 6d_b,\ s_o)\)</td><td>\(\min(b/4,\ 6d_b,\ 15)\)</td></tr>
+    <tr><td>加密區外間距</td><td>另加 \(\min(6d_b,\ 15\ \text{cm})\)</td><td>\(s\le 2s_1\)（AASHTO 慣例，非我國規範明列）</td></tr>
+    <tr><td>長細效應</td><td>土木401-112 §6.2.5</td><td>公路橋梁設計規範 §7.3.5（無 40 上限、\(\gt 100\) 須二階分析）</td></tr>
+    <tr><td>主筋比上限</td><td>耐震柱 6%（§18.4.4.1）；一般柱 8%</td><td>4%（公路橋梁耐震設計規範 §5.3.1）</td></tr>
+    <tr><td>保護層</td><td>水工環境建議 \(\ge 5\ \text{cm}\)</td><td>依公路橋梁設計規範表 7.2 檢核</td></tr>
+  </table></div>
+
+  <div class="q"><h3>Q13. 橋梁案的設計準則指定了不同的 \(\phi\) 值，可以改嗎？</h3>
+  <p>可以，直接改「規範係數」群組的輸入值。但 <b>\(\phi\) 必須與載重組合成套使用</b>。尤其不要把 AASHTO 的 \(\phi_v=0.90\) 套進來：它是為 MCFT 校準的，搭配土木401 的 \(V_c\) 式會偷掉約 20% 剪力裕度。</p></div>
+
+  <div class="q"><h3>Q14. 台灣沒有橋塔專用規範，那橋塔怎麼設計？</h3>
+  <p>工具以「橋梁」依據處理橋塔，中空箱型斷面另有牆片拆解檢核 \(A_{sh}\)。特殊需求（如設計準則另訂 \(\phi\)、超量強度係數）請改輸入值並在計算書中說明依據。</p></div>
+
+  <div class="q"><h3>Q15. 工具上的條號為什麼跟 ACI 318 對不起來？</h3>
+  <p>土木401-112 第十八章與 ACI 編號不同：ACI 18.6 梁 → <b>18.3</b>、18.7 柱 → <b>18.4</b>、18.8 接頭 → <b>18.5</b>。其餘章節與 ACI 318-19 同號。工具內一律標土木401-112 條號。</p></div>
+</section>
+
+<section class="chap">
+  <h2>四、柱斷面與基樁</h2>
+
+  <div class="q"><h3>Q16. 支援哪些柱斷面？</h3>
+  <p>矩形實心、中空箱型、圓形（螺箍／圓箍），另有場鑄基樁（Q16a）。主筋 D13～D57 共 12 種（含 D39、D50）；箍筋／繫筋 D10～D22；直徑與截面積依 CNS 560 表 3。大於 D36 的鋼筋不得搭接（§25.5.1.1），工具會判不合格並建議改用機械式續接。</p></div>
+
+  <div class="q long"><h3>Q16a. 可以檢核場鑄基樁嗎？和柱有什麼不同？</h3>
+  <p>可以。參數表「基樁」組把「構材類型」改為「場鑄基樁」（圖 13 <span class="n">1</span>；範本「場鑄基樁 φ120」可直接參考），限圓形斷面。與柱的主要差異：</p>
+  <figure><img src="img/f-pile-param.png"><figcaption>圖 13　「基樁」參數組：<span class="n">1</span> 構材類型、<span class="n">2</span> 施工偏心、<span class="n">3</span> 右側條文說明</figcaption></figure>
+  <ul><li>軸壓上限依深基礎規定：\(P_{n,max}=0.80P_o\)、無彎矩軸壓 \(\phi=0.55\)（土木401-112 §13.4.3.2、表 22.4.2.1(e)），即 \(\phi P_{n,max}=0.55\times0.80P_o\)。</li>
+  <li>檢核《建築物基礎構造設計規範》§5.6.3：\(f'_c\ge 210\)、主筋 \(\ge 6\) 支且 \(\ge\) D19、\(A_s\ge 0.005A_g\)、淨保護層 \(\ge 7.5\ \text{cm}\)、箍筋 \(\ge 13\ \text{mm}\)。</li>
+  <li>施工偏心彎矩自動加入：合彎矩 \(+\,|P_u|\,e\)，\(e\) 可輸入樁頭偏差（解說 5～10 cm）或取 \(L/75\)。</li>
+  <li>「塑鉸區／耐震加密區」選是代表支承耐震結構：依表 18.10.5.7.1 設樁頂圍束區（\(3D\) 或 \(7D\)，依地盤類別），\(\rho_s\) 取 \(0.12f'_c/f_{yt}\) 的一半或全量。</li>
+  <li>不作柱的容量設計剪力，不檢核長細效應（受土壤側撐者，§13.4.4.2）。樁身露出地面或水中的段落請改用「柱／墩柱」檢核。</li></ul>
+  <figure class="half"><img src="img/f-pile-elev.png"><figcaption>圖 14　基樁沿軸向配置：加密區在樁頂（樁帽底），樁尖不需錨定</figcaption></figure>
+  <figure><img src="img/f-pile-alerts.png"><figcaption>圖 15　基樁的警示：<span class="n">1</span> 軸壓上限、施工偏心、圍束區與長細效應說明</figcaption></figure></div>
+
+  <div class="q"><h3>Q17. \(D/C\) 是怎麼算的？和 spColumn 的結果為什麼有些差異？</h3>
+  <p>採<b>定偏心射線法</b>：沿原點到 \((M_u,P_u)\) 的射線與設計曲線求交點，\(M_u\to 0\) 時退化為 \(P_u/\phi P_{n,max}\)。差異通常來自：spColumn 可能用不同的 \(D/C\) 定義（定軸力法、定彎矩比法）、曲線離散點數，以及雙軸處理方式不同。比對時請先確認雙方採用同一種 \(D/C\) 定義。</p>
+  <figure><img src="img/12-pm.png"><figcaption>圖 16　P-M 互制曲線：紅色射線為定偏心射線法的 \(D/C\) 求解路徑</figcaption></figure></div>
+
+  <div class="q"><h3>Q18. 雙軸彎矩怎麼處理？</h3>
+  <p>矩形／箱型：分別算 X、Y 兩條單軸曲線；\(P_u\ge 0.1f'_cA_g\) 用 Bresler 倒數式，低軸壓時自動切換為 PCA 載重輪廓法。圓形：各向同性，以合彎矩 \(\sqrt{M_{ux}^2+M_{uy}^2}\) 對單一 P-M 曲線檢核。</p></div>
+
+  <div class="q"><h3>Q19. P-M 圖上第二條曲線（Mander）可以拿來當設計值嗎？</h3>
+  <p>不行，那是<b>參考資訊</b>。Mander 曲線依實際 \(A_{sh}\) 反算圍束強度 \(f'_{cc}\)，扣除保護層後以真纖維積分畫出，用來了解圍束效果；設計判定一律依等效應力塊的設計曲線。Excel 也不含 Mander 曲線。</p></div>
+
+  <div class="q"><h3>Q20. 中空箱型斷面的受壓區是怎麼處理的？</h3>
+  <p>以受壓塊與中空區的<b>交集</b>扣除，自動涵蓋 \(a\le t_w\)、\(t_w\lt a\lt D-t_w\)、\(a\ge D-t_w\) 三段。計算書的關鍵斷點明細會刻意列出 \(a=t_w\) 幾何切換點，方便人工複核。</p></div>
+
+  <div class="q"><h3>Q21. 箱型柱只配一層主筋（單層）可以嗎？</h3>
+  <p>可以算，但繫筋無處錨定，工具<b>不計也不畫穿越壁厚的繫筋</b>、剪力只取 2 肢，\(A_{sh}\) 通常會不足並警示改雙層。</p></div>
+
+  <div class="q"><h3>Q22. \(A_{sh}\) 的 \(b_c\) 要選「垂直」還是「平行」？</h3>
+  <p>選<b>垂直</b>（預設）。土木401-112 解說 R18.4.5.4 明示「對每一方向而言，\(b_c\) 為垂直構成 \(A_{sh}\) 之箍筋肢之核心尺度」：</p>
+  <ul><li><b>垂直</b>：\(b_c\) 取與該組肢垂直的核心尺寸（肢分布的跨距），即規範解說之讀法。</li>
+  <li><b>平行</b>：字面另一讀法，<b>非規範讀法，僅供比較</b>；選用時參數表會標示「非規範」。</li></ul>
+  <p>實心方柱兩向對稱，兩者無差；<b>箱型牆片可差 7 倍以上</b>。\(k_e\)、\(\rho_s\)、\(f'_l\) 一律採物理配對，不受此開關影響。</p></div>
+
+  <div class="q"><h3>Q23. 箱型柱塑鉸區 \(A_{sh}\) 一直不夠，怎麼辦？</h3>
+  <p>常見處理順序：</p>
+  <ol><li>繫筋配置改「每一根主筋皆設」。</li><li>縮小加密區箍筋間距。</li><li>加大箍筋號數。</li><li>確認箱型為雙層主筋（單層時繫筋不計）。</li><li>不規則需求可展開「進階：自訂繫筋位置」，在斷面圖上逐根點選（Q24）。</li></ol></div>
+
+  <div class="q long"><h3>Q24. 自訂繫筋位置怎麼操作？要注意什麼？</h3>
+  <p>在斷面圖上方展開「進階：自訂繫筋位置」→ 按「點選繫筋」（圖 17 <span class="n">1</span>）→ 在斷面圖上點外圍主筋（角隅除外）加設或取消（<span class="n">2</span>）。編輯中以橘色虛圈標出未受側撐的主筋。工具會檢核 §25.7.2.3（不得連續 2 根未撐、未撐筋淨距 \(\le 15\ \text{cm}\)）與 §18.4.5.2(f)（高軸力時每根都要撐）。</p>
+  <figure><img src="img/f-ctie.png"><figcaption>圖 17　自訂繫筋位置（範本「中跨徑橋塔」）：<span class="n">1</span> 工具列、<span class="n">2</span> 斷面圖上點選</figcaption></figure>
+  <p><b>主筋根數改變時，自訂配置會以規範最低重新起始並提示</b>；Excel 中繫筋根數、\(n_l\)、\(h_x\) 與肢距為匯出當下的固定值。</p></div>
+
+  <div class="q"><h3>Q25. 圓柱螺箍和圓箍的 \(\phi\) 值不一樣，切換時要自己改嗎？</h3>
+  <p>不用。切換型式時 \(\phi_c\)（螺箍 0.75／圓箍 0.65）與軸力截斷（\(0.85P_o\)／\(0.80P_o\)）會自動改為規範值；若你曾手動改過則不覆蓋。螺箍另需主筋 \(\ge 6\) 根、淨距 2.5～7.5 cm。基樁不適用此規定（Q16a）。</p></div>
+
+  <div class="q"><h3>Q26. 柱的扭矩怎麼算？</h3>
+  <p>箱型以封閉薄壁空間桁架計算 \(A_t/s\) 與追加縱筋 \(A_l\)，中空斷面剪扭上限採<b>直接相加</b>（實心斷面為平方根合成）。</p></div>
+</section>
+
+<section class="chap">
+  <h2>五、梁／版斷面</h2>
+  <figure><img src="img/24-beam.png"><figcaption>圖 18　梁／版模組：<span class="n">1</span> 正／負彎矩切換、<span class="n">2</span> 參數導軌、<span class="n">3</span> 結果分頁</figcaption></figure>
+
+  <div class="q"><h3>Q27. 梁的負彎矩斷面是用 T 型還是矩形算？</h3>
+  <p>負彎矩時翼緣受拉、不計入受壓區，斷面退化為 \(b_w\times h\) 矩形，拉力筋改取頂筋，建議配筋也改搜頂筋（圖 18 <span class="n">1</span> 切換）。有效翼緣寬 \(b_e=\min(L/4,\ b_w+16h_f,\ \text{梁中心距})\)（邊梁另一組公式）。</p></div>
+
+  <div class="q"><h3>Q28. 為什麼 \(M_u=0\) 的斷面不判 \(A_{s,min}\) 不足？</h3>
+  <p>簡支梁支承處沒有撓曲拉力需求，\(A_{s,min}\) 不適用，工具改報 info。如果該處實際上有彎矩，請把彎矩填進載重表。</p></div>
+
+  <div class="q"><h3>Q29. 耐震梁的 \(M_{pr}\) 和接頭面 \(\phi M_n^{+}\ge 0.5\phi M_n^{-}\) 需要另外輸入嗎？</h3>
+  <p>不用。\(M_{pr}\) 以 \(1.25f_y\)、\(\phi=1.0\) 重解；正負兩向強度自動計算比較。容量設計剪力 \(V_e=(M_{pr}^{+}+M_{pr}^{-})/l_n+V_g\)，地震剪力佔比 \(\ge 50\%\) 時 \(V_c=0\)。</p></div>
+
+  <div class="q"><h3>Q30. 單位寬版怎麼輸入鋼筋？會檢核剪力嗎？</h3>
+  <p>\(b=100\ \text{cm}\)，鋼筋以「號數 @ 間距」輸入，不配箍筋。剪力須 \(V_u\le\phi V_c\)，\(V_c\) 取表 22.5.5.1 式 (c)，<b>含尺寸效應 \(\lambda_s\)</b>：厚版的 \(V_c\) 會比舊式小（60 cm 版 \(\lambda_s\approx 0.8\)），舊案沿用時請特別注意。</p></div>
+
+  <div class="q"><h3>Q31. 撓度和裂縫寬度要輸入哪些彎矩？</h3>
+  <p>使用載重彎矩分正負輸入：正彎矩 \(M_D\)、\(M_L\) 用於撓度與跨中裂縫；支承負彎矩 \(M_D^{-}\)、\(M_L^{-}\) 用於負彎矩斷面裂縫寬度。撓度只在正彎矩斷面判定；撓度係數 \(K\) 依支承／載重型式選定。\(E_c=12000\sqrt{f'_c}\)（土木401-112 §19.2.2.1(b)），有效慣性矩 \(I_e\) 依表 24.2.3.5（Bischoff 式）；裂縫控制間距依表 24.3.2（\(2800/f_s\)）。</p>
+  <figure class="half"><img src="img/25-beam-load.png"><figcaption>圖 19　梁的載重組合表（含使用載重彎矩）</figcaption></figure></div>
+
+  <div class="q"><h3>Q32. 「建議配筋」可以直接採用嗎？</h3>
+  <p>它枚舉<b>單一號數</b>、最多 2 排，篩選 \(\phi M_n\ge M_u\)、\(A_s\ge A_{s,min}\)、拉力控制 \(\varepsilon_t\ge\varepsilon_{ty}+0.003\)（§9.3.3.1）、淨距足夠者，依 \(A_s\) 由小到大列前 6 組。不考慮混用號數、與柱筋的穿越衝突及施工習慣，請當作起點，最後仍須回到斷面輸入並重新檢核。</p></div>
+
+  <div class="q"><h3>Q33. 箍筋肢數改了之後圖上的肢位會亂跑？</h3>
+  <p>工具依肢數自動挑選肢位；若平均挑選造成肢距超限或上下偏差 \(\gt d_b\)（頂底筋根數不同時常見），會窮舉內部肢位，取合格且盡量對稱者並提示「已自動調整肢位」。找不到合格者時維持平均挑選並警示，此時建議調整主筋位置或肢數。</p></div>
+
+  <div class="q"><h3>Q34. 預力梁可以算嗎？</h3>
+  <p>不行，目前不含預力（PC 梁為第二階段）。</p></div>
+</section>
+
+<section class="chap">
+  <h2>六、橫向鋼筋與沿軸向配置</h2>
+
+  <div class="q long"><h3>Q35. 加密區長度和箍筋數量怎麼決定？</h3>
+  <p>柱：\(l_o=\max\left(h,\ \dfrac{l_u}{6},\ 45\ \text{cm}\right)\)（§18.4.5.1，橋梁塑鉸區同式）；梁：耐震梁自柱面 \(2h\) 內加密（§18.3.4.1）；基樁見 Q16a。配置規則：第一支距接頭面 \(e=\min(5\ \text{cm},\ \lfloor s_1/2\rfloor)\)；加密區數量 \(\mathrm{INT}\!\left(\dfrac{l_o-e}{s_1}\right)+1\)；中段以 \(s_2\) 排列，餘數置於中央一格。</p>
+  <figure><img src="img/14-elev.png"><figcaption>圖 20　軸向配置分頁：立面圖與 <span class="n">1</span> 各區段長度、間距、數量表</figcaption></figure></div>
+
+  <div class="q"><h3>Q36. 為什麼中段會出現兩格相同但不是 \(s_2\) 的間距（如 20、20）？</h3>
+  <p>為了施工性。餘數 \(\lt s_2/2\) 時，與相鄰一格合併後拆成兩格（取整數 cm），避免出現極短的間隔。工具一律採實務整數間距，不均分成零碎值。</p></div>
+
+  <div class="q"><h3>Q37. 懸臂墩柱只有底端會形成塑鉸，要怎麼設？</h3>
+  <p>「塑鉸區位置」選<b>僅底端</b>（懸臂墩柱、橋塔）；建築柱選兩端。若「塑鉸區／柱端加密區」設為「否」，全長採同一間距。</p></div>
+
+  <div class="q"><h3>Q38. 搭接段的箍筋為什麼自動變密了？</h3>
+  <p>耐震梁搭接段需 \(s\le\min(d/4,\ 10)\)，建築耐震柱同 §18.4.5.3。工具會自動加密並反映於軸向配置圖：移除搭接範圍內原有箍筋，改以實務間距排列，與原配置無縫接合。</p></div>
+
+  <div class="q"><h3>Q39. 箍筋肢的橫向間距要檢核什麼？</h3>
+  <p>\(\le\min(d,\ 60)\)；\(V_s\gt 1.06\sqrt{f'_c}\,b_wd\) 時 \(\le\min(d/2,\ 30)\)。<b>梁</b>依土木401-112 表 9.7.6.2.2 判定，耐震梁另檢核受側撐主筋間距 \(\le 35\ \text{cm}\)。<b>柱</b>只作參考：土木401-112 柱之表 10.7.6.5.2 只列沿柱長的間距，沒有沿寬度的限制，工具改引 ACI 318-19 作參考，超過時<b>只提醒、不判不合格</b>。</p></div>
+</section>
+
+<section class="chap">
+  <h2>七、伸展長度、搭接與錨定</h2>
+  <figure><img src="img/15-dev.png"><figcaption>圖 21　伸展長度與搭接分頁：<span class="n">1</span> 報告／Excel 輸出項目（Q50）、視圖切換與配置圖</figcaption></figure>
+
+  <div class="q"><h3>Q40. 伸展長度的 \(\psi\) 係數要自己判斷嗎？</h3>
+  <p>大部分自動判定：\(\psi_t\)（頂筋下方混凝土 \(\gt 30\ \text{cm}\) 取 1.3）、\(\psi_e\)（環氧樹脂依保護層與淨距）、\(\psi_s\)（D19 以下 0.8）、\(\psi_c\) 等。需要你選的有：是否環氧樹脂、\(\lambda\)（混凝土單位重）、混凝土澆置方式（泥水中灌注，Q11a）、\(\psi_r\)／\(\psi_p\)、\(\psi_o\)、超量鋼筋折減。</p></div>
+
+  <div class="q"><h3>Q41. 超量鋼筋折減（\(A_{s,\text{需求}}/A_{s,\text{使用}}\)）可以用在哪裡？</h3>
+  <p>只用於<b>直線 \(l_d\) 與受壓 \(l_{dc}\)</b>；不用於彎鉤、擴頭、搭接及抵抗地震力系統（§25.4.10.2）。</p></div>
+
+  <div class="q"><h3>Q42. 搭接要用甲級還是乙級？</h3>
+  <p>甲級需 \(A_{s,\text{使用}}/A_{s,\text{需求}}\ge 2\)（以「超量鋼筋折減」\(\le 0.5\) 表示）且錯開；否則用乙級（\(1.3\psi_g l_d\)）。\(f_y\) 越高，\(\psi_g\) 越大（4200 → 1.0、7000 → 1.30）。</p></div>
+
+  <div class="q"><h3>Q43. 搭接或機械式續接可以放在哪裡？</h3>
+  <ul><li>建築耐震柱：中央 1/2 淨高。</li><li>橋梁：塑鉸區外。</li><li>耐震梁：接頭及 \(2h\) 範圍外；錯開時需 \(2l_{st}\)。</li>
+  <li>基樁：工具建議設於樁頂加密區外。</li>
+  <li>機械式續接第一、二類不得設於接頭面或降伏臨界斷面 \(2h\) 內（柱中央 1/2 除外），第三類不限。</li></ul></div>
+
+  <div class="q"><h3>Q44. 錨定空間不足怎麼處理？</h3>
+  <p>工具檢核錨定長度 \(\le\) 構材尺寸 \(-\) 保護層。不足時可考慮：改用擴頭（\(l_{dt}\) 較短，需滿足 D36 以下、常重、淨保護層 \(\ge 2d_b\)、中心距 \(\ge 3d_b\)）、改用 180° 彎鉤、加深基礎或改小號數多根。注意柱筋受壓時彎鉤與擴頭不計入 \(l_{dc}\)。</p></div>
+
+  <div class="q"><h3>Q45. 「鋼筋下料長度表」可以直接給加工廠嗎？</h3>
+  <p>不建議直接使用。下料長度<b>未扣彎曲伸長、未含續接器</b>，請依加工廠的彎曲伸長表調整後再下料。</p></div>
+
+  <div class="q"><h3>Q46. 截斷點分析可以用在耐震梁嗎？</h3>
+  <p>不適用。截斷點以端部 \(M_u^{-}\) 與跨中 \(M_u^{+}\) 推均布載重彎矩圖，屬近似；耐震梁受地震反復作用時圖上會以紅字提示。§9.7.3.5 只檢核 (a)，不符列為「注意」不計 NG。</p></div>
+</section>
+
+<section class="chap">
+  <h2>八、計算書、PDF 與 Excel 輸出</h2>
+
+  <div class="q"><h3>Q47. 怎麼產生送審用的 PDF 計算書？</h3>
+  <p>「預覽報告」先在畫面上檢查 → 「列印／存成 PDF」<span class="n">1</span> → 在列印對話框選「另存為 PDF」。預設檔名為「構件名稱_計算書名稱_日期」。A4 直式，每條公式展開「公式 → 代入 → 化簡 → 單位」四層，方便審查。若斷網導致公式元件（KaTeX）沒有載入，按列印時會先提醒，可取消後連網再印（Q1）。</p>
+  <figure><img src="img/16-report.png"><figcaption>圖 22　計算書預覽：<span class="n">1</span> 列印／存成 PDF、<span class="n">2</span> 返回</figcaption></figure></div>
+
+  <div class="q long"><h3>Q48. Excel 計算書和網頁有什麼不同？可以在 Excel 裡直接改嗎？</h3>
+  <p>Excel 包含「檢核表」與「結構計算書(A4)」，<b>所有導出值都是 Excel 公式</b>，在 Excel 內改輸入會重算，P-M 曲線為原生散佈圖會隨輸入更新。但以下內容<b>不會</b>在 Excel 內重算，改了輸入要回網頁重新匯出：</p>
+  <ul><li>斷面配筋圖、軸向配置立面、伸展搭接配置圖（匯出當下的 PNG）。</li>
+  <li>繫筋根數、\(n_l\)、\(h_x\)、箍筋肢距（匯出當下網頁值）。</li>
+  <li>P-M 圖例的載重組合數（在 Excel 新增組合不會自動上圖）。</li></ul>
+  <p>Excel 也不含 Mander 曲線與建議配筋清單。</p>
+  <figure><img src="img/26-xl-check.png"><figcaption>圖 23　Excel「檢核表」：輸入、公式、判定標準與規範條號</figcaption></figure>
+  <figure class="half"><img src="img/27-xl-a4.png"><figcaption>圖 24　Excel「結構計算書(A4)」第一頁</figcaption></figure></div>
+
+  <div class="q"><h3>Q49. Excel 與網頁數值有差異，哪個對？</h3>
+  <p>目前版本已以全部範本（柱 9 個、梁／版 8 個）比對網頁與 LibreOffice 重算後的 Excel，差異 \(\le 0.2\%\)，來源是 P-M 離散點數不同（Excel 120 點）。超過此範圍時請檢查是否在 Excel 內修改了不會重算的固定值（Q48）。</p></div>
+
+  <div class="q"><h3>Q50. 伸展長度的圖和公式太多，可以只輸出部分嗎？</h3>
+  <p>可以。在「伸展長度」卡片上方「報告／Excel 輸出項目」（圖 21 <span class="n">1</span>）勾選要輸出的計算式、配置圖與表格。選擇會存進案件檔。「檢核表」工作表的公式不受影響。</p></div>
+</section>
+
+<section class="chap">
+  <h2>九、從圖說匯入（Gemini）</h2>
+  <figure class="half"><img src="img/21-import.png"><figcaption>圖 25　從圖說匯入：<span class="n">1</span> 圖檔、<span class="n">2</span> API 金鑰、<span class="n">3</span> 模型、<span class="n">4</span> 開始判讀</figcaption></figure>
+
+  <div class="q"><h3>Q51. 「從圖說匯入」會做什麼？安全嗎？</h3>
+  <p>它把你上傳的圖檔（PNG/JPEG/WebP/PDF）送到 <b>Google Gemini API</b>，判讀斷面尺寸、保護層、鋼筋號數與主筋總支數，讓你逐欄勾選後填進參數表。它<b>不碰計算</b>。注意：圖說會上傳至 Google 的服務。若業主或案件有保密要求，請先確認可否使用，或改為手動輸入。</p></div>
+
+  <div class="q"><h3>Q52. 金鑰存在哪裡？</h3>
+  <p>需自備 Gemini API 金鑰（圖 25 <span class="n">2</span>）。勾選「把金鑰記在這台瀏覽器」時存在本機 localStorage；共用電腦請不要勾選，或用「清除已存金鑰」移除。</p></div>
+
+  <div class="q"><h3>Q53. 為什麼單面根數 \(n_B\)／\(n_H\) 不會自動填？</h3>
+  <p>實測顯示模型會從總支數反推一個對稱解並宣稱數過了，17 次只對 7 次。因此工具只填<b>總支數</b>，套用後會在「總根數」旁顯示與圖說的比對，請自己調整單面根數直到相符。</p></div>
+</section>
+
+<section class="chap">
+  <h2>十、案件存檔、複核與資料安全</h2>
+  <figure><img src="img/18-topbar.png"><figcaption>圖 26　頂列：<span class="n">1</span> 從圖說匯入、<span class="n">2</span> 開啟案件、<span class="n">3</span> 儲存案件、<span class="n">4</span> 匯出 Excel、<span class="n">5</span> 預覽報告、<span class="n">6</span> 列印、<span class="n">7</span> 內部自測</figcaption></figure>
+
+  <div class="q"><h3>Q54. 關掉瀏覽器資料會不見嗎？</h3>
+  <p>所有輸入、載重與檢視狀態會自動存在本機瀏覽器，重新整理不會遺失。若瀏覽器封鎖了本機儲存（無痕模式、封鎖網站資料、空間已滿），頂列會常駐顯示「⚠ 本機自動保存無法使用」。清除瀏覽器資料、換電腦或換瀏覽器也會看不到先前資料。<b>重要案件請一定按「儲存案件」（圖 26 <span class="n">3</span>）下載 <code>.json</code>。</b></p></div>
+
+  <div class="q"><h3>Q55. 怎麼把案件交給同事或技師複核？</h3>
+  <p>「儲存案件」下載 <code>.json</code> 傳給對方，對方用「開啟案件」（圖 26 <span class="n">2</span>）讀回即可得到完全相同的輸入（含載重、自訂繫筋位置、輸出項目選擇）。建議同時附上 PDF 計算書。</p></div>
+
+  <div class="q"><h3>Q56. 同時要算很多根柱，怎麼管理？</h3>
+  <p>每根構件填不同的「構件名稱」，各自存成一個 <code>.json</code>（如 <code>C1.json</code>、<code>C2.json</code>）。目前一次只能開啟一個案件。</p></div>
+</section>
+
+<section class="chap">
+  <h2>十一、適用範圍、限制與驗證</h2>
+
+  <div class="q"><h3>Q57. 這個工具不能做什麼？</h3>
+  <ul><li>彎矩放大（長細效應只判定可否忽略；不可忽略時須輸入二階分析結果）。</li>
+  <li>彎矩-曲率、塑鉸轉角容量（pushover 範疇）。</li><li>預力梁。</li>
+  <li>非對稱配筋的塑性形心（僅對稱配筋成立）。</li>
+  <li>梁「任一斷面 \(M_n\ge\) 端部最大值 25%」（需整根梁的彎矩包絡線）。</li>
+  <li>建議配筋混用號數、超過 2 排。</li><li>超寬實心斷面的內部套疊箍筋（繫筋以貫穿全斷面建模）。</li>
+  <li>ACI 350 的 \(S_d\) 係數（需自行乘入載重）；水工 Level 1 容許應力檢核；土壓、水壓、浮力等載重計算與整體抗浮檢核。</li></ul></div>
+
+  <div class="q"><h3>Q57a. 規範原文放在哪裡？</h3>
+  <p>放在 repo 的 <code>specs/</code>，依建築、橋梁、下水道分類；<code>specs/README.md</code> 列出每份規範的版本、在工具中使用的章節與核對狀態。付費的 CNS 560 不放入 repo。</p></div>
+
+  <div class="q"><h3>Q58. 「內部自測」通過就代表計算正確嗎？</h3>
+  <p><b>不代表。</b>自測只驗<b>內部一致性</b>（如 \(c\to\infty\) 收斂 \(P_o\)、平衡點解析解、箱型分段積分連續性、\(\phi\) 值域等），抓不到系統性公式錯誤。真正的驗證請用 PDF 計算書逐式手算複核，或以 spColumn／SAP2000 Section Designer 已知答案的斷面比對。</p>
+  <figure class="half"><img src="img/22-test.png"><figcaption>圖 27　內部一致性自測結果</figcaption></figure></div>
+
+  <div class="q"><h3>Q59. 送審時，技師需要特別簽註或說明哪些地方？</h3>
+  <p>建議在計算書中說明：</p>
+  <ul><li>載重來源及是否為二階分析結果（長細效應判定結果見計算書「長細效應判定」節）。</li>
+  <li>側移支撐與有效長度係數 \(k\) 的取值依據。</li><li>\(A_{sh}\) 之 \(b_c\) 配對採用的讀法（Q22）。</li>
+  <li>若修改了 \(\phi\) 值或其他規範係數，其依據。</li><li>橋梁加密區外 \(s\le 2s_1\) 採 AASHTO 慣例（非我國規範明列）。</li>
+  <li>水工案件是否已將 \(S_d\) 乘入載重，以及 Level 1 容許應力檢核另附之計算。</li>
+  <li>基樁之施工偏心 \(e\) 取值與地盤類別。</li></ul>
+  <div class="note"><b>責任</b>最終判斷與簽證責任仍在設計技師，本工具僅為輔助計算。</div></div>
+</section>
+
+<section class="chap">
+  <h2>十二、疑難排解</h2>
+  <table>
+    <tr><th style="width:50mm">現象</th><th style="width:50mm">可能原因</th><th>處理方式</th></tr>
+    <tr><td>計算書公式顯示為原始碼／列印時跳出「公式無法排版」</td><td>斷網，KaTeX CDN 載不到</td><td>連網後重新整理頁面再列印</td></tr>
+    <tr><td>「匯出 Excel」沒反應或失敗</td><td>斷網或 CDN 被公司防火牆擋</td><td>確認可連到 CDN；換網路後重試</td></tr>
+    <tr><td>淨距顯示「放不下」</td><td>主筋根數過多或號數過大</td><td>減少根數、改大號數少根、加大斷面或改雙排（梁）</td></tr>
+    <tr><td>某欄紅框</td><td>空白或非數字，已改用預設值</td><td>依警示中的提示補上正確數值（Q9）</td></tr>
+    <tr><td>判定全部通過但數值看起來不對</td><td>載重單位或正負號錯</td><td>確認 tf、tf·m；柱 \(P_u\) 壓為正</td></tr>
+    <tr><td>自訂繫筋配置被重設</td><td>主筋根數改變</td><td>依提示重新點選</td></tr>
+    <tr><td>重新開啟後輸入不見了</td><td>無痕模式或清除了瀏覽器資料</td><td>用「開啟案件」讀回先前存的 <code>.json</code></td></tr>
+    <tr><td>換範本時跳出「覆蓋目前的輸入」</td><td>輸入或載重已和上次套用的範本不同</td><td>要保留就選「先儲存再套用」</td></tr>
+    <tr><td>CSV 套用後提示「略過 N 行」</td><td>標題列、欄位不足或數值不是數字</td><td>依提示的行號修正後重貼；標題列可忽略</td></tr>
+    <tr><td>警示「須考慮長細效應」</td><td>\(kl_u/r\) 超過門檻</td><td>確認 \(k\)、側向位移支撐；載重改用含二階效應之分析結果</td></tr>
+    <tr><td>梁警示「未達拉力控制」</td><td>\(\varepsilon_t\lt\varepsilon_{ty}+0.003\)（§9.3.3.1）</td><td>減少拉力筋、加壓力筋或加大斷面</td></tr>
+    <tr><td>橋梁「保護層不足」</td><td>未達公路橋梁設計規範表 7.2</td><td>加大外側保護層或確認保護層環境選項</td></tr>
+    <tr><td>基樁「細則不符」</td><td>基礎規範 §5.6.3（主筋、保護層、箍筋直徑等）</td><td>依警示補足；箍筋至少 D13、淨保護層 7.5 cm</td></tr>
+    <tr><td>Excel 圖與數值不一致</td><td>在 Excel 內改了輸入，但圖為匯出當下靜態圖</td><td>回網頁修改後重新匯出</td></tr>
+    <tr><td>梁肢畫成傾斜並警示</td><td>頂、底筋根數不同，上下勾的主筋位置不對齊</td><td>調整主筋配置或肢數</td></tr>
+    <tr><td>版判定「無受拉鋼筋」</td><td>負彎矩但未配頂筋</td><td>配置頂筋或確認彎矩方向</td></tr>
+  </table>
+</section>
+
+<script>
+  renderMathInElement(document.body, {delimiters: [{left: '\\(', right: '\\)', display: false}], throwOnError: true});
+  document.fonts.ready.then(() => { window.__ready = true; });
+</script>
+</body>
+</html>

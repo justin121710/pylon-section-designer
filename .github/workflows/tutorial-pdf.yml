@@ -1,0 +1,11 @@
+# 操作教學 PDF 必須對應每個提交的程式與教學原始檔（見 docs/tutorial/check.sh）
+name: 操作教學 PDF 是否最新
+on:
+  push:
+  pull_request:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sh docs/tutorial/check.sh
