@@ -400,7 +400,22 @@ body .pin-v input[type=text]{text-align:left}
 .rp-pm2 .rp-fig{padding:3px}
 
 /* ---- 從圖說匯入（自帶規則，不依賴 Tailwind，斷網也不會垮）---- */
-#setupOv{position:fixed;inset:0;background:rgba(3,7,18,.55);z-index:70;display:none;align-items:center;justify-content:center;padding:16px}
+/* 開場精靈：底色不透明，避免背景畫面干擾操作 */
+#setupOv{position:fixed;inset:0;background:var(--bg);z-index:70;display:none;align-items:center;justify-content:center;padding:16px}
+#setupOv .setup-dlg{transition:width .15s}
+#setupOv[data-step="2"] .setup-dlg,#setupOv[data-step="3"] .setup-dlg{width:min(1180px,100%);height:92vh}
+#setupOv[data-step="1"] .setup-n1,#setupOv:not([data-step="1"]) .setup-s1,#setupOv:not([data-step="2"]) .setup-s2,#setupOv:not([data-step="3"]) .setup-s3{display:none}
+.setup-steps{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.setup-steps span{font-size:12px;padding:3px 10px;border-radius:12px;border:1px solid var(--line2);color:var(--dim);background:var(--panel)}
+.setup-steps span.on{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:700}
+.setup-steps span.done{color:var(--acc);border-color:var(--acc)}
+.setup-act{gap:8px;align-items:center}
+.setup-act .grow{flex-grow:1}
+.setup-dims{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:6px 10px}
+.setup-dims label{display:flex;flex-direction:column;gap:2px;font-size:11.5px;color:var(--dim)}
+body .setup-dims input{width:100%;padding:5px 7px;font-size:13.5px;border:1px solid var(--line2);border-radius:6px;background:var(--panel);color:var(--txt)}
+#setupLoadHost>.card,#setupOptHost>.card{margin:0;box-shadow:none;border:0;padding:0}
+#setupLoadHost>.card>h2,#setupOptHost>.card h2{display:none}
 #setupOv.open{display:flex}
 .setup-dlg{background:var(--panel);border:1px solid var(--line);border-radius:12px;width:min(560px,100%);max-height:92vh;
   display:flex;flex-direction:column;box-shadow:0 18px 60px rgba(0,0,0,.45)}
@@ -638,8 +653,9 @@ img,video{max-width:100%;height:auto}
      控制項是原本的元素搬進來（id 與事件監聽不變），compute() 照舊以 id 讀取。 -->
 <div id="setupOv" role="dialog" aria-modal="true" aria-labelledby="setupTtl">
   <div class="setup-dlg">
-    <div class="setup-head"><b id="setupTtl">設計對象</b><span>先選構件與斷面型式；之後可由左上角按鈕隨時變更。</span></div>
-    <div class="setup-body">
+    <div class="setup-head"><b id="setupTtl">設計對象</b><span id="setupSub">先選構件與斷面型式；之後可由左上角按鈕隨時變更。</span>
+      <div class="setup-steps" aria-label="設計步驟"><span data-s="1">① 設計對象與斷面</span><span data-s="2">② 載重組合</span><span data-s="3">③ 建議配筋</span></div></div>
+    <div class="setup-body setup-s1">
       <div class="setup-row"><span class="setup-k">構件類型</span>
         <div class="seg" role="group" aria-label="構件類型">
           <button id="tabPylon" type="button" aria-pressed="true">柱斷面</button>
@@ -654,8 +670,18 @@ img,video{max-width:100%;height:auto}
       <div class="setup-row" data-mod="beam"><span class="setup-k">構件名稱</span><div class="setup-v" id="setupMemB"></div></div>
       <div class="setup-row"><span class="setup-k">設計依據</span><div class="setup-v" id="setupCode"></div></div>
       <div class="setup-row"><span class="setup-k">環境</span><div class="setup-v" id="setupEnv"></div></div>
+      <div class="setup-row"><span class="setup-k">主要尺寸</span><div class="setup-dims" id="setupDims"></div></div>
+      <div class="setup-hint">尺寸與材料也可稍後在參數表修改；保護層、配筋細節等其餘輸入沿用範本值。</div>
     </div>
-    <div class="setup-act"><button id="setupGo" type="button" class="btn-primary">開始設計</button></div>
+    <div class="setup-body setup-s2" id="setupLoadHost" style="flex-grow:1"></div>
+    <div class="setup-body setup-s3" id="setupOptHost" style="flex-grow:1"></div>
+    <div class="setup-act">
+      <button id="setupBack" type="button" class="btn-quiet setup-n1">← 上一步</button>
+      <div class="grow"></div>
+      <button id="setupSkip" type="button" class="btn-quiet">直接進入主畫面</button>
+      <button id="setupGo" type="button" class="btn-primary setup-s1">下一步：輸入載重組合 →</button>
+      <button id="setupNext2" type="button" class="btn-primary setup-s2">下一步：建議配筋 →</button>
+    </div>
   </div>
 </div>
 
@@ -3954,12 +3980,62 @@ function setupSummary(){
   document.getElementById('setupSum').textContent = `${beam?'梁／版':'柱'}・${tx(beam?'bType':'secType').replace(/（.*$/,'')}｜${code}${env}${nm?'｜'+nm:''}`;
   document.getElementById('setupOv').dataset.mod = beam ? 'beam' : 'pylon';
 }
+/* 開場精靈：① 設計對象與主要尺寸 → ② 載重組合 → ③ 建議配筋（套用後進入主畫面）。
+   第 2、3 步把原本的載重卡片與建議配筋卡片暫時搬進視窗（id 與事件不變），離開時搬回原處。 */
+const SETUP_DIMS = {
+  pylon: [['Dia','直徑 D','cm',t=>t==='circle'],['B','外寬 B','cm',t=>t!=='circle'],['H','外高 H','cm',t=>t!=='circle'],
+          ['tw','壁厚 t<sub>w</sub>','cm',t=>t==='box'],['fc',"f'<sub>c</sub>",'kgf/cm²',()=>true],
+          ['lu','柱淨高 l<sub>u</sub>','cm',(t,pile)=>!pile],['pileL','樁長 L','cm',(t,pile)=>pile]],
+  beam:  [['bw','腹板寬 b<sub>w</sub>','cm',t=>t!=='slab'],['bh','全深 h','cm',()=>true],['bhf','翼緣厚 h<sub>f</sub>','cm',t=>t==='T'],
+          ['bL','跨度 L','cm',()=>true],['bfc',"f'<sub>c</sub>",'kgf/cm²',()=>true]]
+};
+let SETUP_STEP = 1, SETUP_MOVED = [];
+const setupOpen = () => document.getElementById('setupOv').classList.contains('open');
+function setupDimsRender(){
+  const beam = TAB==='beam', t = document.getElementById(beam ? 'bType' : 'secType').value;
+  const pile = !beam && document.getElementById('memType').value==='pile';
+  document.getElementById('setupDims').innerHTML = SETUP_DIMS[beam ? 'beam' : 'pylon'].filter(d=>d[3](t, pile))
+    .map(([id, lb, u])=>`<label><span>${lb}${u ? `（${u}）` : ''}</span><input type="number" data-for="${id}" value="${esc(document.getElementById(id).value)}"></label>`).join('');
+}
+/* 重算後同步主要尺寸欄（範本套用等）；使用者正在輸入的欄位不動 */
+function setupSync(){
+  if(!setupOpen() || SETUP_STEP!==1) return;
+  const box = document.getElementById('setupDims');
+  if(box.contains(document.activeElement)) return;
+  setupDimsRender();
+}
+function setupMove(el, host){ if(!el) return; SETUP_MOVED.push({el, parent:el.parentNode, next:el.nextSibling}); host.appendChild(el); }
+function setupRestore(){ for(const m of SETUP_MOVED.reverse()) m.parent.insertBefore(m.el, m.next); SETUP_MOVED = []; }
+function setupStep(n){
+  setupRestore();
+  SETUP_STEP = n;
+  const ov = document.getElementById('setupOv'), beam = TAB==='beam', mod = beam ? 'beam' : 'pylon';
+  ov.dataset.step = String(n);
+  ov.querySelectorAll('.setup-steps span').forEach(e=>{ const k = +e.dataset.s; e.classList.toggle('on', k===n); e.classList.toggle('done', k<n); });
+  const T = {1:['設計對象與斷面', '選構件、斷面型式與範本，確認主要尺寸與材料；之後可由左上角按鈕隨時變更。'],
+             2:['載重組合', beam ? 'M<sub>u</sub><sup>+</sup>（跨中）、M<sub>u</sub><sup>−</sup>（支承）皆填絕對值；可貼上 CSV。完成後按「下一步」，工具會依全部組合求配筋。'
+                                : 'P<sub>u</sub> 壓為正、拉為負；可貼上 CSV。完成後按「下一步」，工具會依全部組合求配筋。'],
+             3:['建議配筋', '選一組按「套用」或「套用最佳組合」，寫回輸入後進入主畫面檢視與微調。']}[n];
+  document.getElementById('setupTtl').textContent = T[0];
+  document.getElementById('setupSub').innerHTML = T[1];
+  if(n===1) setupDimsRender();
+  if(n===2) setupMove(document.getElementById(beam ? 'bLoadTbl' : 'loadTbl').closest('.card'), document.getElementById('setupLoadHost'));
+  if(n===3){ setupMove(document.getElementById(beam ? 'optCardB' : 'optCardP'), document.getElementById('setupOptHost')); optSchedule(mod); }
+  const f = {1:'setupGo', 2:'setupNext2', 3:'setupSkip'}[n];
+  setTimeout(() => { try{ document.getElementById(f).focus(); }catch(e){} }, 30);
+}
 function openSetup(focusEl){
   setupFilter(); setupSummary();
   const ov = document.getElementById('setupOv'); ov.classList.add('open');
-  setTimeout(() => { try{ (focusEl || document.getElementById('setupGo')).focus(); }catch(e){} }, 30);
+  setupStep(1);
+  if(focusEl) setTimeout(() => { try{ focusEl.focus(); }catch(e){} }, 40);
 }
-function closeSetup(){ document.getElementById('setupOv').classList.remove('open'); setupSummary(); }
+function closeSetup(pane){
+  setupRestore(); SETUP_STEP = 1;
+  const ov = document.getElementById('setupOv'); ov.classList.remove('open'); ov.dataset.step = '1';
+  setupSummary();
+  if(pane) wsShow(document.getElementById(TAB==='beam' ? 'wsB' : 'wsP'), pane);
+}
 function setupInit(){
   for(const [id, box, lbl] of SETUP_IDS){
     const el = document.getElementById(id); if(!el) continue;
@@ -3969,7 +4045,15 @@ function setupInit(){
   for(const id of ['preset','bPreset','codeBasis','envWater','memName','bMemName']) document.getElementById(id).addEventListener('change', setupSummary);
   for(const id of ['tabPylon','tabBeam']) document.getElementById(id).addEventListener('click', () => setTimeout(setupSummary, 0));
   document.getElementById('btnSetup').onclick = () => openSetup();
-  document.getElementById('setupGo').onclick = closeSetup;
+  document.getElementById('setupGo').onclick = () => setupStep(2);
+  document.getElementById('setupNext2').onclick = () => setupStep(3);
+  document.getElementById('setupBack').onclick = () => setupStep(Math.max(1, SETUP_STEP-1));
+  document.getElementById('setupSkip').onclick = () => closeSetup();
+  for(const id of ['tabPylon','tabBeam','secType','bType','memType']) document.getElementById(id).addEventListener(id.startsWith('tab') ? 'click' : 'change', () => setTimeout(setupSync, 0));
+  document.getElementById('setupDims').addEventListener('input', e=>{
+    const id = e.target.dataset && e.target.dataset.for; if(!id) return;
+    const el = document.getElementById(id); el.value = e.target.value; el.dispatchEvent(new Event('input'));
+  });
   document.addEventListener('keydown', e => { if(e.key==='Escape' && document.getElementById('setupOv').classList.contains('open')) closeSetup(); });
   openSetup();   // 每次開啟網站先確認設計對象
 }
@@ -5076,7 +5160,7 @@ function render(){
   pinStatus('pylon', pinMapPylon(M));
   if(document.getElementById('report').classList.contains('preview')) buildReport(M);
   caseAutosave();
-  optAfterRender('pylon');
+  optAfterRender('pylon'); setupSync();
   return M;
 }
 
@@ -6901,7 +6985,10 @@ function optApply(mod, ovr){
   if(mod==='beam') renderBeam(); else render();
   caseAutosave();
   optSchedule(mod);
+  optAfterApply();
 }
+/* 開場精靈第 3 步套用後直接進入主畫面 */
+function optAfterApply(){ if(typeof setupOpen==='function' && setupOpen() && SETUP_STEP===3) closeSetup('fig'); }
 /* 一鍵套用：主筋最佳 → 重算 → 橫向筋最佳（梁：頂筋 → 底筋 → 箍筋） */
 function optApplyBest(mod){
   const el = optEl(mod); if(el) el.innerHTML = '<div style="color:var(--dim)">套用最佳組合中…</div>';
@@ -6916,6 +7003,7 @@ function optApplyBest(mod){
     }
     caseAutosave();
     optRun(mod);
+    optAfterApply();
   }, 30);
 }
 document.addEventListener('click', e=>{
@@ -7735,7 +7823,7 @@ function renderBeam(){
   pinStatus('beam', pinMapBeam(B));
   if(document.getElementById('report').classList.contains('preview')) buildBeamReport(B);
   caseAutosave();
-  optAfterRender('beam');
+  optAfterRender('beam'); setupSync();
   return B;
 }
 

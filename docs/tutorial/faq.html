@@ -88,7 +88,7 @@ pre { font-family: "DejaVu Sans Mono", "WenQuanYi Zen Hei Mono", monospace; font
   <div class="q long"><h3>Q2. 一個斷面從頭到尾的標準操作流程是什麼？</h3>
   <figure class="half"><img src="img/01-setup.png"><figcaption>圖 1　開場的「設計對象」視窗</figcaption></figure>
   <ol>
-    <li>開啟頁面後跳出「設計對象」視窗（圖 1）：選構件類型 <span class="n">1</span>、斷面型式 <span class="n">2</span>、預設範本 <span class="n">3</span>，填構件名稱 <span class="n">4</span>，選設計依據 <span class="n">5</span> 與環境 <span class="n">6</span>，按「開始設計」<span class="n">7</span>。之後可由左上角按鈕隨時變更。</li>
+    <li>開啟頁面後跳出「設計對象」視窗（圖 1）：選構件類型 <span class="n">1</span>、斷面型式 <span class="n">2</span>、預設範本 <span class="n">3</span>，填構件名稱 <span class="n">4</span>，選設計依據 <span class="n">5</span> 與環境 <span class="n">6</span>，並確認主要尺寸 <span class="n">7</span>。接著按「下一步」<span class="n">9</span> 輸入載重組合，再於第 ③ 步選一組建議配筋套用，即進入主畫面；不需要建議時按「直接進入主畫面」<span class="n">8</span>。之後可由左上角按鈕隨時變更。</li>
     <li>在中間參數表依左側導軌逐組修改尺寸、材料、配筋（或用「從圖說匯入」帶入）。</li>
     <li>在「載重組合」輸入或貼上 CSV；柱另在「長細效應」群組設定側向位移支撐、\(k\) 與 \(M_1/M_2\)。</li>
     <li>看頂列下方的判定膠囊（撓曲 \(D/C\)、剪力、箍筋、\(\rho_g\)、淨距、警示數），點膠囊會跳到對應結果卡片。</li>
@@ -257,7 +257,7 @@ pre { font-family: "DejaVu Sans Mono", "WenQuanYi Zen Hei Mono", monospace; font
   <p>箱型以封閉薄壁空間桁架計算 \(A_t/s\) 與追加縱筋 \(A_l\)，中空斷面剪扭上限採<b>直接相加</b>（實心斷面為平方根合成）。</p></div>
 
   <div class="q long"><h3>Q26a. 只有載重組合，能直接產出最佳化配筋嗎？</h3>
-  <p><b>可以。</b>輸入斷面、材料與載重組合後，切到結果區的「建議配筋」分頁（圖 17a），工具會自動試算：</p>
+  <p><b>可以。</b>開場視窗就是這個流程：① 斷面與主要尺寸 → ② 載重組合 → ③ 建議配筋，選定套用後才進入主畫面。之後也可隨時在結果區的「建議配筋」分頁（圖 17a）重算。工具會自動試算：</p>
   <ul><li><b>主筋</b>：每個號數以二分搜尋找出「四面均勻間距」下的最少根數，須滿足全部載重組合 \(D/C\le 1\)（含雙軸）、\(\rho_g\) 上下限、主筋淨距（搭接時含搭接筋，§25.5.1.2）、耐震時主筋間距 \(\le h_x\) 上限（§18.4.5.2）。</li>
   <li><b>橫向筋與剪力筋間距</b>：每組主筋再試箍筋號數 × 繫筋配置，取加密區 \(s_1\)、加密區外 \(s_2\) 由剪力（含容量設計剪力）、圍束 \(A_{sh}\)／\(\rho_s\) 與各間距上限決定。</li>
   <li><b>排序</b>：依主筋＋橫向筋合計用鋼量（kg/m）由少到多。細主筋常使 \(6d_b\) 上限變密，所以主筋最省不一定總量最省。</li></ul>

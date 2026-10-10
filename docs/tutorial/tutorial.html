@@ -80,8 +80,8 @@ pre { font-family: "DejaVu Sans Mono", "WenQuanYi Zen Hei Mono", monospace; font
 
   <h2 style="margin-top:10mm">0. 標準作業流程總覽</h2>
   <div class="flow">
-    <span>① 設定設計對象</span><i>→</i><span>② 輸入斷面與配筋</span><i>→</i><span>③ 長細效應設定</span><i>→</i><span>④ 載重組合</span><i>→</i>
-    <span>⑤ 建議配筋／看判定、改到通過</span><i>→</i><span>⑥ 檢查圖面與配置</span><i>→</i><span>⑦ 計算書 PDF／Excel</span><i>→</i><span>⑧ 儲存案件 .json</span>
+    <span>① 設計對象與斷面</span><i>→</i><span>② 載重組合</span><i>→</i><span>③ 建議配筋（選定後進主畫面）</span><i>→</i><span>④ 長細效應與細部輸入</span><i>→</i>
+    <span>⑤ 看判定、改到通過</span><i>→</i><span>⑥ 檢查圖面與配置</span><i>→</i><span>⑦ 計算書 PDF／Excel</span><i>→</i><span>⑧ 儲存案件 .json</span>
   </div>
   <p>工具是單一網頁，所有計算都在瀏覽器內即時完成：<b>每改一個輸入，圖面、判定與警示就立刻重算</b>，不需要按「計算」。頂列的「重算 #N」編號每重算一次加一，可用來確認畫面是否已更新。</p>
   <div class="note"><b>網路需求</b>計算本身可離線使用；但計算書的數學公式排版（KaTeX）、匯出 Excel 與從圖說匯入需要網路。</div>
@@ -89,8 +89,8 @@ pre { font-family: "DejaVu Sans Mono", "WenQuanYi Zen Hei Mono", monospace; font
 
 <section class="chap">
   <h2>1. 開啟工具與設定設計對象</h2>
-  <p>開啟網頁後，第一個畫面是「設計對象」視窗，先決定這次要算什麼構件、依哪套規範。</p>
-  <figure><img src="img/01-setup.png"><figcaption>圖 1　開場的「設計對象」視窗</figcaption></figure>
+  <p>開啟網頁後會出現三個步驟的開場視窗（底色不透明，不受背景畫面干擾）：<b>① 設計對象與斷面 → ② 載重組合 → ③ 建議配筋</b>。只要有載重組合，就可以直接求出合格且省料的配筋，選定後才進入主畫面；也可以在任一步按「直接進入主畫面」自行輸入配筋。</p>
+  <figure><img src="img/01-setup.png"><figcaption>圖 1　開場視窗第 ① 步：設計對象與斷面</figcaption></figure>
   <ol>
     <li><span class="n">1</span><b>構件類型</b>：選「柱斷面」或「梁／版斷面」。</li>
     <li><span class="n">2</span><b>斷面型式</b>：柱有實心矩形、中空箱型、圓形；梁有矩形、T 型、單位寬版。</li>
@@ -98,8 +98,13 @@ pre { font-family: "DejaVu Sans Mono", "WenQuanYi Zen Hei Mono", monospace; font
     <li><span class="n">4</span><b>構件名稱</b>：例如 C1、P3 橋墩。只用在計算書標題、PDF 檔名與 Excel 封面，<b>不影響計算</b>。</li>
     <li><span class="n">5</span><b>設計依據</b>：「建築物」（土木401＋建築物耐震設計規範）或「橋梁」（土木401＋公路橋梁耐震設計規範）。兩者撓曲強度相同；橋梁之容量設計剪力（\(\phi_o=1.3\)）、剪力（\(\phi=0.85\)、\(V_c=0.53(0.33+F)\sqrt{f'_c}A_e\)）、圍束筋、材料與主筋比改依公路橋梁耐震設計規範，長細效應與保護層依公路橋梁設計規範。</li>
     <li><span class="n">6</span><b>環境</b>：一般環境，或「水工結構（加嚴）」（保護層 \(\ge 5\ \text{cm}\) 警示、梁版檢核裂縫寬度、版最小鋼筋比 \(0.003\)）。</li>
-    <li><span class="n">7</span>按「<b>開始設計</b>」關閉視窗。之後隨時可按畫面左上角的設定按鈕（圖 2 的 <span class="n">7</span>）重新開啟。</li>
+    <li><span class="n">7</span><b>主要尺寸</b>：依斷面型式列出外寬、外高（或直徑）、壁厚、\(f'_c\)、柱淨高（梁為 \(b_w\)、\(h\)、\(h_f\)、跨度）；與參數表同步，其餘輸入沿用範本值，之後可在參數表修改。</li>
+    <li><span class="n">8</span>「<b>直接進入主畫面</b>」：關閉視窗，自行輸入配筋；<span class="n">9</span>「<b>下一步：輸入載重組合</b>」進入第 ② 步。之後隨時可按畫面左上角的設定按鈕（圖 2 的 <span class="n">7</span>）重新開啟。</li>
   </ol>
+  <figure><img src="img/01b-setup-loads.png" style="max-height:95mm"><figcaption>圖 1a　第 ② 步：載重組合</figcaption></figure>
+  <p><span class="n">1</span>直接在表內輸入各載重組合（與主畫面的載重表為同一張，操作見第 5 節），<span class="n">2</span>也可貼上 CSV。<span class="n">3</span>按「下一步：建議配筋」。</p>
+  <figure><img src="img/01c-setup-opt.png" style="max-height:95mm"><figcaption>圖 1b　第 ③ 步：建議配筋</figcaption></figure>
+  <p>工具依全部載重組合試算（說明見第 11 節）。<span class="n">1</span>「套用最佳組合」或 <span class="n">2</span> 任一列的「套用」會把該組主筋與橫向筋寫回輸入，並<b>直接進入主畫面</b>檢視判定與微調；<span class="n">3</span>不想套用時按「直接進入主畫面」，「← 上一步」可回去修改載重。</p>
   <div class="warn"><b>注意</b>水工加嚴<b>未</b>包含 ACI 350 的環境耐久係數 \(S_{d}\)。若設計準則要求，請自行把 \(S_{d}\) 乘入輸入的 \(M_{u}\)、\(V_{u}\)。</div>
   <div class="note"><b>水工的檢核定位</b>本工具為強度設計，對應《下水道設施耐震設計及解說》表 4.5 的 Level 2 地震動；Level 1 與常時的容許應力檢核（止裂、不漏水）須另行計算。選「水工結構」後，警示、計算書與 Excel 會列出載重來源：滿水與空槽（含空池浮力）、靜止土壓 \(K_0\ge 0.5\)、M-O 地震土壓、Westergaard 動水壓 \(P_{WE}=\tfrac{7}{12}k_h\gamma_w bH^2\) 等（建築物基礎構造設計規範 §2.6、§7.3、§7.6.1）。工具不計算這些載重。</div>
 </section>
@@ -262,7 +267,7 @@ pre { font-family: "DejaVu Sans Mono", "WenQuanYi Zen Hei Mono", monospace; font
 
 <section class="chap">
   <h2>11. 建議配筋（由載重直接求配筋）</h2>
-  <p>輸入斷面、材料與載重組合後，不必先猜配筋：切到結果區的「<b>建議配筋</b>」分頁，工具會依全部載重組合自動試算主筋、箍筋／繫筋與剪力筋間距，列出通過全部檢核且用鋼量最少的配置。</p>
+  <p>開場視窗第 ③ 步（圖 1b）與結果區的「<b>建議配筋</b>」分頁內容相同：輸入斷面、材料與載重組合後，不必先猜配筋，工具會依全部載重組合自動試算主筋、箍筋／繫筋與剪力筋間距，列出通過全部檢核且用鋼量最少的配置。</p>
   <figure class="half"><img src="img/15b-opt.png"><figcaption>圖 15a　柱的建議配筋分頁</figcaption></figure>
   <ol>
     <li><span class="n">1</span>「<b>套用最佳組合</b>」：把第一名的主筋與橫向筋直接寫回參數表並重算；「重新計算」在輸入變更後更新清單。</li>
@@ -352,7 +357,7 @@ pre { font-family: "DejaVu Sans Mono", "WenQuanYi Zen Hei Mono", monospace; font
 <section class="chap">
   <h2>16. 梁／版斷面模組</h2>
   <figure><img src="img/23-beam-setup.png" style="max-height:84mm"><figcaption>圖 23　切換為梁／版斷面</figcaption></figure>
-  <p>按左上角設計對象按鈕，<span class="n">1</span>構件類型選「梁／版斷面」，<span class="n">2</span>選斷面型式（矩形、T 型、單位寬版），<span class="n">3</span>選範本，填構件名稱後按「開始設計」。柱與梁兩個模組的資料各自保留，可隨時切換。</p>
+  <p>按左上角設計對象按鈕，<span class="n">1</span>構件類型選「梁／版斷面」，<span class="n">2</span>選斷面型式（矩形、T 型、單位寬版），<span class="n">3</span>選範本，填構件名稱後，按「下一步」輸入載重並取得建議配筋，或按「直接進入主畫面」。柱與梁兩個模組的資料各自保留，可隨時切換。</p>
   <figure><img src="img/24-beam.png" style="max-height:90mm"><figcaption>圖 24　梁模組主畫面</figcaption></figure>
   <ol>
     <li><span class="n">1</span>「跨中正彎矩／支承負彎矩」切換斷面受力狀態。負彎矩時 T 梁翼緣受拉，斷面退化為 \(b_w\times h\) 矩形，拉力筋改取頂筋。</li>
