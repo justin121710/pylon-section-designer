@@ -741,9 +741,16 @@ function buildElevSheet(ws, R, vertical, NH){
     const n = 2 + i;
     put(ws,'A'+n, i);
     const posG = k => `({gA}+(${k})*{gS}+IF({gPair}=1,IF((${k})>{gP},{gI1}-{gS},0)+IF((${k})>{gP}+1,{gI2}-{gS},0),IF((${k})>{gM},{gR}-{gS},0)))`;
-    put(ws,'B'+n, r(`IF(OR(A${n}>{total},{total}<1),${NA},IF({isPile}=1,{Lel}-(IF({full}=1,IF(A${n}=1,{eF},${posG(`A${n}-1`)}),IF(A${n}<={n1},{eF}+(A${n}-1)*{sUse},IF(A${n}<={n1}+{nMid},${posG(`A${n}-{n1}`)},{Lel}-{eF}-({total}-A${n})*{sUse})))),IF({full}=1,IF(A${n}=1,{eF},${posG(`A${n}-1`)}),IF(A${n}<={n1},{eF}+(A${n}-1)*{sUse},IF(A${n}<={n1}+{nMid},${posG(`A${n}-{n1}`)},{Lel}-{eF}-({total}-A${n})*{sUse})))))`),{fmt:'0.0'});
+    const E = `IF({full}=1,IF(A${n}=1,{eF},${posG(`A${n}-1`)}),IF(A${n}<={n1},{eF}+(A${n}-1)*{sUse},IF(A${n}<={n1}+{nMid},${posG(`A${n}-{n1}`)},{Lel}-{eF}-({total}-A${n})*{sUse})))`;   // 基樁（僅柱表有 isPile）：自樁尖起算，加密區在上端
+    put(ws,'B'+n, r(`IF(OR(A${n}>{total},{total}<1),${NA},${vertical ? `IF({isPile}=1,{Lel}-(${E}),${E})` : E})`),{fmt:'0.0'});
     put(ws,'C'+n, r(`--AND(A${n}<={total},{nEnds}>0,OR({full}=1,A${n}<={n1},A${n}>{n1}+{nMid}))`));
   }
+}
+
+/* ---------- 水工結構：載重來源與檢核定位（文字由網頁傳入，匯出時為水工環境才列出） ---------- */
+function waterParas(a, inp, k0){
+  if(inp.env!=='water' || !Array.isArray(inp.waterNotes)) return;
+  inp.waterNotes.forEach((t, i) => a.para(`7.${k0+i}`, (i===0 ? '水工結構－' : '水工載重來源－') + t, Math.max(18, Math.ceil(t.length/40)*13 + 6)));
 }
 
 /* ---------- 伸展長度與搭接（土木401-112 第 25 章；與網頁 devLength() 相同） ---------- */
@@ -1428,6 +1435,7 @@ function buildA4Column(ws, S, R, inp, jRow, sumRows){
   a.para('7.2','未計彎矩放大（長細效應僅判定可否忽略）、未計剪力尺寸效應 λs、扭矩門檻未計軸壓增益；箱型牆片 Ash 拆解為關鍵假設，須自行確認；bc 配對依解說 R18.4.5.4（垂直）。',28);
   a.para('7.3','輸入資料（尺寸、材料、載重）須經設計者核實；版次修改應更新封面版次。',22);
   a.para('7.4','色碼：淺藍底藍框＝輸入；黃底金框＝下拉輸入；白底細灰框＝公式；綠字＝連結；淺琥珀底＝總判定。',26);
+  waterParas(a, inp, 5);
 
   a.blank();
   const sg=a.row(), sl=a.row(); ws.getRow(sl).height=45;
@@ -1980,6 +1988,7 @@ function buildA4Beam(ws, R, inp, jRow, sumRows){
   a.para('7.1','未檢核：整根梁彎矩包絡線（任一斷面 Mn ≧ 端部 25%）、鋼筋延伸與搭接、ACI 350 環境耐久係數 Sd、剪力尺寸效應 λs。',28);
   a.para('7.2','輸入資料（尺寸、材料、載重、使用彎矩）須經設計者核實；版次修改應更新封面版次。',22);
   a.para('7.3','色碼：淺藍底藍框＝輸入；黃底金框＝下拉輸入；白底細灰框＝公式；綠字＝連結；淺琥珀底＝總判定。',26);
+  waterParas(a, inp, 4);
   a.blank();
   const sg=a.row(), sl=a.row(); ws.getRow(sl).height=45;
   ws.mergeCells(sg,3,sg,4); ws.mergeCells(sg,5,sg,6); ws.mergeCells(sl,3,sl,4); ws.mergeCells(sl,5,sl,6);

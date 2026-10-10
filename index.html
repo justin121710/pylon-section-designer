@@ -1694,6 +1694,16 @@ function pileAlerts(M, add){
   add('info',`樁頂箍筋加密範圍 l_o = ${f(R.lo,0)} cm（基礎規範 §5.6.3 解說 2：max(樁徑 ${f(R.D,0)}、反曲點深度/3${P.infl>0?` = ${f(P.infl/3,0)}`:'（未輸入）'}、45 cm）${P.seis?`，並取耐震圍束區 ${f(R.zSeis,0)} cm 之大者`:''}）。`, ['pileInfl','ph']);
   add('info','長細效應：沿樁長受土壤側向束制者不需檢核（土木401-112 §13.4.4.2）；樁身露出於空氣或水中、或土壤無法提供側撐之段落，應改以「柱／墩柱」依第十章設計。', ['memType']);
 }
+/* 水工結構：載重來源與檢核定位（不計算載重；網頁警示、計算書、Excel 共用文字） */
+const WATER_SCOPE = '檢核定位：本工具為強度設計，對應《下水道設施耐震設計及解說》表 4.5 之 Level 2 地震動（構件在撓曲、剪切強度以內，極限狀態設計法）；'
+  + 'Level 1 地震動與常時之容許應力檢核（止裂、不漏水）不在本工具範圍，須另行檢核。';
+const WATER_LOADS = [
+  '載重情境：滯洪池、雨水調節池屬水槽結構（下水道設施耐震設計及解說 3.7.3），應分別檢討滿水與空槽（4.2.6）；污水調節池應考慮空池時之浮力作用（下水道工程設施標準第 40 條第二款）；地下水位取最不利情況（建築物基礎構造設計規範 §2.6）。',
+  '土壓：永久地下牆採靜止土壓 σ₀ = K₀γh，K₀ 不得小於 0.5，地下水位以下用有效單位重（建築物基礎構造設計規範 §7.3.1、§7.6.1 解說）；地震土壓依 Mononobe-Okabe 法，k_h 原則取地表水平尖峰加速度之半，側向位移完全受限時取 1.5 倍（§7.3.4 解說 3）。',
+  '水壓：靜水壓 P_W = ½γ_w H_w²（§7.3.6），地下牆取最大水壓（§7.6.1）；地震動水壓 Westergaard P_WE = (7/12)k_h γ_w b H²，合力作用高度 H_g = 2H/5；土側受限地下水可簡化取水側動水壓之 70%（§7.3.6 解說 3、4）。',
+  '配筋：為避免出現大裂紋，宜使用足量小號數鋼筋（下水道設施耐震設計及解說 4.1.2）。',
+  '本工具不計算上述載重：輸入之 P_u、M_u、V_u 須已含各情境之載重組合（含 ACI 350 環境耐久係數 S_d，若設計準則要求）。'];
+const waterNoteHtml = () => `<b>水工結構：載重來源與檢核定位</b><br>${WATER_SCOPE}<br>` + WATER_LOADS.map((t,i)=>`${i+1}. ${t}`).join('<br>');
 /* 泥水中灌注之警示（柱、梁共用） */
 function slurryAlerts(m, add, fcId, selId){
   if(!m.slurry) return;
@@ -4806,7 +4816,7 @@ function colXlsxInput(){
     brExpo:g('brExpo'), slSway:g('slFrame')!=='braced', slK:num('slK',1), slM12:Math.max(-1,Math.min(1,num('slM12',-1))),
     phEnds: g('phEnds')==='1' ? 1 : 2, layTotal: MODEL && MODEL.lay ? MODEL.lay.total : 60,
     dev: devOpts('d'), devX: (()=>{ const X = devXCol(); return MODEL && MODEL.opt.pile ? {...X, ancBot:'through'} : X; })(),
-    pile: MODEL && MODEL.opt.pile ? {...MODEL.opt.pile} : null,
+    pile: MODEL && MODEL.opt.pile ? {...MODEL.opt.pile} : null, waterNotes: [WATER_SCOPE, ...WATER_LOADS],
     loads: LOADS.map(L=>({name:L.name, Pu:+L.Pu||0, Mux:+L.Mux||0, Muy:+L.Muy||0, Vux:+L.Vux||0, Vuy:+L.Vuy||0, Tu:+L.Tu||0})),
     meta:{project:'', member:memName('memName')}};
 }
@@ -4823,7 +4833,7 @@ function beamXlsxInput(){
     deflCase:g('bDeflCase'), wLim:g('bWlim'),
     layTotal: BMODEL && BMODEL.lay ? BMODEL.lay.total : 60,
     legGap: BMODEL && BMODEL.leg ? BMODEL.leg.gap : 0, hoop: g('bHoop'), legPos: BMODEL && BMODEL.leg ? BMODEL.leg.pos : [], legPosT: BMODEL && BMODEL.leg ? BMODEL.leg.posT : [],
-    dev: devOpts('bd'), devX: devXBeam(),
+    dev: devOpts('bd'), devX: devXBeam(), waterNotes: [WATER_SCOPE, ...WATER_LOADS],
     loads: BLOADS.map(L=>({name:L.name, Mpos:+(L.Mpos??L.Mu??0)||0, Mneg:+(L.Mneg??0)||0, Vu:+L.Vu||0, Tu:+L.Tu||0})),
     meta:{project:'', member:memName('bMemName')}};
 }
@@ -5298,8 +5308,10 @@ function renderAlerts(M){
     if(sh.Nu<0 && sh.bridge) add('warn',`${t} 向：控制組合為<b>軸拉</b>（N = ${f(sh.Nu/TF,0)} tf），F = N/(35A_g)，V_c 夾至 ≥ 0。`, ['#loadTbl']);
     if(M.opt.plastic && sh.Ve>sh.Vu) add('info',`${t} 向：<b>容量設計控制</b>。V_e = ${sh.bldgCD?'\\(\\displaystyle \\frac{2M_{pr}}{l_u}\\)':M.opt.phEnds===2?'\\(\\displaystyle \\frac{2\\phi_o M_n}{l_u}\\)':'\\(\\displaystyle \\frac{\\phi_o M_n}{L_v}\\)'} = ${f(sh.Ve/TF,0)} tf > 分析值 V_u = ${f(sh.Vu/TF,0)} tf，設計剪力採 V_e。`, ['ph','phio','Lv','lu','phEnds']);
   }
-  if(document.getElementById('envWater').value==='water' && M.r.covO < 5)
-    add('warn',`水工／環境結構：外側保護層 ${f(M.r.covO,1)} cm ＜ 5 cm，建議至少 5 cm（參考 ACI 350）。`, ['covO']);
+  if(document.getElementById('envWater').value==='water'){
+    if(M.r.covO < 5) add('warn',`水工／環境結構：外側保護層 ${f(M.r.covO,1)} cm ＜ 5 cm，建議至少 5 cm（參考 ACI 350）。`, ['covO']);
+    add('info', waterNoteHtml(), ['envWater','#loadTbl']);
+  }
   slurryAlerts(M.m, add, 'fc', 'dSlurry');
   if(M.conf.termC) add('warn',`P_u,max = ${f(M.opt.PuMax/TF,0)} tf ${M.opt.PuMax>0.3*M.m.Ag*M.m.fc?"＞ 0.3A_g·f'c":"（f'c ＞ 700）"}：A_sh 另加第三式 0.2k_f k_n P_u/(f_yt A_ch)，且<b>每一根主筋都須側撐</b>（土木401 §18.4.5.2(f)、18.4.5.4(c)）。`, ['tieLayout','#loadTbl']);
   if(M.fin.tooTight) add('bad',`<b>實務間距無解</b>：需求 s = ${f(M.fin.gov.v,2)} cm（${M.fin.gov.tag}）已小於最小實務間距 ${M.fin.sMin} cm。`, ['tieSize','tieLayout','dbl']);
@@ -5705,6 +5717,7 @@ function buildReport(M){
     const bc = brCover(M);
     if(bc) o.push(note(`<b>橋梁保護層</b>（公路橋梁設計規範 §7.1.5 表 7.2，${bc.t}）：箍筋 \\(c_o=${d(bc.cTie,1)}\\ ${bc.okTie?'\\ge':'<'}\\ ${d(bc.tie,1)}\\ \\text{cm}\\)；主筋 \\(c_o+d_t=${d(bc.cMain,1)}\\ ${bc.okMain?'\\ge':'<'}\\ ${d(bc.main,1)}\\ \\text{cm}\\)。`));
   }
+  if(document.getElementById('envWater').value==='water') o.push(note(waterNoteHtml()));
   o.push(`<div class="rp-h2">附註</div>`);
   o.push(note(`1. 本工具<b>不計算</b>彎矩放大係數，只判定長細效應可否忽略（建築 §6.2.5.1；橋梁依公路橋梁設計規範 §7.3.5.2）。輸入之 \\(P_u,M_u\\) 須為已含 P-Δ 之大變形幾何非線性分析結果。<br>
     2. 塑性形心僅對<b>對稱配筋</b>成立；非對稱配筋之結果不適用。<br>
@@ -7289,6 +7302,7 @@ function renderBeamAlerts(B){
     if(S.cover < 5) add('warn',`水工／環境結構：保護層 ${f(S.cover,1)} cm ＜ 5 cm，建議至少 5 cm（參考 ACI 350）。`, ['bCover']);
     if(S.slab && S.rhoTs < 0.003) add('warn',`水工／環境結構：版最小鋼筋比 ρ_min = ${f(S.rhoTs,4)}，ACI 350 依伸縮縫間距要求約 0.003～0.005。`, ['bRhoTs']);
     add('info',`水工加嚴<b>未包含</b> ACI 350 的環境耐久係數 S_d（放大需求強度）；若設計準則要求，請將 S_d 乘入輸入之 M_u、V_u。`);
+    add('info', waterNoteHtml(), ['envWater','#bLoadTbl']);
   }
   slurryAlerts(m, add, 'bfc', 'bdSlurry');
   add('info',`<b>本模組為第一階段 RC 梁</b>，不含預力。預力梁（有效預力、施工/使用階段應力、f_ps）為第二階段。`);
@@ -7602,6 +7616,7 @@ function buildBeamReport(B){
   o.push(`<div class="rp-h2">${S.seismic?'8':'7'}. 主筋伸展長度與搭接</div>`);
   o.push(devReport(B.dev, eq, d, note, devExpSel('beam', B.devPlan)));
   o.push(devReportFigs(B, B.devPlan));
+  if(S.env==='water') o.push(note(waterNoteHtml()));
   o.push(`<div class="rp-h2">${S.seismic?'9':'8'}. 附註</div>`);
   o.push(note(`1. 本模組為<b>第一階段 RC 梁</b>，不含預力。預力梁之有效預力、施工/使用階段應力檢核、
     極限強度 f_ps 為第二階段。<br>
