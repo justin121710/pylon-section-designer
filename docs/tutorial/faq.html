@@ -64,7 +64,7 @@ pre { font-family: "DejaVu Sans Mono", "WenQuanYi Zen Hei Mono", monospace; font
     <div>一、入門與操作流程（Q1～Q5）</div>
     <div>二、輸入參數與載重組合（Q6～Q11b）</div>
     <div>三、設計依據、\(\phi\) 值與規範選擇（Q12～Q15）</div>
-    <div>四、柱斷面與基樁（Q16～Q26）</div>
+    <div>四、柱斷面與基樁（Q16～Q26b）</div>
     <div>五、梁／版斷面（Q27～Q34）</div>
     <div>六、橫向鋼筋與沿軸向配置（Q35～Q39）</div>
     <div>七、伸展長度、搭接與錨定（Q40～Q46）</div>
@@ -114,7 +114,7 @@ pre { font-family: "DejaVu Sans Mono", "WenQuanYi Zen Hei Mono", monospace; font
 
   <div class="q"><h3>Q5. 右側結果區的分頁有哪些？</h3>
   <figure><img src="img/02-layout.png"><figcaption>圖 4　畫面配置；<span class="n">6</span> 為結果分頁</figcaption></figure>
-  <p>斷面與 P-M／結果摘要／軸向配置／伸展長度／（梁另有：載重組合）／警示（帶件數）／自測（圖 4 <span class="n">6</span>）。所有卡片都保留在頁面上、只是切換顯示，所以計算書與 Excel 匯出不受目前停在哪個分頁影響。</p></div>
+  <p>斷面與 P-M／結果摘要／軸向配置／伸展長度／（梁另有：載重組合）／建議配筋／警示（帶件數）／自測（圖 4 <span class="n">6</span>）。所有卡片都保留在頁面上、只是切換顯示，所以計算書與 Excel 匯出不受目前停在哪個分頁影響。</p></div>
 </section>
 
 <section class="chap">
@@ -255,6 +255,16 @@ pre { font-family: "DejaVu Sans Mono", "WenQuanYi Zen Hei Mono", monospace; font
 
   <div class="q"><h3>Q26. 柱的扭矩怎麼算？</h3>
   <p>箱型以封閉薄壁空間桁架計算 \(A_t/s\) 與追加縱筋 \(A_l\)，中空斷面剪扭上限採<b>直接相加</b>（實心斷面為平方根合成）。</p></div>
+
+  <div class="q long"><h3>Q26a. 只有載重組合，能直接產出最佳化配筋嗎？</h3>
+  <p><b>可以。</b>輸入斷面、材料與載重組合後，切到結果區的「建議配筋」分頁（圖 17a），工具會自動試算：</p>
+  <ul><li><b>主筋</b>：每個號數以二分搜尋找出「四面均勻間距」下的最少根數，須滿足全部載重組合 \(D/C\le 1\)（含雙軸）、\(\rho_g\) 上下限、主筋淨距（搭接時含搭接筋，§25.5.1.2）、耐震時主筋間距 \(\le h_x\) 上限（§18.4.5.2）。</li>
+  <li><b>橫向筋與剪力筋間距</b>：每組主筋再試箍筋號數 × 繫筋配置，取加密區 \(s_1\)、加密區外 \(s_2\) 由剪力（含容量設計剪力）、圍束 \(A_{sh}\)／\(\rho_s\) 與各間距上限決定。</li>
+  <li><b>排序</b>：依主筋＋橫向筋合計用鋼量（kg/m）由少到多。細主筋常使 \(6d_b\) 上限變密，所以主筋最省不一定總量最省。</li></ul>
+  <figure class="half"><img src="img/15b-opt.png"><figcaption>圖 17a　建議配筋：<span class="n">1</span> 套用最佳組合、<span class="n">2</span> 主筋＋配合橫向筋、<span class="n">3</span> 依目前主筋之橫向筋</figcaption></figure></div>
+
+  <div class="q"><h3>Q26b. 建議配筋怎麼判定「合格」？會不會漏檢？</h3>
+  <p>每個候選都跑一次與畫面相同的<b>完整計算與警示清單</b>（撓曲、容量設計剪力、\(V_s\) 上限、圍束筋、\(h_x\)、淨距、伸展長度與搭接、橋梁保護層、基樁細則等），只保留沒有新增不合格的配置；套用後的判定列與警示即為其結果。主筋的容量設計剪力會隨主筋增加而變大，若因此超過 \(V_s\) 上限，該主筋即被淘汰。與配筋無關的不合格（例如斷面本身 \(V_s\) 超限、\(kl_u/r>100\)、材料等級）會另列「調整鋼筋無法解決」。自測另有「建議配筋第一名重驗合格」一項。</p></div>
 </section>
 
 <section class="chap">
@@ -262,7 +272,7 @@ pre { font-family: "DejaVu Sans Mono", "WenQuanYi Zen Hei Mono", monospace; font
   <figure><img src="img/24-beam.png"><figcaption>圖 18　梁／版模組：<span class="n">1</span> 正／負彎矩切換、<span class="n">2</span> 參數導軌、<span class="n">3</span> 結果分頁</figcaption></figure>
 
   <div class="q"><h3>Q27. 梁的負彎矩斷面是用 T 型還是矩形算？</h3>
-  <p>負彎矩時翼緣受拉、不計入受壓區，斷面退化為 \(b_w\times h\) 矩形，拉力筋改取頂筋，建議配筋也改搜頂筋（圖 18 <span class="n">1</span> 切換）。有效翼緣寬 \(b_e=\min(L/4,\ b_w+16h_f,\ \text{梁中心距})\)（邊梁另一組公式）。</p></div>
+  <p>負彎矩時翼緣受拉、不計入受壓區，斷面退化為 \(b_w\times h\) 矩形，拉力筋改取頂筋（圖 18 <span class="n">1</span> 切換）；結果摘要的建議配筋隨之改搜頂筋，「建議配筋」分頁則同時列出底筋與頂筋。有效翼緣寬 \(b_e=\min(L/4,\ b_w+16h_f,\ \text{梁中心距})\)（邊梁另一組公式）。</p></div>
 
   <div class="q"><h3>Q28. 為什麼 \(M_u=0\) 的斷面不判 \(A_{s,min}\) 不足？</h3>
   <p>簡支梁支承處沒有撓曲拉力需求，\(A_{s,min}\) 不適用，工具改報 info。如果該處實際上有彎矩，請把彎矩填進載重表。</p></div>
@@ -278,7 +288,8 @@ pre { font-family: "DejaVu Sans Mono", "WenQuanYi Zen Hei Mono", monospace; font
   <figure class="half"><img src="img/25-beam-load.png"><figcaption>圖 19　梁的載重組合表（含使用載重彎矩）</figcaption></figure></div>
 
   <div class="q"><h3>Q32. 「建議配筋」可以直接採用嗎？</h3>
-  <p>它枚舉<b>單一號數</b>、最多 2 排，篩選 \(\phi M_n\ge M_u\)、\(A_s\ge A_{s,min}\)、拉力控制 \(\varepsilon_t\ge\varepsilon_{ty}+0.003\)（§9.3.3.1）、淨距足夠者，依 \(A_s\) 由小到大列前 6 組。不考慮混用號數、與柱筋的穿越衝突及施工習慣，請當作起點，最後仍須回到斷面輸入並重新檢核。</p></div>
+  <p>可以作為設計值的起點，套用後判定列與警示即為完整檢核結果。「建議配筋」分頁（圖 19a）列出：底筋依 \(M_u^{+}\)、頂筋依 \(M_u^{-}\)，單一號數、底筋最多 2 排、頂筋單排（版為「號數 @ 間距」），須滿足 \(\phi M_n\ge M_u\)、\(A_s\ge A_{s,min}\)、拉力控制 \(\varepsilon_t\ge\varepsilon_{ty}+0.003\)（§9.3.3.1）、淨距、裂縫控制、耐震規定（\(\rho\le 2.5\%\)、\(\phi M_n^{+}\ge 0.5\phi M_n^{-}\)）、伸展長度與搭接，且不得使另一斷面（壓力筋改變）新增不合格；每列配上最省的箍筋號數與肢數（含容量設計剪力、肢距），依合計用鋼量排序。不考慮混用號數、與柱筋的穿越衝突及施工習慣，請依實務微調。結果摘要下方的舊版清單只看撓曲，僅供快速參考。</p>
+  <figure class="half"><img src="img/25b-beam-opt.png"><figcaption>圖 19a　梁的建議配筋分頁</figcaption></figure></div>
 
   <div class="q"><h3>Q33. 箍筋肢數改了之後圖上的肢位會亂跑？</h3>
   <p>工具依肢數自動挑選肢位；若平均挑選造成肢距超限或上下偏差 \(\gt d_b\)（頂底筋根數不同時常見），會窮舉內部肢位，取合格且盡量對稱者並提示「已自動調整肢位」。找不到合格者時維持平均挑選並警示，此時建議調整主筋位置或肢數。</p></div>
@@ -394,7 +405,7 @@ pre { font-family: "DejaVu Sans Mono", "WenQuanYi Zen Hei Mono", monospace; font
   <li>彎矩-曲率、塑鉸轉角容量（pushover 範疇）。</li><li>預力梁。</li>
   <li>非對稱配筋的塑性形心（僅對稱配筋成立）。</li>
   <li>梁「任一斷面 \(M_n\ge\) 端部最大值 25%」（需整根梁的彎矩包絡線）。</li>
-  <li>建議配筋混用號數、超過 2 排。</li><li>超寬實心斷面的內部套疊箍筋（繫筋以貫穿全斷面建模）。</li>
+  <li>建議配筋混用號數、超過 2 排、柱主筋非均勻間距（例如兩向不同間距或角隅加束筋）。</li><li>超寬實心斷面的內部套疊箍筋（繫筋以貫穿全斷面建模）。</li>
   <li>ACI 350 的 \(S_d\) 係數（需自行乘入載重）；水工 Level 1 容許應力檢核；土壓、水壓、浮力等載重計算與整體抗浮檢核。</li></ul></div>
 
   <div class="q"><h3>Q57a. 規範原文放在哪裡？</h3>

@@ -67,20 +67,21 @@ pre { font-family: "DejaVu Sans Mono", "WenQuanYi Zen Hei Mono", monospace; font
     <div>8. 結果摘要</div>
     <div>9. 沿軸向箍筋配置</div>
     <div>10. 伸展長度與搭接</div>
-    <div>11. 預覽與列印計算書（PDF）</div>
-    <div>12. 匯出 Excel 計算書</div>
-    <div>13. 儲存、開啟案件與切換範本</div>
-    <div>14. 從圖說匯入（選用）</div>
-    <div>15. 梁／版斷面模組</div>
-    <div>16. 內部自測</div>
-    <div>17. 送審前檢查清單</div>
-    <div>18. 常見狀況排除</div>
+    <div>11. 建議配筋（由載重直接求配筋）</div>
+    <div>12. 預覽與列印計算書（PDF）</div>
+    <div>13. 匯出 Excel 計算書</div>
+    <div>14. 儲存、開啟案件與切換範本</div>
+    <div>15. 從圖說匯入（選用）</div>
+    <div>16. 梁／版斷面模組</div>
+    <div>17. 內部自測</div>
+    <div>18. 送審前檢查清單</div>
+    <div>19. 常見狀況排除</div>
   </div>
 
   <h2 style="margin-top:10mm">0. 標準作業流程總覽</h2>
   <div class="flow">
     <span>① 設定設計對象</span><i>→</i><span>② 輸入斷面與配筋</span><i>→</i><span>③ 長細效應設定</span><i>→</i><span>④ 載重組合</span><i>→</i>
-    <span>⑤ 看判定、改到通過</span><i>→</i><span>⑥ 檢查圖面與配置</span><i>→</i><span>⑦ 計算書 PDF／Excel</span><i>→</i><span>⑧ 儲存案件 .json</span>
+    <span>⑤ 建議配筋／看判定、改到通過</span><i>→</i><span>⑥ 檢查圖面與配置</span><i>→</i><span>⑦ 計算書 PDF／Excel</span><i>→</i><span>⑧ 儲存案件 .json</span>
   </div>
   <p>工具是單一網頁，所有計算都在瀏覽器內即時完成：<b>每改一個輸入，圖面、判定與警示就立刻重算</b>，不需要按「計算」。頂列的「重算 #N」編號每重算一次加一，可用來確認畫面是否已更新。</p>
   <div class="note"><b>網路需求</b>計算本身可離線使用；但計算書的數學公式排版（KaTeX）、匯出 Excel 與從圖說匯入需要網路。</div>
@@ -260,17 +261,31 @@ pre { font-family: "DejaVu Sans Mono", "WenQuanYi Zen Hei Mono", monospace; font
 </section>
 
 <section class="chap">
-  <h2>11. 預覽與列印計算書（PDF）</h2>
+  <h2>11. 建議配筋（由載重直接求配筋）</h2>
+  <p>輸入斷面、材料與載重組合後，不必先猜配筋：切到結果區的「<b>建議配筋</b>」分頁，工具會依全部載重組合自動試算主筋、箍筋／繫筋與剪力筋間距，列出通過全部檢核且用鋼量最少的配置。</p>
+  <figure class="half"><img src="img/15b-opt.png"><figcaption>圖 15a　柱的建議配筋分頁</figcaption></figure>
+  <ol>
+    <li><span class="n">1</span>「<b>套用最佳組合</b>」：把第一名的主筋與橫向筋直接寫回參數表並重算；「重新計算」在輸入變更後更新清單。</li>
+    <li><span class="n">2</span><b>主筋表</b>：每個號數求「四面均勻間距」下的最少根數，須滿足全部載重組合 \(D/C\le 1\)、\(\rho_g\) 上下限、主筋淨距（搭接時含搭接筋）、耐震時主筋間距 \(\le h_x\) 上限。每列再配上最省的橫向筋，依<b>主筋＋橫向筋合計用鋼量</b>（kg/m）排序，因為細主筋常使 \(6d_b\) 間距上限變密，主筋最省不一定總量最省。按「套用」寫回該列主筋與橫向筋。</li>
+    <li><span class="n">3</span><b>橫向筋表</b>（依目前主筋）：箍筋／繫筋號數 × 繫筋配置（每隔一根／每根皆設），列出加密區 \(s_1\)、加密區外 \(s_2\)、控制項（剪力、圍束 \(A_{sh}\) 或 \(\rho_s\)、間距上限）與用量。剪力筋間距即為此表的 \(s_1\)、\(s_2\)。</li>
+  </ol>
+  <p>每個候選都跑一遍與畫面相同的完整檢核（撓曲、容量設計剪力、圍束筋、\(h_x\)、淨距、伸展與搭接、橋梁保護層等），只保留沒有新增不合格的配置。與配筋無關的不合格（例如 \(V_s\) 超過上限、\(kl_u/r>100\)、材料等級）會另列為「調整鋼筋無法解決」，須改斷面、材料或載重。</p>
+  <div class="note"><b>搜尋範圍</b>主筋為單一號數、四面均勻間距（箱型內外雙層同網格、圓柱沿圓周等距）；續接方式為搭接時不列大於 D36 的號數（§25.5.1.1）；縱筋大於 D32 時箍筋限 D13 以上（土木401-112 §25.7.2.2）；基樁箍筋 \(\ge 13\ \text{mm}\)；圓柱維持目前的螺箍／圓箍型式。用鋼量以中心線長度估算，未計彎鉤與搭接。</div>
+  <div class="tip"><b>建議的用法</b>先用建議配筋取得合格且經濟的起點，再依施工習慣（與上下層同號數、避開粗筋續接）微調；最後仍以判定列與警示為準。大型箱型斷面試算約需數秒。</div>
+</section>
+
+<section class="chap">
+  <h2>12. 預覽與列印計算書（PDF）</h2>
   <figure><img src="img/18-topbar.png"><figcaption>圖 16　頂列文件動作</figcaption></figure>
   <table>
     <tr><th style="width:10mm"></th><th style="width:34mm">按鈕</th><th>功能</th></tr>
-    <tr><td><span class="n">1</span></td><td>從圖說匯入</td><td>上傳圖說，自動判讀尺寸與配筋（第 14 節）。</td></tr>
+    <tr><td><span class="n">1</span></td><td>從圖說匯入</td><td>上傳圖說，自動判讀尺寸與配筋（第 15 節）。</td></tr>
     <tr><td><span class="n">2</span></td><td>開啟案件</td><td>讀回先前存的 .json。</td></tr>
     <tr><td><span class="n">3</span></td><td>儲存案件</td><td>把所有輸入與載重下載成 .json。</td></tr>
-    <tr><td><span class="n">4</span></td><td>匯出 Excel</td><td>產生附公式的 Excel 計算書（第 12 節）。</td></tr>
+    <tr><td><span class="n">4</span></td><td>匯出 Excel</td><td>產生附公式的 Excel 計算書（第 13 節）。</td></tr>
     <tr><td><span class="n">5</span></td><td>預覽報告</td><td>在畫面上預覽 A4 計算書。</td></tr>
     <tr><td><span class="n">6</span></td><td>列印／存成 PDF</td><td>開啟瀏覽器列印對話框。</td></tr>
-    <tr><td><span class="n">7</span></td><td>內部自測</td><td>執行一致性檢查（第 16 節）。</td></tr>
+    <tr><td><span class="n">7</span></td><td>內部自測</td><td>執行一致性檢查（第 17 節）。</td></tr>
   </table>
   <figure><img src="img/16-report.png"><figcaption>圖 17　計算書預覽</figcaption></figure>
   <ol>
@@ -287,7 +302,7 @@ pre { font-family: "DejaVu Sans Mono", "WenQuanYi Zen Hei Mono", monospace; font
 </section>
 
 <section class="chap">
-  <h2>12. 匯出 Excel 計算書</h2>
+  <h2>13. 匯出 Excel 計算書</h2>
   <p>按頂列「匯出 Excel」，依目前的柱或梁模組下載 .xlsx。活頁簿包含「檢核表」、「結構計算書(A4)」與多張輔助表（配筋座標、P-M、載重組合等）。</p>
   <figure><img src="img/26-xl-check.png"><figcaption>圖 19　檢核表：淺藍底藍框為輸入格、黃底金框為下拉格、白底為公式</figcaption></figure>
   <ul>
@@ -304,7 +319,7 @@ pre { font-family: "DejaVu Sans Mono", "WenQuanYi Zen Hei Mono", monospace; font
 </section>
 
 <section class="chap">
-  <h2>13. 儲存、開啟案件與切換範本</h2>
+  <h2>14. 儲存、開啟案件與切換範本</h2>
   <h3>自動保存與手動存檔</h3>
   <ul>
     <li>所有輸入、載重與檢視狀態會<b>自動存在本機瀏覽器</b>，重新整理不會遺失。</li>
@@ -323,7 +338,7 @@ pre { font-family: "DejaVu Sans Mono", "WenQuanYi Zen Hei Mono", monospace; font
 </section>
 
 <section class="chap">
-  <h2>14. 從圖說匯入（選用）</h2>
+  <h2>15. 從圖說匯入（選用）</h2>
   <figure><img src="img/21-import.png"><figcaption>圖 22　從圖說匯入：步驟 1／2</figcaption></figure>
   <ol>
     <li><span class="n">1</span>選擇圖說檔案（PNG、JPEG、WebP 或 PDF）。</li>
@@ -335,7 +350,7 @@ pre { font-family: "DejaVu Sans Mono", "WenQuanYi Zen Hei Mono", monospace; font
 </section>
 
 <section class="chap">
-  <h2>15. 梁／版斷面模組</h2>
+  <h2>16. 梁／版斷面模組</h2>
   <figure><img src="img/23-beam-setup.png" style="max-height:84mm"><figcaption>圖 23　切換為梁／版斷面</figcaption></figure>
   <p>按左上角設計對象按鈕，<span class="n">1</span>構件類型選「梁／版斷面」，<span class="n">2</span>選斷面型式（矩形、T 型、單位寬版），<span class="n">3</span>選範本，填構件名稱後按「開始設計」。柱與梁兩個模組的資料各自保留，可隨時切換。</p>
   <figure><img src="img/24-beam.png" style="max-height:90mm"><figcaption>圖 24　梁模組主畫面</figcaption></figure>
@@ -352,25 +367,26 @@ pre { font-family: "DejaVu Sans Mono", "WenQuanYi Zen Hei Mono", monospace; font
     <li><span class="n">1</span>每列：組合名稱、\(M_{u}^{+}\)（跨中正彎矩）、\(M_{u}^{-}\)（支承負彎矩），<b>皆填絕對值</b>（tf·m）；\(V_{u}\)（tf）；\(T_{u}\)（tf·m）。</li>
     <li><span class="n">2</span>「貼上 CSV」格式為 <code>名稱,Mu+,Mu-,Vu,Tu</code>，操作同第 5 節。</li>
   </ol>
+  <figure class="half"><img src="img/25b-beam-opt.png"><figcaption>圖 25a　梁的建議配筋分頁</figcaption></figure>
   <h3>梁模組重點</h3>
   <ul>
     <li><b>耐震特殊抗彎構材</b>開啟後：\(M_{pr}\) 以 \(1.25f_y\)、\(\phi=1.0\) 重解，容量設計剪力 \(V_e=\dfrac{M_{pr}^{+}+M_{pr}^{-}}{l_n}+V_g\)；地震剪力佔比 \(\ge 50\%\) 時 \(V_c=0\)。</li>
     <li><b>使用性</b>：正彎矩 \(M_{D}\)、\(M_{L}\) 用於撓度與跨中裂縫；負彎矩 \(M_{D}^{-}\)、\(M_{L}^{-}\) 用於支承裂縫。撓度只在正彎矩斷面判定。</li>
     <li><b>單位寬版</b>：\(b=100\ \text{cm}\)，鋼筋以「號數 @ 間距」輸入，不配剪力筋，\(V_{c}\) 含尺寸效應 \(\lambda_{s}\)。</li>
-    <li><b>建議配筋</b>：列出可用的單一號數配筋組合，僅作為起點，採用後仍需回參數表重新檢核。</li>
+    <li><b>建議配筋</b>（圖 25a）：底筋依 \(M_u^{+}\)、頂筋依 \(M_u^{-}\)，各列單一號數的最少用量（底筋最多 2 排、頂筋單排；版為「號數 @ 間距」），每列配上最省的箍筋號數與肢數，依合計用鋼量排序；另列依目前主筋的箍筋號數 × 肢數與加密區內外間距。「套用最佳組合」依序套用頂筋、底筋、箍筋。版不配剪力筋。</li>
     <li>不含預力梁。</li>
   </ul>
 </section>
 
 <section class="chap">
-  <h2>16. 內部自測</h2>
+  <h2>17. 內部自測</h2>
   <figure class="half"><img src="img/22-test.png"><figcaption>圖 26　自測分頁</figcaption></figure>
-  <p>按頂列燒瓶圖示執行，結果顯示於「自測」分頁（實心 12 項、圓形 13 項、箱型 14 項、梁 11 項）。</p>
+  <p>按頂列燒瓶圖示執行，結果顯示於「自測」分頁（實心 14 項、圓形 15 項、箱型 16 項；梁 9～14 項，依斷面型式與耐震設定而定；含「建議配筋第一名重驗合格」）。</p>
   <div class="warn"><b>自測的意義</b>自測只驗證<b>內部一致性</b>（例如 \(c\to\infty\) 收斂 \(P_o\)、平衡點解析解、分段積分連續性），抓不到系統性的公式錯誤。真正的驗證請以 PDF 計算書逐式手算複核，或與 spColumn／SAP2000 Section Designer 的已知答案比對。</div>
 </section>
 
 <section class="chap">
-  <h2>17. 送審前檢查清單</h2>
+  <h2>18. 送審前檢查清單</h2>
   <table>
     <tr><th style="width:8mm">☐</th><th>項目</th></tr>
     <tr><td>☐</td><td>設計依據（建築物／橋梁）與環境選擇正確；構件名稱已填。</td></tr>
@@ -388,7 +404,7 @@ pre { font-family: "DejaVu Sans Mono", "WenQuanYi Zen Hei Mono", monospace; font
   </table>
   <div class="note"><b>責任</b>本工具為輔助計算，最終判斷與簽證責任仍在設計技師。</div>
 
-  <h2 style="margin-top:8mm">18. 常見狀況排除</h2>
+  <h2 style="margin-top:8mm">19. 常見狀況排除</h2>
   <table>
     <tr><th style="width:52mm">現象</th><th style="width:48mm">可能原因</th><th>處理方式</th></tr>
     <tr><td>計算書公式顯示為原始碼，或列印時跳出「公式無法排版」</td><td>斷網或 CDN 被防火牆擋住</td><td>連網後重新整理頁面再列印</td></tr>
@@ -401,6 +417,7 @@ pre { font-family: "DejaVu Sans Mono", "WenQuanYi Zen Hei Mono", monospace; font
     <tr><td>淨距顯示「放不下」</td><td>主筋過多或號數過大</td><td>減少根數、改大號數少根或加大斷面</td></tr>
     <tr><td>自訂繫筋配置被重設</td><td>主筋根數改變</td><td>依提示重新點選</td></tr>
     <tr><td>Excel 的圖與數值不一致</td><td>在 Excel 內改了輸入，但圖為匯出當下的靜態圖</td><td>回網頁修改後重新匯出</td></tr>
+    <tr><td>建議配筋找不到合格配置</td><td>斷面太小、\(V_s\) 超過上限，或續接／錨定條件限制號數</td><td>依清單下方原因加大斷面或提高 \(f'_c\)；改機械式續接可放寬號數</td></tr>
     <tr><td>警示「須考慮長細效應」</td><td>\(kl_{u}/r\) 超過門檻</td><td>確認 \(k\) 與側向位移支撐；載重改用含二階效應的結果</td></tr>
   </table>
   <p style="font-size:9pt;color:#6b7280">更多問答請見《RC斷面設計工具_常見問題.pdf》；公式與條號細節請見 README.md。</p>

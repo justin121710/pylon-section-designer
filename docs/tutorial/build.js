@@ -114,6 +114,9 @@ async function screenshots(browser, base){
   for(const [p, n, items] of [['sum','13-summary',[]],['elev','14-elev',[['#elevInfo',1]]],['dev','15-dev',[['#devExp',1]]]]){
     await ws(p); await W8(500); await shot(n, items, await pane());
   }
+  /* 11 建議配筋（試算完成後截圖） */
+  await ws('opt'); await page.waitForFunction(() => OPT.pylon.res && !OPT.pylon.pending, null, {timeout:60000}); await W8(500);
+  await shot('15b-opt', [['#optCardP .opt-best',1],['#optOutP table:nth-of-type(1)',2],['#optOutP table:nth-of-type(2)',3]], await pane());
   /* 11 計算書預覽 */
   await ws('fig');
   await page.click('#btnPreview'); await W8(2000);
@@ -152,6 +155,8 @@ async function screenshots(browser, base){
   await shot('24-beam', [['#bSignPos',1],['#railB',2,2],['#wsB .ws-tabs',3]]);
   await ws('load'); await W8(500);
   { const a = await pane(); a.height = Math.min(520, a.height); await shot('25-beam-load', [['#bLoadTbl',1],['#bPaste',2]], a); }
+  await ws('opt'); await page.waitForFunction(() => OPT.beam.res && !OPT.beam.pending, null, {timeout:60000}); await W8(500);
+  await shot('25b-beam-opt', [['#optCardB .opt-best',1]], await pane());
 
   /* ===== 常見問題（FAQ）用截圖：f-*.png ===== */
   const preset = (mod, key) => page.evaluate(([mod, key]) => {
