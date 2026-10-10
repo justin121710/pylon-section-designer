@@ -441,8 +441,8 @@ P_u > 0.3A_g f'c 或 f'c > 700 之柱 h_x ≤ 20 cm（§18.4.5.2(f)）。
 
 - 操作教學與常見問題 PDF：本機 pre-commit 自動重建（需 Playwright、LibreOffice、poppler、Pillow）。本機沒有這些工具時，
   `RCSD_SKIP_PDF=1 git commit …` 略過，推送後 GitHub Actions（`tutorial-pdf.yml`）重建並以機器人提交推回同一分支，並上傳為 artifact。
-- **授權**：本 repo 尚未附 LICENSE，`specs/` 內含規範全文 PDF；公開散布前請所有者決定程式授權條款，並確認規範原文之散布權限
-  （必要時改放連結或私有儲存）。`vendor/` 之第三方函式庫依其 MIT 授權（見各 LICENSE 檔）。
+- **授權**：本工具程式碼以 [MIT License](LICENSE) 授權。`specs/` 內之規範 PDF 為政府機關網站公開、可免費取得之資料，
+  版權屬原主管機關，不在 MIT 授權範圍內；付費標準（如 CNS）不放入 repo。`vendor/` 之第三方函式庫依其 MIT 授權（見各 LICENSE 檔）。
 
 ## 規範原文（`specs/`）
 
