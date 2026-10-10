@@ -1103,23 +1103,132 @@ const SB = html => String(html).split(/(\\\([\s\S]*?\\\)|\\\[[\s\S]*?\\\])/)
 const KT = t => `\\(\\displaystyle ${t}\\)`;
 const kn = (x,p) => f(x,p).replace(/,/g,'{,}');
 
+/* svgTxt：SVG 標註改為 LaTeX 風格（與 KaTeX 公式一致）
+   ・數學變數（帶上下標者、希臘小寫、句中獨立的單一字母如 h、d、B）→ 斜體 KaTeX_Math
+   ・含變數的那一整段非中文文字（含數字、運算子、單位）→ 直體 KaTeX_Main，如同 \text{cm}
+   ・\frac{分子}{分母} → 先以 tspan.frac 佔位（未排版時退回 a/b），插入後由 fracLayout 疊成上下分式
+   PNG 匯出的圖片載不到網頁字型，退回 Times New Roman（svgPng 會先換字型再排分式，位置一致）。 */
+const MATH_I = "KaTeX_Math,'Times New Roman',serif", MATH_R = "KaTeX_Main,'Times New Roman',serif";
+const _isL = c => /[A-Za-z]/.test(c||'');
+const _GRK = /[α-ωϕϑ]/;
+const _MATHRUN = /[^⺀-￿]+/g;      // 非中日韓／全形字元的連續段
+function _mathIds(s){
+  /* 回傳 s 中屬於數學變數的字元索引（_ ^ 標記本身不在內） */
+  const ids = new Set();
+  for(let i=0;i<s.length;i++){
+    const c = s[i];
+    if(_GRK.test(c)){ ids.add(i); continue; }
+    if(!_isL(c)) continue;
+    let j = i; while(_isL(s[j+1])) j++;
+    const word = s.slice(i, j+1), nx = s[j+1], pv = s[i-1];
+    if(nx==='_' || nx==='^' || nx==="'"){ if(word.length===1 || !/^(max|min|cm|tf|kgf)$/.test(word)) for(let k=i;k<=j;k++) ids.add(k); }
+    else if(word.length===1 && pv!=='#' && pv!=='@' && !/[0-9.]/.test(nx||'')){
+      const pn = (s.slice(0,i).match(/(\S)\s*$/)||[])[1], nn = (s.slice(j+1).match(/^\s*(\S)/)||[])[1];
+      const cjk = x => x && x.charCodeAt(0) > 0x2e80;
+      const op = /[=≥≤<>＜＞,)+−×·\-→]/.test(nn||'') || /[=≥≤(,×+−\-]/.test(pn||'') || /[0-9]/.test(pv||'')
+        || cjk(pn) || cjk(nn) || (i===0 && (nn===undefined || /[=(]/.test(nn) || s[1]===' '));
+      if(op && pn!=='·') ids.add(i);
+    }
+    i = j;
+  }
+  return ids;
+}
 function svgTxt(t, fs){
   fs = fs || 12;
   const src = _norm(t);
-  const re = /([_^])(\{[^}]+\}|[A-Za-z0-9]+(?:,[A-Za-z0-9]+)*)/g;
-  let out='', last=0, m, shift=0;
-  while((m=re.exec(src))){
-    out += esc(src.slice(last,m.index));
-    const body = m[2][0]==='{' ? m[2].slice(1,-1) : m[2];
-    const d = (m[1]==='_'?1:-1)*fs*0.30;
-    out += `<tspan dy="${(d-shift).toFixed(2)}" font-size="${(fs*0.74).toFixed(1)}">${esc(body)}</tspan>`;
-    shift = d;
-    last = re.lastIndex;
+  /* 1) 切出分式 */
+  const parts = src.split(/(\\frac\{(?:[^{}]|\{[^{}]*\})*\}\{(?:[^{}]|\{[^{}]*\})*\})/);
+  /* 2) 逐字標記：上下標層級、是否斜體、是否落在數學段（襯線） */
+  const pieces = [];   // {s, lv:-1|0|1, it, ser} 或 {frac:[n,d]}
+  parts.forEach((part, pi) => {
+    const fm = part.match(/^\\frac\{((?:[^{}]|\{[^{}]*\})*)\}\{((?:[^{}]|\{[^{}]*\})*)\}$/);
+    if(fm){ pieces.push({frac:[fm[1], fm[2]]}); return; }
+    if(!part) return;
+    const pF = pi>0 && !!parts[pi-1], nF = pi<parts.length-1 && !!parts[pi+1];   // 緊鄰分式的那段算數學段
+    // 先去掉 _ ^ 標記，記下每個字的層級
+    const chars = [], lvls = [];
+    const re = /([_^])(\{[^}]+\}|[A-Za-z0-9]+(?:,[A-Za-z0-9]+)*)/g;
+    let last = 0, m;
+    while((m = re.exec(part))){
+      for(const ch of part.slice(last, m.index)){ chars.push(ch); lvls.push(0); }
+      const body = m[2][0]==='{' ? m[2].slice(1,-1) : m[2];
+      // 標記本身留給 _mathIds 判斷「後接上下標」：以不可見佔位處理
+      chars.push(m[1]); lvls.push(9);
+      for(const ch of body){ chars.push(ch); lvls.push(m[1]==='_' ? 1 : -1); }
+      last = re.lastIndex;
+    }
+    for(const ch of part.slice(last)){ chars.push(ch); lvls.push(0); }
+    const s = chars.join('');
+    const ids = _mathIds(s);
+    // 上下標內的字母一律斜體（d_{agg}）；數字、逗號直體
+    { let k = 0; while(k<chars.length){ if(lvls[k]!==1 && lvls[k]!==-1){ k++; continue; }
+        let e = k; while(e<chars.length && lvls[e]===lvls[k]) e++;
+        let a = k; for(let q=k;q<=e;q++){ if(q===e || chars[q]===','){ const w = chars.slice(a,q).join('');
+          if(!/^(max|min)$/.test(w)) for(let r=a;r<q;r++) if(_isL(chars[r]) || _GRK.test(chars[r])) ids.add(r); a = q+1; } }
+        k = e; } }
+    const ser = new Array(chars.length).fill(false);
+    s.replace(_MATHRUN, (run, off) => {
+      let has = (pF && off===0) || (nF && off+run.length===s.length); for(let k=off;k<off+run.length;k++) if(ids.has(k)) { has = true; break; }
+      if(has){ let a = off, b = off+run.length; while(a<b && s[a]===' ') a++; while(b>a && s[b-1]===' ') b--; for(let k=a;k<b;k++) ser[k] = true; }
+      return run;
+    });
+    chars.forEach((ch,i)=>{ if(lvls[i]===9) return; pieces.push({s:ch, lv:lvls[i], it:ids.has(i), ser:ser[i] || ids.has(i)}); });
+  });
+  /* 3) 合併相同樣式的連續字元，輸出 tspan */
+  let out = '', shift = 0;
+  const fsSub = (fs*0.74).toFixed(1);
+  for(let i=0;i<pieces.length;){
+    const p = pieces[i];
+    if(p.frac){
+      out += `<tspan class="frac"${shift ? ` dy="${(-shift).toFixed(2)}"` : ''} data-n="${esc(p.frac[0])}" data-d="${esc(p.frac[1])}">${esc(p.frac[0])}/${esc(p.frac[1])}</tspan>`;
+      shift = 0; i++; continue;
+    }
+    let j = i, s = '';
+    while(j<pieces.length && !pieces[j].frac && pieces[j].lv===p.lv && pieces[j].it===p.it && pieces[j].ser===p.ser){ s += pieces[j].s; j++; }
+    const d = p.lv*fs*0.30, at = [];
+    if(Math.abs(d-shift) > 1e-9) at.push(`dy="${(d-shift).toFixed(2)}"`);
+    if(p.lv) at.push(`font-size="${fsSub}"`);
+    if(p.it) at.push(`font-family="${MATH_I}" font-style="italic"`); else if(p.ser) at.push(`font-family="${MATH_R}"`);
+    out += at.length ? `<tspan ${at.join(' ')}>${esc(s)}</tspan>` : esc(s);
+    shift = d; i = j;
   }
-  const tail = src.slice(last);
-  if(tail) out += shift ? `<tspan dy="${(-shift).toFixed(2)}">${esc(tail)}</tspan>` : esc(tail);
-  else if(shift) out += `<tspan dy="${(-shift).toFixed(2)}"> </tspan>`;
+  if(shift) out += `<tspan dy="${(-shift).toFixed(2)}"> </tspan>`;
   return out;
+}
+
+/* 分式排版：須在已掛上文件（可量測）的 SVG 上執行。旋轉的文字維持 a/b 行內寫法。 */
+function fracLayout(svg, sysFont){
+  const NS = 'http://www.w3.org/2000/svg';
+  for(const sp of [...svg.querySelectorAll('tspan.frac')]){
+    const tx = sp.closest('text'); if(!tx) continue;
+    sp.classList.remove('frac');
+    if(/rotate/.test(tx.getAttribute('transform')||'')) continue;
+    const fs = parseFloat(tx.getAttribute("font-size")) || 12, ff = fs*0.9;
+    const mk = (str) => {
+      const e = document.createElementNS(NS, 'text');
+      for(const a of ['fill','font-weight','stroke','stroke-width','stroke-linejoin','paint-order','transform']) if(tx.hasAttribute(a)) e.setAttribute(a, tx.getAttribute(a));
+      e.setAttribute('font-size', ff.toFixed(2)); e.setAttribute('text-anchor', 'middle');
+      e.setAttribute('font-family', sysFont ? "'Times New Roman',serif" : MATH_R);   // 分子分母一律襯線（數字亦然）
+      e.innerHTML = sysFont ? svgTxt(str, ff).split('KaTeX_Math,').join('').split('KaTeX_Main,').join('') : svgTxt(str, ff);
+      tx.parentNode.insertBefore(e, tx.nextSibling);
+      return e;
+    };
+    const num = mk(sp.dataset.n), den = mk(sp.dataset.d);
+    let wn = 0, wd = 0; try{ wn = num.getComputedTextLength(); wd = den.getComputedTextLength(); }catch(e){}
+    if(!(wn > 0 && wd > 0)){ num.remove(); den.remove(); continue; }
+    const w = Math.max(wn, wd) + fs*0.3;
+    sp.textContent = ' '; sp.setAttribute('dx', w.toFixed(2));
+    let pos, adv; try{ pos = sp.getStartPositionOfChar(0); adv = sp.getComputedTextLength(); }catch(e){ continue; }
+    const cx = pos.x - w + (w + adv)/2, ax = pos.y - fs*0.3;     // 分數線落在數學軸（約 0.3em）
+    num.setAttribute('x', cx.toFixed(2)); num.setAttribute('y', (ax - fs*0.2).toFixed(2));
+    den.setAttribute('x', cx.toFixed(2)); den.setAttribute('y', (ax + ff*0.78).toFixed(2));
+    const ln = document.createElementNS(NS, 'line');
+    ln.setAttribute('x1', (cx - w/2 + fs*0.1).toFixed(2)); ln.setAttribute('x2', (cx + w/2 - fs*0.1).toFixed(2));
+    ln.setAttribute('y1', ax.toFixed(2)); ln.setAttribute('y2', ax.toFixed(2));
+    ln.setAttribute('stroke', tx.getAttribute('fill') || '#000'); ln.setAttribute('stroke-width', (fs*0.06).toFixed(2));
+    if(tx.hasAttribute('transform')) ln.setAttribute('transform', tx.getAttribute('transform'));
+    tx.parentNode.insertBefore(ln, num);
+  }
 }
 
 /* ---------- 基本力學 ---------- */
@@ -2594,7 +2703,7 @@ function devPal(forPrint){
     ? {conc:'#ececec',line:'#000',bar:'#000',bar2:'#555',crit:'#000',no:'#bdbdbd',txt:'#000',dim:'#333',stub:'#d4d4d4',bad:'#000',core:'#666',tie:'#444',lapz:'#cfcfcf',m:'#000'}
     : {conc:'#DCE2E8',line:'#8A97A5',bar:'#151C24',bar2:'#0F5F6B',crit:'#B03A2E',no:'#E8B04B',txt:'#151C24',dim:'#5E6B7A',stub:'#C5CED6',bad:'#B03A2E',core:'#6B4FA8',tie:'#6E9AA0',lapz:'#BFDCE0',m:'#8A5A12'};
 }
-const txtW = (t, fs) => [...String(t).replace(/[_^{}]/g,'')].reduce((a,ch)=> a + (ch.charCodeAt(0) > 0x2e80 ? fs : fs*0.56), 0);
+const txtW = (t, fs) => [...String(t).replace(/\\frac\{((?:[^{}]|\{[^{}]*\})*)\}\{((?:[^{}]|\{[^{}]*\})*)\}/g, (m,a,b)=> a.length>b.length?a:b).replace(/[_^{}]/g,'')].reduce((a,ch)=> a + (ch.charCodeAt(0) > 0x2e80 ? fs : fs*0.56), 0);
 function spreadLabels(items, lo, hi, gap){
   const it = items.slice().sort((a,b)=>a.want-b.want);
   for(let i=0;i<it.length;i++){
@@ -2695,7 +2804,7 @@ function devInset(o, x, y, w, h, M, P, setIdx, C){
       o.push(`<circle cx="${_p(hi[0])}" cy="${_p(hi[1])}" r="${rb+3.5}" fill="none" stroke="${C.crit}" stroke-width="1.6"/>`);
     }
     T(o, x+8, y+h-26, `c_b = ${f(d.cb,1)} cm（中心距 ${f(d.cSp,1)}${face?`，${face}`:''}）`, 10, C.txt);
-    T(o, x+8, y+h-11, d.Ktr>0 ? `K_tr = 40×${f(d.Atr,2)}/(${f(d.s,1)}×${d.n}) = ${f(d.Ktr,2)}` : 'K_tr 保守取 0', 10, C.txt);
+    T(o, x+8, y+h-11, d.Ktr>0 ? `K_tr = \\frac{40×${f(d.Atr,2)}}{${f(d.s,1)}×${d.n}} = ${f(d.Ktr,2)}` : 'K_tr 保守取 0', 10, C.txt);
   }else{
     const {S,R} = M, st = M.dev.sets[setIdx] || M.dev.sets[0], d = st.d, isTop = setIdx===1;
     const wT = S.slab ? Math.min(100, 4*(S.spBot||15)) : S.bw, k = Math.min(bw/wT, bh/S.h);
@@ -2715,7 +2824,7 @@ function devInset(o, x, y, w, h, M, P, setIdx, C){
     row(S.slab ? 0 : R.r1, R.dbB, S.h - cvB, !isTop);
     if(M.dev.sets[1]) row(S.slab ? 0 : S.nTop, R.dbT, cvT, isTop);
     T(o, x+8, y+h-26, `c_b = ${f(d.cb,1)} cm（${isTop?'頂':'底'}筋外側筋）`, 10, C.txt);
-    T(o, x+8, y+h-11, d.Ktr>0 ? `K_tr = 40×${f(d.Atr,2)}/(${f(d.s,1)}×${d.n}) = ${f(d.Ktr,2)}（${S.nLegs} 肢）` : 'K_tr 取 0', 10, C.txt);
+    T(o, x+8, y+h-11, d.Ktr>0 ? `K_tr = \\frac{40×${f(d.Atr,2)}}{${f(d.s,1)}×${d.n}} = ${f(d.Ktr,2)}（${S.nLegs} 肢）` : 'K_tr 取 0', 10, C.txt);
   }
 }
 
@@ -2965,7 +3074,7 @@ function svgDevLap(view, M, P, setIdx, forPrint){
   }
   let ny = Y(band) + 64;
   ny = 15 + wrapT(o, 16, ny, `${P.X.gap>0?`非接觸搭接，心距 ${f(P.X.gap,1)} cm${P.mod==='beam'?`（受撓構材 ≤ min(l_st/5, 15) = ${f(Math.min(lap/5,15),1)}，§25.5.1.3）`:''}`:'接觸搭接（兩筋並靠）'}；搭接處與相鄰鋼筋淨距依 §25.2.1`, 11, C.dim, 500);
-  if(view==='stagger') wrapT(o, 16, ny, `甲級條件：A_s,使用/A_s,需求 ≥ 2，且搭接長度內被搭接者 ≤ 50%（錯開即滿足後者）；否則一律乙級 1.3ψ_g l_d（表 25.5.2.1）`, 11, C.dim, 500);
+  if(view==='stagger') wrapT(o, 16, ny, `甲級條件：\\frac{A_{s,使用}}{A_{s,需求}} ≥ 2，且搭接長度內被搭接者 ≤ 50%（錯開即滿足後者）；否則一律乙級 1.3ψ_g l_d（表 25.5.2.1）`, 11, C.dim, 500, 20);
   else if(view==='lapC') wrapT(o, 16, ny, `受壓搭接 §25.5.5.1：${d.fy<=4200?'0.0073f_y d_b':'(0.013f_y − 24)d_b'}${d.fc<210?' × 4/3':''} ≥ 30 cm；柱受拉時須改用拉力搭接`, 11, C.dim, 500);
   else wrapT(o, 16, ny, `乙級 1.3ψ_g l_d = ${lapB} cm、甲級 1.0ψ_g l_d = ${lapA} cm（ψ_g = ${f(d.psiG,2)}）；搭接不適用超量鋼筋折減（§25.5.1.4）`, 11, C.dim, 500);
   devInset(o, W - 214, Y(band) + 50, 200, 140, M, P, setIdx, C);
@@ -3263,8 +3372,8 @@ function svgBeamCut(B, forPrint){
   phiLab();
   lab(X(c.x0), yM, `反曲點 ${f(c.x0,0)} cm`, 10.5, C.dim, [[4,-8,'start'],[4,16,'start'],[-4,-8,'end'],[-4,16,'end'],[4,-22,'start']]);
   if(c.xc > 0) lab(X(c.xc), yM + c.phiMc*ks, `理論截斷 ${f(c.xc,0)}`, 10.5, C.dim, [[-4,16,'end'],[4,16,'start'],[-4,-6,'end'],[4,-6,'start'],[-4,30,'end']]);
-  const fy0 = wrapT(o, 16, Hh - 52, `延伸 max(d, 12d_b) = ${f(c.ext,0)} cm（§9.7.3.3）；截斷筋自柱面 ≥ l_d = ${c.ld} cm（§9.7.3.4）；通長筋 ≥ 1/3 並延伸過反曲點 ≥ ${f(c.contExt,0)} cm（§9.7.3.8.4）`, 10.5, C.dim, 730);
-  wrapT(o, 16, fy0 + 16, c.inTen ? `截斷點在拉力區：V_u = ${f(c.VuX/TF,1)} ${c.okV?'≤':'＞'} (2/3)φV_n = ${f(2/3*c.phiVn/TF,1)} tf（§9.7.3.5(a)）` : '截斷點在反曲點之外（壓力區），不受 §9.7.3.5 限制', 10.5, c.inTen && !c.okV ? C.bad : C.dim, 730);
+  const fy0 = wrapT(o, 16, Hh - 52, `延伸 max(d, 12d_b) = ${f(c.ext,0)} cm（§9.7.3.3）；截斷筋自柱面 ≥ l_d = ${c.ld} cm（§9.7.3.4）；通長筋 ≥ \\frac{1}{3} 並延伸過反曲點 ≥ ${f(c.contExt,0)} cm（§9.7.3.8.4）`, 10.5, C.dim, 730);
+  wrapT(o, 16, fy0 + 16, c.inTen ? `截斷點在拉力區：V_u = ${f(c.VuX/TF,1)} ${c.okV?'≤':'＞'} \\frac{2}{3}φV_n = ${f(2/3*c.phiVn/TF,1)} tf（§9.7.3.5(a)）` : '截斷點在反曲點之外（壓力區），不受 §9.7.3.5 限制', 10.5, c.inTen && !c.okV ? C.bad : C.dim, 730);
   o.push(`</svg>`);
   return o.join('');
 }
@@ -3564,6 +3673,7 @@ function devReportWant(P){
 /* Excel：每個視圖轉成 PNG（2 倍解析度） */
 function svgPng(svg, scale){
   scale = scale || 2;
+  svg = svgForExport(svg);
   return new Promise((res, rej) => {
     const m = svg.match(/viewBox="0 0 ([\d.]+) ([\d.]+)"/), w = +m[1], h = +m[2];
     const img = new Image();
@@ -7408,6 +7518,18 @@ function pinStatus(mod, map){
    只動 DOM 上的 SVG；Excel／PNG 匯出用的是繪圖函式回傳的字串，不受影響。
    量測在畫面外的複本上做：隱藏分頁裡的圖 display:none，getBBox 會量成 0。 */
 let _fitHost = null;
+/* 匯出用（PNG）：字型換成系統字型後排分式，回傳字串 */
+function svgForExport(str){
+  str = str.split('KaTeX_Math,').join('').split('KaTeX_Main,').join('');
+  if(str.indexOf('class="frac"') < 0) return str;
+  if(!_fitHost){ _fitHost = document.createElement('div');
+    _fitHost.style.cssText = 'position:absolute;left:-20000px;top:0;width:800px;visibility:hidden;pointer-events:none';
+    document.body.appendChild(_fitHost); }
+  const box = document.createElement('div'); box.innerHTML = str; _fitHost.appendChild(box);
+  const el = box.querySelector('svg'); fracLayout(el, true);
+  const out = new XMLSerializer().serializeToString(el); box.remove();
+  return out.split('KaTeX_Math,').join('').split('KaTeX_Main,').join('');
+}
 function fitSvg(svg){
   if(svg.dataset.fit || svg.classList.contains('logo') || svg.closest('.fig-legend, .katex, symbol')) return;
   const vb = (svg.getAttribute('viewBox')||'').trim().split(/[\s,]+/).map(Number);
@@ -7421,8 +7543,11 @@ function fitSvg(svg){
     && +r.getAttribute('width')===vb[2] && +r.getAttribute('height')===vb[3]);
   const bgC = bgOf(cl); if(bgC) bgC.setAttribute('display','none');
   _fitHost.appendChild(cl);
+  const hasFrac = !!cl.querySelector('tspan.frac'); if(hasFrac) fracLayout(cl);
   let bb = null; try{ bb = cl.getBBox(); }catch(e){}
   cl.remove();
+  if(hasFrac){ if(bgC) bgC.removeAttribute('display'); cl.style.width = ''; cl.style.maxHeight = '';
+    if(svg.parentNode) svg.parentNode.replaceChild(cl, svg); svg = cl; }
   if(!bb || !(bb.width>20) || !(bb.height>20)) return;
   const pad = Math.max(8, 0.015*Math.max(bb.width, bb.height));
   let x0 = Math.max(vb[0], bb.x-pad), y0 = Math.max(vb[1], bb.y-pad);
@@ -7450,6 +7575,8 @@ new MutationObserver(recs => {
 }).observe(document.body, {childList:true, subtree:true});
 /* KaTeX 以 defer 載入，可能晚於第一次重算：載入後補排一次 */
 window.addEventListener('load', () => mathIn(document.body));
+if(document.fonts && document.fonts.load) Promise.all(['italic 12px KaTeX_Math','12px KaTeX_Main'].map(x=>document.fonts.load(x)))
+  .then(() => { try{ if(typeof TAB!=='undefined' && TAB==='beam') renderBeam(); else render(); }catch(e){} }).catch(()=>{});
 document.querySelectorAll('svg[viewBox]').forEach(fitSvg);
 </script>
 
