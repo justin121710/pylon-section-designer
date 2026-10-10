@@ -83,8 +83,8 @@ async function screenshots(browser, base){
   await group('主筋'); await W8(300); await page.hover('.pin-row[data-pid="nB"]'); await W8(300);
   { const a = await box('#railP'), d = await box('#detailP');
     await shot('03-params', [['.pin-g.on',1],['.pin-row[data-pid="nB"] .pin-v',2],['.pin-row[data-pid="nB"] .pin-s',3],['#detailP',4,2]], {x:0, y:a.y-10, width:d.x+d.width+12, height:Math.min(H-a.y+10, 700)}); }
-  /* 4 細長效應 */
-  await group('細長效應'); await W8(300); await page.hover('.pin-row[data-pid="slK"]'); await W8(300);
+  /* 4 長細效應 */
+  await group('長細效應'); await W8(300); await page.hover('.pin-row[data-pid="slK"]'); await W8(300);
   { const a = await box('#railP'), d = await box('#detailP');
     await shot('04-slender', [['.pin-row[data-pid="slFrame"] .pin-v',1],['.pin-row[data-pid="slK"] .pin-v',2],['.pin-row[data-pid="slK"] .pin-s',3],['#detailP',4,2]], {x:0, y:a.y-10, width:d.x+d.width+12, height:Math.min(H-a.y+10, 700)}); }
   await page.click('#railP .pin-all');
@@ -117,7 +117,7 @@ async function screenshots(browser, base){
   await ws('fig');
   await page.click('#btnPreview'); await W8(2000);
   await shot('16-report', [['#rpPrint',1],['#rpBack',2]]);
-  await page.evaluate(() => { [...document.querySelectorAll('#report .rp-h2')].find(x => /細長效應/.test(x.textContent)).scrollIntoView({block:'start'}); window.scrollBy(0,-20); }); await W8(500);
+  await page.evaluate(() => { [...document.querySelectorAll('#report .rp-h2')].find(x => /長細效應/.test(x.textContent)).scrollIntoView({block:'start'}); window.scrollBy(0,-20); }); await W8(500);
   await shot('17-report-sl');
   await page.click('#rpBack'); await W8(500); await page.evaluate(() => window.scrollTo(0,0));
   /* 頂列 */
@@ -155,7 +155,7 @@ async function screenshots(browser, base){
   if(errs.length) throw new Error('網頁執行錯誤：' + errs.join(' | '));
 }
 
-/* ---------- Excel 頁面圖：檢核表含細長效應之頁、A4 計算書第一頁 ---------- */
+/* ---------- Excel 頁面圖：檢核表含長細效應之頁、A4 計算書第一頁 ---------- */
 function excelImages(){
   execFileSync('soffice', ['--headless', '--convert-to', 'pdf', '--outdir', XL, path.join(XL, 'C1.xlsx')], {stdio:'ignore', timeout:240000});
   const pdf = path.join(XL, 'C1.pdf');
@@ -164,11 +164,11 @@ function excelImages(){
   let pCheck = 0, pA4 = 0;
   for(let i = 1; i <= n && !(pCheck && pA4); i++){
     const t = text(i);
-    if(!pCheck && /檢核表/.test(t) && /側移支撐/.test(t)) pCheck = i;
+    if(!pCheck && /檢核表/.test(t) && /長細效應/.test(t)) pCheck = i;
     if(!pA4 && /RC 柱斷面設計檢核計算書/.test(t)) pA4 = i;
   }
   if(!pCheck || !pA4) throw new Error('Excel PDF 找不到檢核表或 A4 計算書頁');
-  for(const [pg, name, dpi, keep] of [[pCheck, '26-xl-check', 110, 0.97], [pA4, '27-xl-a4', 220, 0.95]]){
+  for(const [pg, name, dpi, keep] of [[pCheck, '26-xl-check', 110, 0.955], [pA4, '27-xl-a4', 220, 0.95]]){
     execFileSync('pdftoppm', ['-r', String(dpi), '-png', '-singlefile', '-f', String(pg), '-l', String(pg), pdf, path.join(IMG, name)]);
     // 裁掉頁尾與白邊
     execFileSync('python3', ['-c', `

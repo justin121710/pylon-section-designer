@@ -60,7 +60,7 @@ pre { font-family: "DejaVu Sans Mono", "WenQuanYi Zen Hei Mono", monospace; font
     <div>1. 開啟工具與設定設計對象</div>
     <div>2. 認識畫面配置</div>
     <div>3. 在參數表輸入尺寸、材料與配筋</div>
-    <div>4. 細長效應設定</div>
+    <div>4. 長細效應設定</div>
     <div>5. 輸入載重組合（含 CSV 批次匯入）</div>
     <div>6. 看判定列與處理警示</div>
     <div>7. 檢視斷面圖與 P-M 互制曲線</div>
@@ -79,7 +79,7 @@ pre { font-family: "DejaVu Sans Mono", "WenQuanYi Zen Hei Mono", monospace; font
 
   <h2 style="margin-top:10mm">0. 標準作業流程總覽</h2>
   <div class="flow">
-    <span>① 設定設計對象</span><i>→</i><span>② 輸入斷面與配筋</span><i>→</i><span>③ 細長效應設定</span><i>→</i><span>④ 載重組合</span><i>→</i>
+    <span>① 設定設計對象</span><i>→</i><span>② 輸入斷面與配筋</span><i>→</i><span>③ 長細效應設定</span><i>→</i><span>④ 載重組合</span><i>→</i>
     <span>⑤ 看判定、改到通過</span><i>→</i><span>⑥ 檢查圖面與配置</span><i>→</i><span>⑦ 計算書 PDF／Excel</span><i>→</i><span>⑧ 儲存案件 .json</span>
   </div>
   <p>工具是單一網頁，所有計算都在瀏覽器內即時完成：<b>每改一個輸入，圖面、判定與警示就立刻重算</b>，不需要按「計算」。頂列的「重算 #N」編號每重算一次加一，可用來確認畫面是否已更新。</p>
@@ -109,13 +109,13 @@ pre { font-family: "DejaVu Sans Mono", "WenQuanYi Zen Hei Mono", monospace; font
     <tr><th style="width:10mm">編號</th><th style="width:34mm">區域</th><th>用途</th></tr>
     <tr><td><span class="n">1</span></td><td>頂列文件動作</td><td>從圖說匯入、開啟／儲存案件、匯出 Excel、預覽報告、列印／存成 PDF、內部自測（燒瓶圖示）。</td></tr>
     <tr><td><span class="n">2</span></td><td>判定列（膠囊）</td><td>一排總結：撓曲 \(D/C\)、剪力、箍筋、\(\rho_{g}\)、軸向配置、主筋淨距、伸展搭接、警示數。綠色 ✓ 通過、紅色 ✗ 不符、橘色 ! 注意。<b>點膠囊會跳到對應結果卡片</b>。</td></tr>
-    <tr><td><span class="n">3</span></td><td>左側導軌</td><td>參數分組（斷面幾何、材料、主筋、橫向筋／耐震、細長效應、規範係數、伸展長度與搭接）與「載重組合」入口。每組前的記號顯示該組最嚴重的狀態。</td></tr>
+    <tr><td><span class="n">3</span></td><td>左側導軌</td><td>參數分組（斷面幾何、材料、主筋、橫向筋／耐震、長細效應、規範係數、伸展長度與搭接）與「載重組合」入口。每組前的記號顯示該組最嚴重的狀態。</td></tr>
     <tr><td><span class="n">4</span></td><td>參數表</td><td>代號｜參數｜值｜單位｜狀態。直接在「值」欄修改。</td></tr>
     <tr><td><span class="n">5</span></td><td>說明卡</td><td>游標停在哪一列，就顯示該參數「影響什麼」、「規範限制」與警示。</td></tr>
     <tr><td><span class="n">6</span></td><td>結果分頁</td><td>斷面與 P-M／結果摘要／軸向配置／伸展長度與搭接／警示（帶件數）／自測。</td></tr>
     <tr><td><span class="n">7</span></td><td>設計對象按鈕</td><td>顯示目前的構件・斷面｜依據｜名稱；點擊重新開啟圖 1 的視窗。</td></tr>
   </table>
-  <div class="tip"><b>狀態記號</b>✓ 通過；<i>i</i> 需你確認（規範歧義或配對選擇，<b>不是錯誤</b>）；! 注意（例如餘裕不足 10%）；✗ 不符。參數表的狀態欄留白代表該列沒有對應檢核，不是漏算。</div>
+  <div class="tip"><b>狀態記號</b>✓ 通過；<i>i</i> 需你確認（假設或配對選擇，<b>不是錯誤</b>）；! 注意（例如餘裕不足 10%）；✗ 不符。參數表的狀態欄留白代表該列沒有對應檢核，不是漏算。</div>
 </section>
 
 <section class="chap">
@@ -129,36 +129,36 @@ pre { font-family: "DejaVu Sans Mono", "WenQuanYi Zen Hei Mono", monospace; font
   </ol>
   <h3>建議輸入順序</h3>
   <ol>
-    <li><b>斷面幾何</b>：\(B\)、\(H\)（圓形為 \(D\)、箱型另有壁厚 \(t_{w}\)）、外／內保護層（量至橫向筋外緣）、骨材最大粒徑。</li>
+    <li><b>斷面幾何</b>：\(B\)、\(H\)（圓形為 \(D\)、箱型另有壁厚 \(t_{w}\)）、外／內保護層（量至橫向筋外緣）、骨材最大粒徑；橋梁另選「保護層環境（橋梁）」，依公路橋梁設計規範表 7.2 檢核最小保護層。</li>
     <li><b>材料</b>：\(f'_{c}\)、\(f_{y}\)、\(f_{yt}\)（下拉選 SD280／SD420／SD490 等）。</li>
     <li><b>主筋</b>：號數、\(B\) 向與 \(H\) 向每面根數（含角隅），或圓柱總根數；箱型可選內層同配置（雙層）。</li>
     <li><b>橫向筋／耐震</b>：箍筋號數、是否為塑鉸區（柱端加密區）、塑鉸區位置（兩端／僅底端）、柱淨高 \(l_{u}\)、橋梁的 \(\phi_{o}\) 與 \(L_{v}\)、繫筋配置、\(A_{sh}\) 之 \(b_{c}\) 配對。</li>
     <li><b>規範係數</b>：\(\phi\) 值與軸力截斷，一般維持預設。</li>
     <li><b>伸展長度與搭接</b>：錨定方式、構材深度、續接方式等（見第 10 節）。</li>
   </ol>
-  <div class="warn"><b>需要你判斷</b>「\(A_{sh}\) 之 \(b_{c}\) 配對」規範敘述有歧義：「垂直」（預設，肢分布的跨距）或「平行」（量至肢外緣）。實心方柱兩者無差，<b>箱型牆片可差 7 倍以上</b>，請對照條文後再選；計算書會註明採用的讀法。</div>
+  <div class="note"><b>\(b_c\) 配對</b>「\(A_{sh}\) 之 \(b_{c}\) 配對」請維持預設「垂直」（肢分布的跨距）：土木401-112 解說 R18.4.5.4 明示 \(b_c\) 為垂直構成 \(A_{sh}\) 之箍筋肢之核心尺度。「平行」為非規範讀法、僅供比較，選用時參數表標示「非規範」；箱型牆片兩者可差 7 倍以上。</div>
   <div class="note"><b>防呆</b>欄位空白或打錯字時，計算改用預設值，但該欄會標紅框並列入警示（附採用的預設值）。主筋放不下時判定顯示「放不下」。</div>
 </section>
 
 <section class="chap">
-  <h2>4. 細長效應設定</h2>
-  <p>柱模組的「細長效應」群組依土木401-112 §6.2.5 判定細長效應是否可忽略。</p>
-  <figure class="half"><img src="img/04-slender.png"><figcaption>圖 4　細長效應群組</figcaption></figure>
+  <h2>4. 長細效應設定</h2>
+  <p>柱模組的「長細效應」群組判定長細效應是否可忽略：設計依據為「建築物」時依土木401-112 §6.2.5，「橋梁」時依公路橋梁設計規範 §7.3.5。</p>
+  <figure class="half"><img src="img/04-slender.png"><figcaption>圖 4　長細效應群組</figcaption></figure>
   <ol>
-    <li><span class="n">1</span><b>側移支撐</b>：「有側移（未受側向支撐）」或「無側移（受側向支撐）」。</li>
-    <li><span class="n">2</span><b>有效長度係數 \(k\)</b>：依構架分析決定。範本值只是示意（建築柱 \(k=1.0\)、懸臂墩柱／橋塔 \(k=2.0\)）。</li>
+    <li><span class="n">1</span><b>側向位移支撐</b>：「無側向位移支撐（有側移）」或「有側向位移支撐（無側移）」。樓層橫撐構件總勁度至少為該層所有柱側向勁度之 12 倍時，得視為有側向位移支撐（§6.2.5.1）。</li>
+    <li><span class="n">2</span><b>有效長度係數 \(k\)</b>：依構架分析決定；第一次近似分析時可取 \(k=1.0\)（解說 R6.2.5），橋梁有支撐構材除經分析外應為 \(1.0\)。範本值只是示意（建築柱 \(k=1.0\)、懸臂墩柱／橋塔 \(k=2.0\)）。</li>
     <li><span class="n">3</span>狀態欄顯示目前的 \(kl_{u}/r\)；超過門檻時轉為橘色。</li>
     <li><span class="n">4</span>說明卡列出門檻與迴轉半徑的取法。</li>
   </ol>
-  <p>選「無側移」時會多出<b>端彎矩比 \(M_{1}/M_{2}\)</b>：單曲率為負、雙曲率為正，範圍 \(-1\sim 1\)；預設 \(-1\) 最保守。\(l_{u}\) 沿用「橫向筋／耐震」群組的柱淨高。</p>
+  <p>選「有側向位移支撐」時會多出<b>端彎矩比 \(M_{1}/M_{2}\)</b>：採土木401-112 慣例，單曲率為負、雙曲率為正，範圍 \(-1\sim 1\)；預設 \(-1\) 最保守。橋梁規範的 \(M_{1b}/M_{2b}\) 正負號相反（單曲度為正），工具會自動換號。\(l_{u}\) 沿用「橫向筋／耐震」群組的柱淨高。</p>
   <table>
-    <tr><th>項目</th><th>規定</th></tr>
-    <tr><td>迴轉半徑 \(r\)</td><td>矩形 \(0.30\times\) 該方向尺寸；圓形 \(0.25D\)；箱型以全斷面 \(\sqrt{I_g/A_g}\)。\(X\)、\(Y\) 兩向取 \(kl_{u}/r\) 較大者。</td></tr>
-    <tr><td>有側移可忽略</td><td>\(\dfrac{kl_u}{r}\le 22\)</td></tr>
-    <tr><td>無側移可忽略</td><td>\(\dfrac{kl_u}{r}\le 34+12\left(\dfrac{M_1}{M_2}\right)\)，且 \(\dfrac{kl_u}{r}\le 40\)</td></tr>
-    <tr><td>不可忽略時</td><td>\(P_{u}\)、\(M_{u}\) 必須是含二階效應的分析結果，且 \(M_{u,\text{二階}}\le 1.4\,M_{u,\text{一階}}\)</td></tr>
+    <tr><th>項目</th><th>建築（土木401-112 §6.2.5）</th><th>橋梁（公路橋梁設計規範 §7.3.5.2）</th></tr>
+    <tr><td>迴轉半徑 \(r\)</td><td colspan="2">矩形 \(0.30\times\) 考量方向尺度；圓形 \(0.25D\)；箱型以全斷面 \(\sqrt{I_g/A_g}\)。\(X\)、\(Y\) 兩向取 \(kl_{u}/r\) 較大者。</td></tr>
+    <tr><td>無側向位移支撐</td><td>\(\dfrac{kl_u}{r}\le 22\)</td><td>\(\dfrac{kl_u}{r}<22\)</td></tr>
+    <tr><td>有側向位移支撐</td><td>\(\dfrac{kl_u}{r}\le 34+12\left(\dfrac{M_1}{M_2}\right)\)，且 \(\le 40\)</td><td>\(\dfrac{kl_u}{r}<34-12\left(\dfrac{M_{1b}}{M_{2b}}\right)\)，無 40 上限</td></tr>
+    <tr><td>不可忽略時</td><td>含二階效應之分析結果，且 \(M_{u,\text{二階}}\le 1.4\,M_{u,\text{一階}}\)</td><td>含二階效應之分析結果；\(kl_u/r>100\) 判不合格，須依 §7.3.5.1 二階分析</td></tr>
   </table>
-  <div class="warn"><b>重要</b>工具<b>只判定</b>細長效應可否忽略，<b>不計算彎矩放大</b>。超過門檻時，請改用含 \(P\text{-}\Delta\)（及構材 \(P\text{-}\delta\)）的分析結果作為輸入。</div>
+  <div class="warn"><b>重要</b>工具<b>只判定</b>長細效應可否忽略，<b>不計算彎矩放大</b>。超過門檻時，請改用含 \(P\text{-}\Delta\)（及構材 \(P\text{-}\delta\)）的分析結果作為輸入。</div>
 </section>
 
 <section class="chap">
@@ -191,7 +191,7 @@ pre { font-family: "DejaVu Sans Mono", "WenQuanYi Zen Hei Mono", monospace; font
     <li><span class="n">1</span>文字框下方顯示匯入結果。標題列、欄位不足、數值不是數字的行會被略過，並列出行號與原因（例如「第 1 行（標題列）」）。</li>
     <li><span class="n">2</span>載重表已更新。關閉視窗後判定與圖面隨即重算。</li>
   </ol>
-  <div class="warn"><b>確認輸入</b>輸入值應為已乘載重因數之設計值；細長效應不可忽略時（第 4 節），須為含二階效應之分析結果。</div>
+  <div class="warn"><b>確認輸入</b>輸入值應為已乘載重因數之設計值；長細效應不可忽略時（第 4 節），須為含二階效應之分析結果。</div>
 </section>
 
 <section class="chap">
@@ -211,7 +211,9 @@ pre { font-family: "DejaVu Sans Mono", "WenQuanYi Zen Hei Mono", monospace; font
     <tr><td>剪力 \(V_{s}\) &gt; \(V_{s,\max}\)</td><td>加大斷面（箍筋再加也無效）。</td></tr>
     <tr><td>\(h_x>35\ \text{cm}\)</td><td>繫筋改「每一根主筋皆設」。</td></tr>
     <tr><td>\(A_{sh}\) 不足（箱型常見）</td><td>繫筋每根皆設、縮小間距、加大箍筋號數；箱型確認為雙層主筋。</td></tr>
-    <tr><td>須考慮細長效應</td><td>確認 \(k\) 與側移支撐；載重改用含二階效應的分析結果。</td></tr>
+    <tr><td>須考慮長細效應</td><td>確認 \(k\) 與側向位移支撐；載重改用含二階效應的分析結果。</td></tr>
+    <tr><td>鋼筋比超過上限</td><td>上限：橋梁 4%、建築耐震柱 6%、其他柱 8%；減少主筋或加大斷面。</td></tr>
+    <tr><td>橋梁保護層不足</td><td>依公路橋梁設計規範表 7.2，加大外側保護層或確認「保護層環境（橋梁）」選項。</td></tr>
   </table>
 </section>
 
@@ -277,7 +279,7 @@ pre { font-family: "DejaVu Sans Mono", "WenQuanYi Zen Hei Mono", monospace; font
 
 <section class="chap">
   <figure><img src="img/17-report-sl.png"><figcaption>圖 18　計算書內容：每條公式展開「公式 → 代入 → 化簡 → 單位」</figcaption></figure>
-  <p>計算書每條公式展開四層，方便審查者逐式手算複核。內容依序為斷面與材料、配筋圖、P-M、剪力與扭矩、圍束、軸向配置、伸展與搭接、<b>細長效應判定</b>、附註與簽署欄。</p>
+  <p>計算書每條公式展開四層，方便審查者逐式手算複核。內容依序為斷面與材料、配筋圖、P-M、剪力與扭矩、圍束、軸向配置、伸展與搭接、<b>長細效應判定</b>、附註與簽署欄。</p>
   <div class="warn"><b>斷網時</b>若公式元件沒有載入，按列印會先跳出「計算書公式無法排版」，可取消、連網並重新整理後再印；選「仍要列印」則公式會以原始碼印出。</div>
 </section>
 
@@ -288,7 +290,7 @@ pre { font-family: "DejaVu Sans Mono", "WenQuanYi Zen Hei Mono", monospace; font
   <ul>
     <li>檢核表共七欄：項目｜符號｜數值｜單位｜計算式｜判定標準／備註｜規範依據。</li>
     <li><b>所有導出值都是 Excel 公式</b>，在 Excel 內修改輸入格會自動重算，P-M 曲線為原生散佈圖亦隨之更新。</li>
-    <li>細長效應位於第四節，並列入檢核彙總（判定「二階」表示不可忽略，不計入總判定 FAIL）。</li>
+    <li>長細效應位於第四節，並列入檢核彙總（判定「二階」表示不可忽略，不計入總判定 FAIL）。</li>
   </ul>
 </section>
 
@@ -371,9 +373,10 @@ pre { font-family: "DejaVu Sans Mono", "WenQuanYi Zen Hei Mono", monospace; font
     <tr><td>☐</td><td>設計依據（建築物／橋梁）與環境選擇正確；構件名稱已填。</td></tr>
     <tr><td>☐</td><td>尺寸、保護層、材料強度、主筋與箍筋號數與圖說一致。</td></tr>
     <tr><td>☐</td><td>載重為已乘載重因數之設計值；\(P_{u}\) 正負號正確（壓為正）；單位 tf、tf·m。</td></tr>
-    <tr><td>☐</td><td>細長效應：側移支撐與 \(k\) 值有依據；不可忽略時載重已含二階效應。</td></tr>
+    <tr><td>☐</td><td>長細效應：側向位移支撐與 \(k\) 值有依據；不可忽略時載重已含二階效應。</td></tr>
+    <tr><td>☐</td><td>橋梁案：保護層符合公路橋梁設計規範表 7.2；主筋比 \(1\%\sim 4\%\)。</td></tr>
     <tr><td>☐</td><td>判定列全部為綠色 ✓；警示分頁沒有 ✗；! 與 <i>i</i> 項目都已檢視。</td></tr>
-    <tr><td>☐</td><td>\(A_{sh}\) 之 \(b_{c}\) 配對已依條文確認（箱型特別重要）。</td></tr>
+    <tr><td>☐</td><td>\(A_{sh}\) 之 \(b_{c}\) 配對為「垂直」（解說 R18.4.5.4）。</td></tr>
     <tr><td>☐</td><td>若修改過 \(\phi\) 值或其他規範係數，已在計算書說明依據。</td></tr>
     <tr><td>☐</td><td>水工案件已將 \(S_{d}\) 乘入載重（若設計準則要求）。</td></tr>
     <tr><td>☐</td><td>軸向配置、搭接位置、錨定空間檢核通過；下料長度已另行扣除彎曲伸長。</td></tr>
@@ -395,7 +398,7 @@ pre { font-family: "DejaVu Sans Mono", "WenQuanYi Zen Hei Mono", monospace; font
     <tr><td>淨距顯示「放不下」</td><td>主筋過多或號數過大</td><td>減少根數、改大號數少根或加大斷面</td></tr>
     <tr><td>自訂繫筋配置被重設</td><td>主筋根數改變</td><td>依提示重新點選</td></tr>
     <tr><td>Excel 的圖與數值不一致</td><td>在 Excel 內改了輸入，但圖為匯出當下的靜態圖</td><td>回網頁修改後重新匯出</td></tr>
-    <tr><td>警示「須考慮細長效應」</td><td>\(kl_{u}/r\) 超過門檻</td><td>確認 \(k\) 與側移支撐；載重改用含二階效應的結果</td></tr>
+    <tr><td>警示「須考慮長細效應」</td><td>\(kl_{u}/r\) 超過門檻</td><td>確認 \(k\) 與側向位移支撐；載重改用含二階效應的結果</td></tr>
   </table>
   <p style="font-size:9pt;color:#6b7280">更多問答請見專案中的 FAQ.md；公式與條號細節請見 README.md。</p>
 </section>
