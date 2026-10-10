@@ -377,6 +377,8 @@ body .pin-v input[type=text]{text-align:left}
 /* P-M 圖不要占滿整個版面：縮到適中尺寸並置中。
    svgPM(forPrint) 內部已把字級放大、刻度改 5 格，縮圖後刻度仍讀得清楚。 */
 .rp-fig.pm{margin:4px 0}
+.rp-lg .fig-legend{font-size:11px;gap:4px 14px;margin:4px 0 0}
+.rp-lg .fig-legend svg{height:10px}
 .rp-pm2{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:start}
 .rp-pm2 .rp-fig{padding:3px}
 
@@ -2128,9 +2130,7 @@ function elevDim(o, C, a, b, at, vertical, label, side){
 function svgColElev(M, forPrint){
   const {s,r,R,lay} = M, L = M.opt.lu;
   const W=760, Hh=640, top=86, bot=58;
-  const C = forPrint
-    ? {conc:'#ececec',line:'#000',bar:'#000',tie:'#000',tie2:'#666',hot:'#bdbdbd',txt:'#000',dim:'#333',stub:'#c8c8c8',lapz:'#d6d6d6'}
-    : {conc:'#DCE2E8',line:'#8A97A5',bar:'#151C24',tie:'#0F5F6B',tie2:'#6E9AA0',hot:'#E8B04B',txt:'#151C24',dim:'#5E6B7A',stub:'#B9C3CC',lapz:'#BFDCE0'};
+  const C = {conc:'#DCE2E8',line:'#8A97A5',bar:'#151C24',tie:'#0F5F6B',tie2:'#6E9AA0',hot:'#E8B04B',txt:'#151C24',dim:'#5E6B7A',stub:'#B9C3CC',lapz:'#BFDCE0'};   // 列印／匯出與螢幕同色（黑白與否由使用者列印時決定）
   const k = (Hh-top-bot)/L;
   const wReal = s.type==='circle' ? s.D : s.B;
   let wpx = wReal*k, schematic = false;
@@ -2178,7 +2178,7 @@ function svgColElev(M, forPrint){
     const l1 = `${z.tag}${z.hot&&!lay.full?' l_o':''} = ${f(z.b-z.a,0)} cm`;
     const l2 = `${r.tieSize} @ ${f(z.s,1)} cm${z.note?`（${z.note}）`:''}`;
     const l3 = `${z.n} ${unit}${z.hot&&lay.nEnds===2&&!lay.full?'（每端）':''}`;
-    const col = z.hot ? (forPrint?'#000':'#8A5A12') : C.txt;
+    const col = z.hot ? '#8A5A12' : C.txt;
     if(hpx >= 46){
       o.push(`<text x="${dx+14}" y="${ym-10}" font-size="12.5" font-weight="700" fill="${col}">${svgTxt(l1,12.5)}</text>`);
       o.push(`<text x="${dx+14}" y="${ym+6}" font-size="12" fill="${C.txt}">${svgTxt(l2,12)}</text>`);
@@ -2706,9 +2706,7 @@ function devPlanHtml(P){
    配置圖
    ========================================================================= */
 function devPal(forPrint){
-  return forPrint
-    ? {conc:'#ececec',line:'#000',bar:'#000',bar2:'#555',crit:'#000',no:'#bdbdbd',txt:'#000',dim:'#333',stub:'#d4d4d4',bad:'#000',core:'#666',tie:'#444',lapz:'#cfcfcf',m:'#000'}
-    : {conc:'#DCE2E8',line:'#8A97A5',bar:'#151C24',bar2:'#0F5F6B',crit:'#B03A2E',no:'#E8B04B',txt:'#151C24',dim:'#5E6B7A',stub:'#C5CED6',bad:'#B03A2E',core:'#6B4FA8',tie:'#6E9AA0',lapz:'#BFDCE0',m:'#8A5A12'};
+  return {conc:'#DCE2E8',line:'#8A97A5',bar:'#151C24',bar2:'#0F5F6B',crit:'#B03A2E',no:'#E8B04B',txt:'#151C24',dim:'#5E6B7A',stub:'#C5CED6',bad:'#B03A2E',core:'#6B4FA8',tie:'#6E9AA0',lapz:'#BFDCE0',m:'#8A5A12'};   // 列印／匯出與螢幕同色
 }
 const txtW = (t, fs) => [...String(t).replace(/\\frac\{((?:[^{}]|\{[^{}]*\})*)\}\{((?:[^{}]|\{[^{}]*\})*)\}/g, (m,a,b)=> a.length>b.length?a:b).replace(/[_^{}]/g,'')].reduce((a,ch)=> a + (ch.charCodeAt(0) > 0x2e80 ? fs : fs*0.56), 0);
 function spreadLabels(items, lo, hi, gap){
@@ -3386,9 +3384,28 @@ function svgBeamCut(B, forPrint){
 }
 
 /* ---------- 圖例與條文代入行 ---------- */
-function devLegend(view, P, forPrint){
+function devLegend(view, P){
+  return `<div class="fig-legend">${devLegendItems(view, P).map(([svg, nm]) => `<span class="it"><svg viewBox="0 0 34 12">${svg}</svg><span class="nm">${nm}</span></span>`).join('')}</div>`;
+}
+/* 匯出（Excel 圖片）用：圖例畫進 SVG 底部，與網頁圖例同一組項目 */
+function devWithLegend(svg, view, P){
+  const m = svg.match(/viewBox="0 0 ([\d.]+) ([\d.]+)"/); if(!m) return svg;
+  const W = +m[1], H = +m[2], fs = 12, RH = 20, x0 = 16;
+  const parts = []; let x = x0, y = H + 16;
+  for(const [g, nm] of devLegendItems(view, P)){
+    const w = 34 + 6 + txtW(nm, fs) + 22;
+    if(x > x0 && x + w > W - 10){ x = x0; y += RH; }
+    parts.push(`<svg x="${x}" y="${y-9}" width="34" height="12" viewBox="0 0 34 12">${g}</svg><text x="${x+40}" y="${y+1}" font-size="${fs}" fill="#151C24">${svgTxt(nm, fs)}</text>`);
+    x += w;
+  }
+  const H2 = y + 12;
+  return svg.replace(/viewBox="0 0 [\d.]+ [\d.]+"/, `viewBox="0 0 ${W} ${H2}"`)
+    .replace(/(<rect width=")[\d.]+(" height=")[\d.]+(" fill="#fff"\/>)/, `$1${W}$2${H2}$3`)
+    .replace(/<\/svg>\s*$/, parts.join('') + '</svg>');
+}
+function devLegendItems(view, P){
   const C = devPal(false), it = [];
-  const L = (svg, nm) => it.push(`<span class="it"><svg viewBox="0 0 34 12">${svg}</svg><span class="nm">${nm}</span></span>`);
+  const L = (svg, nm) => it.push([svg, nm]);
   L(`<line x1="1" y1="6" x2="33" y2="6" stroke="${C.crit}" stroke-width="1.6" stroke-dasharray="7 4"/>`, '臨界斷面（量測起點）');
   L(`<circle cx="4" cy="6" r="2.6" fill="${C.txt}"/><line x1="4" y1="6" x2="27" y2="6" stroke="${C.txt}" stroke-width="1.1"/><polygon points="33,6 26,2.8 26,9.2" fill="${C.txt}"/>`, '量測方向：● 起點 → ▶ 終點');
   if(view==='all' || view==='mech' || /lap|stagger/.test(view)){
@@ -3403,7 +3420,7 @@ function devLegend(view, P, forPrint){
   if(view==='joint') L(`<line x1="1" y1="6" x2="33" y2="6" stroke="${C.core}" stroke-width="1.2" stroke-dasharray="6 3"/>`, '柱圍束核心邊界');
   if(view==='cut') L(`<line x1="1" y1="6" x2="33" y2="6" stroke="${C.m}" stroke-width="1.6"/>`, '彎矩圖（均布載重近似）');
   L(`<line x1="1" y1="6" x2="33" y2="6" stroke="${C.bad}" stroke-width="2"/>`, '不符（NG）');
-  return `<div class="fig-legend">${it.join('')}</div>`;
+  return it;
 }
 function devFormula(view, P, M, setIdx, tex){
   const st = P.mod==='col' ? M.dev.sets[0] : (setIdx===1 && M.dev.sets[1] ? M.dev.sets[1] : M.dev.sets[0]), x = st.d;
@@ -3698,7 +3715,7 @@ async function devFigsPng(M){
   const P = M.devPlan, want = devExpSel(P.mod, P).v, out = [];
   for(const v of devAllViews(M, P)){
     if(!want.has(v.id)) continue;
-    const png = await svgPng(v.svg, 2);
+    const png = await svgPng(devWithLegend(v.svg, v.id, P), 2);
     out.push({title: v.title, b64: png.b64, w: png.w, h: png.h, fm: plainFm(v.fm), a4: want.has(v.id)});
   }
   return out;
@@ -3709,7 +3726,7 @@ function devReportFigs(M, P){
   if(sel.t.has('table')) o.push(`<div class="rp-h3">伸展與搭接長度</div><div style="font-size:12px">${SB(devTable(M.dev, {}))}</div>`);
   if(all.length) o.push(`<div class="rp-h3">伸展與搭接配置圖</div>`);
   for(const v of all) if(want.has(v.id)){
-    o.push(`<div class="rp-fig no-break">${v.svg}<div style="font-size:11.5px;margin-top:4px">${SB(v.fmTex)}</div></div>`);
+    o.push(`<div class="rp-fig no-break">${v.svg}<div class="rp-lg">${SB(devLegend(v.id, P))}</div><div style="font-size:11.5px;margin-top:4px">${SB(v.fmTex)}</div></div>`);
   }
   if(sel.t.has('checks')) o.push(`<div class="rp-h3">配置檢核</div><div style="font-size:12px">${SB(devPlanHtml(P))}</div>`);
   if(sel.t.has('sched')) o.push(`<div class="rp-h3">鋼筋下料長度表</div><div style="font-size:12px">${SB(devScheduleHtml(P, M))}</div>`);
@@ -3722,9 +3739,7 @@ function svgCircle(M,forPrint){
   const k = (Math.min(W, Hh-band) - 2*pad)/s.D;
   const cx = W/2, cy = band + (Hh-band)/2;
   const X = x=>cx + x*k, Y = y=>cy - y*k;
-  const C = forPrint
-    ? {conc:'#dcdcdc',line:'#000',bar:'#000',tie:'#000',dim:'#333',ann:'#000',annBad:'#000'}
-    : {conc:'#DCE2E8',line:'#8A97A5',bar:'#151C24',tie:'#0F5F6B',dim:'#5E6B7A',ann:'#8A5A12',annBad:'#B03A2E'};
+  const C = {conc:'#DCE2E8',line:'#8A97A5',bar:'#151C24',tie:'#0F5F6B',dim:'#5E6B7A',ann:'#8A5A12',annBad:'#B03A2E'};   // 列印／匯出與螢幕同色（黑白與否由使用者列印時決定）
   const o=[`<svg viewBox="0 0 ${W} ${Hh}" xmlns="http://www.w3.org/2000/svg" font-family="ui-sans-serif,system-ui,sans-serif">`,
            `<rect width="${W}" height="${Hh}" fill="${forPrint?'#fff':'transparent'}"/>`];
   o.push(`<circle cx="${cx}" cy="${cy}" r="${s.D/2*k}" fill="${C.conc}" stroke="${C.line}" stroke-width="2"/>`);
@@ -3774,9 +3789,7 @@ function svgSection(M,forPrint){
   const cy = band + (Hh-band)/2;
   const X = x=>W/2 + x*k, Y = y=>cy - y*k;
   const o=[];
-  const C = forPrint
-    ? {conc:'#dcdcdc',void:'#ffffff',line:'#000',bar:'#000',tie:'#000',ct:'#000',txt:'#000',bad:'#000',dim:'#333',ann:'#000',annBad:'#000'}
-    : {conc:'#DCE2E8',void:'#FFFFFF',line:'#8A97A5',bar:'#151C24',tie:'#0F5F6B',ct:'#B0407A',txt:'#151C24',bad:'#B03A2E',dim:'#5E6B7A',ann:'#8A5A12',annBad:'#B03A2E'};
+  const C = {conc:'#DCE2E8',void:'#FFFFFF',line:'#8A97A5',bar:'#151C24',tie:'#0F5F6B',ct:'#B0407A',txt:'#151C24',bad:'#B03A2E',dim:'#5E6B7A',ann:'#8A5A12',annBad:'#B03A2E'};   // 列印／匯出與螢幕同色（黑白與否由使用者列印時決定）
 
   o.push(`<svg viewBox="0 0 ${W} ${Hh}" xmlns="http://www.w3.org/2000/svg" font-family="ui-sans-serif,system-ui,sans-serif">`);
   o.push(`<rect width="${W}" height="${Hh}" fill="${forPrint?'#fff':'transparent'}"/>`);
@@ -4080,9 +4093,7 @@ function svgPM(M,axis,forPrint){
   const FS = forPrint ? 1.9 : 1, LW = forPrint ? 1.7 : 1.3;
   const PH = forPrint ? 640 : 430, yB = T + PH;   // 繪圖區高、x 軸（圖框底）位置
   let Hh = 0;   // 圖例排完後才知道
-  const C = forPrint
-    ? {ax:'#000',grid:'#ccc',n:'#888',d:'#000',mc:'#555',pt:'#666',ptc:'#000',txt:'#000',ok:'#000',bad:'#000'}
-    : {ax:'#3A4652',grid:'#E2E7EC',n:'#8A97A5',d:'#0F5F6B',mc:'#6B4FA8',pt:'#6B7887',ptc:'#B03A2E',txt:'#151C24',ok:'#1E7A44',bad:'#B03A2E'};
+  const C = {ax:'#3A4652',grid:'#E2E7EC',n:'#8A97A5',d:'#0F5F6B',mc:'#6B4FA8',pt:'#6B7887',ptc:'#B03A2E',txt:'#151C24',ok:'#1E7A44',bad:'#B03A2E'};   // 列印／匯出與螢幕同色（黑白與否由使用者列印時決定）
 
   // 軸距由「標稱 + 設計 + 載重」決定；圍束曲線僅裁切至圖框內，
   // 否則其高軸壓分支（非設計相關）會把整張圖壓扁。
@@ -6088,9 +6099,7 @@ function beamLeg(S, sh, R){
 function svgBeamElev(B, forPrint){
   const {S,R,lay} = B, L = S.ln;
   const W=760, Hh=358, x0=90, x1=W-90;
-  const C = forPrint
-    ? {conc:'#ececec',line:'#000',bar:'#000',tie:'#000',tie2:'#666',hot:'#bdbdbd',txt:'#000',dim:'#333',stub:'#c8c8c8',lapz:'#d6d6d6'}
-    : {conc:'#DCE2E8',line:'#8A97A5',bar:'#151C24',tie:'#0F5F6B',tie2:'#6E9AA0',hot:'#E8B04B',txt:'#151C24',dim:'#5E6B7A',stub:'#B9C3CC',lapz:'#BFDCE0'};
+  const C = {conc:'#DCE2E8',line:'#8A97A5',bar:'#151C24',tie:'#0F5F6B',tie2:'#6E9AA0',hot:'#E8B04B',txt:'#151C24',dim:'#5E6B7A',stub:'#B9C3CC',lapz:'#BFDCE0'};   // 列印／匯出與螢幕同色（黑白與否由使用者列印時決定）
   const k = (x1-x0)/L;
   let hpx = S.h*k, schematic=false;
   if(hpx < 44){ hpx = 44; schematic = true; }
@@ -6132,7 +6141,7 @@ function svgBeamElev(B, forPrint){
     o.push(`<line x1="${X(z.a)}" y1="${yB+4}" x2="${X(z.a)}" y2="${dy+8}" stroke="${C.dim}" stroke-width="0.7"/>`);
     o.push(`<line x1="${X(z.b)}" y1="${yB+4}" x2="${X(z.b)}" y2="${dy+8}" stroke="${C.dim}" stroke-width="0.7"/>`);
     const xm = (X(z.a)+X(z.b))/2, fs = (z.b-z.a)*k < 110 ? 10.5 : 12;
-    const col = z.hot ? (forPrint?'#000':'#8A5A12') : C.txt;
+    const col = z.hot ? '#8A5A12' : C.txt;
     const l1 = z.hot && !lay.full ? `加密 2h = ${f(z.b-z.a,0)}` : `${z.tag} ${f(z.b-z.a,0)} cm`;
     o.push(`<text x="${xm}" y="${dy+20}" font-size="${fs}" font-weight="700" fill="${col}" text-anchor="middle">${l1}</text>`);
     o.push(`<text x="${xm}" y="${dy+35}" font-size="${fs}" fill="${C.txt}" text-anchor="middle">@ ${f(z.s,1)}${z.note?`（${z.note}）`:''}</text>`);
@@ -6166,9 +6175,7 @@ function svgBeam(B, forPrint){
   const k = Math.min((W-2*pad)/wTot, (Hh-band-2*pad)/S.h);
   const cy = band + (Hh-band)/2;
   const X = x=>W/2 + x*k, Y = y=>cy + (S.h/2 - y)*k;   // y 自底面
-  const C = forPrint
-    ? {conc:'#dcdcdc',line:'#000',bar:'#000',tie:'#000',txt:'#000',dim:'#333',ann:'#000',annBad:'#000',comp:'#9a9a9a',tin:'#000',ct:'#000'}
-    : {conc:'#DCE2E8',line:'#8A97A5',bar:'#151C24',tie:'#0F5F6B',txt:'#151C24',dim:'#5E6B7A',ann:'#8A5A12',annBad:'#B03A2E',comp:'#F2C14E',tin:'#2F86A6',ct:'#B0407A'};
+  const C = {conc:'#DCE2E8',line:'#8A97A5',bar:'#151C24',tie:'#0F5F6B',txt:'#151C24',dim:'#5E6B7A',ann:'#8A5A12',annBad:'#B03A2E',comp:'#F2C14E',tin:'#2F86A6',ct:'#B0407A'};   // 列印／匯出與螢幕同色（黑白與否由使用者列印時決定）
   const o=[`<svg viewBox="0 0 ${W} ${Hh}" xmlns="http://www.w3.org/2000/svg" font-family="ui-sans-serif,system-ui,sans-serif">`];
   o.push(`<rect width="${W}" height="${Hh}" fill="${forPrint?'#fff':'transparent'}"/>`);
 
