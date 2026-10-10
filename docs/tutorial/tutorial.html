@@ -175,10 +175,12 @@ pre { font-family: "DejaVu Sans Mono", "WenQuanYi Zen Hei Mono", monospace; font
   <p>柱模組點左側導軌最下方的「<b>載重組合</b>」開啟視窗；梁模組在結果分頁的「載重組合」。</p>
   <figure><img src="img/05-loads.png"><figcaption>圖 5　柱的載重組合視窗</figcaption></figure>
   <ol>
-    <li><span class="n">1</span>每列一組：組合名稱、\(P_{u}\)（tf，<b>壓為正、拉為負</b>）、\(M_{ux}\)、\(M_{uy}\)（tf·m）、\(V_{ux}\)、\(V_{uy}\)（tf）、\(T_{u}\)（tf·m）。右側 × 刪除該列。</li>
+    <li><span class="n">1</span>每列一組：組合名稱、位置（—／頂／底）、\(P_{u}\)（tf，<b>壓為正、拉為負</b>）、\(M_{ux}\)、\(M_{uy}\)（tf·m）、\(V_{ux}\)、\(V_{uy}\)（tf）、\(T_{u}\)（tf·m）。右側 × 刪除該列。</li>
     <li><span class="n">2</span>「+ 新增組合」逐列新增。</li>
     <li><span class="n">3</span>「貼上 CSV」一次匯入多組（見下頁）。</li>
   </ol>
+  <div class="warn"><b>方向配對</b>\(M_{ux}\) 是繞 \(X\) 軸的彎矩（深度沿 \(H\)），由 <b>\(Y\) 向</b>側力造成，與 \(V_{uy}\) 同一受力平面；\(M_{uy}\) 配 \(V_{ux}\)。例如 \(X\) 向地震組合應以 \(M_{uy}\)、\(V_{ux}\) 為主。容量設計剪力亦依此配對（\(X\) 向剪力取繞 \(Y\) 軸之彎矩強度）。</div>
+  <div class="note"><b>正負號與位置</b>數值保留正負號（構材內力慣例，如 ETABS／SAP2000 之測站值），檢核取絕對值。同名組合分列「頂」「底」兩列時視為同一柱之兩端：長細效應之 \(M_1/M_2\) 由兩端彎矩求得（同號＝單曲率取負、異號＝雙曲率取正），用於該組合之 \(C_m\) 與可忽略門檻；未配對之組合用參數表之端彎矩比。</div>
   <div class="tip"><b>控制組合</b>工具會逐組合計算並自動找出控制組合。剪力控制組合不一定是 \(V_{u}\) 最大者：塑鉸區低軸壓（或軸拉）時 \(V_{c}\) = 0，常需要最多箍筋。</div>
 
   <h3>CSV 批次匯入</h3>
@@ -187,7 +189,7 @@ pre { font-family: "DejaVu Sans Mono", "WenQuanYi Zen Hei Mono", monospace; font
     <li><span class="n">1</span>把資料貼進文字框。可以直接從 Excel 複製（Tab 分隔），數字可帶千分位逗號；或用逗號分隔的文字。</li>
     <li><span class="n">2</span>按「套用 CSV」。</li>
   </ol>
-  <pre>柱：名稱,Pu,Mux,Muy,Vux,Vuy,Tu
+  <pre>柱：名稱,Pu,Mux,Muy,Vux,Vuy,Tu[,位置]   （位置選填：頂／底，或 top／bot）
 梁：名稱,Mu+,Mu-,Vu,Tu      （Mu+、Mu- 皆填絕對值）
 標題列可以留著，會自動略過；空白數值欄視為 0</pre>
 </section>
