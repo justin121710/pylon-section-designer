@@ -356,7 +356,25 @@ function buildColumn(ExcelJS, inp){
   S.item({key:'isPH', label:'　旗標：加密區', f:'--({ph}="是")', ref:'非規範明列條文，係本表判別用'});
   S.item({key:'phio', label:'超強係數 φo（橋梁）', sym:'φo', v:inp.phio, unit:'無因次', kind:'in', fmt:'0.00', crit:'僅橋梁使用；Mo = φo·Mn', ref:'公路橋梁耐震設計規範（容量設計）'});
   S.item({key:'Lv', label:'剪力跨度 Lv（橋梁）', sym:'Lv', v:inp.Lv, unit:'cm', kind:'in', fmt:'#,##0', crit:'僅橋梁使用；Ve = Mo/Lv', ref:'公路橋梁耐震設計規範（容量設計）'});
-  S.item({key:'lu', label:'柱淨高 lu（建築）', sym:'lu', v:inp.lu, unit:'cm', kind:'in', fmt:'#,##0', crit:'僅建築物使用；Ve = 2Mpr/lu', ref:ref401('18.4.6.1')});
+  S.item({key:'lu', label:'柱淨高 lu', sym:'lu', v:inp.lu, unit:'cm', kind:'in', fmt:'#,##0', crit:'建築物 Ve = 2Mpr/lu；細長比 k·lu/r（兩種依據皆用）', ref:ref401('18.4.6.1、6.2.5.1')});
+  S.item({key:'slFr', label:'側移支撐（細長效應）', v:inp.slSway===false?'無側移':'有側移', kind:'list', list:['有側移','無側移'],
+    crit:'有側移 k·lu/r ≦ 22；無側移 ≦ 34 + 12(M1/M2) 且 ≦ 40 時可忽略細長效應', ref:ref401('6.2.5.1'),
+    note:'樓層內抗側力構材之總側向勁度 ≧ 該層柱總側向勁度之 12 倍時，可視為受側向支撐（無側移）。'});
+  S.item({key:'slK', label:'有效長度係數 k', sym:'k', v:inp.slK??1, unit:'無因次', kind:'in', fmt:'0.00', crit:'X、Y 兩向共用', ref:ref401('6.2.5.1'),
+    note:'請依構架分析決定；懸臂柱理論值 2.0（設計常用 2.1）。'});
+  S.item({key:'slM12', label:'端彎矩比 M1/M2（無側移）', sym:'M1/M2', v:inp.slM12??-1, unit:'無因次', kind:'in', fmt:'0.00', crit:'單曲率為負、雙曲率為正，−1～1', ref:ref401('6.2.5.1')});
+  S.item({key:'slRx', label:'迴轉半徑 rx（繞 X 軸，沿 H 向）', sym:'rx', unit:'cm', fmt:'0.00',
+    f:'IF({isCirc}=1,0.25*{Din},IF({isBox}=1,SQRT(({Be}*{He}^3-MAX(0,{Be}-2*{tw})*MAX(0,{He}-2*{tw})^3)/12/{Ag}),0.3*{He}))',
+    expr:'矩形 0.30H；圓形 0.25D；箱型 √(Ig/Ag)', ref:ref401('6.2.5.2')});
+  S.item({key:'slRy', label:'迴轉半徑 ry（繞 Y 軸，沿 B 向）', sym:'ry', unit:'cm', fmt:'0.00',
+    f:'IF({isCirc}=1,0.25*{Din},IF({isBox}=1,SQRT(({He}*{Be}^3-MAX(0,{He}-2*{tw})*MAX(0,{Be}-2*{tw})^3)/12/{Ag}),0.3*{Be}))',
+    expr:'矩形 0.30B；圓形 0.25D；箱型 √(Ig/Ag)', ref:ref401('6.2.5.2')});
+  S.item({key:'slLam', label:'細長比 k·lu/r（兩向取大）', sym:'k·lu/r', unit:'無因次', fmt:'0.0',
+    f:'{slK}*{lu}/MIN({slRx},{slRy})', expr:'k·lu / min(rx, ry)', ref:ref401('6.2.5.1')});
+  S.item({key:'slLim', label:'可忽略細長效應之上限', sym:'—', unit:'無因次', fmt:'0.0',
+    f:'IF({slFr}="無側移",MIN(34+12*MAX(-1,MIN(1,{slM12})),40),22)', expr:'有側移 22；無側移 min(34 + 12·M1/M2, 40)', ref:ref401('6.2.5.1')});
+  S.item({key:'slJ', label:'細長效應', sym:'—', unit:'—', f:'IF({slLam}<={slLim},"可忽略","須考慮（Pu、Mu 須含二階效應）")',
+    crit:'超過上限時：Pu、Mu 須為含二階效應之分析結果，且二階彎矩 ≦ 1.4 倍一階彎矩', ref:ref401('6.2.5.1、6.2.5.3')});
   S.item({key:'theta', label:'扭矩桁架角 θ', sym:'θ', v:inp.theta, unit:'°', kind:'in', fmt:'0', crit:'非預力構材取 45°', ref:ref401('22.7.6.1.2')});
   S.item({key:'pair', label:'Ash 之 bc 配對', v:inp.ashPerp?'垂直（肢的跨距）':'平行（量至肢外緣）', kind:'list', list:['垂直（肢的跨距）','平行（量至肢外緣）'],
     crit:'關鍵假設：條文對 bc 方向敘述有歧義，箱型牆片兩讀法可差 7 倍以上', ref:ref401('18.4.5.4'),
@@ -549,6 +567,8 @@ function buildColumn(ExcelJS, inp){
   addSum({label:'Y 向剪力 Vs／Vs,max（tf）', need:{f:"MAX('載重組合'!S4:S"+(3+NCB)+')'}, cap:{f:'{VsMaxy}'}, ratio:{f:"MAX('載重組合'!S4:S"+(3+NCB)+')/{VsMaxy}'}, judge:J('{faily}=0'), note:'各組合最大 Vs；並檢核剪扭斷面應力', ref:ref401('22.5.1.2、22.7.7.1')});
   addSum({label:'橫向筋間距 s 採用／需求', need:{f:'{sUse}'}, cap:{f:'{sGov}'}, ratio:{f:'{sUse}/{sGov}'}, judge:J('{sUse}<={sGov}'), note:{f:'"控制："&{sGovTag}'}, ref:'—'});
   addSum({label:'主筋比 ρg（%）', need:{f:'{rho}'}, cap:4, ratio:{f:'{rho}/4'}, judge:J('AND({rho}>=1,{rho}<=4)'), note:'下限 1%；4% 為施工性上限（規範 8%）', ref:ref401('10.6.1.1')});
+  addSum({label:'細長比 k·lu/r', need:{f:'{slLam}'}, cap:{f:'{slLim}'}, ratio:{f:'{slLam}/{slLim}'}, judge:{f:'IF({slLam}<={slLim},"PASS","二階")'},
+    note:'「二階」＝細長效應不可忽略：Pu、Mu 須含二階效應（不計入總判定 FAIL）', ref:ref401('6.2.5.1、6.2.5.3'), fmt:'0.0'});
   addSum({label:'主筋淨距（cm）', need:{f:'{need}'}, cap:{f:'MIN({clB},{clH})'}, ratio:{f:'{need}/MIN({clB},{clH})'}, judge:J('MIN({clB},{clH})>={need}'), ref:ref401('25.2.3')});
   addSum({label:'耐震 hx（cm）', need:{f:'MAX({hxB},{hxH})'}, cap:{f:'IF({termC}=1,20,35)'}, ratio:{f:'MAX({hxB},{hxH})/IF({termC}=1,20,35)'}, judge:{f:'IF({isCirc}=1,"N/A",IF(MAX({hxB},{hxH})<=IF({termC}=1,20,35),"PASS","FAIL"))'}, ref:ref401('18.4.5.2')});
   addSum({label:'螺箍淨距（cm）', need:{f:'{spMin}'}, cap:{f:'{spClr}'}, ratio:{f:`IF({isSp}=1,{spMin}/{spClr},0)`}, judge:{f:'IF({isSp}=0,"N/A",IF({spClr}>={spMin},"PASS","FAIL"))'}, ref:ref401('25.7.3.1')});
@@ -569,7 +589,7 @@ function buildColumn(ExcelJS, inp){
   S.section('【十、注意事項與使用說明】');
   S.text('色碼圖例：淺藍底＋藍字粗體＋藍框＝手動輸入格；黃底＋藍字粗體＋金框＝附下拉選單之輸入格（可輸入表列外之值）；白底黑字細灰框＝公式；綠字＝連結其他工作表；淺琥珀底＝總判定。', {h:32});
   S.text('1. P-M 互制以中性軸深度 c 於 0.02D～5D 對數取樣 '+NPM+' 點，等值應力塊 a = min(β₁c, D)；與網頁（220 點）之 D/C 可能於小數第三位有差。雙軸載重輪廓法以 '+NIT+' 次二分迭代求解。', {h:30});
-  S.text('2. 不計細長效應／彎矩放大：輸入之 Pu、Mu 須為已含 P-Δ 之分析結果。塑性形心僅對對稱配筋成立。', {h:24});
+  S.text('2. 細長效應只依土木401-112 §6.2.5.1 判定可否忽略（第四節），不計算彎矩放大：不可忽略時，輸入之 Pu、Mu 須為已含二階效應（P-Δ）之分析結果。塑性形心僅對對稱配筋成立。', {h:30});
   S.text("3. 剪力 Vc 依土木401-112 表 22.5.5.1 式 (a)：Vc = [0.53λ√f'c + Nu/(6Ag)]·bw·d，Nu/(6Ag) ≦ 0.05f'c、Vc ≦ 1.33λ√f'c·bw·d、Vc ≧ 0；箍筋間距恆受 Av,min 控制，故 Av ≧ Av,min 成立（逐組合詳「載重組合」O、R、AI、AJ 欄）。", {h:32});
   S.text('4. Mander 圍束混凝土曲線為參考資訊，未列入本表（不影響設計判定）。扭矩門檻未計軸壓增益（保守）。箱型牆片之 Ash 拆解非規範明列條文，請自行確認。', {h:30});
   S.text('5. 載重組合請於「載重組合」工作表填入已乘載重因數之設計值（壓為正，tf、tf·m）；最多 '+NCB+' 組，空白列不計。', {h:24});
@@ -1246,7 +1266,7 @@ function buildA4Column(ws, S, R, inp, jRow, sumRows){
   a.para('3.1','P-M 互制採應變相容與等值矩形應力塊（土木401 §22.2），a = min(β₁c, D)；純壓、純拉點直接以 Po、−fy·Ast 接上。',28);
   a.para('3.2',{f:'"雙軸彎曲：Pu ≧ 0.1f\'c·Ag = "&TEXT({Pbr},"#,##0")&" tf 時採 Bresler 倒數式，否則採載重輪廓法（α = "&TEXT({alpha},"0.00")&"）；圓形斷面以合彎矩檢核。"'},28);
   a.para('3.3',{f:'IF({isBldg}=1,"容量設計剪力 Ve = 2Mpr/lu，Mpr 以 1.25fy、φ = 1.0 計，lu = "&TEXT({lu},"#,##0")&" cm（土木401 §18.4.6.1）。","容量設計剪力 Ve = φo·Mn/Lv，φo = "&TEXT({phio},"0.00")&"、Lv = "&TEXT({Lv},"#,##0")&" cm（公路橋梁耐震設計規範）。")'},28);
-  a.para('3.4',"未納入：細長效應（輸入須已含 P-Δ）、土木401-112 §22.5.5.1 新式 Vc 之尺寸效應 λs、Mander 圍束混凝土強度（僅參考）、扭矩門檻之軸壓增益。",28);
+  a.para('3.4',"未納入：彎矩放大（細長效應僅依 §6.2.5.1 判定可否忽略，不可忽略時輸入須已含 P-Δ）、土木401-112 §22.5.5.1 新式 Vc 之尺寸效應 λs、Mander 圍束混凝土強度（僅參考）、扭矩門檻之軸壓增益。",28);
 
   ws.getRow(a.n).addPageBreak();
   a.chap('四、計算過程');
@@ -1327,7 +1347,7 @@ function buildA4Column(ws, S, R, inp, jRow, sumRows){
 
   a.chap('七、限制與注意事項');
   a.para('7.1','P-M 以 '+NPM+' 點離散；雙軸載重輪廓法以 '+NIT+' 次二分迭代；與網頁結果可能於小數第三位有差。',26);
-  a.para('7.2','未計細長效應、未計剪力尺寸效應 λs、扭矩門檻未計軸壓增益；箱型牆片 Ash 拆解與 bc 配對為關鍵假設，須自行確認。',28);
+  a.para('7.2','未計彎矩放大（細長效應僅判定可否忽略）、未計剪力尺寸效應 λs、扭矩門檻未計軸壓增益；箱型牆片 Ash 拆解與 bc 配對為關鍵假設，須自行確認。',28);
   a.para('7.3','輸入資料（尺寸、材料、載重）須經設計者核實；版次修改應更新封面版次。',22);
   a.para('7.4','色碼：淺藍底藍框＝輸入；黃底金框＝下拉輸入；白底細灰框＝公式；綠字＝連結；淺琥珀底＝總判定。',26);
 
