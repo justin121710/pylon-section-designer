@@ -1617,7 +1617,9 @@ function biaxialDC(cvX,cvY,pX,pY,m,L){
 
   if(Pu >= 0.1*m.fc*m.Ag){
     // Bresler 倒數式（偏心不變 → 尺度不變，可直接求）
-    const Pnx = uniX.capP, Pny = uniY.capP, Po = capPhi(m)*cvX.PnMax;
+    // P_o 須為「未截斷」之 φ_c·P_o：若改用 φP_n,max（0.8P_o），被減去之 1/P_o 變大 → 容量高估、D/C 偏不保守。
+    // φP_n,max 截斷已含於 P_nx、P_ny（射線交於截斷水平段），不另放入倒數式。
+    const Pnx = uniX.capP, Pny = uniY.capP, Po = m.phic*cvX.Po;
     const inv = 1/Pnx + 1/Pny - 1/Po;
     const Pcap = inv>1e-12 ? 1/inv : Infinity;
     return {dc: Pu/Pcap, method:'Bresler 倒數式', Pnx,Pny,Po,Pcap,uniX,uniY};
@@ -2034,17 +2036,19 @@ function compute(){
   const ctrlFlex = res.reduce((a,b)=> (b.dc>a.dc?b:a), res[0]);
   const ctrlAxial = res.reduce((a,b)=> (b.Lk.Pu>a.Lk.Pu?b:a), res[0]);
 
-  /* --- 剪力 / 扭矩（兩向分別檢核，取控制者） --- */
-  const shX = shearDesign(s,r,R,m,opt,cvX,res,'x',cvXpr);
-  const shY = shearDesign(s,r,R,m,opt,cvY,res,'y',cvYpr);
+  /* --- 剪力 / 扭矩（兩向分別檢核，取控制者） ---
+     剪力方向與彎矩平面必須配對：沿 x 之剪力（d 沿 B）由「深度沿 B」之彎矩產生 → cvY（繞 Y 軸）；
+     沿 y 之剪力（d 沿 H）→ cvX（繞 X 軸）。容量設計 V_e 取同一平面之 M_pr／M_n（shearMoCurve）。 */
+  const shX = shearDesign(s,r,R,m,opt,shearMoCurve('x',cvX,cvY),res,'x',shearMoCurve('x',cvXpr,cvYpr));
+  const shY = shearDesign(s,r,R,m,opt,shearMoCurve('y',cvX,cvY),res,'y',shearMoCurve('y',cvXpr,cvYpr));
 
   /* --- 加密區（塑鉸區）以外：V_c 不折減、仍取容量設計剪力；圓柱螺箍僅需非耐震 ρ_s --- */
   let shX2 = null, shY2 = null, conf2 = null;
   if(pile){ shX2 = shX; shY2 = shY; }                 // 基樁不作容量設計：樁頂圍束區內外剪力需求相同
   else if(opt.plastic){
     const o2 = {...opt, plastic:false, capShear:true};
-    shX2 = shearDesign(s,r,R,m,o2,cvX,res,'x',cvXpr);
-    shY2 = shearDesign(s,r,R,m,o2,cvY,res,'y',cvYpr);
+    shX2 = shearDesign(s,r,R,m,o2,shearMoCurve('x',cvX,cvY),res,'x',shearMoCurve('x',cvXpr,cvYpr));
+    shY2 = shearDesign(s,r,R,m,o2,shearMoCurve('y',cvX,cvY),res,'y',shearMoCurve('y',cvXpr,cvYpr));
     if(type==='circle') conf2 = confinementCircle(s,r,R,m,o2,BAR[r.tieSize].A,BAR[r.tieSize].d);
   }
 
@@ -2191,6 +2195,12 @@ function confinementCircle(s,r,R,m,opt,At,dt){
           }};
 }
 
+/* ---------- 剪力方向 ↔ 彎矩平面 ----------
+   cvX：繞 X 軸（中性軸水平、深度沿 H），由 y 向側力造成；cvY：繞 Y 軸（深度沿 B），由 x 向側力造成。
+   故 x 向剪力（shearDesign dir 'x'，d 沿 B）之容量設計彎矩取 cvY，y 向剪力取 cvX。
+   方形、圓形兩向相同；矩形斷面配錯會使強軸方向 V_e 以弱軸彎矩計算而嚴重低估。 */
+function shearMoCurve(dir, cvX, cvY){ return dir==='x' ? cvY : cvX; }
+
 /* ---------- 剪力 + 扭矩設計 ---------- */
 function shearDesign(s,r,R,m,opt,cv,res,dir,cvPr){
   // dir 'x'：剪力沿 x → 腹板為 y=±H/2 之壁，bw 量於 y；有效深度沿 x
@@ -2264,20 +2274,23 @@ function shearDesign(s,r,R,m,opt,cv,res,dir,cvPr){
     const rhs = m.phiv*(V.vc/(bw*d) + 2.12*Math.sqrt(m.fc));
     const sectOver = bridge ? (torsion && lhs > rhs) : lhs > rhs;   // 橋梁：剪力上限改以 V_s ≤ 2.12√f'c·A_e；有扭矩時仍檢核剪扭合成上限
     const AvS_shear = VsReq>1e-9 ? VsReq/(m.fyt*dV) : 0;      // Av/s
-    const AvS_tot = AvS_shear + 2*AtS;
-    const s_str = AvS_tot>1e-9 ? Av/AvS_tot : 1e9;
+    const AvS_tot = AvS_shear + 2*AtS;                         // 土木401-112 式 (R9.5.4.3)，供列示
+    // 扭矩只能由外圍閉合箍筋承擔：§9.5.4.3 解說「肋筋組超過二肢時，僅靠近兩側之二肢可計入，內部各肢對扭力無效」。
+    // 剪力由全部 n_legs 肢平均分擔 → 外圍單肢需求 A_o/s = A_t/s + (A_v/s)/n_legs；n_legs = 2 時即 A_v/(A_v/s)_tot。
+    const AoS = AtS + AvS_shear/nlegs;
+    const s_str = AoS>1e-9 ? At1/AoS : 1e9;
     const s_code = VsReq>VsTight ? Math.min(d/4,30) : Math.min(d/2,60);
     const s_tors = torsion ? Math.min(ph/8, 30) : 1e9;
     const s_gov = Math.min(s_str, s_code, s_tors);
     return {ctrl,Nu,Vu,Tu,Vdes,V,VsReq,sectionFail,torsion,AtS,Al,lhs,rhs,sectOver,
-            AvS_shear,AvS_tot,s_str,s_code,s_tors,s_gov};
+            AvS_shear,AvS_tot,AoS,s_str,s_code,s_tors,s_gov};
   };
   const all = res.map(one);
-  // 控制組合：斷面不足者優先 → 強度需求 A_v/s 最大 → 規範間距最小 → 應力比最高
+  // 控制組合：斷面不足者優先 → 外圍單肢強度需求 A_o/s 最大（即強度需求間距最小）→ 規範間距最小 → 應力比最高
   const worse = (a,b) => {
     const fa = a.sectionFail||a.sectOver, fb = b.sectionFail||b.sectOver;
     if(fa!==fb) return fa ? a : b;
-    if(Math.abs(a.AvS_tot-b.AvS_tot) > 1e-12) return a.AvS_tot > b.AvS_tot ? a : b;
+    if(Math.abs(a.AoS-b.AoS) > 1e-12) return a.AoS > b.AoS ? a : b;
     if(Math.abs(a.s_gov-b.s_gov) > 1e-9) return a.s_gov < b.s_gov ? a : b;
     return a.lhs/a.rhs >= b.lhs/b.rhs ? a : b;
   };
@@ -5643,6 +5656,7 @@ function buildReport(M){
       =\\frac{1}{${d(C.bi.Pnx/TF,0)}}+\\frac{1}{${d(C.bi.Pny/TF,0)}}-\\frac{1}{${d(C.bi.Po/TF,0)}}`));
     o.push(eq(`\\phi P_n=${d(C.bi.Pcap/TF,0)}\\ \\text{tf}\\qquad
       D/C=\\frac{P_u}{\\phi P_n}=\\frac{${d(C.Lk.Pu/TF,0)}}{${d(C.bi.Pcap/TF,0)}}=${d(C.dc,3)}`));
+    o.push(`<div class="rp-note">φP_o = φ_c·P_o = ${d(m.phic,2)} × ${d(M.cvX.Po/TF,0)} = ${d(C.bi.Po/TF,0)} tf（未截斷之純壓強度；φP_n,max 截斷已反映於 φP_nx、φP_ny）。</div>`);
   }else if(C.bi.method.startsWith('PCA')){
     o.push(eq(`P_u=${d(C.Lk.Pu/TF,0)}\\lt 0.1f'_cA_g=${d(0.1*m.fc*M.Ag/TF,0)}\\ \\text{tf}
       \\;\\Rightarrow\\;\\text{改用載重輪廓法}`));
@@ -5947,7 +5961,7 @@ function shearReport(M,sh){
   const eq=x=>`<div class="rp-eq">${KD(x)}</div>`;   /* 同樣走 display 模式 */
   const note=x=>`<div class="rp-note">${x}</div>`;
   const o=[`<div class="rp-h3">6.${sh.dir==='x'?'1':'2'} ${t} 向（控制組合：${esc(sh.ctrl.L.name)}）</div>`];
-  o.push(`<div class="rp-note">各載重組合逐一檢核（V_c 隨 N_u 改變），取強度需求 A_v/s 最大者為控制組合，以下計算均以該組合代入。</div>`);
+  o.push(`<div class="rp-note">各載重組合逐一檢核（V_c 隨 N_u 改變），取強度需求間距最小者為控制組合，以下計算均以該組合代入。</div>`);
   o.push(shearComboRows(sh,true));
   o.push(M.s.type==='circle'
     ? eq(`b_w=D=${d(sh.bw,1)}\\ \\text{cm},\\qquad d=0.8D=${d(sh.d,2)}\\ \\text{cm}\\ \\ (\\text{圓形斷面，土木401／ACI 22.5.2.2})`)
@@ -6005,8 +6019,14 @@ function shearReport(M,sh){
       \\phi_v\\left(\\frac{V_c}{b_wd}+2.12\\sqrt{f'_c}\\right)=${d(sh.rhs,2)}\\ \\text{kgf/cm}^2
       \\ \\ ${sh.sectOver?'\\;\\textbf{✗}':'\\;\\checkmark'}`));
   }else o.push(`<div class="rp-note">T_u = ${d(sh.Tu/TFM,1)} tf·m ≤ 門檻 φT_th = φ·0.265√f'c·A_cp²/p_cp = ${d(sh.Tthr/TFM,1)} tf·m，扭矩可忽略（ACI 22.7.4.1）。</div>`);
-  o.push(eq(`\\frac{A_v}{s}\\bigg|_{tot}=\\frac{V_s}{f_{yt}${sh.dV!==sh.d?'(\\pi D/4)':'d'}}+2\\frac{A_t}{s}=${d(sh.AvS_shear,5)}+${d(2*sh.AtS,5)}
-    =${d(sh.AvS_tot,5)}\\ \\Rightarrow\\ s\\le\\frac{A_v}{(A_v/s)_{tot}}=${d(sh.s_str,2)}\\ \\text{cm}`));
+  if(sh.torsion){
+    o.push(eq(`\\frac{A_v}{s}\\bigg|_{tot}=\\frac{V_s}{f_{yt}${sh.dV!==sh.d?'(\\pi D/4)':'d'}}+2\\frac{A_t}{s}=${d(sh.AvS_shear,5)}+${d(2*sh.AtS,5)}
+      =${d(sh.AvS_tot,5)}\\ \\text{cm}^2/\\text{cm}`));
+    o.push(eq(`\\text{外圍閉合單肢：}\\frac{A_t}{s}+\\frac{A_v/s}{n_{legs}}=${d(sh.AtS,5)}+\\frac{${d(sh.AvS_shear,5)}}{${sh.nlegs}}=${d(sh.AoS,5)}
+      \\ \\Rightarrow\\ s\\le\\frac{A_{b}}{A_t/s+(A_v/s)/n_{legs}}=\\frac{${d(sh.At1,3)}}{${d(sh.AoS,5)}}=${d(sh.s_str,2)}\\ \\text{cm}`));
+    o.push(note(`扭矩只能由外圍閉合箍筋承擔：肋筋組超過二肢時，僅靠近兩側之二肢可計入，內部繫筋、內層箍筋對扭力無效（土木401-112 §9.5.4.3 解說）。剪力由全部 ${sh.nlegs} 肢平均分擔。`));
+  }else o.push(eq(`\\frac{A_v}{s}=\\frac{V_s}{f_{yt}${sh.dV!==sh.d?'(\\pi D/4)':'d'}}=${d(sh.AvS_shear,5)}
+    \\ \\Rightarrow\\ s\\le\\frac{A_v}{A_v/s}=\\frac{${d(sh.Av,3)}}{${d(sh.AvS_shear,5)}}=${d(sh.s_str,2)}\\ \\text{cm}`));
   o.push(`<table class="no-break"><thead><tr><th class="l">${t} 向間距上限</th><th>值 (cm)</th></tr></thead><tbody>
     <tr><td class="l">強度需求（剪力+扭矩）</td><td>${d(sh.s_str,2)}</td></tr>
     <tr><td class="l">最小剪力鋼筋量 A_v,min</td><td>${d(sh.s_minAv,2)}</td></tr>
@@ -6047,10 +6067,10 @@ function selfTest(){
 
   // 剪力控制組合須為各組合中最嚴者（V_c 隨 N_u 變，最大 V_u 未必控制）
   for(const sh of [M.shX,M.shY]){
-    const maxD=Math.max(...sh.all.map(c=>c.AvS_tot)), anyFail=sh.all.some(c=>c.sectionFail||c.sectOver);
+    const maxD=Math.max(...sh.all.map(c=>c.AoS)), anyFail=sh.all.some(c=>c.sectionFail||c.sectOver);
     T(`剪力 ${sh.dir.toUpperCase()} 向控制組合為最嚴者`,
-      anyFail ? (sh.sectionFail||sh.sectOver) : sh.AvS_tot>=maxD-1e-12,
-      `控制「${esc(sh.ctrl.L.name)}」(A_v/s)_{tot}=${f(sh.AvS_tot,5)}；全組合最大 ${f(maxD,5)} cm²/cm（共 ${sh.all.length} 組）`);
+      anyFail ? (sh.sectionFail||sh.sectOver) : sh.AoS>=maxD-1e-12,
+      `控制「${esc(sh.ctrl.L.name)}」外圍單肢 A_o/s=${f(sh.AoS,5)}；全組合最大 ${f(maxD,5)} cm²/cm（共 ${sh.all.length} 組）`);
   }
 
   // 圓形：半圓面積與形心解析解
@@ -6316,19 +6336,13 @@ function beamIcr(ctx){
 function beamShearDesign(S, R, m, ctx, res, MnPos, MnNeg){
   const d = ctxDepth(ctx);
   const bw = S.bw, Ag = beamGross(S).Ag;
-  let ctrl = res[0], w=-1;
-  for(const r of res) if(Math.abs(r.k.Vu) > w){ w=Math.abs(r.k.Vu); ctrl=r; }
-  const Vu = Math.abs(ctrl.k.Vu), Tu = Math.abs(ctrl.k.Tu);
 
   // 容量設計剪力（耐震特殊抗彎構材）：M_pr 以 1.25f_y、φ=1.0
   // 正、負彎矩各用其斷面幾何（T 梁正彎矩翼板受壓）；舊版沿用檢核中斷面之幾何，負彎矩檢核時 M_pr⁺ 偏低
   const MprP = S.seismic ? (beamSolve({...ctx, g:beamShape(S,'pos'), sign:'pos'}, 1.25*m.fy)||{Mn:0}).Mn : 0;
   const MprN = S.seismic ? (beamSolve({...ctx, g:beamShape(S,'neg'), sign:'neg'}, 1.25*m.fy)||{Mn:0}).Mn : 0;
   const Ve   = S.seismic && S.ln>0 ? (MprP+MprN)/S.ln + S.Vg*TF : 0;
-  const Vdes = S.seismic ? Math.max(Ve, Vu) : Vu;
 
-  // 地震剪力佔比高且軸壓低 → V_c 歸零（梁通常 P_u ≈ 0，必然滿足）
-  const VcZero = S.seismic && Vdes>0 && ((Ve - S.Vg*TF) >= 0.5*Vdes);
   /* 土木401-112 表 22.5.5.1：配箍筋之梁箍筋間距恆受 A_v,min 控制 → 式 (a) 0.53λ√f'c·b_w·d；
      版不配剪力筋（A_v < A_v,min）→ 式 (c) 2.12λ_sλ(ρ_w)^{1/3}√f'c·b_w·d，λ_s = √(2/(1+d/25)) ≤ 1（§22.5.5.1.3），
      √f'c ≤ 26.5（§22.5.3.1）；均 ≤ 1.33λ√f'c·b_w·d。梁、版 N_u 取 0。 */
@@ -6338,11 +6352,8 @@ function beamShearDesign(S, R, m, ctx, res, MnPos, MnNeg){
   const kV = vcSlurry(m);
   const VcA = 0.53*lam*Math.sqrt(m.fc)*bw*d*kV;
   const VcC = Math.min(2.12*lamS*lam*Math.cbrt(rhoW)*Math.min(Math.sqrt(m.fc),26.5)*bw*d, 1.33*lam*Math.sqrt(m.fc)*bw*d)*kV;
-  const Vc = VcZero ? 0 : (S.slab ? VcC : VcA);
-  const VsReq = Math.max(0, Vdes/m.phiv - Vc);
   const VsMax = 2.12*Math.sqrt(m.fc)*bw*d;
   const VsTight = 1.06*Math.sqrt(m.fc)*bw*d;
-  const fail = VsReq > VsMax;
 
   const At1 = BAR[S.tieSize].A, nlegs = S.nLegs, Av = nlegs*At1;
 
@@ -6353,29 +6364,55 @@ function beamShearDesign(S, R, m, ctx, res, MnPos, MnNeg){
   const Ao = 0.85*Aoh, cot = 1/Math.tan(S.theta*Math.PI/180);
   const Acp = bw*S.h, pcp = 2*(bw+S.h);
   const Tthr = m.phiv*0.265*Math.sqrt(m.fc)*(Acp*Acp/pcp);   // ACI 22.7.4.1（舊版誤用 T_cr 係數 1.06）
-  const tors = Tu > Tthr;
-  const AtS = tors ? Tu/(2*m.phiv*Ao*m.fyt*cot) : 0;
-  const Al  = tors ? AtS*ph*(m.fyt/m.fy)*cot*cot : 0;
-  // 實心斷面之剪扭上限採平方根合成
-  const lhs = Math.sqrt(Math.pow(Vdes/(bw*d),2) + (tors?Math.pow(Tu*ph/(1.7*Aoh*Aoh),2):0));
-  const rhs = m.phiv*(Vc/(bw*d) + 2.12*Math.sqrt(m.fc));
-  const over = lhs > rhs;
 
-  const AvS = VsReq>1e-9 ? VsReq/(m.fyt*d) : 0;
-  const AvStot = AvS + 2*AtS;
-  const sStr = AvStot>1e-9 ? Av/AvStot : 1e9;
   const sMin = Math.min(Av*m.fyt/(0.2*Math.sqrt(m.fc)*bw), Av*m.fyt/(3.5*bw));
-  const sCode = VsReq>VsTight ? Math.min(d/4,30) : Math.min(d/2,60);
   // 耐震加密區（土木401 §18.3.4.4）：自柱面 2h 範圍內
   const dbMin = Math.min(R.dbB, R.dbT);
   const sConf = S.seismic ? Math.min(d/4, seisKdb(m.fy)*dbMin, 15) : 1e9;   // §18.3.4.4
-  const sTors = tors ? Math.min(ph/8, 30) : 1e9;
 
-  // 版：一般不配剪力筋，須 V_u ≤ φV_c
-  const phiVc = m.phiv*Vc, slabFail = !!S.slab && Vdes > phiVc;
-  return {d,bw,Ag,ctrl,Vu,Tu,MprP,MprN,Ve,Vdes,VcZero,Vc,VsReq,VsMax,VsTight,fail,phiVc,slabFail, lam, lamS, rhoW, VcA, VcC, kV,
-          nlegs,Av,At1,Aoh,ph,Ao,cot,Acp,pcp,Tthr,tors,AtS,Al,lhs,rhs,over,
-          AvS,AvStot,sStr,sMin,sCode,sConf,sTors, confLen:2*S.h};
+  /* 逐組合檢核：扭矩通常不與最大剪力同組發生，只取 |V_u| 最大之組合會漏掉其他組合之扭矩
+     （扭矩箍筋、A_l、剪扭斷面上限）。每組合各算一次，斷面不足者優先，其次取需求間距最小者為控制組合。 */
+  const one = r => {
+    const Vu = Math.abs(r.k.Vu), Tu = Math.abs(r.k.Tu);
+    const Vdes = S.seismic ? Math.max(Ve, Vu) : Vu;
+    // 地震剪力佔比高且軸壓低 → V_c 歸零（梁通常 P_u ≈ 0，必然滿足）
+    const VcZero = S.seismic && Vdes>0 && ((Ve - S.Vg*TF) >= 0.5*Vdes);
+    const Vc = VcZero ? 0 : (S.slab ? VcC : VcA);
+    const VsReq = Math.max(0, Vdes/m.phiv - Vc);
+    const fail = VsReq > VsMax;
+    const tors = Tu > Tthr;
+    const AtS = tors ? Tu/(2*m.phiv*Ao*m.fyt*cot) : 0;
+    const Al  = tors ? AtS*ph*(m.fyt/m.fy)*cot*cot : 0;
+    // 實心斷面之剪扭上限採平方根合成
+    const lhs = Math.sqrt(Math.pow(Vdes/(bw*d),2) + (tors?Math.pow(Tu*ph/(1.7*Aoh*Aoh),2):0));
+    const rhs = m.phiv*(Vc/(bw*d) + 2.12*Math.sqrt(m.fc));
+    const over = lhs > rhs;
+    const AvS = VsReq>1e-9 ? VsReq/(m.fyt*d) : 0;
+    const AvStot = AvS + 2*AtS;                                // 式 (R9.5.4.3)，供列示
+    // 扭矩只能由外圍閉合箍（或兩件式之 U 形肋筋＋封口繫筋）承擔：肢數 > 2 時內部肢對扭力無效（§9.5.4.3 解說）
+    // → 外圍單肢需求 A_o/s = A_t/s + (A_v/s)/n_legs；n_legs = 2 時即 A_v/(A_v/s)_tot
+    const AoS = AtS + AvS/nlegs;
+    const sStr = AoS>1e-9 ? At1/AoS : 1e9;
+    const sCode = VsReq>VsTight ? Math.min(d/4,30) : Math.min(d/2,60);
+    const sTors = tors ? Math.min(ph/8, 30) : 1e9;
+    // 版：一般不配剪力筋，須 V_u ≤ φV_c
+    const phiVc = m.phiv*Vc, slabFail = !!S.slab && Vdes > phiVc;
+    return {ctrl:r, Vu, Tu, Vdes, VcZero, Vc, VsReq, fail, tors, AtS, Al, lhs, rhs, over,
+            AvS, AvStot, AoS, sStr, sCode, sTors, phiVc, slabFail, sGov: Math.min(sStr, sCode, sTors)};
+  };
+  const all = res.map(one);
+  const bad = c => c.fail || c.over || c.slabFail;
+  const worse = (a,b) => {
+    if(bad(a)!==bad(b)) return bad(a) ? a : b;
+    if(Math.abs(a.sGov-b.sGov) > 1e-9) return a.sGov < b.sGov ? a : b;
+    if(Math.abs(a.Vdes-b.Vdes) > 1e-9) return a.Vdes > b.Vdes ? a : b;
+    if(Math.abs(a.Vu-b.Vu) > 1e-9) return a.Vu > b.Vu ? a : b;
+    return a.Tu >= b.Tu ? a : b;
+  };
+  const gov = all.reduce(worse, all[0]);
+  return {d,bw,Ag,MprP,MprN,Ve, lam, lamS, rhoW, VcA, VcC, kV, VsMax, VsTight,
+          nlegs,Av,At1,Aoh,ph,Ao,cot,Acp,pcp,Tthr, sMin, sConf, confLen:2*S.h,
+          ...gov, all};
 }
 function ctxDepth(ctx){
   // 有效深度 d = 受壓緣至受拉鋼筋群形心
@@ -7265,18 +7302,27 @@ function computeBeam(){
    V_c 不折減（§18.3.5.2 只在 2h 內歸零），設計剪力仍取 V_e；另 s ≤ d/2（§18.3.4.6）。 */
 function beamZone2(S, m, sh){
   const Vc = 0.53*(m.lam||1)*Math.sqrt(m.fc)*sh.bw*sh.d*vcSlurry(m);     // 表 22.5.5.1 (a)
-  const VsReq = Math.max(0, sh.Vdes/m.phiv - Vc);
-  const tot = (VsReq>1e-9 ? VsReq/(m.fyt*sh.d) : 0) + 2*sh.AtS;
+  // 逐組合（同加密區）：各組合之 V_des、A_t/s 不同，取需求間距最小者
+  let best = null;
+  for(const c of (sh.all || [sh])){
+    const VsReq = Math.max(0, c.Vdes/m.phiv - Vc);
+    const AvS = VsReq>1e-9 ? VsReq/(m.fyt*sh.d) : 0;
+    const AoS = c.AtS + AvS/sh.nlegs;                       // 外圍單肢（扭矩僅外圍閉合肢有效）
+    const sStr = AoS>1e-9 ? sh.At1/AoS : 1e9;
+    const sCode = VsReq>sh.VsTight ? Math.min(sh.d/4,30) : Math.min(sh.d/2,60);
+    const sv = Math.min(sStr, sCode, c.sTors);
+    if(!best || sv < best.sv - 1e-9) best = {sv, sStr, sCode, sTors:c.sTors, VsReq};
+  }
   const cands=[];
   const push=(v,t)=>{ if(Number.isFinite(v)&&v>0&&v<1e8) cands.push({v,t}); };
-  push(tot>1e-9 ? sh.Av/tot : 1e9, '剪力+扭矩強度需求（V_c 不折減）');
+  push(best.sStr, '剪力+扭矩強度需求（V_c 不折減）');
   push(sh.sMin, '最小剪力鋼筋量 A_v,min');
-  push(VsReq>sh.VsTight ? Math.min(sh.d/4,30) : Math.min(sh.d/2,60), '規範間距上限');
+  push(best.sCode, '規範間距上限');
   push(sh.d/2, '耐震梁加密區外 d/2');
-  push(sh.sTors, '扭矩 min(p_h/8, 30)');
+  push(best.sTors, '扭矩 min(p_h/8, 30)');
   const gov = cands.reduce((a,b)=> b.v<a.v?b:a, cands[0]);
   const sUse = PRACTICAL_S.find(v=>v<=gov.v) || PRACTICAL_S[PRACTICAL_S.length-1];
-  return {cands, gov, sUse, tooTight: sUse>gov.v, Vc, VsReq};
+  return {cands, gov, sUse, tooTight: sUse>gov.v, Vc, VsReq:best.VsReq};
 }
 /* 梁箍筋肢橫向間距（§9.7.6.2.2）：≤ d 及 60 cm；V_s > 1.06√f'c·b_w·d 時 ≤ d/2 及 30 cm。
    耐震梁另以肢距估「受側撐主筋間距 ≤ 35 cm」（§18.3.4.2）。 */
@@ -8128,6 +8174,12 @@ function buildBeamReport(B){
   /* 第 5 頁：剪力與扭矩 */
   o.push(`<div class="rp-page"><div class="rp-h2">5. 剪力與扭矩</div>`);
   o.push(eq(`b_w=${d(S.bw,0)}\\ \\text{cm},\\qquad d=${d(sh.d,2)}\\ \\text{cm}`));
+  if(sh.all && sh.all.length > 1){
+    o.push(note(`各載重組合逐一檢核（設計剪力、扭矩、V_c 歸零條件各組合不同），斷面不足者優先，其次取需求間距最小者為控制組合：<b>${esc(sh.ctrl.L.name)}</b>。`));
+    o.push(`<table class="no-break"><thead><tr><th class="l">組合</th><th>V_des (tf)</th><th>T_u (tf·m)</th><th>V_s 需求 (tf)</th><th>A_t/s</th><th>強度需求 s (cm)</th><th>控制 s (cm)</th></tr></thead><tbody>`);
+    for(const c of sh.all) o.push(`<tr${c===sh.all.find(x=>x.ctrl===sh.ctrl)?' style="font-weight:700;background:#f0f0f0"':''}><td class="l">${esc(c.ctrl.L.name)}</td><td>${d(c.Vdes/TF,1)}</td><td>${d(c.Tu/TFM,1)}${c.tors?'':' (可忽略)'}</td><td>${d(c.VsReq/TF,1)}${c.fail||c.over?' ✗':''}</td><td>${d(c.AtS,5)}</td><td>${c.sStr<1e8?d(c.sStr,1):'—'}</td><td>${c.sGov<1e8?d(c.sGov,1):'—'}</td></tr>`);
+    o.push(`</tbody></table>`);
+  }
   if(S.seismic){
     o.push(`<div class="rp-h3">5.1 容量設計剪力</div>`);
     o.push(eq(`M_{pr}=M_n\\big|_{f_y\\to1.25f_y,\\ \\phi=1.0}:\\quad
@@ -8156,6 +8208,9 @@ function buildBeamReport(B){
     \\qquad V_{s,max}=2.12\\sqrt{f'_c}b_w d=${d(sh.VsMax/TF,1)}\\ \\text{tf}`));
   o.push(eq(`A_v=n_{legs}A_t=${sh.nlegs}\\times${d(sh.At1,3)}=${d(sh.Av,3)}\\ \\text{cm}^2
     \\qquad \\frac{A_v}{s}\\bigg|_{tot}=\\frac{V_s}{f_{yt}d}+2\\frac{A_t}{s}=${d(sh.AvStot,5)}`));
+  if(sh.tors) o.push(eq(`\\text{外圍閉合單肢：}\\frac{A_t}{s}+\\frac{A_v/s}{n_{legs}}=${d(sh.AtS,5)}+\\frac{${d(sh.AvS,5)}}{${sh.nlegs}}=${d(sh.AoS,5)}
+      \\ \\Rightarrow\\ s\\le\\frac{A_b}{A_o/s}=\\frac{${d(sh.At1,3)}}{${d(sh.AoS,5)}}=${d(sh.sStr,2)}\\ \\text{cm}`)
+    + note(`扭矩只能由外圍閉合箍筋承擔；肢數超過二肢時，內部各肢對扭力無效（土木401-112 §9.5.4.3 解說）。`));
   if(sh.tors){
     o.push(`<div class="rp-h3">5.${S.seismic?'3':'2'} 扭矩</div>`);
     o.push(eq(`T_u=${d(sh.Tu/TFM,1)}\\gt T_{thr}=\\phi_v\\,0.265\\sqrt{f'_c}\\frac{A_{cp}^2}{p_{cp}}=${d(sh.Tthr/TFM,1)}\\ \\text{tf}\\cdot\\text{m}\\ \\Rightarrow\\ \\text{須設計扭矩鋼筋}`));

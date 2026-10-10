@@ -462,15 +462,16 @@ function buildColumn(ExcelJS, inp){
       expr:'實心：閉合箍筋 2 肢＋該向繫筋；箱型 2（單層）或 4（雙層）；圓形 Av = 2Asp', ref:ref401('22.5.10.5')});
     S.item({key:'Av'+ax, label:`${X} 向 Av`, sym:'Av', f:`{nl${ax}}*{At}`, unit:'cm²', fmt:'0.000', ref:'—'});
     S.item({key:'Mcd'+ax, label:`${X} 向容量設計彎矩（各組合取大）`, sym:'Mo', unit:'tf·m', fmt:'#,##0.0',
-      f:`IF({isBldg}=1,MAX('載重組合'!${ax==='x'?'AD':'AE'}4:${ax==='x'?'AD':'AE'}${3+NCB}),{phio}*MAX('載重組合'!${ax==='x'?'AB':'AC'}4:${ax==='x'?'AB':'AC'}${3+NCB}))`,
-      expr:'建築：Mpr（1.25fy、φ = 1）；橋梁：φo·Mn', ref:ref401('18.4.6.1')+'；公路橋梁耐震設計規範'});
+      // 剪力方向 ↔ 彎矩平面：X 向剪力（d 沿 B）由繞 Y 軸之彎矩造成 → P-M_Y（AC／AE 欄）；Y 向剪力 → P-M_X（AB／AD 欄）
+      f:`IF({isBldg}=1,MAX('載重組合'!${ax==='x'?'AE':'AD'}4:${ax==='x'?'AE':'AD'}${3+NCB}),{phio}*MAX('載重組合'!${ax==='x'?'AC':'AB'}4:${ax==='x'?'AC':'AB'}${3+NCB}))`,
+      expr:`建築：Mpr（1.25fy、φ = 1）；橋梁：φo·Mn。${X} 向剪力取${ax==='x'?'繞 Y 軸（P-M_Y）':'繞 X 軸（P-M_X）'}之彎矩（同一受力平面）`, ref:ref401('18.4.6.1')+'；公路橋梁耐震設計規範'});
     S.item({key:'Ve'+ax, label:`${X} 向容量設計剪力 Ve`, sym:'Ve', unit:'tf', fmt:'#,##0.0',
       f:`IF({isPH}=1,IF(OR({isBldg}=1,{phEnds}="兩端"),2*{Mcd${ax}}*100/{lu},{Mcd${ax}}*100/{Lv}),0)`, expr:'建築 2Mpr/lu；橋梁單柱 Mo/Lv、構架式 2Mo/lu；非加密區 0', ref:ref401('18.4.6.1')+'；公路橋梁耐震設計規範 §4.2'});
     S.item({key:'dV'+ax, label:`${X} 向 Vs 計算用深度`, sym:'d', unit:'cm', fmt:'0.00', f:`IF(AND({isBldg}=0,{isCirc}=1),PI()/4*MAX(1,{Din}-2*{covO}),{d${ax}})`,
       expr:'一般取 d；圓形橋柱 Vs = (π/2)Ah·fyh·D/a ⇒ 以 Av = 2Ah、πD/4 計（D 為圍束區直徑）', ref:ref401('22.5.8.5.3')+'；公路橋梁耐震設計規範 式 5-2b'});
     S.item({key:'VsMax'+ax, label:`${X} 向 Vs 上限`, sym:'Vs,max', f:`IF({isBldg}=1,2.12*SQRT({fc})*{bw${ax}}*{d${ax}},2.12*SQRT({fc})*{Ae})/1000`, unit:'tf', fmt:'#,##0.0', expr:"建築 2.12√f'c·bw·d；橋梁 2.12√f'c·Ae", ref:ref401('22.5.1.2')+'；公路橋梁耐震設計規範 §5.3.3'});
     S.item({key:'sStr'+ax, label:`${X} 向強度需求間距（各組合最小）`, sym:'s', unit:'cm', fmt:FMT_SINF,
-      f:`MIN('載重組合'!${ax==='x'?'X':'Y'}4:${ax==='x'?'X':'Y'}${3+NCB})`, expr:'s ≦ Av / (Vs/(fyt·d) + 2At/s)', ref:ref401('22.5.8.5.3、22.7.6.1')});
+      f:`MIN('載重組合'!${ax==='x'?'X':'Y'}4:${ax==='x'?'X':'Y'}${3+NCB})`, expr:'s ≦ At,單肢 / (At/s + (Av/s)/nlegs)；扭矩僅外圍閉合肢有效（§9.5.4.3 解說），無扭矩時即 Av/(Vs/(fyt·d))', ref:ref401('22.5.8.5.3、22.7.6.1')});
     S.item({key:'sMin'+ax, label:`${X} 向最小剪力鋼筋量間距`, sym:'s', unit:'cm', fmt:'0.00',
       f:`MIN({Av${ax}}*{fyt}/(0.2*SQRT({fc})*{bw${ax}}),{Av${ax}}*{fyt}/(3.5*{bw${ax}}))`, expr:"Av,min = max(0.2√f'c, 3.5)·bw·s/fyt", ref:ref401('10.6.2.2')});
     S.item({key:'sCode'+ax, label:`${X} 向規範間距上限（各組合最小）`, sym:'s', unit:'cm', fmt:'0.00',
@@ -1142,9 +1143,10 @@ function buildLoadSheet(ws, R, loads){
     put(ws,'I'+n,{f:`IF(${on},'射線交點'!${colL(1+i)}${RAY_DC_ROW},"")`},{fmt:FMT_INF});
     put(ws,'J'+n,{f:`IF(${on},'射線交點'!${colL(1+NCB+i)}${RAY_DC_ROW},"")`},{fmt:FMT_INF});
     put(ws,'K'+n, r(`IF(NOT(${on}),"",IF({isCirc}=1,"圓形：合彎矩",IF(AND(${Mx}<1E-9,${My}<1E-9),"純軸力",IF(${My}<1E-9,"單軸（繞 X）",IF(${Mx}<1E-9,"單軸（繞 Y）",IF(B${n}>={Pbr},"Bresler 倒數式","PCA 載重輪廓法"))))))`));
-    put(ws,'L'+n, r(`IF(K${n}="Bresler 倒數式",IFERROR(B${n}/(1/(1/(B${n}/I${n})+1/(B${n}/J${n})-1/{cap})),${BIG}),"")`),{fmt:FMT_INF});
+    // Bresler 之 P_o 取未截斷之 φc·Po（以 φPn,max 代入會高估容量）
+    put(ws,'L'+n, r(`IF(K${n}="Bresler 倒數式",IFERROR(B${n}/(1/(1/(B${n}/I${n})+1/(B${n}/J${n})-1/({phic}*{Po}))),${BIG}),"")`),{fmt:FMT_INF});
     put(ws,'M'+n, {f:`IF(NOT(${on}),"",CHOOSE(MATCH(K${n},{"圓形：合彎矩","純軸力","單軸（繞 X）","單軸（繞 Y）","Bresler 倒數式","PCA 載重輪廓法"},0),ABS(I${n}),ABS(I${n}),I${n},J${n},L${n},'雙軸迭代'!${colL(1+i)}${BIS_DC_ROW}))`},{fmt:FMT_INF});
-    // 剪力（X 向剪力用 X 軸曲線，與網頁相同）
+    // 剪力（容量設計彎矩之平面配對見「檢核表」Mcd：X 向剪力取 P-M_Y、Y 向剪力取 P-M_X，與網頁 shearMoCurve 相同）
     for(const [ax,V,cVd,cVc,cVs] of [['x','E','N','O','P'],['y','F','Q','R','S']]){
       const Nu=`B${n}*1000`, Vu=`ABS(${V}${n})*1000`;
       put(ws,cVd+n, r(`IF(${on},IF({isPH}=1,MAX({Ve${ax}}*1000,${Vu}),${Vu})/1000,"")`),{fmt:'#,##0.0'});
@@ -1157,8 +1159,10 @@ function buildLoadSheet(ws, R, loads){
     put(ws,'U'+n, r(`IF(${on},IF(T${n}=1,ABS(G${n})*100000/(2*{phiv}*0.85*{Aoh}*{fyt}/TAN({theta}*PI()/180)),0),"")`),{fmt:'0.00000'});
     put(ws,'V'+n, r(`IF(${on},P${n}*1000/({fyt}*{dVx})+2*U${n},"")`),{fmt:'0.00000'});
     put(ws,'W'+n, r(`IF(${on},S${n}*1000/({fyt}*{dVy})+2*U${n},"")`),{fmt:'0.00000'});
-    put(ws,'X'+n, r(`IF(${on},IF(V${n}>1E-9,{Avx}/V${n},${BIG}),"")`),{fmt:FMT_SINF});
-    put(ws,'Y'+n, r(`IF(${on},IF(W${n}>1E-9,{Avy}/W${n},${BIG}),"")`),{fmt:FMT_SINF});
+    // 扭矩只由外圍閉合肢承擔：外圍單肢需求 At/s + (Av/s)/nlegs（§9.5.4.3 解說）；nlegs = 2 時即 Av/(Av/s)tot
+    const oL = (cVs, ax) => `(U${n}+${cVs}${n}*1000/({fyt}*{dV${ax}})/{nl${ax}})`;
+    put(ws,'X'+n, r(`IF(${on},IF(${oL('P','x')}>1E-9,{At}/${oL('P','x')},${BIG}),"")`),{fmt:FMT_SINF});
+    put(ws,'Y'+n, r(`IF(${on},IF(${oL('S','y')}>1E-9,{At}/${oL('S','y')},${BIG}),"")`),{fmt:FMT_SINF});
     put(ws,'Z'+n, r(`IF(${on},IF(P${n}*1000>1.06*SQRT({fc})*{bwx}*{dx},MIN({dx}/4,30),MIN({dx}/2,60)),"")`),{fmt:'0.00'});
     put(ws,'AA'+n, r(`IF(${on},IF(S${n}*1000>1.06*SQRT({fc})*{bwy}*{dy},MIN({dy}/4,30),MIN({dy}/2,60)),"")`),{fmt:'0.00'});
     put(ws,'AB'+n, {f:`IF(${on},${pmLook('P-M_X','F','G',`B${n}`)},"")`},{fmt:'#,##0.0'});
@@ -1175,7 +1179,8 @@ function buildLoadSheet(ws, R, loads){
     for(const [ax,cVd,cVc,cS,cC] of [['x','N','AI','AK','AM'],['y','Q','AJ','AL','AN']]){
       const Nu=`B${n}*1000`, vs=`MAX(0,${cVd}${n}/{phS}-${cVc}${n})`, Fb=`IF(${Nu}>=0,${Nu}/(140*{Ag}),${Nu}/(35*{Ag}))`;
       put(ws,cVc+n, r(`IF(${on},IF({isBldg}=0,MAX(0,0.53*(1+${Fb})*SQRT({fc})*{Ae}),MAX(0,MIN((0.53*{dvLam}*SQRT({fc})+MIN(${Nu}/(6*{Ag}),0.05*{fc}))*{bw${ax}}*{d${ax}},1.33*{dvLam}*SQRT({fc})*{bw${ax}}*{d${ax}})))*{dvkV}/1000,"")`),{fmt:'#,##0.0'});
-      put(ws,cS+n, r(`IF(${on},IF(${vs}*1000/({fyt}*{dV${ax}})+2*U${n}>1E-9,{Av${ax}}/(${vs}*1000/({fyt}*{dV${ax}})+2*U${n}),${BIG}),"")`),{fmt:FMT_SINF});
+      const oL2 = `(U${n}+${vs}*1000/({fyt}*{dV${ax}})/{nl${ax}})`;
+      put(ws,cS+n, r(`IF(${on},IF(${oL2}>1E-9,{At}/${oL2},${BIG}),"")`),{fmt:FMT_SINF});
       put(ws,cC+n, r(`IF(${on},IF(${vs}*1000>1.06*SQRT({fc})*{bw${ax}}*{d${ax}},MIN({d${ax}}/4,30),MIN({d${ax}}/2,60)),"")`),{fmt:'0.00'});
     }
   }
@@ -1372,7 +1377,7 @@ function buildA4Column(ws, S, R, inp, jRow, sumRows){
   a.sub('4.3 剪力（土木401 §22.5、§18.4.6）'); a.thead();
   a.data('X 向容量設計剪力','Ve','{Vex}','tf','建築 2Mpr/lu；橋梁 φo·Mn/Lv','#,##0.0');
   a.data('Y 向容量設計剪力','Ve','{Vey}','tf','同上','#,##0.0');
-  a.data('X 向強度需求間距','s','{sStrx}','cm','Av/(Vs/(fyt·d) + 2At/s)',FMT_SINF);
+  a.data('X 向強度需求間距','s','{sStrx}','cm','At,單肢/(At/s + (Av/s)/nlegs)',FMT_SINF);
   a.data('Y 向強度需求間距','s','{sStry}','cm','同上',FMT_SINF);
   a.sub('4.4 扭矩（土木401 §22.7）'); a.thead();
   a.data('可忽略扭矩門檻','φTth','{Tth}','tf·m',"φ·0.265√f'c·Acp²/pcp",'#,##0.00');
@@ -1596,8 +1601,11 @@ function buildBeam(ExcelJS, inp){
   S.item({key:'ln', label:'淨跨 ln', sym:'ln', v:inp.ln, unit:'cm', kind:'in', fmt:'#,##0', ref:ref401('18.3.5.1')});
   S.item({key:'Vg', label:'重力剪力 Vg', sym:'Vg', v:inp.Vg, unit:'tf', kind:'in', fmt:'0.0', ref:ref401('18.3.5.1')});
   S.item({key:'theta', label:'扭矩桁架角 θ', sym:'θ', v:inp.theta, unit:'°', kind:'in', ref:ref401('22.7.6.1.2')});
-  S.item({key:'Vu', label:'設計剪力 Vu（各組合最大）', sym:'Vu', f:"MAX('載重組合'!H4:H"+(3+NCB)+')', unit:'tf', fmt:'#,##0.0', ref:'—'});
-  S.item({key:'Tu', label:'對應扭矩 Tu', sym:'Tu', f:"IFERROR(INDEX('載重組合'!E4:E"+(3+NCB)+",MATCH({Vu},'載重組合'!H4:H"+(3+NCB)+',0)),0)', unit:'tf·m', fmt:'#,##0.00', expr:'取 Vu 最大組合之扭矩', ref:'—'});
+  S.item({key:'bGov', label:'剪扭控制組合（列序）', f:"IFERROR(MATCH(MIN('載重組合'!V4:V"+(3+NCB)+"),'載重組合'!V4:V"+(3+NCB)+',0),1)', unit:'',
+    expr:'各組合逐一檢核（「載重組合」J～Y 欄），斷面不足者優先，其次取需求間距最小者', ref:'非規範明列條文，係本表判別用'});
+  S.item({key:'bGovN', label:'剪扭控制組合', f:"INDEX('載重組合'!A4:A"+(3+NCB)+',{bGov})', ref:'—'});
+  S.item({key:'Vu', label:'設計剪力 Vu（控制組合）', sym:'Vu', f:"N(INDEX('載重組合'!H4:H"+(3+NCB)+',{bGov}))', unit:'tf', fmt:'#,##0.0', ref:'—'});
+  S.item({key:'Tu', label:'扭矩 Tu（控制組合）', sym:'Tu', f:"ABS(N(INDEX('載重組合'!E4:E"+(3+NCB)+',{bGov})))', unit:'tf·m', fmt:'#,##0.00', expr:'取剪扭控制組合之扭矩（扭矩不一定與最大剪力同組）', ref:'—'});
   S.item({key:'Ve', label:'容量設計剪力 Ve', sym:'Ve', f:'IF({isS}=1,IF({ln}>0,({MprP}+{MprN})*100/{ln}+{Vg},0),0)', unit:'tf', fmt:'#,##0.0', expr:'(Mpr⁺ + Mpr⁻)/ln + Vg', ref:ref401('18.3.5.1')});
   S.item({key:'Vdes', label:'設計剪力', sym:'Vdes', f:'IF({isS}=1,MAX({Ve},{Vu}),{Vu})', unit:'tf', fmt:'#,##0.0', ref:ref401('18.3.5.1')});
   S.item({key:'VcZ', label:'Vc 歸零', f:'--AND({isS}=1,{Vdes}>0,({Ve}-{Vg})>=0.5*{Vdes})', expr:'地震剪力佔比 ≧ 50%', crit:'1＝Vc 取 0', ref:ref401('18.3.5.2')});
@@ -1621,7 +1629,8 @@ function buildBeam(ExcelJS, inp){
   S.item({key:'Al', label:'扭矩縱筋 Al', sym:'Al', f:'{AtS}*{ph}*{fyt}/{fy}/TAN({theta}*PI()/180)^2', unit:'cm²', fmt:'0.00', ref:ref401('22.7.6.1')});
   S.item({key:'over', label:'剪扭斷面應力超限', unit:'', f:'--(SQRT(({Vdes}*1000/({bw}*{d}))^2+IF({tors}=1,({Tu}*100000*{ph}/(1.7*{Aoh}^2))^2,0))>{phiv}*({Vc}*1000/({bw}*{d})+2.12*SQRT({fc})))',
     expr:'實心斷面平方根合成', crit:'0＝合格', ref:ref401('22.7.7.1')});
-  S.item({key:'sStr', label:'剪扭強度需求間距', sym:'s', f:`IF(({VsReq}*1000/({fyt}*{d})+2*{AtS})>1E-9,{Av}/({VsReq}*1000/({fyt}*{d})+2*{AtS}),${BIG})`, unit:'cm', fmt:FMT_SINF, ref:ref401('22.5.8.5.3')});
+  S.item({key:'sStr', label:'剪扭強度需求間距', sym:'s', f:`IF(({AtS}+{VsReq}*1000/({fyt}*{d})/{nLegs})>1E-9,{At}/({AtS}+{VsReq}*1000/({fyt}*{d})/{nLegs}),${BIG})`, unit:'cm', fmt:FMT_SINF,
+    expr:'At,單肢 / (At/s + (Av/s)/nlegs)：扭矩僅外圍閉合肢有效（§9.5.4.3 解說）；nlegs = 2 時即 Av/(Av/s + 2At/s)', ref:ref401('22.5.8.5.3、9.5.4.3')});
   S.item({key:'sMin', label:'最小剪力鋼筋量間距', sym:'s', f:'MIN({Av}*{fyt}/(0.2*SQRT({fc})*{bw}),{Av}*{fyt}/(3.5*{bw}))', unit:'cm', fmt:'0.00', ref:ref401('9.6.3.4')});
   S.item({key:'sCode', label:'規範間距上限', sym:'s', f:'IF({VsReq}*1000>1.06*SQRT({fc})*{bw}*{d},MIN({d}/4,30),MIN({d}/2,60))', unit:'cm', fmt:'0.00', ref:ref401('9.7.6.2.2')});
   S.item({key:'kdb', label:'耐震間距主筋直徑倍數 k', sym:'k', f:'IF({fy}<=4200,6,IF({fy}<=5000,5.5,5))', unit:'無因次', fmt:'0.0', expr:'fy 4200：6；5000：5.5；5600：5', ref:ref401('18.3.4.4')});
@@ -1635,11 +1644,13 @@ function buildBeam(ExcelJS, inp){
   /* ---------------- 五之一、加密區外間距、肢距與沿梁軸向配置 ---------------- */
   S.section('【五之一、加密區外箍筋間距、箍筋肢距與沿梁軸向配置（版不適用）】');
   S.item({key:'Vc2', label:'加密區外 Vc（不折減）', sym:'Vc', f:'{VcA}', unit:'tf', fmt:'#,##0.00', expr:'Vc 僅在自柱面 2h 內歸零', ref:ref401('18.3.5.2')});
-  S.item({key:'VsReq2', label:'加密區外箍筋需求 Vs', sym:'Vs', f:'MAX(0,{Vdes}/{phiv}-{Vc2})', unit:'tf', fmt:'#,##0.00', expr:'設計剪力仍取 Ve', ref:ref401('18.3.5.1')});
-  S.item({key:'sStr2', label:'加密區外強度需求間距', sym:'s', f:`IF(({VsReq2}*1000/({fyt}*{d})+2*{AtS})>1E-9,{Av}/({VsReq2}*1000/({fyt}*{d})+2*{AtS}),${BIG})`, unit:'cm', fmt:FMT_SINF, ref:ref401('22.5.8.5.3')});
-  S.item({key:'sCode2', label:'加密區外規範間距上限', sym:'s', f:'IF({VsReq2}*1000>1.06*SQRT({fc})*{bw}*{d},MIN({d}/4,30),MIN({d}/2,60))', unit:'cm', fmt:'0.00', ref:ref401('9.7.6.2.2')});
+  S.item({key:'bGov2', label:'加密區外控制組合（列序）', f:"IFERROR(MATCH(MIN('載重組合'!Z4:Z"+(3+NCB)+"),'載重組合'!Z4:Z"+(3+NCB)+',0),1)', unit:'', expr:'逐組合取需求間距最小者（「載重組合」W～Z 欄）', ref:'非規範明列條文，係本表判別用'});
+  S.item({key:'VsReq2', label:'加密區外箍筋需求 Vs', sym:'Vs', f:"N(INDEX('載重組合'!W4:W"+(3+NCB)+',{bGov2}))', unit:'tf', fmt:'#,##0.00', expr:'設計剪力仍取 Ve；MAX(0, Vdes/φ − Vc)', ref:ref401('18.3.5.1')});
+  S.item({key:'sStr2', label:'加密區外強度需求間距', sym:'s', f:"N(INDEX('載重組合'!X4:X"+(3+NCB)+',{bGov2}))', unit:'cm', fmt:FMT_SINF, expr:'At,單肢 / (At/s + (Av/s)/nlegs)', ref:ref401('22.5.8.5.3')});
+  S.item({key:'sCode2', label:'加密區外規範間距上限', sym:'s', f:"N(INDEX('載重組合'!Y4:Y"+(3+NCB)+',{bGov2}))', unit:'cm', fmt:'0.00', expr:"Vs ≦ 1.06√f'c·bw·d：min(d/2, 60)；否則 min(d/4, 30)", ref:ref401('9.7.6.2.2')});
+  S.item({key:'sTors2', label:'加密區外扭矩間距上限', sym:'s', f:"N(INDEX('載重組合'!S4:S"+(3+NCB)+',{bGov2}))', unit:'cm', fmt:FMT_SINF, ref:ref401('9.7.6.3.3')});
   S.item({key:'sSeis2', label:'耐震梁加密區外上限', sym:'s', f:'{d}/2', unit:'cm', fmt:'0.00', expr:'d/2', ref:ref401('18.3.4.6')});
-  const cands2 = [['sStr2','剪力＋扭矩強度需求（Vc 不折減）'],['sMin','最小剪力鋼筋量 Av,min'],['sCode2','規範間距上限'],['sSeis2','耐震梁加密區外 d/2'],['sTors','扭矩 min(ph/8, 30)']];
+  const cands2 = [['sStr2','剪力＋扭矩強度需求（Vc 不折減）'],['sMin','最小剪力鋼筋量 Av,min'],['sCode2','規範間距上限'],['sSeis2','耐震梁加密區外 d/2'],['sTors2','扭矩 min(ph/8, 30)']];
   S.item({key:'sGov2', label:'加密區外控制需求間距', sym:'s', unit:'cm', fmt:'0.00', f:'IF({isS}=1,MIN('+cands2.map(c=>'{'+c[0]+'}').join(',')+'),{sGov})', expr:'非耐震梁同 sGov', ref:'—'});
   S.item({key:'sGov2Tag', label:'加密區外控制項', f:'IF({isS}=1,INDEX({rng:candName2},MATCH({sGov2},{rng:candVal2},0)),"（全長同一間距）")', ref:'—'});
   S.item({key:'sUse2', label:'加密區外採用間距', sym:'s₂', unit:'cm', fmt:'0.0', f:'IF({isS}=1,IFERROR(_xlfn.AGGREGATE(14,6,{rng:sList}/(({rng:sList}<={sGov2})*({rng:sFlag}=0)),1),7.5),{sUse})', ref:'非規範明列條文，係施工慣用間距'});
@@ -1790,9 +1801,12 @@ function buildBeam(ExcelJS, inp){
 
 function buildBeamLoads(ws, R, loads){
   const nm='載重組合', r=f=>({f:R(f,nm)});
-  ws.columns=[24,12,12,12,12,4,14,12,12].map(w=>({width:w}));
+  ws.columns=[24,12,12,12,12,4,14,12,12].concat(Array(17).fill(11)).map(w=>({width:w}));
   put(ws,'A1','梁／版載重組合（已乘載重因數；每公尺寬或每梁）',{sec:true});
-  ['組合名稱','Mu⁺ (tf·m)','Mu⁻ (tf·m)','Vu (tf)','Tu (tf·m)','','檢核用 Mu (tf·m)','|Vu| (tf)','D/C'].forEach((h,j)=>{ if(h) put(ws,colL(j)+'3',h,{head:true}); });
+  ['組合名稱','Mu⁺ (tf·m)','Mu⁻ (tf·m)','Vu (tf)','Tu (tf·m)','','檢核用 Mu (tf·m)','|Vu| (tf)','D/C',
+   'Vdes (tf)','Vc 歸零','Vc (tf)','Vs 需求 (tf)','扭矩須設計','At/s (cm²/cm)','剪扭超限','s 強度 (cm)','s 規範 (cm)','s 扭矩 (cm)','斷面不足','s 控制 (cm)','排序鍵',
+   '一般區 Vs (tf)','一般區 s 強度','一般區 s 規範','一般區 s 控制'].forEach((h,j)=>{ if(h) put(ws,colL(j)+'3',h,{head:true}); });
+  put(ws,'J2','逐組合剪扭檢核（扭矩不一定與最大剪力同組）：斷面不足者優先，其次需求間距最小者控制；扭矩僅外圍閉合肢有效（土木401-112 §9.5.4.3 解說）');
   for(let i=0;i<NCB;i++){
     const n=4+i, L=loads[i];
     put(ws,'A'+n, L?L.name:'', {input:true});
@@ -1800,6 +1814,26 @@ function buildBeamLoads(ws, R, loads){
     put(ws,'G'+n, r(`IF(A${n}="","",IF({isPos}=1,ABS(B${n}),ABS(C${n})))`),{fmt:'#,##0.00'});
     put(ws,'H'+n, {f:`IF(A${n}="","",ABS(D${n}))`},{fmt:'#,##0.00'});
     put(ws,'I'+n, r(`IF(A${n}="","",IF(G${n}<=1E-6,0,IF({phiMn}>0,G${n}/{phiMn},1E9)))`),{fmt:FMT_INF});
+    const on = `A${n}<>""`, T = `ABS(E${n})`;
+    put(ws,'J'+n, r(`IF(${on},IF({isS}=1,MAX({Ve},H${n}),H${n}),"")`),{fmt:'#,##0.00'});
+    put(ws,'K'+n, r(`IF(${on},--AND({isS}=1,J${n}>0,({Ve}-{Vg})>=0.5*J${n}),"")`));
+    put(ws,'L'+n, r(`IF(${on},IF(K${n}=1,0,IF({isSlab}=1,{VcC},{VcA})),"")`),{fmt:'#,##0.00'});
+    put(ws,'M'+n, r(`IF(${on},MAX(0,J${n}/{phiv}-L${n}),"")`),{fmt:'#,##0.00'});
+    put(ws,'N'+n, r(`IF(${on},--(${T}>{Tth}),"")`));
+    put(ws,'O'+n, r(`IF(${on},IF(N${n}=1,${T}*100000/(2*{phiv}*0.85*{Aoh}*{fyt}/TAN({theta}*PI()/180)),0),"")`),{fmt:'0.00000'});
+    put(ws,'P'+n, r(`IF(${on},--(SQRT((J${n}*1000/({bw}*{d}))^2+IF(N${n}=1,(${T}*100000*{ph}/(1.7*{Aoh}^2))^2,0))>{phiv}*(L${n}*1000/({bw}*{d})+2.12*SQRT({fc}))),"")`));
+    const oL = vs => `(O${n}+${vs}*1000/({fyt}*{d})/{nLegs})`;
+    put(ws,'Q'+n, r(`IF(${on},IF(${oL('M'+n)}>1E-9,{At}/${oL('M'+n)},${BIG}),"")`),{fmt:FMT_SINF});
+    put(ws,'R'+n, r(`IF(${on},IF(M${n}*1000>1.06*SQRT({fc})*{bw}*{d},MIN({d}/4,30),MIN({d}/2,60)),"")`),{fmt:'0.00'});
+    put(ws,'S'+n, r(`IF(${on},IF(N${n}=1,MIN({ph}/8,30),${BIG}),"")`),{fmt:FMT_SINF});
+    put(ws,'T'+n, r(`IF(${on},--OR(M${n}>{VsMax},P${n}=1,AND({isSlab}=1,J${n}>{phiv}*L${n})),"")`));
+    put(ws,'U'+n, {f:`IF(${on},MIN(Q${n},R${n},S${n}),"")`},{fmt:FMT_SINF});
+    // 排序鍵：斷面不足者最先；其次需求間距小、設計剪力大、Vu 大者（與網頁 beamShearDesign 相同）
+    put(ws,'V'+n, {f:`IF(${on},IF(T${n}=1,-1E12,0)+U${n}-J${n}*1E-6-H${n}*1E-9,"")`},{fmt:'0.000'});
+    put(ws,'W'+n, r(`IF(${on},MAX(0,J${n}/{phiv}-{Vc2}),"")`),{fmt:'#,##0.00'});
+    put(ws,'X'+n, r(`IF(${on},IF(${oL('W'+n)}>1E-9,{At}/${oL('W'+n)},${BIG}),"")`),{fmt:FMT_SINF});
+    put(ws,'Y'+n, r(`IF(${on},IF(W${n}*1000>1.06*SQRT({fc})*{bw}*{d},MIN({d}/4,30),MIN({d}/2,60)),"")`),{fmt:'0.00'});
+    put(ws,'Z'+n, {f:`IF(${on},MIN(X${n},Y${n},S${n}),"")`},{fmt:FMT_SINF});
   }
 }
 
