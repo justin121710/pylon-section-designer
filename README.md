@@ -25,7 +25,7 @@
 全程 **kgf-cm 制**。
 
 > 操作流程與實務問答請見 [FAQ.md](FAQ.md)（工程師／技師常見問題）。
-> 圖文操作教學（PDF，含截圖）：[docs/RC斷面設計工具_操作教學.pdf](docs/RC斷面設計工具_操作教學.pdf)。
+> 圖文操作教學（PDF，含截圖）：[docs/RC斷面設計工具_操作教學.pdf](docs/RC斷面設計工具_操作教學.pdf)；每個提交都會自動重建保持最新（見 [docs/tutorial/README.md](docs/tutorial/README.md)，clone 後請執行 `git config core.hooksPath .githooks`）。
 
 | 係數 | 值 | 出處 |
 |---|---|---|
