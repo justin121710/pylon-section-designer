@@ -213,6 +213,11 @@ body.rp-open #app,body.rp-open #appBeam{display:none!important}
 /* fitSvg 收緊 viewBox 後圖會依區塊寬放大；高度設上限，過高的圖改為以高度為準、水平置中 */
 svg.figfit{max-height:max(360px,calc(100vh - 170px))}
 #report svg.figfit{max-height:240mm}
+/* 代號與數字：LaTeX 字體（texify 加上 .mr 直體／.mi 斜體）；Computer Modern 字面較小，放大 8% 與中文等高 */
+.mr{font-family:KaTeX_Main,'Times New Roman',serif;font-style:normal;font-size:1.08em}
+.mi{font-family:KaTeX_Math,'Times New Roman',serif;font-style:italic}
+sub.ms,sup.ms{font-family:KaTeX_Main,'Times New Roman',serif}
+body input[type=number]{font-family:KaTeX_Main,'Times New Roman',serif;font-size:1.08em}
 /* 畫面上的 KaTeX 公式：與內文同大小，分式上下排列會撐高行距 */
 .ws .katex,.pin-detail .katex{font-size:1.18em}
 .dev-fm{line-height:2.1}
@@ -1168,7 +1173,7 @@ function svgTxt(t, fs){
         k = e; } }
     const ser = new Array(chars.length).fill(false);
     s.replace(_MATHRUN, (run, off) => {
-      let has = (pF && off===0) || (nF && off+run.length===s.length); for(let k=off;k<off+run.length;k++) if(ids.has(k)) { has = true; break; }
+      let has = (pF && off===0) || (nF && off+run.length===s.length) || /\d/.test(run); for(let k=off;k<off+run.length;k++) if(ids.has(k)) { has = true; break; }
       if(has){ let a = off, b = off+run.length; while(a<b && s[a]===' ') a++; while(b>a && s[b-1]===' ') b--; for(let k=a;k<b;k++) ser[k] = true; }
       return run;
     });
@@ -7518,15 +7523,81 @@ function pinStatus(mod, map){
    只動 DOM 上的 SVG；Excel／PNG 匯出用的是繪圖函式回傳的字串，不受影響。
    量測在畫面外的複本上做：隱藏分頁裡的圖 display:none，getBBox 會量成 0。 */
 let _fitHost = null;
+/* ---------- 全頁代號與數字：LaTeX 字體 ----------
+   DOM 插入後逐一檢查文字節點：
+   ・數學變數（後接 <sub>/<sup> 的字母、希臘小寫、算式中獨立的單一字母、上下標內的字母）→ .mi（KaTeX_Math 斜體）
+   ・含變數或數字的非中文連續段（數字、運算子、單位）→ .mr（KaTeX_Main 直體，如同 \text{cm}）
+   KaTeX 尚未排版的 \( … \) 原始碼不動；輸入框、下拉選單、SVG（另由 svgTxt 處理）略過。 */
+const TEX_SKIP = 'script,style,textarea,input,select,option,svg,.katex,code,pre,kbd,.mi,.mr,.pin-mk,.no-tex';
+function _texSegs(s, nextSub, inSub){
+  const s2 = nextSub ? s + '_' : s;
+  const ids = _mathIds(s2); ids.delete(s.length);
+  if(inSub){   // 上下標內：字母一律斜體，max/min 等函數名除外
+    s.replace(/[A-Za-zα-ωϕϑ]+/g, (w, off) => { if(!/^(max|min|cm)$/.test(w)) for(let k=0;k<w.length;k++) ids.add(off+k); return w; });
+  }
+  const segs = [];   // [文字, 'mr'|null]，mr 內再拆 mi
+  let last = 0;
+  s.replace(_MATHRUN, (run, off) => {
+    let a = off, b = off + run.length; while(a<b && /\s/.test(s[a])) a++; while(b>a && /\s/.test(s[b-1])) b--;
+    if(a>=b) return run;
+    let has = /\d/.test(s.slice(a,b)); for(let k=a;k<b && !has;k++) if(ids.has(k)) has = true;
+    if(!has) return run;
+    if(a>last) segs.push([s.slice(last,a), null]);
+    segs.push([s.slice(a,b), 'mr', a]); last = b;
+    return run;
+  });
+  if(!segs.length) return null;
+  if(last < s.length) segs.push([s.slice(last), null]);
+  return segs.map(([t, c, a]) => {
+    if(c!=='mr') return [t, null];
+    // mr 段內：連續的 ids 字元包成 mi
+    const parts = []; let i = 0;
+    while(i < t.length){
+      const isId = ids.has(a+i); let j = i; while(j < t.length && ids.has(a+j) === isId) j++;
+      parts.push([t.slice(i,j), isId]); i = j;
+    }
+    return [parts, 'mr'];
+  });
+}
+function texify(root){
+  if(!root || root.nodeType!==1 || root.closest(TEX_SKIP)) return;
+  const nodes = [];
+  const tw = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {acceptNode: n =>
+    (/[0-9A-Za-zα-ωϕϑ]/.test(n.data) && !/\\[(\[)\]]/.test(n.data) && n.parentElement && !n.parentElement.closest(TEX_SKIP))
+      ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT});
+  while(tw.nextNode()) nodes.push(tw.currentNode);
+  for(const n of nodes){
+    const nx = n.nextSibling, nextSub = !!(nx && nx.nodeType===1 && /^(SUB|SUP)$/.test(nx.tagName) && /[A-Za-zα-ωϕϑ']$/.test(n.data));
+    const inSub = !!n.parentElement.closest('sub,sup');
+    const segs = _texSegs(n.data, nextSub, inSub); if(!segs) continue;
+    const fr = document.createDocumentFragment();
+    for(const [t, c] of segs){
+      if(!c){ fr.appendChild(document.createTextNode(t)); continue; }
+      const sp = document.createElement('span'); sp.className = 'mr';
+      for(const [x, it] of t){ if(it){ const i = document.createElement('span'); i.className = 'mi'; i.textContent = x; sp.appendChild(i); } else sp.appendChild(document.createTextNode(x)); }
+      fr.appendChild(sp);
+    }
+    n.parentNode.replaceChild(fr, n);
+  }
+  // 緊接在 .mr 之後的 <sub>/<sup> 也屬於同一個數學式：標記以便 CSS 套用字體
+  root.querySelectorAll('sub:not(.ms),sup:not(.ms)').forEach(e => { if(!e.closest(TEX_SKIP)) e.classList.add('ms'); });
+}
+/* SVG 中未經 svgTxt 的純文字（刻度、數值標籤）也改用相同字體規則 */
+function svgRawTex(svg){
+  svg.querySelectorAll('text').forEach(t => {
+    if(t.children.length || !/[0-9A-Za-z]/.test(t.textContent)) return;
+    const fs = parseFloat(t.getAttribute('font-size')) || 12;
+    t.innerHTML = svgTxt(t.textContent, fs);
+  });
+}
 /* 匯出用（PNG）：字型換成系統字型後排分式，回傳字串 */
 function svgForExport(str){
   str = str.split('KaTeX_Math,').join('').split('KaTeX_Main,').join('');
-  if(str.indexOf('class="frac"') < 0) return str;
   if(!_fitHost){ _fitHost = document.createElement('div');
     _fitHost.style.cssText = 'position:absolute;left:-20000px;top:0;width:800px;visibility:hidden;pointer-events:none';
     document.body.appendChild(_fitHost); }
   const box = document.createElement('div'); box.innerHTML = str; _fitHost.appendChild(box);
-  const el = box.querySelector('svg'); fracLayout(el, true);
+  const el = box.querySelector('svg'); svgRawTex(el); fracLayout(el, true);
   const out = new XMLSerializer().serializeToString(el); box.remove();
   return out.split('KaTeX_Math,').join('').split('KaTeX_Main,').join('');
 }
@@ -7535,6 +7606,7 @@ function fitSvg(svg){
   const vb = (svg.getAttribute('viewBox')||'').trim().split(/[\s,]+/).map(Number);
   if(vb.length!==4 || !(vb[2]>200)) return;
   svg.dataset.fit = '1';
+  svgRawTex(svg);
   if(!_fitHost){ _fitHost = document.createElement('div');
     _fitHost.style.cssText = 'position:absolute;left:-20000px;top:0;width:800px;visibility:hidden;pointer-events:none';
     document.body.appendChild(_fitHost); }
@@ -7567,6 +7639,7 @@ function figTidy(root){
   if(root.nodeType!==1) root = root.parentElement; if(!root || !root.isConnected || root.closest('.katex') || (_fitHost && _fitHost.contains(root))) return;
   (root.tagName==='svg' ? [root] : root.querySelectorAll('svg[viewBox]')).forEach(fitSvg);
   mathIn(root);
+  texify(root);
 }
 new MutationObserver(recs => {
   const seen = new Set();
@@ -7574,7 +7647,8 @@ new MutationObserver(recs => {
   seen.forEach(figTidy);
 }).observe(document.body, {childList:true, subtree:true});
 /* KaTeX 以 defer 載入，可能晚於第一次重算：載入後補排一次 */
-window.addEventListener('load', () => mathIn(document.body));
+window.addEventListener('load', () => { mathIn(document.body); texify(document.body); });
+texify(document.body);
 if(document.fonts && document.fonts.load) Promise.all(['italic 12px KaTeX_Math','12px KaTeX_Main'].map(x=>document.fonts.load(x)))
   .then(() => { try{ if(typeof TAB!=='undefined' && TAB==='beam') renderBeam(); else render(); }catch(e){} }).catch(()=>{});
 document.querySelectorAll('svg[viewBox]').forEach(fitSvg);
