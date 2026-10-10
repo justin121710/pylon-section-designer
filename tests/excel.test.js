@@ -143,4 +143,12 @@ test('Excel 計算書與網頁一致（C1～C4、H2、H5、M1～M9）', {skip: !
     near(val(pr.getCell('AT' + (4 + i)).value), w.dy, 0.002, `頂／底配對第 ${i+1} 列 δy`);
     near(val(pr.getCell('M' + (4 + i)).value), w.dc, 0.005, `頂／底配對第 ${i+1} 列 D/C`);
   });
+  // 計算書不含 emoji 或打勾／打叉圖示（判定一律以文字 OK／NG 表示）
+  const EMO = /[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{2139}]/u;
+  for(const n of ['rect', 'beam', 'br', 'deck']){
+    const wb = await load(n);
+    wb.eachSheet(ws => ws.eachRow(row => row.eachCell(c => {
+      const t = String(val(c.value) ?? ''); assert.ok(!EMO.test(t), `${n}／${ws.name}!${c.address} 含 emoji：${t.slice(0, 60)}`);
+    })));
+  }
 });

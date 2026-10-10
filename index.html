@@ -47,6 +47,7 @@ html,body{background:var(--bg);color:var(--txt);margin:0;
    同分時後者勝——不加前綴的話按鈕會變成 0 padding + 16px 字，擠成一團。 */
 body input,body select{background:var(--panel);color:var(--txt);border:1px solid var(--line);
   border-radius:5px;padding:6px 9px;width:100%;font-size:13.5px;line-height:1.35}
+body input[type=checkbox],body input[type=radio]{width:auto;padding:0;flex:0 0 auto}   /* 勾選框不可撐滿（否則同列文字被擠到極窄） */
 body input:focus,body select:focus{outline:2px solid var(--acc);outline-offset:-1px}
 body input.inp-bad{outline:2px solid var(--bad);outline-offset:-1px;background:rgba(176,58,46,.08)}
 /* 按鈕三階：主要（實心強調色，一個畫面只放一顆）、一般（白底框線）、安靜（無框，用在頂列工具） */
@@ -170,13 +171,13 @@ body.rp-open #app,body.rp-open #appBeam{display:none!important}
 .pin-mid>#derivedP,.pin-mid>#derivedB{margin:10px 0 0}
 .pin-sheet{background:var(--panel);border:1px solid var(--line);border-radius:8px;
   display:flex;flex-direction:column;min-height:0;overflow:hidden;box-shadow:var(--shadow)}
-.pin-head{display:grid;grid-template-columns:50px 1fr 156px 62px 44px;background:var(--sub);
+.pin-head{display:grid;grid-template-columns:46px minmax(0,1fr) 156px 62px 80px;background:var(--sub);
   border-bottom:1px solid var(--line);font-size:12px;font-weight:600;color:var(--dim)}
 .pin-head>div{padding:7px 10px}
 .pin-body{overflow-y:auto;flex-grow:1}
 .pin-sec{padding:10px 12px 6px;font-size:12px;font-weight:700;letter-spacing:.04em;color:var(--txt);
   background:var(--sub);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:1}
-.pin-row{display:grid;grid-template-columns:50px 1fr 156px 62px 44px;align-items:center;
+.pin-row{display:grid;grid-template-columns:46px minmax(0,1fr) 156px 62px 80px;align-items:center;
   min-height:39px;cursor:pointer;border-bottom:1px solid var(--line)}
 .pin-row:hover{background:var(--sub)}
 .pin-row.on{background:var(--acc-soft)}
@@ -188,7 +189,17 @@ body.rp-open #app,body.rp-open #appBeam{display:none!important}
 .pin-s{padding:0 4px;text-align:center}
 .pin-row.pin-hidden,.pin-row.pin-na{display:none}
 @media(min-width:641px){ .pin-row.pin-wide .pin-v{grid-column:3 / 5} .pin-row.pin-wide .pin-u{display:none} }
-.pin-chip{display:inline-block;padding:2px 7px;border-radius:10px;font-size:11px;font-weight:600}
+.pin-chip{display:inline-block;padding:2px 7px;border-radius:10px;font-size:11px;font-weight:600;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:clip}
+.pin-n{overflow-wrap:anywhere}
+/* 下拉選項文字超過值欄寬度時（pinFit 判定），值改放第二行、橫跨參數＋值＋單位欄，確保選項全文可見 */
+@media(min-width:641px){
+  .pin-row.pin-long{grid-template-rows:auto auto;row-gap:3px;padding:5px 0 7px}
+  .pin-row.pin-long .pin-c{grid-column:1;grid-row:1 / 3;align-self:start;padding-top:2px}
+  .pin-row.pin-long .pin-n{grid-column:2 / 4;grid-row:1}
+  .pin-row.pin-long .pin-u{grid-column:4;grid-row:1}
+  .pin-row.pin-long .pin-s{grid-column:5;grid-row:1}
+  .pin-row.pin-long .pin-v{grid-column:2 / 6;grid-row:2;padding:0 10px}
+}
 .pin-chip:empty{display:none}   /* 通過的列不標記：狀態欄只留給例外 */
 .pin-chip.ok{background:rgba(30,122,68,.12);color:var(--ok)}
 .pin-chip.warn{background:rgba(180,113,26,.13);color:var(--warn)}
@@ -355,6 +366,8 @@ body .pin-v input[type=text]{text-align:left}
   .pin-v{grid-area:v;padding:0 0 0 10px}
   .pin-u{grid-area:u;min-width:58px}
   .pin-s{grid-area:s;text-align:right;padding-right:10px}
+  .pin-row.pin-long{grid-template-columns:42px minmax(0,1fr) auto auto;grid-template-areas:"c n u s" "c v v v"}
+  .pin-row.pin-long .pin-u{min-width:0}
   .pin-sheet{max-height:none}
   .pin-body{overflow:visible}
   .pin-sec{position:static}
@@ -576,7 +589,9 @@ body .ws-tabs button[aria-selected=true]{color:var(--acc-h);font-weight:700}
 .conf-box{margin:0 0 12px;padding:10px 12px;border:1.5px solid var(--warn,#b26a00);border-left-width:5px;border-radius:8px;background:rgba(245,158,11,.08);font-size:12.5px;line-height:1.55}
 .conf-h{margin-bottom:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .conf-row{display:flex;gap:8px;align-items:flex-start;padding:4px 0;border-top:1px dashed var(--line);cursor:pointer}
-.conf-row input{margin-top:3px;flex-shrink:0}
+.conf-row input[type=checkbox]{width:15px;height:15px;min-width:15px;margin:2px 0 0;padding:0;flex:0 0 15px;display:inline-block}
+.conf-row .conf-t{flex:1 1 auto;min-width:0;overflow-wrap:anywhere}
+.conf-h .conf-sub{flex:1 1 260px;min-width:0;color:var(--dim)}
 .conf-kind{flex-shrink:0;font-size:11px;padding:0 6px;border-radius:9px;background:var(--warn,#b26a00);color:#fff;height:18px;line-height:18px}
 .rp-unconf{border:2px solid #b26a00;color:#7a4a00;background:#fff7e6;padding:8px 12px;margin:0 0 10px;font-size:12px}
 @media print{.rp-unconf{display:none}}
@@ -718,8 +733,9 @@ img,video{max-width:100%;height:auto}
     <div class="setup-act">
       <button id="setupBack" type="button" class="btn-quiet setup-n1">← 上一步</button>
       <div class="grow"></div>
-      <label class="setup-noshow" style="font-size:12px;color:var(--dim);display:inline-flex;gap:4px;align-items:center"><input type="checkbox" id="setupNoShow">下次開啟不再顯示</label>
-      <button id="setupSkip" type="button" class="btn-quiet">直接進入主畫面</button>
+      <label class="setup-noshow" style="font-size:12px;color:var(--dim);display:inline-flex;gap:4px;align-items:center;white-space:nowrap"><input type="checkbox" id="setupNoShow" style="width:15px;height:15px;flex:0 0 15px;margin:0">下次開啟不再顯示</label>
+      <button id="setupCancel" type="button" class="btn-quiet" title="放棄本視窗內的所有變更，還原為開啟前的內容（Esc）">取消</button>
+      <button id="setupSkip" type="button" class="btn-quiet" title="保留目前設定，進入主畫面">直接進入主畫面</button>
       <button id="setupGo" type="button" class="btn-primary setup-s1">下一步：輸入載重組合 →</button>
       <button id="setupNext2" type="button" class="btn-primary setup-s2">下一步：建議配筋 →</button>
     </div>
@@ -1072,7 +1088,7 @@ img,video{max-width:100%;height:auto}
         </div>
       </div>
       <div class="text-[11.5px]" style="color:var(--dim)">依目前斷面、材料、設計依據與<b>全部載重組合</b>，試算各號數之最少主筋，並為每組主筋求箍筋／繫筋號數、配置與加密區內外間距；每個候選都經與本工具相同之完整檢核（撓曲 D/C、ρ<sub>g</sub>、淨距、容量設計剪力、圍束筋、h<sub>x</sub>、伸展長度…），依用鋼量由少到多排列。主筋表每列已配上最省之橫向筋，依兩者合計用鋼量排序；按「套用」寫回輸入，「套用最佳組合」套用第一名。
-        <br><b style="color:var(--warn)">僅供初步配筋</b>：用鋼量依下料長度表（含錨定、彎鉤與搭接）估算；候選之撓曲 D/C 不大於「目標 D/C」；套用後仍須逐項確認判定列、警示與「未涵蓋」項目，並依施工習慣（號數種類、穿越梁筋）調整。</div>
+        <br><b style="color:var(--warn)">僅供初步配筋</b>：用鋼量依下料長度表（含錨定、彎鉤與搭接）估算；候選之撓曲 D/C 不大於「目標 D/C」，且每組皆以完整計算重驗，<b>套用後無任何不合格項目</b>；判定列之「需確認」與「未涵蓋」項目仍須設計者逐項確認，並依施工習慣（號數種類、穿越梁筋）調整。</div>
       <div id="optOutP" class="text-[12.5px] mt-2" style="overflow-x:auto"></div>
     </div>
     <div class="card" data-pane="sum"><h2>設計結果摘要</h2><div id="summary"></div></div>
@@ -1268,7 +1284,7 @@ img,video{max-width:100%;height:auto}
         </div>
       </div>
       <div class="text-[11.5px]" style="color:var(--dim)">依目前斷面、材料與<b>全部載重組合</b>（M<sub>u</sub><sup>+</sup> 取底筋、M<sub>u</sub><sup>−</sup> 取頂筋），試算底筋、頂筋（單一號數）與箍筋號數、肢數、間距；每個候選都經與本工具相同之完整檢核（D/C、A<sub>s,min</sub>、拉力控制、淨距、裂縫、耐震規定、容量設計剪力…），底筋、頂筋表每列已配上最省之箍筋，依合計用鋼量排序；「套用最佳組合」依序套用頂筋、底筋、箍筋之第一名。
-        <br><b style="color:var(--warn)">僅供初步配筋</b>：用鋼量依下料長度表（含錨定、彎鉤與搭接）估算；候選之撓曲 D/C 不大於「目標 D/C」；套用後仍須逐項確認判定列、警示，並依施工習慣調整。</div>
+        <br><b style="color:var(--warn)">僅供初步配筋</b>：用鋼量依下料長度表（含錨定、彎鉤與搭接）估算；候選之撓曲 D/C 不大於「目標 D/C」，且每組皆以兩種檢核斷面完整重驗，<b>套用後無任何不合格項目</b>；「需確認」項目仍須設計者確認，並依施工習慣調整。</div>
       <div id="optOutB" class="text-[12.5px] mt-2" style="overflow-x:auto"></div>
     </div>
     <div class="card" data-pane="sum"><h2>設計結果摘要</h2><div id="bSummary"></div></div>
@@ -3370,7 +3386,7 @@ function devScheduleHtml(P, M){
 
 /* ---------- 計畫表＋補充檢核（網頁與計算書共用） ---------- */
 function devPlanHtml(P){
-  const ic = lv => lv==='ok' ? '<span style="color:var(--ok)">✓</span>' : lv==='warn' ? '<span style="color:var(--warn)">！</span>' : '<span style="color:var(--bad)">✗</span>';
+  const ic = lv => lv==='ok' ? '<span style="color:var(--ok)">OK</span>' : lv==='warn' ? '<span style="color:var(--warn)">注意</span>' : '<span style="color:var(--bad);font-weight:700">NG</span>';
   return `<table style="width:100%;margin-top:6px"><thead><tr><th></th><th class="l">檢核項目</th><th class="l">說明</th><th class="l">依據</th></tr></thead><tbody>`
     + P.checks.map(c=>`<tr><td>${ic(c.lv)}</td><td class="l">${esc(c.item)}</td><td class="l">${c.msg}</td><td class="l">${c.ref}</td></tr>`).join('') + `</tbody></table>`;
 }
@@ -4344,11 +4360,29 @@ function setupStep(n){
   const f = {1:'setupGo', 2:'setupNext2', 3:'setupSkip'}[n];
   setTimeout(() => { try{ document.getElementById(f).focus(); }catch(e){} }, 30);
 }
+/* 開啟時記下完整案件狀態；按「取消」或 Esc 還原（範本、尺寸、載重、構件類型等在視窗內的變更全部放棄） */
+let SETUP_SNAP = null;
+const setupSnapKey = () => { const c = caseSnapshot(); delete c.saved; return JSON.stringify(c); };
 function openSetup(focusEl){
   setupFilter(); setupSummary();
-  const ov = document.getElementById('setupOv'); ov.classList.add('open');
+  const ov = document.getElementById('setupOv');
+  if(!ov.classList.contains('open'))
+    SETUP_SNAP = {key: setupSnapKey(), base: {...PRESET_BASE},
+      prev: {preset: document.getElementById('preset').dataset.prev, bPreset: document.getElementById('bPreset').dataset.prev},
+      conf: {pylon: new Set(CONFIRM.pylon), beam: new Set(CONFIRM.beam)}};
+  ov.classList.add('open');
   setupStep(1);
   if(focusEl) setTimeout(() => { try{ focusEl.focus(); }catch(e){} }, 40);
+}
+function cancelSetup(){
+  const S = SETUP_SNAP; SETUP_SNAP = null;
+  closeSetup();
+  if(!S || setupSnapKey() === S.key) return;          // 沒有變更：直接關閉
+  caseApply(JSON.parse(S.key)); CASE_NOTICE = null;
+  Object.assign(PRESET_BASE, S.base);
+  for(const id of ['preset','bPreset']){ const e = document.getElementById(id); if(S.prev[id] == null) delete e.dataset.prev; else e.dataset.prev = S.prev[id]; }
+  for(const k of ['pylon','beam']){ CONFIRM[k].clear(); for(const x of S.conf[k]) CONFIRM[k].add(x); }
+  render(); renderBeam(); setupSummary(); caseAutosave();
 }
 function closeSetup(pane){
   setupRestore(); SETUP_STEP = 1;
@@ -4368,13 +4402,14 @@ function setupInit(){
   document.getElementById('setupGo').onclick = () => setupStep(2);
   document.getElementById('setupNext2').onclick = () => setupStep(3);
   document.getElementById('setupBack').onclick = () => setupStep(Math.max(1, SETUP_STEP-1));
-  document.getElementById('setupSkip').onclick = () => closeSetup();
+  document.getElementById('setupSkip').onclick = () => { SETUP_SNAP = null; closeSetup(); };
+  document.getElementById('setupCancel').onclick = cancelSetup;
   for(const id of ['tabPylon','tabBeam','secType','bType','memType']) document.getElementById(id).addEventListener(id.startsWith('tab') ? 'click' : 'change', () => setTimeout(setupSync, 0));
   document.getElementById('setupDims').addEventListener('input', e=>{
     const id = e.target.dataset && e.target.dataset.for; if(!id) return;
     const el = document.getElementById(id); el.value = e.target.value; el.dispatchEvent(new Event('input'));
   });
-  document.addEventListener('keydown', e => { if(e.key==='Escape' && document.getElementById('setupOv').classList.contains('open')) closeSetup(); });
+  document.addEventListener('keydown', e => { if(e.key==='Escape' && document.getElementById('setupOv').classList.contains('open') && !document.querySelector('.ask-ov.open, #askOv.open')) cancelSetup(); });
   // U7：「下次開啟不再顯示」（本機記住；左上「變更」仍可隨時開啟）＋狀態列直接切換設計依據與斷面型式
   const NS = 'rcsd.setup.noShow', nsBox = document.getElementById('setupNoShow');
   let noShow = false; try{ noShow = localStorage.getItem(NS)==='1'; }catch(e){}
@@ -4562,7 +4597,7 @@ function svgCircle(M,forPrint){
   // 主筋淨距（沿圓周弧長）
   const bad = M.chk.clB < M.chk.need;
   o.push(`<text x="${cx}" y="${Y(s.D/2)-14}" fill="${bad?C.annBad:C.ann}" font-size="11.5" text-anchor="middle" font-weight="${bad?700:500}">${
-    bad ? `主筋淨距 ${f(M.chk.clB,1)} ＜ 需求 ${f(M.chk.need,1)} cm ✗` : `主筋淨距（沿圓周）${f(M.chk.clB,1)} cm`}</text>`);
+    bad ? `主筋淨距 ${f(M.chk.clB,1)} ＜ 需求 ${f(M.chk.need,1)} cm（NG）` : `主筋淨距（沿圓周）${f(M.chk.clB,1)} cm`}</text>`);
   const lg=[['dot', `主筋 ${r.barSize} ×${R.bars.length}（沿圓周等距）`, C.bar],
             ['solid', r.spiral ? `螺旋箍筋 ${r.tieSize}（連續螺旋，端部加繞 1.5 圈）` : `圓形箍筋 ${r.tieSize}（兩端 135° 彎鉤搭接，搭接位置逐層輪替）`, C.tie]];
   lg.forEach((L,i)=>{
@@ -4780,7 +4815,7 @@ function svgSection(M,forPrint){
   // ---- 主筋淨距（CAD 標註，引出斷面外） ----
   const ro=R.rings[0];
   const badB = M.chk.clB < M.chk.need, badH = M.chk.clH < M.chk.need;
-  const lblClr = (v,bad)=> bad ? `淨距 ${f(v,1)} ＜ 需求 ${f(M.chk.need,1)} cm ✗`
+  const lblClr = (v,bad)=> bad ? `淨距 ${f(v,1)} ＜ 需求 ${f(M.chk.need,1)} cm（NG）`
                                : `主筋淨距 ${f(v,1)} cm`;
   const topDim = Y(s.H/2)-34, rightDim = X(s.B/2)+44;
   {   // 取頂緣中央相鄰兩根，尺寸界線量至鋼筋外緣
@@ -5847,10 +5882,10 @@ function renderConfirm(mod, items, uncov){
   const host = document.getElementById(mod==='beam' ? 'bConfirm' : 'confirmP'); if(!host) return;
   if(!list.length){ host.innerHTML = ''; return; }
   const done = list.filter(q=>CONFIRM[mod].has(q.key)).length;
-  host.innerHTML = SB(`<div class="conf-box"><div class="conf-h"><b>需確認項目</b>（${done} / ${list.length} 已確認）— 列印計算書前須逐項勾選，表示設計者已檢視並另行處理。
+  host.innerHTML = SB(`<div class="conf-box"><div class="conf-h"><b>需確認項目（${done} / ${list.length} 已確認）</b><span class="conf-sub">列印計算書前須逐項勾選，表示設計者已檢視並另行處理。</span>
       <button type="button" class="conf-all !py-0.5 !px-2" data-mod="${mod}">全部勾選</button></div>`
     + list.map((q,i)=>`<label class="conf-row"><input type="checkbox" data-mod="${mod}" data-k="${esc(q.key)}"${CONFIRM[mod].has(q.key)?' checked':''}>
-      <span class="conf-kind">${q.kind}</span><span>${q.t}</span></label>`).join('') + `</div>`);
+      <span class="conf-kind">${q.kind}</span><span class="conf-t">${q.t}</span></label>`).join('') + `</div>`);
 }
 const confPending = mod => CONF_ITEMS[mod].filter(q=>!CONFIRM[mod].has(q.key));
 function confAll(mod){ for(const q of CONF_ITEMS[mod]) CONFIRM[mod].add(q.key); (mod==='beam' ? renderBeam : render)(); }
@@ -6237,7 +6272,7 @@ function buildReport(M){
   }
   o.push(`<div class="rp-h3">5.3 判定</div>`);
   o.push(`<div style="font-size:14px;font-weight:800;padding:8px;border:2px solid ${C.dc>1?'#c00':'#060'};display:inline-block">
-    D/C = ${fdc(C.dc)} ${C.dc>1?'> 1.0 　✗ 不合格':'≤ 1.0 　✓ 合格'}</div>`);
+    D/C = ${fdc(C.dc)} ${C.dc>1?'> 1.0 　不合格（NG）':'≤ 1.0 　合格（OK）'}</div>`);
   o.push(`</div>`);
 
   /* --- 第 5 頁：剪力扭矩 --- */
@@ -6457,7 +6492,7 @@ function pileReport(M, o, eq, note, d, no){
   const P = M.opt.pile, R = M.pileR;
   o.push(`<div class="rp-h2">${no}. 基樁規定（建築物基礎構造設計規範 §5.6.3；土木401-112 §13.4、表 18.10.5.7.1）</div>`);
   o.push(`<table class="no-break"><thead><tr><th class="l">項目</th><th>需求</th><th>本案</th><th>判定</th><th class="l">依據</th></tr></thead><tbody>`);
-  for(const q of R.items) o.push(`<tr><td class="l">${q.item}</td><td>${q.need}</td><td>${q.cap}</td><td>${q.ok?'✓':'<b>✗</b>'}</td><td class="l">${q.ref}</td></tr>`);
+  for(const q of R.items) o.push(`<tr><td class="l">${q.item}</td><td>${q.need}</td><td>${q.cap}</td><td>${q.ok?'OK':'<b>NG</b>'}</td><td class="l">${q.ref}</td></tr>`);
   o.push(`</tbody></table>`);
   o.push(eq(`l_o=\\max\\left(D,\\ \\frac{z_i}{3},\\ 45\\right)=\\max\\left(${d(R.D,0)},\\ ${P.infl>0?d(P.infl/3,0):'—'},\\ 45\\right)=${d(R.lo03,0)}\\ \\text{cm}${P.seis?`,\\qquad ${P.site3?7:3}D=${d(R.zSeis,0)}\\ \\text{cm}`:''}\\ \\Rightarrow\\ \\text{樁頂加密區 }${d(R.lo,0)}\\ \\text{cm}`));
   o.push(note(`z_i 為彎矩反曲點深度${P.infl>0?'':'（未輸入，該項不計）'}。樁頂 l_o 依基礎規範 §5.6.3 解說 2（建議）：l_o 內箍筋間距 ≤ min(D/4, 10 cm)、l_o 外 ≤ min(D/2, 60 cm)。`
@@ -6534,7 +6569,7 @@ function shearComboRows(sh,forPrint){
     h+=`<tr${g?' style="font-weight:700"':''}><td class="l">${g?'▶ ':''}${esc(c.ctrl.L.name)}</td>`+
        `<td>${f(c.Nu/TF,0)}</td><td>${f(c.Vdes/TF,1)}</td>`+
        `<td>${f(c.V.vc/TF,1)}${c.V.zeroed?'（歸零）':''}</td>`+
-       `<td>${f(c.VsReq/TF,1)}${bad?' ✗':''}</td><td>${n(c.s_str)}</td><td>${n(Math.min(c.s_code,c.s_tors))}</td></tr>`;
+       `<td>${f(c.VsReq/TF,1)}${bad?' <b>NG</b>':''}</td><td>${n(c.s_str)}</td><td>${n(Math.min(c.s_code,c.s_tors))}</td></tr>`;
   }
   return h+`</tbody></table>`;
 }
@@ -6600,7 +6635,7 @@ function shearReport(M,sh){
     =${d(sh.VsReq/TF,1)}\\ \\text{tf}
     \\qquad V_{s,max}=${sh.bridge?"2.12\\sqrt{f'_c}\\,A_e":"2.12\\sqrt{f'_c}\\,b_wd"}=${d(sh.VsMax/TF,0)}\\ \\text{tf}`));
   if(sh.bridge) o.push(note(`橋梁剪力 φ = ${d(sh.phiS,2)}（公路橋梁耐震設計規範 §5.3.3）；V_s 上限 2.12√f'c·A_e。${M.s.type==='circle'?`圓形橋柱 V_s = (π/2)A_h f_yh D/a（式 5-2b），即以 A_v = 2A_h、有效深度 πD/4 = ${d(sh.dV,2)} cm 計（D 為圍束區直徑）。`:'V_s = A_sh f_yh d/a（式 5-2a）。'}扭矩部分仍依土木401（φ_v = ${d(m.phiv,2)}）。`));
-  if(sh.sectionFail) o.push(`<div style="color:#c00;font-weight:800;margin-left:14px">✗ V_s 需求超過上限 → 斷面不足，加箍筋無效</div>`);
+  if(sh.sectionFail) o.push(`<div style="color:#c00;font-weight:800;margin-left:14px">NG：V_s 需求超過上限 → 斷面不足，加箍筋無效</div>`);
   o.push(eq(`n_{legs}=${sh.nlegs},\\qquad A_v=n_{legs}A_{t}=${sh.nlegs}\\times${d(sh.At1,3)}=${d(sh.Av,3)}\\ \\text{cm}^2`));
   if(sh.torsion){
     o.push(eq(`A_{oh}=${d(sh.Aoh,0)}\\ \\text{cm}^2,\\quad A_o=0.85A_{oh}=${d(sh.Ao,0)},\\quad p_h=${d(sh.ph,1)}\\ \\text{cm}`));
@@ -6610,7 +6645,7 @@ function shearReport(M,sh){
     o.push(eq(`A_l=\\frac{A_t}{s}p_h\\frac{f_{yt}}{f_y}\\cot^2\\theta=${d(sh.Al,1)}\\ \\text{cm}^2\\ \\ (\\text{追加扭矩縱筋})`));
     o.push(eq(`\\frac{V_{des}}{b_wd}+${sh.thin ? `\\frac{T_u}{1.7A_{oh}t_w}` : `\\frac{T_up_h}{1.7A_{oh}^2}`}=${d(sh.lhs,2)}\\ \\le\\
       \\phi_v\\left(\\frac{V_c}{b_wd}+2.12\\sqrt{f'_c}\\right)=${d(sh.rhs,2)}\\ \\text{kgf/cm}^2
-      \\ \\ ${sh.sectOver?'\\;\\textbf{✗}':'\\;\\checkmark'}`));
+      \\ \\ ${sh.sectOver?'\\;\\textbf{NG}':'\\;\\text{OK}'}`));
   }else o.push(`<div class="rp-note">T_u = ${d(sh.Tu/TFM,1)} tf·m ≤ 門檻 φT_th = φ·0.265√f'c·A_cp²/p_cp = ${d(sh.Tthr/TFM,1)} tf·m，扭矩可忽略（ACI 22.7.4.1）。</div>`);
   if(sh.torsion){
     o.push(eq(`\\frac{A_v}{s}\\bigg|_{tot}=\\frac{V_s}{f_{yt}${sh.dV!==sh.d?'(\\pi D/4)':'d'}}+2\\frac{A_t}{s}=${d(sh.AvS_shear,5)}+${d(2*sh.AtS,5)}
@@ -6747,9 +6782,9 @@ function selfTest(){
   { const R = colOptimize(), g = R.main[0];
     if(!g) T('建議配筋：有合格之主筋配置', false, R.mainNote.join('；') || '無候選');
     else{
-      const v = withInputs(g.ovrAll, ()=>{ const M2 = colPipeline(); return {M2, bad: colAlertItems(M2).filter(a=>a.lv==='bad' && (a.ids||[]).some(x=>[...OPT_GRP.pMain, ...OPT_GRP.pTie].includes(x)))}; });
-      T('建議配筋第一名重驗合格', !v.bad.length && v.M2.ctrlFlex.dc <= 1 + 1e-9,
-        `${g.label}${g.tie?'、'+g.tie.size:''}：D/C = ${fdc(v.M2.ctrlFlex.dc)}，與配筋相關之不合格 ${v.bad.length} 項`);
+      const v = withInputs(g.ovrAll, ()=>{ const M2 = colPipeline(); return {M2, bad: colAlertItems(M2).filter(a=>a.lv==='bad')}; });
+      T('建議配筋第一名重驗合格（無任何不合格）', !v.bad.length && v.M2.ctrlFlex.dc <= 1 + 1e-9,
+        `${g.label}${g.tie?'、'+g.tie.size:''}：D/C = ${fdc(v.M2.ctrlFlex.dc)}，不合格 ${v.bad.length} 項`);
       const sorted = R.main.every((x,i)=> i===0 || R.main[i-1].total <= x.total + 1e-9);
       T('建議配筋依合計用鋼量排序', sorted, R.main.map(x=>f(x.total,1)).join(' ≤ ')+' kg/m');
     } }
@@ -7222,6 +7257,14 @@ function optFails(items, varIds, otherIds, base, ignoreOther=true){
     return !base.has(optKey(a));
   });
 }
+/* 完整重驗：套用後之全部不合格項目。建議清單只列「套用後無任何不合格」者 */
+const optBadOf = items => items.filter(a=>a.lv==='bad');
+function optAllBadBeam(ovr){
+  let A = [];
+  for(const sg of ['pos','neg']){ const v = beamEvalSign(ovr, sg); if(!v) return [{lv:'bad', t:'計算失敗'}]; A = A.concat(optBadOf(v.items)); }
+  return A;
+}
+const optDropNote = (n, eg) => `另有 ${n} 組候選於完整重驗時仍有不合格項目，未列入（例：${esc(optPlain(eg).slice(0,90))}）。`;
 /* 目前畫面上、配筋無法解決之不合格（相關參數不含任何鋼筋欄位） */
 function optFixedBad(items, rebarIds){
   return items.filter(a=>a.lv==='bad' && !(a.ids||[]).some(x=>rebarIds.includes(x)));
@@ -7352,10 +7395,10 @@ function colTieCands(M0, base, mainOvr, dbMain){
     const ovr = {tieSize:t, ...(L ? {tieLayout:L} : {}), ...(s.type==='box' ? {dbl:'1'} : {})};
     const v = withInputs({...mainOvr, ...ovr}, ()=>{
       const M = colPipeline(), items = colAlertItems(M);
-      return {M, fails: optFails(items, OPT_GRP.pTie, OPT_GRP.pMain, base, false)};
+      return {M, fails: optFails(items, OPT_GRP.pTie, OPT_GRP.pMain, base, false), allBad: optBadOf(items)};
     });
     const M = v.M;
-    all.push({size:t, layout:L, ovr, M, fails:v.fails, ok:!v.fails.length,
+    all.push({size:t, layout:L, ovr, M, fails:v.fails, allBad:v.allBad, ok:!v.fails.length,
               s1:M.fin.sUse, s2:M.fin2 ? M.fin2.sUse : null, gov:M.fin.gov.tag, gov2:M.fin2 ? M.fin2.gov.tag : '',
               sets:M.lay.total, kg:colTieKg(M)});
   }
@@ -7396,19 +7439,28 @@ function colOptimize(){
   if(Number.isFinite(MC.pitchMax)) out.mainNote.push(`耐震：主筋間距 ≤ ${f(MC.pitchMax,0)} cm（h_x 上限，§18.4.5.2；每根主筋皆設繫筋時 h_x 即主筋間距）。`);
   if(!out.main.length && lastFail) out.mainNote.push('最接近之候選仍不合格：' + lastFail.fails.map(optPlain).map(t=>t.slice(0,90)).join('；'));
   /* 每組主筋配上其最省之橫向筋，依「主筋＋橫向筋」合計用鋼量排序（細主筋常使 6d_b 間距上限變密，未必最省） */
+  /* 橫向筋只取「主筋＋橫向筋」套用後完全無不合格者；找不到則該組主筋不列入 */
+  let dropM = 0, egM = null;
   for(const g of out.main){
     g.kgMain = optMainKgCol(g.M);
     const T = colTieCands(M0, base, g.ovr, BAR[g.size].d).ok;
-    g.tie = T[0] || null;
-    g.total = g.kgMain + (g.tie ? g.tie.kg : Infinity);
-    g.ovrAll = g.tie ? {...g.ovr, ...g.tie.ovr} : g.ovr;
+    g.tie = T.find(t=>!t.allBad.length) || null;
+    if(!g.tie){ dropM++; const t0 = T[0]; egM = egM || (t0 ? t0.allBad[0] : g.M && optBadOf(colAlertItems(g.M))[0]) || {t:'找不到合格之橫向筋'}; continue; }
+    g.total = g.kgMain + g.tie.kg;
+    g.ovrAll = {...g.ovr, ...g.tie.ovr};
   }
+  out.main = out.main.filter(g=>g.tie);
+  if(dropM) out.mainNote.push(optDropNote(dropM, egM));
   out.main.sort((a,b)=> a.total - b.total || a.M.Ast - b.M.Ast);
   /* 橫向筋（依目前主筋） */
   const s = M0.s, circ = s.type==='circle', pile = !!M0.opt.pile;
   const TC = colTieCands(M0, base, {}, M0.R.db);
   for(const g of TC.all) g.isCur = g.size===M0.r.tieSize && (circ || g.layout===M0.opt.tieMode);
-  out.tieAll = TC.all; out.ties = TC.ok.slice(0,6);
+  out.tieAll = TC.all;
+  const tieOk = TC.ok.filter(g=>!g.allBad.length);
+  out.ties = tieOk.slice(0,6);
+  if(TC.ok.length && !tieOk.length)
+    out.tieNote.push(`僅調整橫向筋無法使全部檢核合格（例：${esc(optPlain(TC.ok[0].allBad[0]).slice(0,90))}）；請改用上方「主筋＋橫向筋」組合或修正其他參數。`);
   if(!TC.ok.length){
     const b = TC.all.reduce((a,b)=> (a && a.fails.length <= b.fails.length) ? a : b, null);
     if(b) out.tieNote.push(`所有號數皆不合格（以 ${b.size}${b.layout?'、'+(b.layout==='all'?'每根皆設':'每隔一根'):''} 為例）：` + b.fails.map(optPlain).map(t=>t.slice(0,90)).join('；'));
@@ -7448,14 +7500,15 @@ function beamTieCands(S0, base, mainOvr, pool){
   }
   for(const {size:t, nLegs:n} of combos){
     const ovr = {bTieSize:t, bNlegs:n};
-    let fails = [], B = null;
+    let fails = [], B = null, allBad = [];
     for(const sg of ['pos','neg']){
       const v = beamEvalSign({...mainOvr, ...ovr}, sg); if(!v){ fails.push({t:'計算失敗'}); continue; }
+      allBad = allBad.concat(optBadOf(v.items));
       fails = fails.concat(optFails(v.items, OPT_GRP.bTie, [...OPT_GRP.bBot, ...OPT_GRP.bTop], base[sg], false));
       if(sg===S0.sign) B = v.B;
     }
     if(!B) continue;
-    all.push({size:t, nLegs:n, ovr, B, fails, ok:!fails.length, s1:B.fin.sUse, s2:B.fin2 ? B.fin2.sUse : null,
+    all.push({size:t, nLegs:n, ovr, B, fails, allBad, ok:!fails.length, s1:B.fin.sUse, s2:B.fin2 ? B.fin2.sUse : null,
               gov:B.fin.gov.t, gov2:B.fin2 ? B.fin2.gov.t : '', sets:B.lay.total, kg:beamStirKg(B),
               isCur: t===S0.tieSize && n===Math.round(S0.nLegs)});
   }
@@ -7497,13 +7550,6 @@ function beamOptimize(){
                  isCur: sign==='pos' ? (g.size===S0.botSize && (slab ? Math.abs(g.sp-S0.spBot)<1e-6 : g.n===Math.round(S0.nBot)))
                                      : (g.size===S0.topSize && (slab ? Math.abs(g.sp-S0.spTop)<1e-6 : g.n===Math.round(S0.nTop)))});
     }
-    // 每組主筋配上最省之箍筋（耐震梁 6d_b 間距上限使細主筋需較密箍筋），依合計用鋼量排序
-    for(const g of list){
-      g.tie = slab ? null : (beamTieCands(S0, base, g.ovr, pool).ok[0] || beamTieCands(S0, base, g.ovr).ok[0] || null);
-      g.total = g.kg + (slab ? 0 : g.tie ? g.tie.kg : Infinity);
-      g.ovrAll = g.tie ? {...g.ovr, ...g.tie.ovr} : g.ovr;
-    }
-    list.sort((a,b)=> a.total - b.total || a.As - b.As);
     if(Mu < 1e-6) note.push(`M_u${sign==='pos'?'⁺':'⁻'} = 0：依 A_s,min 與構造需求列出。`);
     if(!list.length) note.push(cands.length
       ? '候選皆不合格：' + (lastFail ? lastFail.fails.map(optPlain).map(t=>t.slice(0,90)).join('；') : '')
@@ -7519,8 +7565,37 @@ function beamOptimize(){
   }
   side('pos', OPT_GRP.bBot, [...OPT_GRP.bTop, ...OPT_GRP.bTie], out.bot, out.botNote, pool);
   side('neg', OPT_GRP.bTop, [...OPT_GRP.bBot, ...OPT_GRP.bTie], out.top, out.topNote, pool);
+  /* 每組主筋配上最省之箍筋（耐震梁 6d_b 間距上限使細主筋需較密箍筋），並以兩種檢核斷面完整重驗：
+     套用後不得有任何不合格。另一側目前配筋不合格時，改搭配另一側建議第一名一併套用（同一按鈕） */
+  const fin = (list, other, note, otherName) => {
+    const best = other[0] ? other[0].ovr : null;
+    let drop = 0, eg = null;
+    for(const g of list){
+      g.ok = false;
+      for(const extra of best ? [{}, best] : [{}]){
+        const mo = {...extra, ...g.ovr};
+        g.withOther = extra === best ? `${otherName}一併改為 ${other[0].label}${slab?' cm':''}` : '';
+        if(slab){
+          const bad = optAllBadBeam(mo);
+          if(!bad.length){ g.ok = true; g.ovrAll = mo; g.total = g.kg; break; }
+          eg = eg || bad[0]; continue;
+        }
+        const T = beamTieCands(S0, base, mo, pool).ok.find(t=>!t.allBad.length) || beamTieCands(S0, base, mo).ok.find(t=>!t.allBad.length);
+        if(T){ g.ok = true; g.tie = T; g.ovrAll = {...mo, ...T.ovr}; g.total = g.kg + T.kg; break; }
+        if(!eg){ const T0 = beamTieCands(S0, base, mo, pool).all.find(t=>t.allBad.length); eg = T0 ? T0.allBad[0] : {t:'找不到合格之箍筋'}; }
+      }
+      if(!g.ok) drop++;
+    }
+    const keep = list.filter(g=>g.ok); list.length = 0; list.push(...keep);
+    list.sort((a,b)=> a.total - b.total || a.As - b.As);
+    if(drop) note.push(optDropNote(drop, eg));
+  };
+  const top0 = out.top.slice(), bot0 = out.bot.slice();
+  fin(out.bot, top0, out.botNote, '頂筋'); fin(out.top, bot0, out.topNote, '底筋');
   if(slab){ out.tieNote.push('版不配剪力筋；剪力由 φV_c 檢核（見警示）。'); return out; }
-  out.ties = TC.ok.slice(0,6);
+  out.ties = TC.ok.filter(g=>!g.allBad.length).slice(0,6);
+  if(TC.ok.length && !out.ties.length)
+    out.tieNote.push(`僅調整箍筋無法使全部檢核合格（例：${esc(optPlain(TC.ok[0].allBad[0]).slice(0,90))}）；請改用上方主筋建議（含配合箍筋）或修正其他參數。`);
   if(!TC.ok.length && TC.all.length){
     const b = TC.all.reduce((a,b)=> a.fails.length <= b.fails.length ? a : b);
     out.tieNote.push(`所有號數與肢數皆不合格（以 ${b.size} ${b.nLegs} 肢為例）：` + b.fails.map(optPlain).map(t=>t.slice(0,90)).join('；'));
@@ -7539,7 +7614,7 @@ function optApplyBtn(mod, ovr, cur){
 }
 function optFixedHtml(res){
   if(!res.fixed.length) return '';
-  return `<div class="alert a-warn mt-2"><b>以下不合格與配筋無關，調整鋼筋無法解決</b>（須改斷面、材料或載重）：<br>`
+  return `<div class="alert a-bad mt-2"><b>以下不合格與配筋無關，調整鋼筋無法解決</b>（須改斷面、材料或載重）。建議配筋只列「套用後無任何不合格」之組合，請先修正下列項目：<br>`
     + res.fixed.map(a=>'・'+esc(optPlain(a).slice(0,120))).join('<br>') + '</div>';
 }
 const optNotes = arr => arr.length ? `<div class="text-[11.5px] mt-1" style="color:var(--dim)">${arr.map(t=>'・'+t).join('<br>')}</div>` : '';
@@ -7588,8 +7663,8 @@ function optHtmlBeam(res){
       const tie = slab ? `<td>${f(g.kg,1)}</td>`
         : `<td class="l" style="white-space:nowrap">${T ? `${T.size} ${T.nLegs} 肢 @ ${f(T.s1,1)}${T.s2!=null && T.s2!==T.s1 ? '／'+f(T.s2,1) : ''}` : '<span style="color:var(--bad)">無合格箍筋</span>'}</td>
            <td><b>${T ? f(g.total,1) : '—'}</b><br><span style="color:var(--dim);font-size:11px;font-weight:400;white-space:nowrap">主筋 ${f(g.kg,1)}＋箍筋 ${T ? f(T.kg,1) : '—'}</span></td>`;
-      const cur = g.isCur && (slab || !T || (T.size===S0.tieSize && T.nLegs===Math.round(S0.nLegs)));
-      t += `<tr${g.isCur?' style="font-weight:700"':''}><td class="l" style="white-space:nowrap">${g.label}${slab?' cm':''}</td>${slab?'':`<td>${g.rows}</td>`}<td>${f(g.As,2)}</td><td>${f(B.phiMn/TFM,1)}</td>
+      const cur = g.isCur && !g.withOther && (slab || !T || (T.size===S0.tieSize && T.nLegs===Math.round(S0.nLegs)));
+      t += `<tr${g.isCur?' style="font-weight:700"':''}><td class="l" style="white-space:nowrap">${g.label}${slab?' cm':''}${g.withOther?`<br><span style="color:var(--warn);font-size:11px;font-weight:400">${esc(g.withOther)}</span>`:''}</td>${slab?'':`<td>${g.rows}</td>`}<td>${f(g.As,2)}</td><td>${f(B.phiMn/TFM,1)}</td>
         <td>${B.ctrl?fdc(B.ctrl.dc):'—'}</td><td>${f(B.sol.eps_t,4)}</td><td>${g.clear>90?'—':f(g.clear,1)}</td>${tie}<td>${optApplyBtn('beam', g.ovrAll, cur)}</td></tr>`;
     }
     return t + `</tbody></table>`;
@@ -8708,13 +8783,13 @@ function beamSelfTest(){
       `M_pr⁺ = ${f(B.sh.MprP/TFM,1)} > M_n⁺ = ${f((B.solPos?B.solPos.Mn:0)/TFM,1)} tf·m`);
 
   // 11) 建議配筋：底筋、頂筋第一名各以兩種檢核斷面重驗，D/C ≤ 1 且無與配筋相關之不合格
-  { const R = beamOptimize(), ids = [...OPT_GRP.bBot, ...OPT_GRP.bTop, ...OPT_GRP.bTie];
+  { const R = beamOptimize();
     for(const [k, nm] of [['bot','底筋'], ['top','頂筋']]){
       const g = R && R[k][0]; if(!g) continue;
       let bad = 0, dc = 0;
-      for(const sg of ['pos','neg']){ const v = beamEvalSign(g.ovrAll, sg); bad += v.items.filter(a=>a.lv==='bad' && (a.ids||[]).some(x=>ids.includes(x))).length;
+      for(const sg of ['pos','neg']){ const v = beamEvalSign(g.ovrAll, sg); bad += v.items.filter(a=>a.lv==='bad').length;
         if(v.B.ctrl) dc = Math.max(dc, v.B.ctrl.dc); }
-      T(`建議${nm}第一名重驗合格`, !bad && dc <= 1 + 1e-9, `${g.label}${g.tie?'、'+g.tie.size+' '+g.tie.nLegs+' 肢':''}：最大 D/C = ${fdc(dc)}，與配筋相關之不合格 ${bad} 項`);
+      T(`建議${nm}第一名重驗合格（無任何不合格）`, !bad && dc <= 1 + 1e-9, `${g.label}${g.tie?'、'+g.tie.size+' '+g.tie.nLegs+' 肢':''}：最大 D/C = ${fdc(dc)}，不合格 ${bad} 項`);
     } }
 
   const pass=out.filter(o=>o.ok).length;
@@ -8831,7 +8906,7 @@ function buildBeamReport(B){
     if(B.ctrl){
       o.push(eq(`D/C=\\frac{M_u}{\\phi M_n}=\\frac{${d(B.ctrl.k.Mu/TFM,2)}}{${d(B.phiMn/TFM,2)}}=${fdc(B.ctrl.dc)}`));
       o.push(`<div style="font-size:14px;font-weight:800;padding:8px;border:2px solid ${B.ctrl.dc>1?'#c00':'#060'};display:inline-block">
-        D/C = ${fdc(B.ctrl.dc)} ${B.ctrl.dc>1?'> 1.0 　✗ 不合格':'≤ 1.0 　✓ 合格'}</div>`);
+        D/C = ${fdc(B.ctrl.dc)} ${B.ctrl.dc>1?'> 1.0 　不合格（NG）':'≤ 1.0 　合格（OK）'}</div>`);
     }
   }
   if(B.sug.length){
@@ -8852,7 +8927,7 @@ function buildBeamReport(B){
   if(sh.all && sh.all.length > 1){
     o.push(note(`各載重組合逐一檢核（設計剪力、扭矩、V_c 歸零條件各組合不同），斷面不足者優先，其次取需求間距最小者為控制組合：<b>${esc(sh.ctrl.L.name)}</b>。`));
     o.push(`<table class="no-break"><thead><tr><th class="l">組合</th><th>V_des (tf)</th><th>T_u (tf·m)</th><th>V_s 需求 (tf)</th><th>A_t/s</th><th>強度需求 s (cm)</th><th>控制 s (cm)</th></tr></thead><tbody>`);
-    for(const c of sh.all) o.push(`<tr${c===sh.all.find(x=>x.ctrl===sh.ctrl)?' style="font-weight:700;background:#f0f0f0"':''}><td class="l">${esc(c.ctrl.L.name)}</td><td>${d(c.Vdes/TF,1)}</td><td>${d(c.Tu/TFM,1)}${c.tors?'':' (可忽略)'}</td><td>${d(c.VsReq/TF,1)}${c.fail||c.over?' ✗':''}</td><td>${d(c.AtS,5)}</td><td>${c.sStr<1e8?d(c.sStr,1):'—'}</td><td>${c.sGov<1e8?d(c.sGov,1):'—'}</td></tr>`);
+    for(const c of sh.all) o.push(`<tr${c===sh.all.find(x=>x.ctrl===sh.ctrl)?' style="font-weight:700;background:#f0f0f0"':''}><td class="l">${esc(c.ctrl.L.name)}</td><td>${d(c.Vdes/TF,1)}</td><td>${d(c.Tu/TFM,1)}${c.tors?'':' (可忽略)'}</td><td>${d(c.VsReq/TF,1)}${c.fail||c.over?' <b>NG</b>':''}</td><td>${d(c.AtS,5)}</td><td>${c.sStr<1e8?d(c.sStr,1):'—'}</td><td>${c.sGov<1e8?d(c.sGov,1):'—'}</td></tr>`);
     o.push(`</tbody></table>`);
   }
   if(S.seismic){
@@ -8875,7 +8950,7 @@ function buildBeamReport(B){
   if(sh.kV<1 && !sh.VcZero) o.push(note(SLURRY_VC_NOTE));
   if(S.slab){
     o.push(eq(`\\phi V_c=${d(m.phiv,2)}\\times${d(sh.Vc/TF,2)}=${d(sh.phiVc/TF,2)}\\ \\text{tf}\\quad
-      ${sh.slabFail?'\\lt':'\\ge'}\\quad V_u=${d(sh.Vdes/TF,2)}\\ \\text{tf}\\ \\ ${sh.slabFail?'\\textbf{✗ 版厚不足}':'\\checkmark\\ (\\text{不需剪力筋})'}`));
+      ${sh.slabFail?'\\lt':'\\ge'}\\quad V_u=${d(sh.Vdes/TF,2)}\\ \\text{tf}\\ \\ ${sh.slabFail?'\\textbf{NG（版厚不足）}':'\\text{OK}\\ (\\text{不需剪力筋})'}`));
     o.push(`<div class="rp-h3">5.2 主筋間距</div>`);
     o.push(eq(`s=${d(fin.sUse,1)}\\ \\text{cm}\\ ${fin.tooTight?'\\gt':'\\le'}\\ \\min(3h,\\ 45)=\\min(3\\times${d(S.h,0)},\\ 45)=${d(fin.gov.v,1)}\\ \\text{cm}`));
   }else{
@@ -8894,7 +8969,7 @@ function buildBeamReport(B){
     o.push(eq(`\\frac{A_t}{s}=\\frac{T_u}{2\\phi_v A_o f_{yt}\\cot\\theta}=${d(sh.AtS,5)}\\ \\text{cm}^2/\\text{cm}
       \\qquad A_l=\\frac{A_t}{s}p_h\\frac{f_{yt}}{f_y}\\cot^2\\theta=${d(sh.Al,2)}\\ \\text{cm}^2`));
     o.push(eq(`\\sqrt{\\left(\\frac{V_{des}}{b_w d}\\right)^2+\\left(\\frac{T_u p_h}{1.7A_{oh}^2}\\right)^2}=${d(sh.lhs,2)}
-      \\ \\le\\ \\phi_v\\left(\\frac{V_c}{b_w d}+2.12\\sqrt{f'_c}\\right)=${d(sh.rhs,2)}\\ \\text{kgf}/\\text{cm}^2${sh.over?'\\ \\textbf{✗}':'\\ \\checkmark'}`));
+      \\ \\le\\ \\phi_v\\left(\\frac{V_c}{b_w d}+2.12\\sqrt{f'_c}\\right)=${d(sh.rhs,2)}\\ \\text{kgf}/\\text{cm}^2${sh.over?'\\ \\textbf{NG}':'\\ \\text{OK}'}`));
   } else o.push(note(`T_u = ${d(sh.Tu/TFM,1)} ≤ 門檻 ${d(sh.Tthr/TFM,1)} tf·m，扭矩可忽略。`));
 
   o.push(`<div class="rp-h3">5.${S.seismic?(sh.tors?'4':'3'):(sh.tors?'3':'2')} 箍筋間距彙整</div>`);
@@ -8926,7 +9001,7 @@ function buildBeamReport(B){
     + note(S.slab ? `c_c 取版之淨保護層 ${d(S.cover,1)} cm（版不配箍筋）。`
                   : `c_c 為拉力主筋至受拉面之淨保護層 = 保護層（量至箍筋）＋箍筋直徑 = ${d(S.cover,1)} + ${d(R.dt,2)} = ${d(crack.cc,2)} cm（土木401-112 §24.3.2）。`));
   o.push(eq(`s_{\\text{實際}}=${d(crack.sAct,2)}\\ \\text{cm}\\ ${crack.ok?'\\le':'\\gt'}\\ ${d(crack.sLim,2)}\\ \\text{cm}
-    \\quad${crack.ok?'\\checkmark':'\\textbf{✗}'}`));
+    \\quad${crack.ok?'\\text{OK}':'\\textbf{NG}'}`));
 
   if(S.env==='water'){
     const c=B.cw;
@@ -8934,7 +9009,7 @@ function buildBeamReport(B){
     o.push(eq(`M_s=${pos?`M_D+M_L=${d(S.MD,1)}+${d(S.ML,1)}`:`M_D^-+M_L^-=${d(S.MDn,1)}+${d(S.MLn,1)}`}=${d(c.Ms/TFM,1)}\\ \\text{tf}\\cdot\\text{m},\\qquad
       f_s=\\frac{n\\,M_s\\,(d-x)}{I_{cr}}=\\frac{${d(B.defl.n,2)}\\times${d(c.Ms,0)}\\times(${d(B.d,2)}-${d(c.x,2)})}{${d(B.defl.Icr,0)}}=${d(c.fs,0)}\\ \\text{kgf/cm}^2`));
     o.push(eq(`\\beta=\\frac{h-x}{d-x}=${d(c.beta,3)},\\quad d_c=${d(c.dc,2)}\\ \\text{cm},\\quad A=2d_c\\times${d(c.pitch,1)}=${d(c.A,1)}\\ \\text{cm}^2`));
-    o.push(eq(`w=1.1\\times10^{-5}\\,\\beta\\,f_s\\sqrt[3]{d_cA}=${d(c.w,3)}\\ \\text{mm}\\ ${c.ok?'\\le':'\\gt'}\\ w_{lim}=${d(c.wLim,2)}\\ \\text{mm}\\ \\ ${c.ok?'\\checkmark':'\\textbf{✗}'}`));
+    o.push(eq(`w=1.1\\times10^{-5}\\,\\beta\\,f_s\\sqrt[3]{d_cA}=${d(c.w,3)}\\ \\text{mm}\\ ${c.ok?'\\le':'\\gt'}\\ w_{lim}=${d(c.wLim,2)}\\ \\text{mm}\\ \\ ${c.ok?'\\text{OK}':'\\textbf{NG}'}`));
     o.push(note(`公式以 SI 單位代入（f_s：MPa、d_c：mm、A：mm²）。水工加嚴未包含 ACI 350 環境耐久係數 S_d。`));
   }
   o.push(`<div class="rp-h3">6.2 撓度</div>`);
@@ -8962,12 +9037,12 @@ function buildBeamReport(B){
     o.push(`<div class="rp-h2">7. 耐震特殊抗彎構材附加規定</div>`);
     const r = B.phiNeg>0 ? B.phiPos/B.phiNeg : 0;
     o.push(`<table class="no-break"><thead><tr><th class="l">項目</th><th class="l">規定</th><th>實際</th><th>判定</th></tr></thead><tbody>
-      <tr><td class="l">腹板寬</td><td class="l">b_w ≥ max(0.3h, 25 cm)</td><td>${d(S.bw,0)} / ${d(Math.max(0.3*S.h,25),1)} cm</td><td>${S.bw>=Math.max(0.3*S.h,25)?'✓':'✗'}</td></tr>
-      <tr><td class="l">淨跨</td><td class="l">l_n ≥ 4d</td><td>${d(S.ln,0)} / ${d(4*B.d,0)} cm</td><td>${S.ln>=4*B.d?'✓':'✗'}</td></tr>
-      <tr><td class="l">鋼筋比</td><td class="l">ρ ≤ 0.025</td><td>${d(B.rho,5)}</td><td>${B.rho<=0.025?'✓':'✗'}</td></tr>
-      <tr><td class="l">接頭面正彎矩</td><td class="l">φM_n⁺ ≥ 0.50 φM_n⁻</td><td>${d(r,3)}</td><td>${r>=0.5?'✓':'✗'}</td></tr>
+      <tr><td class="l">腹板寬</td><td class="l">b_w ≥ max(0.3h, 25 cm)</td><td>${d(S.bw,0)} / ${d(Math.max(0.3*S.h,25),1)} cm</td><td>${S.bw>=Math.max(0.3*S.h,25)?'OK':'NG'}</td></tr>
+      <tr><td class="l">淨跨</td><td class="l">l_n ≥ 4d</td><td>${d(S.ln,0)} / ${d(4*B.d,0)} cm</td><td>${S.ln>=4*B.d?'OK':'NG'}</td></tr>
+      <tr><td class="l">鋼筋比</td><td class="l">ρ ≤ 0.025</td><td>${d(B.rho,5)}</td><td>${B.rho<=0.025?'OK':'NG'}</td></tr>
+      <tr><td class="l">接頭面正彎矩</td><td class="l">φM_n⁺ ≥ 0.50 φM_n⁻</td><td>${d(r,3)}</td><td>${r>=0.5?'OK':'NG'}</td></tr>
       <tr><td class="l">加密區長度</td><td class="l">自柱面 2h</td><td>${d(sh.confLen,0)} cm</td><td>—</td></tr>
-      <tr><td class="l">加密區間距</td><td class="l">s ≤ min(d/4, ${seisKdb(m.fy)}d_b, 15 cm)</td><td>${d(sh.sConf,2)} cm</td><td>${fin.sUse<=sh.sConf?'✓':'✗'}</td></tr>
+      <tr><td class="l">加密區間距</td><td class="l">s ≤ min(d/4, ${seisKdb(m.fy)}d_b, 15 cm)</td><td>${d(sh.sConf,2)} cm</td><td>${fin.sUse<=sh.sConf?'OK':'NG'}</td></tr>
     </tbody></table>`);
     o.push(note(`<b>未涵蓋</b>：「任一斷面 M_n ≥ 端部最大 M_n 之 25%」需整根梁的彎矩包絡線，
       無法由單一斷面判斷，請另行檢核。`));
@@ -9218,6 +9293,7 @@ let PIN_STATUS = { pylon:{}, beam:{} };
 function pinBuild(mod, railEl, sheetEl, detailEl){
   const st = PIN[mod];
   st.rail = railEl; st.sheet = sheetEl; st.detail = detailEl;
+  if(window.ResizeObserver){ let w0 = -1; new ResizeObserver(() => { const w = sheetEl.clientWidth; if(w && w !== w0){ w0 = w; pinFit(mod); } }).observe(sheetEl); }
   const meta = PIN_META[mod];
 
   // 把原有控制項搬進 sheet：先建列，再 appendChild（保留 id / options / listener）
@@ -9305,6 +9381,7 @@ function pinRender(mod){
     });
   });
   pinDetail(mod);
+  pinFit(mod);
 }
 
 
@@ -9487,7 +9564,22 @@ function pinStatus(mod, map){
     d.title = {ok:'通過', note:'有需要你確認的選項（非錯誤）', warn:'需要注意', bad:'不符規定'}[worst];
   });
   pinDetail(mod);
+  pinFit(mod);
 }
+/* 參數表：下拉選項全文放不下值欄時改兩行配置（pin-long），值、單位、狀態皆不被截斷 */
+function pinFit(mod){
+  const st = PIN[mod]; if(!st || !st.sheet || !st.sheet.offsetParent) return;
+  const cv = pinFit.cv || (pinFit.cv = document.createElement('canvas').getContext('2d'));
+  const sels = [...st.sheet.querySelectorAll('.pin-row .pin-v select')].filter(el => el.closest('.pin-row').offsetParent);
+  for(const el of sels) el.closest('.pin-row').classList.remove('pin-long');      // 先回一般配置再一次量測（單次重排）
+  const long = sels.filter(el => {
+    const t = el.options[el.selectedIndex] ? el.options[el.selectedIndex].text : '';
+    const cs = getComputedStyle(el); cv.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+    return cv.measureText(t).width + parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight) + 2 > el.clientWidth;
+  });
+  for(const el of long) el.closest('.pin-row').classList.add('pin-long');
+}
+{ let tm = 0; window.addEventListener('resize', () => { clearTimeout(tm); tm = setTimeout(() => { pinFit('pylon'); pinFit('beam'); }, 80); }); }
 
 /* =========================================================================
    啟動
