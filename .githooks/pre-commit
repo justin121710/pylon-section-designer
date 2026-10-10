@@ -1,5 +1,5 @@
 #!/bin/sh
-# 每次提交前確保 docs/RC斷面設計工具_操作教學.pdf 對應本次提交的程式與教學原始檔。
+# 每次提交前確保 docs/RC斷面設計工具_操作教學.pdf、_常見問題.pdf 對應本次提交的程式與原始檔。
 # 啟用：git config core.hooksPath .githooks
 # PDF 過期時自動重建並加入本次提交；無法建置時中止提交。
 ROOT=$(git rev-parse --show-toplevel) || exit 1
@@ -18,5 +18,5 @@ if [ ! -d docs/tutorial/node_modules ]; then
 fi
 echo "… 操作教學 PDF 已過期，重新建置中（約 1～2 分鐘）"
 (cd docs/tutorial && node build.js) || { echo "✗ 操作教學 PDF 建置失敗，提交已中止"; exit 1; }
-git add "docs/RC斷面設計工具_操作教學.pdf" docs/tutorial/stamp.txt
+git add "docs/RC斷面設計工具_操作教學.pdf" "docs/RC斷面設計工具_常見問題.pdf" docs/tutorial/stamp.txt
 sh docs/tutorial/check.sh || exit 1

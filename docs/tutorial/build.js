@@ -14,6 +14,7 @@ const http = require('http'), path = require('path'), fs = require('fs'), { exec
 const HERE = __dirname, ROOT = path.resolve(HERE, '../..'), NM = path.join(HERE, 'node_modules');
 const IMG = path.join(HERE, 'img'), XL = path.join(HERE, 'xl');
 const OUT = path.join(ROOT, 'docs', 'RC斷面設計工具_操作教學.pdf');
+const OUT_FAQ = path.join(ROOT, 'docs', 'RC斷面設計工具_常見問題.pdf');
 const INPUTS = fs.readFileSync(path.join(HERE, 'inputs.txt'), 'utf8').split('\n').map(s => s.trim()).filter(s => s && !s.startsWith('#'));   // 影響 PDF 內容的檔案
 const W = 1440, H = 900;
 
@@ -151,6 +152,55 @@ async function screenshots(browser, base){
   await shot('24-beam', [['#bSignPos',1],['#railB',2,2],['#wsB .ws-tabs',3]]);
   await ws('load'); await W8(500);
   { const a = await pane(); a.height = Math.min(520, a.height); await shot('25-beam-load', [['#bLoadTbl',1],['#bPaste',2]], a); }
+
+  /* ===== 常見問題（FAQ）用截圖：f-*.png ===== */
+  const preset = (mod, key) => page.evaluate(([mod, key]) => {
+    document.getElementById(mod==='beam' ? 'tabBeam' : 'tabPylon').click();
+    PRESET_BASE.pylon = null; PRESET_BASE.beam = null;
+    const s = document.getElementById(mod==='beam' ? 'bPreset' : 'preset'); s.value = key; s.dispatchEvent(new Event('change'));
+  }, [mod, key]);
+  const setv = (id, v) => page.evaluate(([id, v]) => { const e = document.getElementById(id); e.value = v; e.dispatchEvent(new Event(e.tagName==='SELECT' ? 'change' : 'input')); }, [id, v]);
+  const tag = (sel, re) => page.evaluate(([sel, re]) => { const e = [...document.querySelectorAll(sel)].find(x => new RegExp(re).test(x.textContent));
+    if(!e) throw new Error('找不到 ' + re); e.id = '__t'; e.scrollIntoView({block:'start'}); }, [sel, re]);
+  const untag = () => page.evaluate(() => { const e = document.getElementById('__t'); if(e) e.removeAttribute('id'); });
+  const sheetClip = async () => { const a = await box('#railP'), d = await box('#detailP'); return {x:0, y:a.y-10, width:d.x+d.width+12, height:Math.min(H-a.y+10, 700)}; };
+  // 水工結構警示（梁：滯洪池頂版）
+  await preset('beam', 'pondTop'); await W8(700);
+  await ws('warn'); await W8(400); await tag('#bAlerts .alert', '載重來源與檢核定位'); await W8(200);
+  await shot('f-water', [['#__t',1]], await pane()); await untag();
+  await setv('envWater', 'normal'); await W8(300);
+  // 柱
+  TABSEL = () => '#wsP';
+  await preset('col', 'pier100'); await W8(700);
+  await ws('sum'); await W8(400);
+  await page.evaluate(() => { const d = document.querySelector('#summary details'); d.open = true; d.id = '__t'; d.scrollIntoView({block:'start'}); }); await W8(300);
+  await shot('f-shear', [['#__t',1]], await pane()); await untag();
+  // 輸入空白 → 紅框與警示
+  await preset('col', 'bldg60'); await W8(600);
+  await group('材料'); await W8(200); await setv('fc', ''); await W8(500);
+  await ws('warn'); await W8(300); await page.evaluate(() => document.querySelectorAll('.figs, #wsP, .ws').forEach(e => e.scrollTop = 0));
+  await shot('f-badin', [['.pin-row[data-pid="fc"]',1],['#alerts .alert',2]]);
+  await setv('fc', '280'); await W8(400);
+  // 泥水中灌注
+  await group('伸展長度與搭接'); await W8(200); await setv('dSlurry', '1'); await W8(500);
+  await page.hover('.pin-row[data-pid="dSlurry"]'); await W8(300);
+  await shot('f-slurry', [['.pin-row[data-pid="dSlurry"] .pin-v',1],['#detailP',2,2]], await sheetClip());
+  await setv('dSlurry', '0'); await W8(300);
+  // 場鑄基樁
+  await preset('col', 'pileC120'); await W8(800);
+  await group('基樁'); await W8(300); await page.hover('.pin-row[data-pid="memType"]'); await W8(300);
+  await shot('f-pile-param', [['.pin-row[data-pid="memType"] .pin-v',1],['.pin-row[data-pid="pileEccMode"] .pin-v',2],['#detailP',3,2]], await sheetClip());
+  await page.click('#railP .pin-all');
+  await ws('elev'); await W8(500);
+  { const a = await box('#elevWrap'); await shot('f-pile-elev', [], {x:a.x-6, y:a.y-6, width:a.width+12, height:Math.min(a.height+12, H-a.y+6)}); }
+  await ws('warn'); await W8(400); await tag('#alerts .alert', '基樁軸壓上限'); await W8(200);
+  await shot('f-pile-alerts', [['#__t',1]], await pane()); await untag();
+  // 自訂繫筋（中跨徑橋塔）
+  await preset('col', 'box300'); await W8(800);
+  await ws('fig'); await W8(400); await page.evaluate(() => document.querySelectorAll('.figs, #wsP, .ws').forEach(e => e.scrollTop = 0));
+  await page.click('#cTieBar .adv-tog'); await W8(200); await page.click('#cTieBar [data-tool="pick"]'); await W8(500);
+  await shot('f-ctie', [['#cTieBar',1],['#secWrap',2,0]], await pane());
+  await page.click('#cTieBar [data-tool="pick"]'); await W8(200);
   await ctx.close();
   if(errs.length) throw new Error('網頁執行錯誤：' + errs.join(' | '));
 }
@@ -164,7 +214,7 @@ function excelImages(){
   let pCheck = 0, pA4 = 0;
   for(let i = 1; i <= n && !(pCheck && pA4); i++){
     const t = text(i);
-    if(!pCheck && /檢核表/.test(t) && /長細效應/.test(t)) pCheck = i;
+    if(!pCheck && /檢核表/.test(t) && /長細比/.test(t)) pCheck = i;
     if(!pA4 && /RC 柱斷面設計檢核計算書/.test(t)) pA4 = i;
   }
   if(!pCheck || !pA4) throw new Error('Excel PDF 找不到檢核表或 A4 計算書頁');
@@ -185,21 +235,21 @@ function stampText(){
   return INPUTS.map(f => execFileSync('git', ['hash-object', path.join(ROOT, f)]).toString().trim() + '  ' + f).join('\n') + '\n';
 }
 
-/* ---------- 教學 PDF ---------- */
-async function tutorialPdf(browser, base){
+/* ---------- 教學／常見問題 PDF（同一套版面與截圖） ---------- */
+async function tutorialPdf(browser, base, src = 'tutorial.html', out = OUT, title = '操作教學'){
   const page = await browser.newPage();
-  await page.goto(base + '/docs/tutorial/tutorial.html');
+  await page.goto(base + '/docs/tutorial/' + src);
   await page.waitForFunction(() => window.__ready === true, null, {timeout:30000});
   const err = await page.evaluate(() => document.querySelectorAll('.katex-error').length);
-  if(err) throw new Error(`教學內有 ${err} 個 KaTeX 排版錯誤`);
+  if(err) throw new Error(`${title}內有 ${err} 個 KaTeX 排版錯誤`);
   const bad = await page.evaluate(() => [...document.images].filter(i => !i.complete || !i.naturalWidth).map(i => i.getAttribute('src')));
-  if(bad.length) throw new Error('教學內圖片載入失敗：' + bad.join(', '));
+  if(bad.length) throw new Error(title + '內圖片載入失敗：' + bad.join(', '));
   const d = new Date(), p = n => String(n).padStart(2, '0');
   const idx = execFileSync('git', ['hash-object', path.join(ROOT, 'index.html')]).toString().trim().slice(0, 8);
   await page.evaluate(t => { document.getElementById('ver').textContent = t; },
     `建置日期：${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}　對應程式：index.html ${idx}`);
-  await page.pdf({path: OUT, format:'A4', printBackground:true, displayHeaderFooter:true, headerTemplate:'<div></div>',
-    footerTemplate:'<div style="width:100%;font-size:8px;color:#9ca3af;text-align:center;font-family:sans-serif">RC 斷面設計工具 操作教學　·　<span class="pageNumber"></span> / <span class="totalPages"></span></div>',
+  await page.pdf({path: out, format:'A4', printBackground:true, displayHeaderFooter:true, headerTemplate:'<div></div>',
+    footerTemplate:`<div style="width:100%;font-size:8px;color:#9ca3af;text-align:center;font-family:sans-serif">RC 斷面設計工具 ${title}　·　<span class="pageNumber"></span> / <span class="totalPages"></span></div>`,
     margin:{top:'16mm', bottom:'16mm', left:'15mm', right:'15mm'}});
   await page.close();
 }
@@ -211,7 +261,8 @@ async function tutorialPdf(browser, base){
     console.log('1/3 操作截圖'); await screenshots(browser, base);
     console.log('2/3 Excel 頁面'); excelImages();
     console.log('3/3 產生 PDF'); await tutorialPdf(browser, base);
+    await tutorialPdf(browser, base, 'faq.html', OUT_FAQ, '常見問題');
     fs.writeFileSync(path.join(HERE, 'stamp.txt'), stampText());
-    console.log('完成：', path.relative(ROOT, OUT));
+    console.log('完成：', path.relative(ROOT, OUT), '、', path.relative(ROOT, OUT_FAQ));
   } finally { await browser.close(); srv.close(); }
 })().catch(e => { console.error('建置失敗：', e.message); process.exit(1); });
