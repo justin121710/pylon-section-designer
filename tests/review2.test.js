@@ -284,3 +284,99 @@ test('H1、H2、H4：Excel 之 V_e 取軸力範圍最大值、柱尺寸檢核；
   assert.equal(row(b, '柱斷面最小尺度（cm）').judge, 'FAIL');
   await page.evaluate(() => applyPreset('bldg60'));
 });
+
+/* ---------------- 第二輪審查 M1～M15 ---------------- */
+test('M1：扭矩門檻依表 22.7.4.1(c) 計入軸力（軸拉折減）', async () => {
+  const r = await page.evaluate(() => { document.getElementById('tabPylon').click(); applyPreset('bldg60');
+    LOADS[3].Pu = -40; LOADS[3].Tu = 1.5; drawLoads(); render(); const c = MODEL.shX.all[3]; return {Tth: c.Tth/1e5, tors: c.torsion}; });
+  assert.ok(Math.abs(r.Tth - 1.098) < 0.01, `φT_th ≈ 1.098（${r.Tth}）`); assert.equal(r.tors, true, 'T_u = 1.5 > 1.098 須設計扭矩');
+  await page.evaluate(() => applyPreset('bldg60'));
+});
+
+test('M2：建築箱型柱高軸力：每根主筋側撐、h_x ≤ 20、(c) 式列為未涵蓋', async () => {
+  const r = await page.evaluate(() => { applyPreset('box300'); const cb = document.getElementById('codeBasis'); cb.value = 'bldg'; cb.dispatchEvent(new Event('change'));
+    document.getElementById('tieLayout').value = 'code'; LOADS[0].Pu = 6000; drawLoads(); render();
+    const out = {hx: MODEL.chk.hxLim, unc: colUncovered(MODEL).some(t => /箱型柱高軸力/.test(t)),
+      every: colAlertItems(MODEL).some(a => a.lv==='bad' && /每一根主筋都須側撐/.test(a.t))};
+    cb.value = 'bridge'; cb.dispatchEvent(new Event('change')); applyPreset('bldg60'); return out; });
+  assert.deepEqual(r, {hx: 20, unc: true, every: true});
+});
+
+test('M3：橋墩壁式判定依沿剪力方向斷面深度（兩向各自）', async () => {
+  const t = await page.evaluate(() => { applyPreset('pier100'); const st = document.getElementById('secType'); st.value = 'rect'; st.dispatchEvent(new Event('change'));
+    document.getElementById('B').value = 200; document.getElementById('H').value = 300; document.getElementById('lu').value = 600; render();
+    const r = colAlertItems(MODEL).filter(a => /壁式橋墩/.test(a.t)).map(a => optPlain(a)); applyPreset('bldg60'); return r; });
+  assert.equal(t.length, 1); assert.match(t[0], /Y 向.*600\/300 = 2\.00/);
+});
+
+test('M4、M5：懸臂 T 梁：負彎矩 A_s,min 取 min(b_f, 2b_w)；撓度以支承負彎矩斷面計算', async () => {
+  const r = await page.evaluate(() => { document.getElementById('tabBeam').click(); applyBPreset('deckT'); document.getElementById('bDeflCase').value = 'cantUDL';
+    BSIGN = 'neg'; const B = renderBeam(); const S = B.S, d = B.d, fy = Math.min(B.m.fy, 5600);
+    const exp = Math.max(0.8*Math.sqrt(B.m.fc)/fy, 14/fy)*Math.min(S.be, 2*S.bw)*d;
+    const neg = {AsMin: B.AsMin, exp, dsign: B.defl.sign, na: !!B.defl.na};
+    BSIGN = 'pos'; const P = renderBeam(); const pos = {na: !!P.defl.na, pick: beamDefl(P).sign};
+    applyBPreset('deckT'); BSIGN = 'pos'; renderBeam(); return {neg, pos}; });
+  assert.ok(Math.abs(r.neg.AsMin - r.neg.exp) < 1e-9);
+  assert.equal(r.neg.dsign, 'neg'); assert.equal(r.neg.na, false);
+  assert.equal(r.pos.na, true); assert.equal(r.pos.pick, 'neg', '畫面在正彎矩時撓度取支承斷面之結果');
+});
+
+test('M6：程式碼雜湊不因匯出 Excel 動態載入模組而改變', async () => {
+  const h0 = await page.evaluate(() => codeHash());
+  await page.evaluate(async () => { await ensureXlsxLib(); });
+  assert.equal(await page.evaluate(() => codeHash()), h0);
+});
+
+test('M12：箱型橋墩剪力 A_e 取 min(0.8A_g, b_w d)', async () => {
+  const r = await page.evaluate(() => { document.getElementById('tabPylon').click(); applyPreset('box300'); render();
+    return [MODEL.shX, MODEL.shY].map(sh => ({Ae: sh.Ae, exp: Math.min(0.8*MODEL.m.Ag, sh.bw*sh.d)})); });
+  for(const q of r) assert.ok(Math.abs(q.Ae - q.exp) < 1e-6);
+  await page.evaluate(() => applyPreset('bldg60'));
+});
+
+test('M13：構件以 id 為鍵：空白名稱自動編號、同名不同構件須確認', async () => {
+  await page.evaluate(() => { MEMBERS = []; MEM_CUR = null; document.getElementById('tabPylon').click(); applyPreset('bldg60');
+    document.getElementById('memName').value = ''; memAdd(); document.getElementById('B').value = 70; render(); document.getElementById('memName').value = ''; memAdd(); });
+  assert.deepEqual(await page.evaluate(() => MEMBERS.map(m => m.name)), ['未命名柱', '未命名柱-2']);
+  await page.evaluate(() => { MEM_CUR = null; document.getElementById('memName').value = '未命名柱'; memAdd(); });
+  await askOpen(); assert.match(await page.evaluate(() => document.getElementById('askTtl').textContent), /名稱重複/);
+  await pick(/另存新構件/); await page.waitForTimeout(100);
+  assert.deepEqual(await page.evaluate(() => MEMBERS.map(m => m.name)), ['未命名柱', '未命名柱-2', '未命名柱-3']);
+  await page.evaluate(() => { MEMBERS = []; memSave(); memRender(); applyPreset('bldg60'); document.getElementById('memName').value = ''; });
+});
+
+test('M14：重算變慢時改為停止輸入後才重算；列印、匯出前先補算', async () => {
+  const r = await page.evaluate(async () => { applyPreset('bldg60'); RENDER_Q.pylon.ms = 999;
+    const b = document.getElementById('B'), M0 = MODEL; b.value = 70; b.dispatchEvent(new Event('input'));
+    const deferred = MODEL === M0 && document.documentElement.classList.contains('calc-busy');
+    renderFlush(); const flushed = MODEL !== M0 && MODEL.s.B === 70 && !document.documentElement.classList.contains('calc-busy');
+    RENDER_Q.pylon.ms = 0; b.value = 60; b.dispatchEvent(new Event('input')); const sync = MODEL.s.B === 60;
+    return {deferred, flushed, sync}; });
+  assert.deepEqual(r, {deferred: true, flushed: true, sync: true});
+});
+
+test('M15：構件清單為對話框：開啟時焦點移入、Esc 關閉後焦點回到按鈕', async () => {
+  await page.focus('#btnMembers'); await page.click('#btnMembers'); await page.waitForTimeout(120);
+  const inside = await page.evaluate(() => document.getElementById('memOv').contains(document.activeElement) && document.getElementById('memOv').getAttribute('role'));
+  assert.equal(inside, 'dialog');
+  await page.keyboard.press('Escape'); await page.waitForTimeout(60);
+  const r = await page.evaluate(() => ({open: document.getElementById('memOv').classList.contains('open'), back: document.activeElement && document.activeElement.id}));
+  assert.deepEqual(r, {open: false, back: 'btnMembers'});
+});
+
+test('M9、M11：Excel 圓形斷面無 #VALUE!；箱型薄壁剪扭上限與網頁一致', {skip: !hasSoffice && '未安裝 LibreOffice（soffice）'}, async () => {
+  await page.evaluate(() => { document.getElementById('tabPylon').click(); applyPreset('pileC120'); render(); });
+  await exportAs('m9');
+  const w = await page.evaluate(() => { applyPreset('box300'); LOADS.forEach(L => { L.Tu = 2500; }); drawLoads(); render();
+    return {thin: MODEL.shY.all.some(c => c.thin), fail: [MODEL.shX, MODEL.shY].map(sh => sh.all.map(c => (c.sectionFail || c.sectOver) ? 1 : 0))}; });
+  await exportAs('m11');
+  const out = path.join(TMP, 'outm');
+  execFileSync('soffice', ['--headless', '--convert-to', 'xlsx', '--outdir', out, path.join(TMP, 'm9.xlsx'), path.join(TMP, 'm11.xlsx')], {stdio:'ignore', timeout:300000});
+  const wb = new ExcelJS.Workbook(); await wb.xlsx.readFile(path.join(out, 'm9.xlsx')); let bad = 0;
+  wb.eachSheet(ws => ws.eachRow(r => r.eachCell(c => { const v = c.value; if(v && typeof v==='object' && v.result && v.result.error && v.result.error !== '#N/A') bad++; })));
+  assert.equal(bad, 0, '不得有 #VALUE! 等錯誤值');
+  assert.ok(w.thin, '範例須為薄壁');
+  const b = new ExcelJS.Workbook(); await b.xlsx.readFile(path.join(out, 'm11.xlsx')); const L = b.getWorksheet('載重組合');
+  w.fail.forEach((arr, k) => arr.forEach((f, i) => assert.equal(+val(L.getCell((k ? 'AG' : 'AF') + (4+i)).value), f, `${k?'Y':'X'} 向第 ${i+1} 組斷面不足判定`)));
+  await page.evaluate(() => applyPreset('bldg60'));
+});
