@@ -31,7 +31,7 @@
 全程 **kgf-cm 制**。
 
 > 操作步驟見 [操作教學 PDF](docs/RC斷面設計工具_操作教學.pdf)；實務問答見 [常見問題 PDF](docs/RC斷面設計工具_常見問題.pdf)（工程師／技師版，附截圖）。
-> 圖文操作教學（PDF，含截圖）：[docs/RC斷面設計工具_操作教學.pdf](docs/RC斷面設計工具_操作教學.pdf)；每個提交都會自動重建保持最新（見 [docs/tutorial/README.md](docs/tutorial/README.md)，clone 後請執行 `git config core.hooksPath .githooks`）。
+> 圖文操作教學（PDF，含截圖）：[docs/RC斷面設計工具_操作教學.pdf](docs/RC斷面設計工具_操作教學.pdf)；合併到 main 時由 GitHub Actions 自動重建（見 [docs/tutorial/README.md](docs/tutorial/README.md)）。
 
 | 係數 | 值 | 出處 |
 |---|---|---|
@@ -446,8 +446,8 @@ P_u > 0.3A_g f'c 或 f'c > 700 之柱 h_x ≤ 20 cm（§18.4.5.2(f)）。
 
 ## 開發流程（U10）
 
-- 操作教學與常見問題 PDF：本機 pre-commit 自動重建（需 Playwright、LibreOffice、poppler、Pillow）。本機沒有這些工具時，
-  `RCSD_SKIP_PDF=1 git commit …` 略過，推送後 GitHub Actions（`tutorial-pdf.yml`）重建並以機器人提交推回同一分支，並上傳為 artifact。
+- 操作教學與常見問題 PDF：合併（推送）到 main 時由 GitHub Actions（`tutorial-pdf.yml`）重建並以機器人提交推回 main，並上傳為 artifact；
+  分支提交不附 PDF，以免儲存庫每個提交增加約 13 MB。
 - **授權**：本工具程式碼以 [MIT License](LICENSE) 授權。`specs/` 內之規範 PDF 為政府機關網站公開、可免費取得之資料，
   版權屬原主管機關，不在 MIT 授權範圍內；付費標準（如 CNS）不放入 repo。`vendor/` 之第三方函式庫依其 MIT 授權（見各 LICENSE 檔）。
 

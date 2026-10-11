@@ -13,11 +13,12 @@
 | `stamp.txt` | 建置當時各輸入檔的 git blob 雜湊（由 build.js 產生，勿手改） |
 | `check.sh` | 比對 `stamp.txt` 與目前提交內容；過期時回傳失敗 |
 
-## 每個提交都必須保持兩份 PDF 最新
+## 合併到 main 時重建 PDF
 
-- **pre-commit hook**（`.githooks/pre-commit`）：提交時若 PDF 過期，自動重建並把兩份 PDF 與 `stamp.txt` 加入同一個提交；建置失敗則中止提交。
-  第一次 clone 後執行一次：`git config core.hooksPath .githooks`
-- **GitHub Actions**（`.github/workflows/tutorial-pdf.yml`）：每次 push／PR 執行 `check.sh`，PDF 過期即失敗。
+- **GitHub Actions**（`.github/workflows/tutorial-pdf.yml`）：推送（合併）到 `main` 時執行 `check.sh`，PDF 過期即重建，
+  以 `[skip ci]` 機器人提交推回 `main`，並上傳為 artifact；亦可在 Actions 頁面手動執行。
+- 分支提交**不附 PDF**（每份 PDF 約 6～7 MB，每個提交都附會讓儲存庫快速變大）；分支上的 PDF 暫時過期屬正常。
+- **pre-commit hook**（`.githooks/pre-commit`）：只提示 PDF 與程式不同步，不重建、不阻擋。啟用：`git config core.hooksPath .githooks`
 - 介面、操作流程或規範檢核有改動時，除了重建，也要**同步修改 `tutorial.html` 與 `faq.html` 的文字**；截圖會自動更新，
   但步驟說明不會。新增的按鈕或畫面請在 `build.js` 增加截圖與標註。
 
