@@ -498,6 +498,11 @@ function buildColumn(ExcelJS, inp){
   S.item({key:'DCmax', label:'撓曲應力比 D/C（各組合最大）', sym:'D/C', f:"MAX('載重組合'!M4:M"+(3+NCB)+')', unit:'無因次', fmt:FMT_INF,
     expr:'定偏心射線法：載重點沿 (Mu, Pu) 射線與 φ 包絡線交點', crit:'≦ 1.0 合格', ref:ref401('22.4、10.5.1')});
   S.item({key:'DCctrl', label:'控制組合', f:"IFERROR(INDEX('載重組合'!A4:A"+(3+NCB)+",MATCH({DCmax},'載重組合'!M4:M"+(3+NCB)+',0)),"—")', expr:'D/C 最大者', ref:'—'});
+  // 雙軸精確解 D/C 為匯出當下之網頁值：任一輸入與匯出值不同時，撓曲判定與總判定改為「須回網頁重算」
+  S.item({key:'exUsed', label:'　旗標：採用雙軸精確解（網頁值）', f:"--(COUNT('載重組合'!AQ4:AQ"+(3+NCB)+')>0)', ref:'非規範明列條文，係本表判別用'});
+  S.item({key:'stale', label:'　旗標：輸入已與匯出值不同', f:'0', expr:'逐格比對本表與「載重組合」之輸入格與匯出值', ref:'非規範明列條文，係本表判別用'});
+  S.item({key:'DCstat', label:'撓曲 D/C 狀態', f:'IF(AND({exUsed}=1,{stale}=1),"須回網頁重算（輸入已變更，雙軸 D/C 為匯出當下網頁值）","有效")',
+    crit:'「須回網頁重算」時撓曲判定與總判定為 N/A', ref:'—'});
 
   /* ---------------- 六、剪力與扭矩 ---------------- */
   S.section('【六、剪力與扭矩（逐組合詳「載重組合」工作表）】');
@@ -517,11 +522,14 @@ function buildColumn(ExcelJS, inp){
       f: ax==='x' ? 'IF({isCirc}=1,2,IF({isBox}=1,IF({inOK}=1,4,2),2+{nTieY}))'
                   : 'IF({isCirc}=1,2,IF({isBox}=1,IF({inOK}=1,4,2),2+{nTieX}))',
       expr:'實心：閉合箍筋 2 肢＋該向繫筋；箱型 2（單層）或 4（雙層）；圓形 Av = 2Asp', ref:ref401('22.5.10.5')});
+    // P-M 取樣點中軸力落在 [min Pu, max Pu] 之最大彎矩（無則 0）
+    const inRng = (sh, Pc, Mc) => { const g = c => `'${sh}'!$${c}$${PM_H+1}:$${c}$${PM_H+NPM}`, Pu = `'載重組合'!$B$4:$B$${3+NCB}`;
+      return `IFERROR(_xlfn.AGGREGATE(14,6,${g(Mc)}/((${g(Pc)}>MIN(${Pu}))*(${g(Pc)}<MAX(${Pu}))),1),0)`; };
     S.item({key:'Av'+ax, label:`${X} 向 Av`, sym:'Av', f:`{nl${ax}}*{At}`, unit:'cm²', fmt:'0.000', ref:'—'});
     S.item({key:'Mcd'+ax, label:`${X} 向容量設計彎矩（各組合取大）`, sym:'Mo', unit:'tf·m', fmt:'#,##0.0',
       // 剪力方向 ↔ 彎矩平面：X 向剪力（d 沿 B）由繞 Y 軸之彎矩造成 → P-M_Y（AC／AE 欄）；Y 向剪力 → P-M_X（AB／AD 欄）
-      f:`IF({isBldg}=1,MAX('載重組合'!${ax==='x'?'AE':'AD'}4:${ax==='x'?'AE':'AD'}${3+NCB}),{phio}*IF(AND({brMnP}="靜載重軸力 PD",{phEnds}="僅底端"),'載重組合'!${ax==='x'?'AC':'AB'}2,MAX('載重組合'!${ax==='x'?'AC':'AB'}4:${ax==='x'?'AC':'AB'}${3+NCB})))`,
-      expr:`建築：Mpr（1.25fy、φ = 1）；橋梁：φo·Mn。${X} 向剪力取${ax==='x'?'繞 Y 軸（P-M_Y）':'繞 X 軸（P-M_X）'}之彎矩（同一受力平面）`, ref:ref401('18.4.6.1')+'；公路橋梁耐震設計規範'});
+      f:`IF({isBldg}=1,MAX(MAX('載重組合'!${ax==='x'?'AE':'AD'}4:${ax==='x'?'AE':'AD'}${3+NCB}),${inRng(ax==='x'?'P-M_Y':'P-M_X','N','O')}),{phio}*IF(AND({brMnP}="靜載重軸力 PD",{phEnds}="僅底端"),'載重組合'!${ax==='x'?'AC':'AB'}2,MAX(MAX('載重組合'!${ax==='x'?'AC':'AB'}4:${ax==='x'?'AC':'AB'}${3+NCB}),${inRng(ax==='x'?'P-M_Y':'P-M_X','F','G')})))`,
+      expr:`建築：Mpr（1.25fy、φ = 1）；橋梁：φo·Mn。取各組合軸力範圍 [min Pu, max Pu] 內之最大值（含區間內 P-M 取樣點，如平衡點）。${X} 向剪力取${ax==='x'?'繞 Y 軸（P-M_Y）':'繞 X 軸（P-M_X）'}之彎矩（同一受力平面）`, ref:ref401('18.4.6.1.1')+'；公路橋梁耐震設計規範 §4.2.2'});
     S.item({key:'Ve'+ax, label:`${X} 向容量設計剪力 Ve`, sym:'Ve', unit:'tf', fmt:'#,##0.0',
       f:`IF({isPH}=1,MIN(IF(OR({isBldg}=1,{phEnds}="兩端"),2*{Mcd${ax}}*100/{lu},{Mcd${ax}}*100/{Lv}),IF(AND({isBldg}=0,{brVel${ax}}>0),{brVel${ax}},${BIG})),0)`, expr:'建築 2Mpr/lu；橋梁單柱 Mo/Lv、構架式 2Mo/lu，且不必超過彈性剪力上限（§4.2.1、§4.2.2）；非加密區 0', ref:ref401('18.4.6.1')+'；公路橋梁耐震設計規範 §4.2'});
     S.item({key:'dV'+ax, label:`${X} 向 Vs 計算用深度`, sym:'d', unit:'cm', fmt:'0.00', f:`IF(AND({isBldg}=0,{isCirc}=1),PI()/4*MAX(1,{Din}-2*{covO}),{d${ax}})`,
@@ -667,7 +675,7 @@ function buildColumn(ExcelJS, inp){
   const J = (cond) => ({f:`IF(${cond},"PASS","FAIL")`});
   const sumRows = [];
   const addSum = (o) => { sumRows.push(S.sum(o)); };
-  addSum({key:'jDC', label:'撓曲＋軸力 D/C', need:{f:'{DCmax}'}, cap:1, ratio:{f:'{DCmax}'}, judge:J('{DCmax}<=1'), ref:ref401('22.4、10.5.1'), fmt:'0.000'});
+  addSum({key:'jDC', label:'撓曲＋軸力 D/C', need:{f:'{DCmax}'}, cap:1, ratio:{f:'{DCmax}'}, judge:{f:'IF(AND({exUsed}=1,{stale}=1),"N/A",IF({DCmax}<=1,"PASS","FAIL"))'}, note:{f:'IF({DCstat}="有效","",{DCstat})'}, ref:ref401('22.4、10.5.1'), fmt:'0.000'});
   addSum({label:'X 向剪力 Vs／Vs,max（tf）', need:{f:"MAX('載重組合'!P4:P"+(3+NCB)+')'}, cap:{f:'{VsMaxx}'}, ratio:{f:"MAX('載重組合'!P4:P"+(3+NCB)+')/{VsMaxx}'}, judge:J('{failx}=0'), note:'各組合最大 Vs；並檢核剪扭斷面應力', ref:ref401('22.5.1.2、22.7.7.1')});
   addSum({label:'Y 向剪力 Vs／Vs,max（tf）', need:{f:"MAX('載重組合'!S4:S"+(3+NCB)+')'}, cap:{f:'{VsMaxy}'}, ratio:{f:"MAX('載重組合'!S4:S"+(3+NCB)+')/{VsMaxy}'}, judge:J('{faily}=0'), note:'各組合最大 Vs；並檢核剪扭斷面應力', ref:ref401('22.5.1.2、22.7.7.1')});
   addSum({label:'橫向筋間距 s 採用／需求', need:{f:'{sUse}'}, cap:{f:'{sGov}'}, ratio:{f:'{sUse}/{sGov}'}, judge:J('{sUse}<={sGov}'), note:{f:'"控制："&{sGovTag}'}, ref:'—'});
@@ -677,6 +685,8 @@ function buildColumn(ExcelJS, inp){
   addSum({label:'橋梁主筋材質 fy（SD420W／SD280W）', need:'—', cap:{f:'{fy}'}, ratio:'—', judge:{f:'IF({isBldg}=1,"N/A",IF(OR({fy}=4200,{fy}=2800),"PASS","FAIL"))'}, note:'須為 CNS 560 W 級（可銲）', ref:'公路橋梁耐震設計規範 §5.2', fmt:'0'});
   addSum({label:'橋梁圍束筋 fyt ≦ 主筋 fy', need:{f:'{fyt}'}, cap:{f:'{fy}'}, ratio:{f:'{fyt}/{fy}'}, judge:{f:'IF(OR({isBldg}=1,{isPH}=0),"N/A",IF({fyt}<={fy},"PASS","FAIL"))'}, ref:'公路橋梁耐震設計規範 §5.3.4', fmt:'0'});
   addSum({label:'橋梁 柱淨高／斷面深度', need:2.5, cap:{f:'{lu}/MIN({Be},{He})'}, ratio:{f:'2.5/({lu}/MIN({Be},{He}))'}, judge:{f:'IF({isBldg}=1,"N/A",IF({lu}/MIN({Be},{He})>=2.5,"PASS","FAIL"))'}, note:'< 2.5 應視為壁式橋墩（本表未涵蓋）', ref:'公路橋梁耐震設計規範 §5.1、§5.8', fmt:'0.00'});
+  addSum({label:'柱斷面最小尺度（cm）', need:30, cap:{f:'MIN({Be},{He})'}, ratio:{f:'30/MIN({Be},{He})'}, judge:{f:'IF(OR({isBldg}=0,{isPH}=0),"N/A",IF(MIN({Be},{He})>=30-1E-9,"PASS","FAIL"))'}, note:'建築特殊抗彎矩構架柱', ref:ref401('18.4.2.1(a)')});
+  addSum({label:'柱斷面最小尺度／垂直尺度', need:0.4, cap:{f:'MIN({Be},{He})/MAX({Be},{He})'}, ratio:{f:'0.4/(MIN({Be},{He})/MAX({Be},{He}))'}, judge:{f:'IF(OR({isBldg}=0,{isPH}=0),"N/A",IF(MIN({Be},{He})/MAX({Be},{He})>=0.4-1E-9,"PASS","FAIL"))'}, fmt:'0.000', note:'建築特殊抗彎矩構架柱', ref:ref401('18.4.2.1(b)')});
   addSum({label:'強柱弱梁 ΣMnc ≧ 1.2ΣMnb', need:{f:'1.2*MAX({scwbMbX},{scwbMbY})'}, cap:{f:'{scwbNc}*MIN({scwbMncX},{scwbMncY})'}, ratio:{f:'IFERROR(1.2*MAX({scwbMbX},{scwbMbY})/({scwbNc}*MIN({scwbMncX},{scwbMncY})),0)'},
     judge:{f:'IF(OR({isBldg}=0,{isPH}=0),"N/A",IF({scwbEx}=1,"PASS",IF(OR({scwbMbX}<=0,{scwbMbY}<=0),"未輸入",IF({scwbJ}="符合","PASS","FAIL"))))'},
     note:'建築特殊抗彎矩構架柱；「未輸入」＝未輸入接頭梁 ΣMnb，須另行檢核（不計入總判定 FAIL）', ref:ref401('18.4.3.2'), fmt:'#,##0.0'});
@@ -736,8 +746,20 @@ function buildColumn(ExcelJS, inp){
   S.layout();
   // 總判定的範圍：彙總列
   const r1 = sumRows[0].r, r2 = sumRows[sumRows.length-1].r;
-  const jt = S.rows.find(r=>r.key==='jAll'); jt.judge = {f:`IF(COUNTIF($E$${r1}:$E$${r2},"FAIL")=0,"PASS","NG")`};
+  const jt = S.rows.find(r=>r.key==='jAll'); jt.judge = {f:`IF(AND({exUsed}=1,{stale}=1),"N/A（須回網頁重算）",IF(COUNTIF($E$${r1}:$E$${r2},"FAIL")=0,"PASS","NG"))`};
   S.keys.jAll = jt.r;   // 結論引用用（判定位於 E 欄）
+  { // 輸入是否與匯出值相同：本表輸入格（kind in／list）＋「載重組合」輸入格
+    const lit = v => v == null || v === '' ? null : typeof v === 'number' ? (Number.isFinite(v) ? String(v) : null) : `"${String(v).replace(/"/g,'""')}"`;
+    const diff = (ref, v) => { const q = lit(v); return q === null ? `LEN(${ref}&"")>0` : `${ref}<>${q}`; };
+    const conds = S.rows.filter(x => x.t==='item' && (x.kind==='in' || x.kind==='list') && x.key).map(x => diff(`{${x.key}}`, x.v));
+    for(let i=0;i<NCB;i++){ const n=4+i, L=(inp.loads||[])[i], C=`'載重組合'!`;
+      conds.push(diff(`${C}A${n}`, L ? L.name : ''));
+      ['Pu','Mux','Muy','Vux','Vuy','Tu'].forEach((k,j)=>conds.push(diff(`${C}${colL(1+j)}${n}`, L ? (+L[k]||0) : null)));
+      conds.push(diff(`${C}AY${n}`, L && L.pos ? (L.pos==='top' ? '頂' : '底') : null)); }
+    // Excel 單一函式引數上限 255：分組 OR
+    const grp = []; for(let i=0;i<conds.length;i+=200) grp.push(`OR(${conds.slice(i,i+200).join(',')})`);
+    S.rows.find(x=>x.key==='stale').f = `IFERROR(--OR(${grp.join(',')}),1)`;
+  }
 
   /* ---------------- 輔助工作表（先建立名稱以供解析） ---------------- */
   const resolve = makeResolver([S]);
@@ -760,6 +782,7 @@ function buildColumn(ExcelJS, inp){
   const a4 = buildA4Column(W['結構計算書(A4)'], S, resolve, inp, jt.r, sumRows);
   const figPics = W[DEVFIG] ? buildDevFigSheet(W[DEVFIG], inp.devFigs) : [];
   fitRowHeights(W['檢核表']); fitRowHeights(W['結構計算書(A4)']);
+  draftMark(wb, inp.draft);
   return {wb, keys:S.keys, judgeRow:jt.r,
           charts: columnCharts(inp, a4.fig).concat(figPic(inp.elevFig, '箍筋配置立面', a4.elev, FIG_EL_ROWS), a4.devPics, figPics)};
 }
@@ -1842,7 +1865,7 @@ function buildBeam(ExcelJS, inp){
   const dl = (M,I) => `{K}*(${M})*{L}^2/({Ec}*(${I}))`;
   const MD='{MD}*100000', ML='{ML}*100000', Mt='({MD}+{ML})*100000', Ms='({MD}+{sus}*{ML})*100000';
   S.item({key:'dL', label:'即時活載撓度 ΔL', sym:'ΔL', unit:'cm', fmt:'0.000',
-    f:`MAX(0,${dl(Mt,Ie(Mt))}-${dl(MD,Ie(Mt))})`, expr:'Δ(MD+ML) − Δ(MD)，皆以 Ie(MD+ML)', ref:ref401('24.2.3')});
+    f:`MAX(0,${dl(Mt,Ie(Mt))}-${dl(MD,Ie(MD))})`, expr:'Δ(MD+ML) − Δ(MD)；Δ(MD+ML) 以 Ie(MD+ML)、Δ(MD) 以 Ie(MD)', ref:ref401('24.2.3.5')});
   S.item({key:'rhoP', label:"受壓鋼筋比 ρ'", sym:"ρ'", f:'(({d1}<{h}/2)*{A1}+({d2}<{h}/2)*{A2}+({dT}<{h}/2)*{AT})/({bw}*{d})', unit:'無因次', fmt:'0.00000', ref:ref401('24.2.4.1.1')});
   S.item({key:'lam', label:'長期乘數 λΔ', sym:'λΔ', f:"{xi}/(1+50*{rhoP})", unit:'無因次', fmt:'0.000', ref:ref401('24.2.4.1.1')});
   S.item({key:'dLT', label:'長期總撓度 ΔLT', sym:'ΔLT', unit:'cm', fmt:'0.000', f:`${dl(Ms,Ie(Ms))}*{lam}+{dL}`, expr:'Δsus·λΔ + ΔL', ref:ref401('24.2.4')});
@@ -1934,6 +1957,7 @@ function buildBeam(ExcelJS, inp){
   const a4 = buildA4Beam(W['結構計算書(A4)'], R, inp, jt.r, sumRows);
   const figPics = W[DEVFIG] ? buildDevFigSheet(W[DEVFIG], inp.devFigs) : [];
   fitRowHeights(W['檢核表']); fitRowHeights(W['結構計算書(A4)']);
+  draftMark(wb, inp.draft);
   return {wb, keys:S.keys, judgeRow:jt.r,
           charts: figPic(inp.secFig, inp.slab ? '版斷面圖' : '梁斷面圖', a4.fig, FIG_SEC_ROWS).concat(inp.slab ? [] : figPic(inp.elevFig, '箍筋配置立面', a4.elev, FIG_ELB_ROWS), a4.devPics, figPics)};
 }
@@ -2494,6 +2518,19 @@ function a4Figures(ws, a, title, nPm){
   return start;
 }
 /* 寫出：ExcelJS 產生後注入原生圖表 */
+/* H7：尚有「需確認」未勾選時匯出之草稿：每張工作表頁首紅字、檢核表與 A4 計算書標題前加註，避免當作送審文件 */
+function draftMark(wb, n){
+  if(!(n > 0)) return;
+  const t = `草稿：尚有 ${n} 項需確認未完成，不得送審`;
+  wb.eachSheet(ws => {
+    ws.headerFooter = Object.assign({}, ws.headerFooter, {oddHeader: `&C&"-,Bold"&14&KFF0000${t}`});
+    if(ws.name==='檢核表' || ws.name==='結構計算書(A4)'){
+      let c = null; ws.getRow(1).eachCell(x => { if(!c && typeof x.value==='string' && x.value) c = x; });
+      if(!c){ ws.getRow(2).eachCell(x => { if(!c && typeof x.value==='string' && x.value) c = x; }); }
+      if(c){ c.value = `【${t}】` + c.value; c.font = Object.assign({}, c.font, {color:{argb:'FFC00000'}}); }
+    }
+  });
+}
 async function toBuffer(out, JSZip){
   const buf = await out.wb.xlsx.writeBuffer();
   return injectCharts(buf, out.charts||[], JSZip);

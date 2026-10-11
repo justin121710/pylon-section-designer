@@ -26,6 +26,7 @@ test.before(async () => { app = await openApp(); page = app.page; });
 test.after(async () => { if(app){ assert.deepEqual(app.errors, [], '頁面不得有 JavaScript 錯誤'); await app.close(); } });
 
 const exportAs = async name => {
+  await page.evaluate(() => confAll(TAB==='beam' ? 'beam' : 'pylon'));   // H7：需確認未完成時匯出受阻
   const [dl] = await Promise.all([page.waitForEvent('download', {timeout:120000}), page.click('#btnXlsx')]);
   await dl.saveAs(path.join(TMP, name + '.xlsx'));
 };
@@ -152,4 +153,134 @@ test('S3：輸入改變即清空舊計算書；Ctrl+P 前依目前輸入重建�
   assert.equal(r.afterHeld, '', '列印結束後移除「不得送審」頁');
   assert.ok(r.ok.includes('90') && r.ok.includes('斷面與材料') && !r.ok.includes('不得送審'), '依目前輸入重建計算書');
   assert.ok(r.blocked.includes('不得送審') && r.blocked.includes('輸入不完整'), '輸入不完整時不得印出');
+});
+
+/* ---------------- 第二輪審查 H1～H9 ---------------- */
+const pick = re => page.evaluate(re => { const b = [...document.querySelectorAll('#askAct button')].find(x => new RegExp(re).test(x.textContent)); if(!b) return false; b.click(); return true; }, re.source);
+const askOpen = () => page.waitForFunction(() => document.getElementById('askOv').classList.contains('open'));
+
+test('H1：柱 M_pr 取軸力範圍內最大值（組合軸力跨越平衡點）', async () => {
+  const r = await page.evaluate(() => { document.getElementById('tabPylon').click(); applyPreset('bldg60');
+    const ps = [620, 560, 150, 60]; LOADS.forEach((L,i) => { L.Pu = ps[i]; }); drawLoads(); render();
+    return {Ve: MODEL.shX.Ve/1000, PMn: MODEL.shX.PMn}; });
+  assert.ok(r.Ve > 68.5 && r.Ve < 69.7, `V_e ≈ 69.1 tf（${r.Ve}）`);
+  assert.ok(r.PMn > 60e3 && r.PMn < 620e3 && ![60e3,150e3,560e3,620e3].includes(r.PMn), '峰值軸力落在組合之間');
+});
+
+test('H2：特殊抗彎矩構架柱尺寸限制 §18.4.2.1', async () => {
+  const r = await page.evaluate(() => { applyPreset('bldg60'); document.getElementById('B').value = 25; document.getElementById('H').value = 70; render();
+    const bad = colAlertItems(MODEL).filter(a => a.lv==='bad').map(a => optPlain(a));
+    buildReport(MODEL); return {bad, rep: document.getElementById('report').textContent}; });
+  assert.ok(r.bad.some(t => t.startsWith('柱斷面最小尺度不足')));
+  assert.ok(r.bad.some(t => t.startsWith('柱斷面尺度比不足')));
+  assert.ok(r.rep.includes('§18.4.2.1(a)') && r.rep.includes('不合格（NG）'));
+  await page.evaluate(() => applyPreset('bldg60'));
+});
+
+test('H3：梁即時活載撓度 Δ_L = Δ(D+L) − Δ(D)，Δ(D) 以 I_e(M_D)', async () => {
+  const r = await page.evaluate(() => { document.getElementById('tabBeam').click(); applyBPreset('bldgJoist'); BSIGN = 'pos'; renderBeam();
+    const D = BMODEL.defl, dl = (M, I) => D.K*M*BMODEL.S.L**2/(BMODEL.m.Ec*I);
+    return {dL: D.dL, exp: dl(D.Mtot, D.Ie) - dl(D.MD, D.IeD), old: dl(D.Mtot, D.Ie) - dl(D.MD, D.Ie), IeD: D.IeD, Ie: D.Ie}; });
+  assert.ok(Math.abs(r.dL - r.exp) < 1e-9);
+  assert.ok(r.IeD >= r.Ie && r.dL >= r.old, '以 I_e(M_D) 計 Δ(D) 不低於舊法');
+});
+
+test('H5：柱計算書列出檢核彙總、總判定、強柱弱梁與主筋比', async () => {
+  const t = await page.evaluate(() => { document.getElementById('tabPylon').click(); applyPreset('bldg60'); buildReport(MODEL); return document.getElementById('report').textContent; });
+  for(const k of ['檢核彙總與總判定', '總判定：', '強柱弱梁', '主筋比', '撓曲＋軸力 D/C']) assert.ok(t.includes(k), k);
+});
+
+test('H6：需確認狀態綁定輸入、存入案件與構件、批次計算後保留、印於計算書', async () => {
+  const r = await page.evaluate(async () => { applyPreset('bldg60'); render(); confAll('pylon');
+    MEMBERS = []; document.getElementById('memName').value = 'C1'; memAdd(); await memBatch();
+    const afterBatch = confPending('pylon').length, memPend = MEM_RES[MEMBERS[0].id].pend;
+    document.getElementById('B').value = 90; render(); const changed = confPending('pylon').length;
+    document.getElementById('B').value = 60; render(); const back = confPending('pylon').length;
+    const snap = JSON.parse(JSON.stringify(caseSnapshot())); applyPreset('bldg60'); render(); const cleared = confPending('pylon').length;
+    caseApply(snap); const reopened = confPending('pylon').length;
+    buildReport(MODEL); const rep = document.getElementById('report').textContent;
+    MEMBERS = []; memSave(); memRender();
+    return {afterBatch, memPend, changed, back, cleared, reopened, rep: rep.includes('設計者確認事項') && rep.includes('已確認')}; });
+  assert.equal(r.afterBatch, 0, '批次計算後不清除'); assert.equal(r.memPend, 0, '構件快照帶確認狀態');
+  assert.ok(r.changed > 0, '輸入改變（含無數字之未涵蓋項目）須重新確認'); assert.equal(r.back, 0, '改回原值確認恢復');
+  assert.ok(r.cleared > 0); assert.equal(r.reopened, 0, '案件檔保存確認狀態');
+  assert.ok(r.rep, '計算書列出設計者確認事項');
+});
+
+test('H7：需確認未完成時 Excel 匯出受阻，可改匯出標示「不得送審」之草稿', async () => {
+  await page.evaluate(() => { applyPreset('bldg60'); render(); });
+  assert.ok(await page.evaluate(() => confPending('pylon').length > 0));
+  let dl = null; const onDl = d => { dl = d; }; page.on('download', onDl);
+  await page.click('#btnXlsx'); await askOpen(); await pick(/^取消$/); await page.waitForTimeout(300);
+  assert.equal(dl, null, '取消時不產生檔案');
+  const p = page.waitForEvent('download', {timeout:120000});
+  await page.click('#btnXlsx'); await askOpen(); await pick(/匯出草稿/);
+  const d = await p; page.off('download', onDl);
+  const wb = new ExcelJS.Workbook(); await wb.xlsx.readFile(await d.path());
+  assert.match(wb.getWorksheet('檢核表').headerFooter.oddHeader || '', /不得送審/);
+  assert.match(String(wb.getWorksheet('檢核表').getCell('A1').value), /草稿.*不得送審/);
+});
+
+test('H8：切換為 kN 時可選「重新解讀」，表頭與說明列只標一種單位', async () => {
+  const r = await page.evaluate(async () => { applyPreset('bldg60'); const pu0 = LOADS[0].Pu;
+    const u = document.getElementById('loadUnit'); u.value = 'kN'; u.dispatchEvent(new Event('change'));
+    [...document.querySelectorAll('#askAct button')].find(x => /重新解讀/.test(x.textContent)).click(); await new Promise(ok => setTimeout(ok, 0));
+    const out = {pu0, pu: LOADS[0].Pu, shown: +document.querySelector('#loadTbl tbody input[data-k="Pu"]').value,
+      head: document.querySelector('#loadTbl thead th:nth-child(3)').textContent, note: document.querySelector('.lu-f').textContent};
+    u.value = 'tf'; u.dispatchEvent(new Event('change'));
+    [...document.querySelectorAll('#askAct button')].find(x => /僅換算顯示/.test(x.textContent)).click(); await new Promise(ok => setTimeout(ok, 0));
+    applyPreset('bldg60'); return out; });
+  assert.ok(Math.abs(r.pu - r.pu0/9.80665) < 1e-9, '內部載重改以 kN 解讀');
+  assert.ok(Math.abs(r.shown - r.pu0) < 1e-6, '表內數字不變');
+  assert.ok(r.head.includes('kN') && !r.head.includes('tf'), `表頭：${r.head}`);
+  assert.equal(r.note, 'kN');
+});
+
+test('H9：開啟案件前確認未存檔變更；構件清單取代後與儲存同步；刪除構件須確認', async () => {
+  await page.evaluate(() => { applyPreset('bldg60'); render(); MEMBERS = [];
+    for(const n of ['A','B','C','D']){ document.getElementById('memName').value = n; memAdd(); }
+    caseMark(); document.getElementById('H').value = 123; render(); });
+  const c = await page.evaluate(() => { const x = caseSnapshot(); x.members = []; x.values.H = '60'; return x; });
+  const f = path.join(os.tmpdir(), `rcsd-h9-${process.pid}.json`); fs.writeFileSync(f, JSON.stringify(c));
+  await page.setInputFiles('#caseFile', f);
+  await askOpen();
+  assert.match(await page.evaluate(() => document.getElementById('askTtl').textContent), /覆蓋目前的輸入/);
+  await pick(/^取消$/); await page.waitForTimeout(200);
+  assert.equal(await page.evaluate(() => document.getElementById('H').value), '123', '取消時不覆蓋');
+  await page.setInputFiles('#caseFile', f); await askOpen(); await pick(/直接開啟/);
+  await page.waitForFunction(() => /構件清單/.test(document.getElementById('askTtl').textContent) && document.getElementById('askOv').classList.contains('open'));
+  await pick(/以案件檔取代/);
+  await page.waitForFunction(() => document.getElementById('H').value === '60');
+  const s = await page.evaluate(() => ({n: MEMBERS.length, stored: JSON.parse(localStorage.getItem(MEM_KEY)).length}));
+  assert.deepEqual(s, {n: 0, stored: 0}, '構件清單與儲存同步（重新整理不會回來）');
+  // 刪除構件須確認
+  await page.evaluate(() => { document.getElementById('memName').value = 'X'; memAdd(); memRender(); document.querySelector('.mem-del').click(); });
+  await askOpen(); await pick(/^取消$/); await page.waitForTimeout(100);
+  assert.equal(await page.evaluate(() => MEMBERS.length), 1);
+  await page.evaluate(() => document.querySelector('.mem-del').click()); await askOpen(); await pick(/^刪除$/); await page.waitForTimeout(100);
+  assert.equal(await page.evaluate(() => MEMBERS.length), 0);
+  fs.unlinkSync(f);
+});
+
+test('H1、H2、H4：Excel 之 V_e 取軸力範圍最大值、柱尺寸檢核；修改輸入後雙軸 D/C 與總判定改為須回網頁重算', {skip: !hasSoffice && '未安裝 LibreOffice（soffice）'}, async () => {
+  const w = await page.evaluate(() => { document.getElementById('tabPylon').click(); applyPreset('bldg60');
+    const ps = [620, 560, 150, 60]; LOADS.forEach((L,i) => { L.Pu = ps[i]; }); drawLoads(); render(); return MODEL.shX.Ve/1000; });
+  await exportAs('h4');
+  const src = new ExcelJS.Workbook(); await src.xlsx.readFile(path.join(TMP, 'h4.xlsx'));
+  const ws = src.getWorksheet('檢核表'); let hr = 0;
+  ws.eachRow(r => { if(!hr && String(val(r.getCell(1).value)).startsWith('外高 H')) hr = r.number; });
+  ws.getCell('C' + hr).value = 25;                  // 60×25：b/h = 0.417，最小尺度 25 < 30
+  await src.xlsx.writeFile(path.join(TMP, 'h4b.xlsx'));
+  const out = path.join(TMP, 'out4');
+  execFileSync('soffice', ['--headless', '--convert-to', 'xlsx', '--outdir', out, path.join(TMP, 'h4.xlsx'), path.join(TMP, 'h4b.xlsx')], {stdio:'ignore', timeout:300000});
+  const load = async n => { const wb = new ExcelJS.Workbook(); await wb.xlsx.readFile(path.join(out, n + '.xlsx')); return wb; };
+  const a = await load('h4'), b = await load('h4b');
+  const ve = row(a, 'X 向容量設計剪力 Ve').v;
+  assert.ok(Math.abs(ve - w) <= 0.01*w, `Excel V_e ${ve}，網頁 ${w}`);
+  assert.equal(row(a, '撓曲 D/C 狀態').v, '有效');
+  assert.match(String(row(b, '撓曲 D/C 狀態').v), /須回網頁重算/);
+  assert.equal(row(b, '撓曲＋軸力 D/C').judge, 'N/A');
+  assert.match(String(row(b, '總判定').judge), /須回網頁重算/);
+  assert.equal(row(b, '柱斷面最小尺度（cm）').judge, 'FAIL');
+  await page.evaluate(() => applyPreset('bldg60'));
 });

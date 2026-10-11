@@ -189,7 +189,7 @@ pre { font-family: "DejaVu Sans Mono", "WenQuanYi Zen Hei Mono", monospace; font
     <li><span class="n">1</span>把資料貼進文字框。可以直接從 Excel 複製（Tab 分隔），數字可帶千分位逗號；或用逗號分隔的文字。</li>
     <li><span class="n">2</span>按「套用 CSV」。</li>
   </ol>
-  <p>載重表上方「輸入單位」可切換 tf、tf·m 或 <b>kN、kN·m</b>（SI）；表內數值與 CSV 皆依所選單位，計算核心維持 kgf-cm。</p>
+  <p>載重表上方「輸入單位」可切換 tf、tf·m 或 <b>kN、kN·m</b>（SI）；表內數值與 CSV 皆依所選單位，計算核心維持 kgf-cm。切換時會詢問：「<b>僅換算顯示</b>」載重不變；「<b>視為新單位重新解讀</b>」表內數字不變、改當作新單位（分析結果其實是 kN 卻以 tf 輸入時用這個）。</p>
   <pre>柱：名稱,Pu,Mux,Muy,Vux,Vuy,Tu[,位置]   （位置選填：頂／底，或 top／bot）
 梁：名稱,Mu+,Mu-,Vu,Tu      （Mu+、Mu- 皆填絕對值）
 標題列可以留著，會自動略過；空白數值欄視為 0</pre>
@@ -309,7 +309,7 @@ pre { font-family: "DejaVu Sans Mono", "WenQuanYi Zen Hei Mono", monospace; font
 <section class="chap">
   <figure><img src="img/17-report-sl.png"><figcaption>圖 18　計算書內容：每條公式展開「公式 → 代入 → 化簡 → 單位」</figcaption></figure>
   <p>計算書每條公式展開四層，方便審查者逐式手算複核。內容依序為斷面與材料、配筋圖、P-M、剪力與扭矩、圍束、軸向配置、伸展與搭接、<b>長細效應判定</b>、附註與簽署欄。</p>
-  <div class="warn"><b>需確認項目</b>判定列「需確認」不為 0 時（本工具未涵蓋之檢核、「注意」級警示），按列印會先跳出提醒：請到「警示」分頁逐項檢視並勾選，全部確認後才能列印；預覽頂端會標示未完成。直接以瀏覽器列印（Ctrl+P）時，計算書一律依目前輸入重新產生；輸入不完整或需確認未完成時只會印出一頁「計算書未完成，不得送審」。</div>
+  <div class="warn"><b>需確認項目</b>判定列「需確認」不為 0 時（本工具未涵蓋之檢核、「注意」級警示），按列印會先跳出提醒：請到「警示」分頁逐項檢視並勾選，全部確認後才能列印；預覽頂端會標示未完成。直接以瀏覽器列印（Ctrl+P）時，計算書一律依目前輸入重新產生；輸入不完整或需確認未完成時只會印出一頁「計算書未完成，不得送審」。匯出 Excel 也受同一道限制，未完成時可選擇匯出每頁標示「草稿、不得送審」的版本。勾選後任一輸入改變即須重新確認；確認狀態會隨案件存檔，並列於計算書末「設計者確認事項」。</div>
   <div class="note"><b>可追溯性</b>計算書表頭印出程式版本、程式碼雜湊與輸入 SHA-256；公式元件與 Excel 函式庫隨附於 <code>vendor/</code>，離線或公司內網亦可排版與匯出（只帶走 <code>index.html</code> 時才需連 CDN）。</div>
 </section>
 

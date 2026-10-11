@@ -1058,13 +1058,13 @@ img,video{max-width:100%;height:auto}
     <div class="card">
       <h2>⑥ 載重組合</h2>
       <div class="text-[11.5px] mb-2" style="color:var(--dim)">
-        P<sub>u</sub>：壓為正、拉為負 (tf)　｜　M (tf·m)　｜　V (tf)　｜　T (tf·m)
+        P<sub>u</sub>：壓為正、拉為負 (<span class="lu-f">tf</span>)　｜　M (<span class="lu-m">tf·m</span>)　｜　V (<span class="lu-f">tf</span>)　｜　T (<span class="lu-m">tf·m</span>)
       </div>
       <div class="text-[12px] mb-1" style="display:flex;gap:6px;align-items:center;color:var(--dim)">輸入單位
         <select id="loadUnit" title="計算核心維持 kgf-cm；選 SI 時表內數值以 kN、kN·m 顯示與輸入（1 tf = 9.80665 kN），CSV 亦依此單位解讀"><option value="tf">tf、tf·m（kgf 制）</option><option value="kN">kN、kN·m（SI）</option></select></div>
       <div style="overflow-x:auto">
         <table id="loadTbl" style="min-width:620px">
-          <thead><tr><th class="l">組合</th><th title="構材端部：同名組合分列頂、底兩列時，長細效應之 M₁/M₂ 由兩端彎矩求得">位置</th><th>P<sub>u</sub><br><span style="font-weight:400;font-size:11px;color:var(--dim)">tf</span></th><th title="繞 X 軸之彎矩，由 Y 向側力造成（與 V_uy 同一受力平面）">M<sub>ux</sub><br><span style="font-weight:400;font-size:11px;color:var(--dim)">tf·m ↔ V<sub>uy</sub></span></th><th title="繞 Y 軸之彎矩，由 X 向側力造成（與 V_ux 同一受力平面）">M<sub>uy</sub><br><span style="font-weight:400;font-size:11px;color:var(--dim)">tf·m ↔ V<sub>ux</sub></span></th><th>V<sub>ux</sub><br><span style="font-weight:400;font-size:11px;color:var(--dim)">tf</span></th><th>V<sub>uy</sub><br><span style="font-weight:400;font-size:11px;color:var(--dim)">tf</span></th><th>T<sub>u</sub><br><span style="font-weight:400;font-size:11px;color:var(--dim)">tf·m</span></th><th></th></tr></thead>
+          <thead><tr><th class="l">組合</th><th title="構材端部：同名組合分列頂、底兩列時，長細效應之 M₁/M₂ 由兩端彎矩求得">位置</th><th>P<sub>u</sub><br><span class="u" style="font-weight:400;font-size:11px;color:var(--dim)">tf</span></th><th title="繞 X 軸之彎矩，由 Y 向側力造成（與 V_uy 同一受力平面）">M<sub>ux</sub><br><span class="u" style="font-weight:400;font-size:11px;color:var(--dim)">tf·m</span><span style="font-weight:400;font-size:11px;color:var(--dim)"> ↔ V<sub>uy</sub></span></th><th title="繞 Y 軸之彎矩，由 X 向側力造成（與 V_ux 同一受力平面）">M<sub>uy</sub><br><span class="u" style="font-weight:400;font-size:11px;color:var(--dim)">tf·m</span><span style="font-weight:400;font-size:11px;color:var(--dim)"> ↔ V<sub>ux</sub></span></th><th>V<sub>ux</sub><br><span class="u" style="font-weight:400;font-size:11px;color:var(--dim)">tf</span></th><th>V<sub>uy</sub><br><span class="u" style="font-weight:400;font-size:11px;color:var(--dim)">tf</span></th><th>T<sub>u</sub><br><span class="u" style="font-weight:400;font-size:11px;color:var(--dim)">tf·m</span></th><th></th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
@@ -1711,6 +1711,15 @@ function phiMnAtP(cv,m,P){
     }
   }
   return 0;
+}
+/* 軸力區間 [P0, P1] 內之最大 M_n（容量設計：§18.4.6.1.1「作用於每一柱端上各種因數化軸力範圍內之最大可能彎矩強度」）。
+   曲線為取樣點間線性內插，區間最大值必在端點或區間內之取樣點（含平衡點附近）。回傳 {M, P} */
+function MnMaxRange(cv,P0,P1){
+  if(P1 < P0) [P0, P1] = [P1, P0];
+  let best = {M: MnAtP(cv,P0), P: P0};
+  const e = MnAtP(cv,P1); if(e > best.M) best = {M:e, P:P1};
+  for(const q of cv._nPM) if(q.P > P0 && q.P < P1 && q.M > best.M) best = {M:q.M, P:q.P};
+  return best;
 }
 /* 標稱彎矩 Mn(at P)：容量設計剪力用 */
 function MnAtP(cv,P){
@@ -2539,8 +2548,9 @@ function shearDesign(s,r,R,m,opt,cv,res,dir,cvPr){
   // 建築柱：取機率彎矩強度 M_pr（1.25f_y、φ=1），兩端同時降伏 → V_e = 2M_pr / l_u
   const bldgCD = opt.code==='bldg' && !!cvPr;
   const cvM = bldgCD ? cvPr : cv;
+  // 軸力範圍內之最大值（非僅各組合離散軸力）：組合軸力跨越平衡點時，峰值落在區間內（§18.4.6.1.1；公路橋梁耐震設計規範 §4.2.2 軸力變化）
   let Mn = 0, PMn = res.length? res[0].Lk.Pu : 0;
-  for(const R2 of res){ const v = MnAtP(cvM, R2.Lk.Pu); if(v > Mn){ Mn = v; PMn = R2.Lk.Pu; } }
+  if(res.length){ const Ps = res.map(R2 => R2.Lk.Pu), g = MnMaxRange(cvM, Math.min(...Ps), Math.max(...Ps)); Mn = g.M; PMn = g.P; }
   const bridge = opt.code==='bridge';
   // §4.2.1 單柱：計算最大可能彎矩強度時柱軸力得採用靜載重引致之軸力（選項）；構架式須考慮軸力變化（§4.2.2）→ 仍取各組合最大
   const mnDead = bridge && !bldgCD && opt.brMnP==='dead' && opt.phEnds===1;
@@ -4377,7 +4387,7 @@ function openSetup(focusEl){
   if(!ov.classList.contains('open'))
     SETUP_SNAP = {key: setupSnapKey(), base: {...PRESET_BASE},
       prev: {preset: document.getElementById('preset').dataset.prev, bPreset: document.getElementById('bPreset').dataset.prev},
-      conf: {pylon: new Set(CONFIRM.pylon), beam: new Set(CONFIRM.beam)}};
+      conf: {pylon: new Map(CONFIRM.pylon), beam: new Map(CONFIRM.beam)}};
   ov.classList.add('open');
   setupStep(1);
   if(focusEl) setTimeout(() => { try{ focusEl.focus(); }catch(e){} }, 40);
@@ -4389,7 +4399,7 @@ function cancelSetup(){
   caseApply(JSON.parse(S.key)); CASE_NOTICE = null;
   Object.assign(PRESET_BASE, S.base);
   for(const id of ['preset','bPreset']){ const e = document.getElementById(id); if(S.prev[id] == null) delete e.dataset.prev; else e.dataset.prev = S.prev[id]; }
-  for(const k of ['pylon','beam']){ CONFIRM[k].clear(); for(const x of S.conf[k]) CONFIRM[k].add(x); }
+  for(const k of ['pylon','beam']){ CONFIRM[k].clear(); for(const [x,t] of S.conf[k]) CONFIRM[k].set(x,t); }
   render(); renderBeam(); setupSummary(); caseAutosave();
 }
 function closeSetup(pane){
@@ -5138,7 +5148,7 @@ try{ fetch('core/rc-core.js', {cache:'no-cache'}).then(r => r.ok ? r.text() : nu
 const codeHash = () => { if(_codeHash) return _codeHash;
   const h = sha256([...document.querySelectorAll('script:not([src])')].map(x=>x.textContent).join('\n') + '\n' + (_coreText ?? ('core ' + RC_CORE_VERSION))).slice(0,12);
   if(_coreText !== null) _codeHash = h; return h; };
-const inputHash = () => { const c = caseSnapshot(); delete c.saved; delete c.members; return sha256(JSON.stringify(c)); };
+const inputHash = () => { const c = caseSnapshot(); delete c.saved; delete c.members; delete c.conf; return sha256(JSON.stringify(c)); };
 const traceText = () => `v${APP_VERSION}｜程式 ${codeHash()}｜輸入 SHA-256 ${inputHash().slice(0,16)}`;
 let CASE_READY = false, CASE_T = 0;
 function caseInputs(){
@@ -5151,6 +5161,7 @@ function caseSnapshot(){
   caseInputs().forEach(el => values[el.id] = el.value);
   return {app:CASE_APP, ver:2, appVersion:APP_VERSION, saved:new Date().toISOString(), tab:TAB, axis:AXIS, bsign:BSIGN,
           values, loads:LOADS, bloads:BLOADS, devexp: JSON.parse(JSON.stringify(DEVEXP)),
+          conf: typeof CONF_ITEMS!=='undefined' ? {pylon: confExport('pylon'), beam: confExport('beam')} : {pylon:[], beam:[]},
           members: typeof MEMBERS!=='undefined' ? MEMBERS : []};
 }
 function caseApply(c){
@@ -5180,6 +5191,7 @@ function caseApply(c){
     DEVEXP[k] = {f: strs(c.devexp[k].f), v: strs(c.devexp[k].v), t: strs(c.devexp[k].t)};
   try{ localStorage.setItem('rcsd.devexp', JSON.stringify(DEVEXP)); }catch(e){}
   drawLoads(); drawBLoads();
+  confImport(c);                   // 需確認狀態（鍵含輸入雜湊：輸入相同才會對上）
   render(); renderBeam();          // 柱、梁兩個模型都依案件重算（不只目前分頁）
   document.getElementById(c.tab==='beam'?'tabBeam':'tabPylon').click();
 }
@@ -5274,7 +5286,10 @@ document.addEventListener('click', e => {
   const t = e.target.closest && e.target.closest('.mem-open, .mem-del'); if(!t) return;
   const i = +t.dataset.i;
   if(t.classList.contains('mem-open')){ memOpen(i); document.getElementById('memOv').classList.remove('open'); }
-  else { MEMBERS.splice(i,1); memSave(); memRender(); }
+  else { const m = MEMBERS[i]; if(!m) return;
+    askChoice('刪除構件', `確定要從構件清單刪除「<b>${esc(m.name)}</b>」？此動作無法復原（可先「儲存案件」備份）。`,
+      [{label:'取消', value:null}, {label:'刪除', value:'del', primary:true}])
+      .then(v => { if(v && MEMBERS[i]===m){ MEMBERS.splice(i,1); memSave(); memRender(); } }); }
 });
 function caseAutosave(){
   if(!CASE_READY) return;
@@ -5287,7 +5302,7 @@ function caseRestore(){
   try{ localStorage.setItem('rcsd.probe', '1'); localStorage.removeItem('rcsd.probe'); }catch(e){ saveWarn(true); }
   try{ const raw = localStorage.getItem(CASE_KEY); if(raw) caseApply(JSON.parse(raw)); }catch(e){}
   try{ const mm = JSON.parse(localStorage.getItem(MEM_KEY) || 'null'); if(Array.isArray(mm) && (!MEMBERS || !MEMBERS.length)) MEMBERS = caseMembers(mm); }catch(e){}
-  CASE_READY = true;
+  CASE_READY = true; caseMark();
   setTimeout(caseNotice, 300);
 }
 
@@ -5458,11 +5473,27 @@ function beamXlsxInput(){
       other: beamAltBad(BMODEL, beamAlertItems(BMODEL)).filter(a=>a.fx!=='flex').map(a=>optPlain(a).replace(/\s+/g,' ').trim())} : null,
     meta:{project:'', member:memName('bMemName'), version:APP_VERSION, codeHash:codeHash(), inputHash:inputHash()}};
 }
+/* fname：批次匯出時之構件名稱（批次不逐一詢問：需確認未完成者一律以草稿匯出） */
 async function exportXlsx(fname){
-  const btn=document.getElementById('btnXlsx'), t0=btn.textContent;
+  const btn=document.getElementById('btnXlsx'), t0=btn.textContent, batch = typeof fname==='string';
+  let draft = 0;
   try{
     { const mod = TAB==='beam' ? 'beam' : 'pylon';
-      if(isBlocked(mod)){ alert(blockedMsg(mod)); return; } }
+      if(isBlocked(mod)){ if(!batch) alert(blockedMsg(mod)); return; }
+      // H7：與列印同一道閘門——需確認未完成時不得產出送審用 Excel；可改匯出標示「草稿、不得送審」之版本
+      const P = confPending(mod);
+      if(P.length){
+        if(batch) draft = P.length;
+        else{
+          const go = await askChoice('尚有需確認項目未完成',
+            `下列 <b>${P.length}</b> 項須由設計者確認後才能產出送審用 Excel：<br>` + P.slice(0,8).map(q=>'・'+esc(confKey(q.t)).slice(0,90)).join('<br>') + (P.length>8 ? '<br>…' : '')
+            + '<br><br>可先匯出<b>草稿</b>（每頁頁首與標題標示「不得送審」）。',
+            [{label:'取消', value:null}, {label:'前往警示分頁確認', value:'go', primary:true}, {label:'匯出草稿', value:'draft'}]);
+          if(go==='go'){ if(window.setPreview) setPreview(false); wsShow(document.getElementById(mod==='beam' ? 'wsB' : 'wsP'), 'warn'); return; }
+          if(go!=='draft') return;
+          draft = P.length;
+        }
+      } }
     btn.disabled=true; btn.textContent='產生中…';
     await ensureXlsxLib();
     const inp = TAB==='beam' ? beamXlsxInput() : colXlsxInput();
@@ -5475,10 +5506,11 @@ async function exportXlsx(fname){
       inp.elevFig = (TAB==='beam' && MM.S.slab) ? null : await svgPng(TAB==='beam' ? svgBeamElev(MM, true) : svgColElev(MM, true), 2);
       inp.devSel = {f:[...sel.f], t:[...sel.t]};
       inp.devSched = sel.t.has('sched') ? devSchedule(MM.devPlan, MM).map(q=>({id:q.id, where:q.where, size:q.size, shape:q.shape, st:q.st, tail:q.tail, len:q.len, n:q.n, kg:q.kg})) : []; }
+    inp.draft = draft;
     const out = TAB==='beam' ? RCXLSX.buildBeam(ExcelJS, inp) : RCXLSX.buildColumn(ExcelJS, inp);
     const buf = await RCXLSX.toBuffer(out, JSZip);
     const d=new Date(), p=n=>String(n).padStart(2,'0');
-    const name = (typeof fname==='string' && fname ? fname.replace(/[\\/:*?"<>|\s]+/g,'') + '_' : '') + (TAB==='beam'?'RC梁版計算書':'RC柱計算書') + `_${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}.xlsx`;
+    const name = (draft ? '草稿_' : '') + (typeof fname==='string' && fname ? fname.replace(/[\\/:*?"<>|\s]+/g,'') + '_' : '') + (TAB==='beam'?'RC梁版計算書':'RC柱計算書') + `_${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}.xlsx`;
     const url=URL.createObjectURL(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
     const a=Object.assign(document.createElement('a'),{href:url,download:name}); document.body.appendChild(a); a.click(); a.remove();
     setTimeout(()=>URL.revokeObjectURL(url),2000);
@@ -5486,20 +5518,47 @@ async function exportXlsx(fname){
   finally{ btn.disabled=false; btn.textContent=t0; }
 }
 
+/* H9：未存檔變更之判斷基準（開啟／儲存案件、自動保存還原時記下；比較時不計存檔時間與確認狀態） */
+let CASE_BASE = null;
+const caseKey = () => { const c = caseSnapshot(); delete c.saved; delete c.conf; delete c.appVersion; return JSON.stringify(c); };
+const caseMark = () => { try{ CASE_BASE = caseKey(); }catch(e){} };
 function caseDownload(){
   const c = caseSnapshot(), d = new Date(), p = n=>String(n).padStart(2,'0');
+  caseMark();
   const name = `RC斷面設計_${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}.json`;
   const url = URL.createObjectURL(new Blob([JSON.stringify(c,null,1)], {type:'application/json'}));
   const a = Object.assign(document.createElement('a'), {href:url, download:name});
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(()=>URL.revokeObjectURL(url), 1000);
 }
-function caseOpenFile(file){
+/* 開啟案件（H9）：目前輸入有未存檔變更時先確認；構件清單提供「取代／合併／保留」；開啟後構件清單與其儲存同步 */
+async function caseOpenFile(file){
   if(!file) return;
-  file.text().then(txt=>{
-    let c; try{ c = JSON.parse(txt); }catch(e){ throw new Error('檔案不是有效的 JSON'); }
-    caseApply(c); caseAutosave();
-  }).catch(e=>alert('無法開啟案件：' + e.message));
+  let c;
+  try{ const txt = await file.text(); try{ c = JSON.parse(txt); }catch(e){ throw new Error('檔案不是有效的 JSON'); }
+    if(!c || c.app!==CASE_APP || typeof c.values!=='object') throw new Error('這不是本工具的案件檔'); }
+  catch(e){ alert('無法開啟案件：' + e.message); return; }
+  if(CASE_BASE !== null && caseKey() !== CASE_BASE){
+    const go = await askChoice('開啟案件會覆蓋目前的輸入',
+      `目前的輸入（柱、梁兩模組與載重組合）有<b>尚未存檔的變更</b>，開啟「${esc(file.name)}」後將會遺失。<br>要先把目前的案件存成 .json 嗎？`,
+      [{label:'取消', value:null}, {label:'直接開啟', value:'go'}, {label:'先儲存再開啟', value:'save', primary:true}]);
+    if(!go) return;
+    if(go==='save') caseDownload();
+  }
+  const cur = MEMBERS, inc = caseMembers(c.members);
+  let next = inc;
+  if(cur.length && JSON.stringify(cur) !== JSON.stringify(inc)){
+    const how = await askChoice('構件清單',
+      `目前構件清單有 <b>${cur.length}</b> 個構件，案件檔內有 <b>${inc.length}</b> 個。要如何處理？`,
+      [{label:'保留目前清單', value:'keep'}, {label:'合併（同名者以案件檔為準）', value:'merge'}, {label:'以案件檔取代', value:'replace', primary:true}]);
+    if(how==='keep') next = cur;
+    else if(how==='merge'){ const key = m => m.tab + '\u0001' + m.name, have = new Map(inc.map(m=>[key(m), m]));
+      next = cur.filter(m => !have.has(key(m))).concat(inc); }
+    else if(how!=='replace') return;            // Esc／點背景：取消開啟
+  }
+  try{ caseApply(c); }catch(e){ alert('無法開啟案件：' + e.message); return; }
+  MEMBERS = next; memSave(); memRender();      // 構件清單只有一個儲存來源：與自動保存同步
+  caseAutosave(); caseMark();
 }
 
 /* ---------- 右欄結果分頁：卡片全部留在 DOM（計算書與匯出照樣讀得到），只切換顯示 ---------- */
@@ -5899,6 +5958,14 @@ function brCover(M){
   const cTie = M.r.covO, cMain = M.r.covO + dt;
   return {...R, cTie, cMain, okTie: cTie >= R.tie - 1e-9, okMain: cMain >= R.main - 1e-9, ok: cTie >= R.tie - 1e-9 && cMain >= R.main - 1e-9};
 }
+/* 特殊抗彎矩構架柱尺寸限制（土木401-112 §18.4.2.1）：(a) 最小尺度 ≥ 30 cm；(b) 最小尺度／垂直尺度 ≥ 0.4。
+   建築、加密區（特殊抗彎矩構架柱）且非基樁時適用；圓形取 D（比值 1） */
+function colDimLim(M){
+  const s = M.s, on = M.opt.code==='bldg' && !!M.opt.plastic && !M.opt.pile;
+  const a = s.type==='circle' ? s.D : s.B, b = s.type==='circle' ? s.D : s.H;
+  const dmin = Math.min(a, b), dmax = Math.max(a, b), ratio = dmax > 0 ? dmin/dmax : 0;
+  return {on, dmin, dmax, ratio, okA: dmin >= 30 - 1e-9, okB: ratio >= 0.4 - 1e-9};
+}
 /* 柱主筋比上限：橋梁 4%（公路橋梁耐震設計規範 §5.3.1）；建築特殊抗彎矩構架柱 6%（土木401-112 §18.4.4.1）；
    其他柱 8%（§10.6.1.1）。下限皆 1%。4% 另作施工性提醒。 */
 function rhoLimit(M){
@@ -5915,11 +5982,40 @@ function renderAlerts(M){
 /* ---------- 判定三級（U1）：✗ 不合格／⚠ 未完成・需確認（阻擋列印）／i 參考 ----------
    「需確認」＝本工具未涵蓋之項目＋「注意」級警示；設計者須於警示分頁逐項勾選確認後才能列印計算書。
    以訊息文字為鍵：數值改變（文字改變）即須重新確認。 */
-var CONFIRM = {pylon:new Set(), beam:new Set()}, CONF_ITEMS = {pylon:[], beam:[]};
+/* 需確認（U1、H6）：CONFIRM[mod] = Map(鍵 → 勾選時間 ISO)。鍵 = 項目文字＋該模組輸入之雜湊——輸入一變（含文字不含數字之「未涵蓋」項目）即須重新確認。
+   確認狀態存入案件檔、構件快照與自動保存，並列於計算書「設計者確認事項」。 */
+var CONFIRM = {pylon:new Map(), beam:new Map()}, CONF_ITEMS = {pylon:[], beam:[]};
 const confKey = t => String(t).replace(/<[^>]+>/g,'').replace(/\s+/g,' ').trim();
+/* 模組輸入雜湊（不含構件名稱、範本選單、另一模組）：柱＝#app 與柱載重；梁＝#appBeam 與梁載重；設計依據、環境兩者共用 */
+function confInputHash(mod){
+  const skip = new Set(['memName','bMemName','preset','bPreset']), v = {};
+  for(const el of caseInputs()){
+    if(skip.has(el.id)) continue;
+    const beamEl = el.id==='bType' || !!el.closest('#appBeam'), shared = el.id==='codeBasis' || el.id==='envWater';
+    if(shared || (mod==='beam') === beamEl) v[el.id] = el.value;
+  }
+  return sha256(JSON.stringify({v, L: mod==='beam' ? BLOADS : LOADS})).slice(0,16);
+}
+const confStamp = () => new Date().toISOString();
+/* 存檔用：只保留目前清單中已勾選者 */
+const confExport = mod => CONF_ITEMS[mod].filter(q=>CONFIRM[mod].has(q.key)).map(q=>[q.key, CONFIRM[mod].get(q.key)]);
+function confImport(c){
+  for(const k of ['pylon','beam']){ CONFIRM[k].clear();
+    const a = c && c.conf && Array.isArray(c.conf[k]) ? c.conf[k] : [];
+    for(const e of a) if(Array.isArray(e) && typeof e[0]==='string' && e[0].length < 2000) CONFIRM[k].set(e[0], typeof e[1]==='string' ? e[1].slice(0,40) : ''); }
+}
+/* 計算書「設計者確認事項」 */
+function confReportHtml(mod){
+  const L = CONF_ITEMS[mod]; if(!L.length) return '';
+  const tm = x => { const d = new Date(x); return isNaN(d) ? '—' : d.toLocaleString('zh-TW'); };
+  return `<div class="rp-h3">設計者確認事項</div><table class="no-break"><thead><tr><th class="l">類別</th><th class="l">項目</th><th>確認</th><th>確認時間</th></tr></thead><tbody>`
+    + L.map(q=>{ const t = CONFIRM[mod].get(q.key); return `<tr><td class="l">${q.kind}</td><td class="l">${q.t}</td><td>${CONFIRM[mod].has(q.key)?'已確認':'<b>未確認</b>'}</td><td>${CONFIRM[mod].has(q.key)?tm(t):'—'}</td></tr>`; }).join('')
+    + `</tbody></table><div class="rp-note">確認以項目內容與本模組全部輸入為準；任一輸入變更即須重新確認。</div>`;
+}
 function renderConfirm(mod, items, uncov){
+  const h = confInputHash(mod);
   const list = [...(uncov||[]).map(t=>({kind:'未涵蓋', t:`須另行檢核：${t}`})), ...items.filter(a=>a.lv==='warn').map(a=>({kind:'注意', t:a.t}))]
-    .map(q=>({...q, key: confKey(q.t)}));
+    .map(q=>({...q, key: confKey(q.t) + '｜' + h}));
   CONF_ITEMS[mod] = list;
   const host = document.getElementById(mod==='beam' ? 'bConfirm' : 'confirmP'); if(!host) return;
   if(!list.length){ host.innerHTML = ''; return; }
@@ -5930,10 +6026,10 @@ function renderConfirm(mod, items, uncov){
       <span class="conf-kind">${q.kind}</span><span class="conf-t">${q.t}</span></label>`).join('') + `</div>`);
 }
 const confPending = mod => CONF_ITEMS[mod].filter(q=>!CONFIRM[mod].has(q.key));
-function confAll(mod){ for(const q of CONF_ITEMS[mod]) CONFIRM[mod].add(q.key); (mod==='beam' ? renderBeam : render)(); }
+function confAll(mod){ const t = confStamp(); for(const q of CONF_ITEMS[mod]) if(!CONFIRM[mod].has(q.key)) CONFIRM[mod].set(q.key, t); (mod==='beam' ? renderBeam : render)(); }
 document.addEventListener('change', e=>{
   const c = e.target.closest && e.target.closest('.conf-row input[type=checkbox]'); if(!c) return;
-  const S = CONFIRM[c.dataset.mod]; if(c.checked) S.add(c.dataset.k); else S.delete(c.dataset.k);
+  const S = CONFIRM[c.dataset.mod]; if(c.checked) S.set(c.dataset.k, confStamp()); else S.delete(c.dataset.k);
   (c.dataset.mod==='beam' ? renderBeam : render)();
 });
 document.addEventListener('click', e=>{ const b = e.target.closest && e.target.closest('.conf-all'); if(b) confAll(b.dataset.mod); });
@@ -5947,7 +6043,7 @@ function colAlertItems(M){
   if(M.noLoads) add('warn','<b>尚未輸入載重組合</b>：目前以零載重計算，撓曲與剪力檢核結果沒有意義。請於「載重組合」新增。', ['#loadTbl']);
   // U8：單位防呆——軸力遠超過斷面純壓強度，常是把 kN 當成 tf 輸入（差 9.8 倍）
   { const PuMax = Math.max(0, ...M.res.map(q => Math.abs(q.Lk.Pu)));
-    if(!M.noLoads && PuMax > 2.5*M.cvX.Po) add('warn', `<b>載重疑似單位錯誤</b>：最大 |P_u| = ${f(PuMax/TF,0)} tf，超過斷面純壓強度 P_o = ${f(M.cvX.Po/TF,0)} tf 之 2.5 倍。若分析結果為 kN、kN·m，請將載重表「輸入單位」改為 SI（1 tf = 9.80665 kN）。`, ['loadUnit','#loadTbl']); }
+    if(!M.noLoads && PuMax > 2.5*M.cvX.Po) add('warn', `<b>載重疑似單位錯誤</b>：最大 |P_u| = ${f(PuMax/TF,0)} tf，超過斷面純壓強度 P_o = ${f(M.cvX.Po/TF,0)} tf 之 2.5 倍。若分析結果為 kN、kN·m，請將載重表「輸入單位」改為 SI，並選「<b>視為 kN、kN·m 重新解讀</b>」（1 tf = 9.80665 kN；只換算顯示不會改變載重）。`, ['loadUnit','#loadTbl']); }
   if(M.s.type==='box' && !M.R.inner)
     add('bad',`<b>箱型未設內層主筋</b>${M.r.dbl?'（壁厚容不下雙層，內層已取消）':''}：繫筋貫穿壁厚後沒有主筋可勾，貫穿壁厚方向無圍束鋼筋，A_sh 須由內層主筋＋繫筋提供。請改為雙層配筋${M.r.dbl?'或加厚壁厚':''}。`, ['dbl','tw','covO','covI']);
   const C=M.ctrlFlex, F=M.fin, chk=M.chk;
@@ -5964,6 +6060,13 @@ function colAlertItems(M){
     else if(chk.rho>RL.max) add('bad',`<b>鋼筋比超過上限</b>：ρ_g = ${f(chk.rho,3)}% > ${RL.max}%（${RL.ref}）。`, ids);
     else if(chk.rho>4.0) add('warn',`鋼筋比 ρ_g = ${f(chk.rho,3)}% 符合規範上限 ${RL.max}%，但超過 4%，續接與澆置困難。`, ids);
     else add('ok',`鋼筋比 ρ_g = ${f(chk.rho,3)}%，介於 ${f(RL.min,1)}% ~ ${RL.max}%（${RL.ref}）。`, ids); }
+
+  { const DL = colDimLim(M);   // 特殊抗彎矩構架柱尺寸限制（§18.4.2.1）
+    if(DL.on){ const ids = ['B','H','Dia'];
+      if(!DL.okA) add('bad',`<b>柱斷面最小尺度不足</b>：${f(DL.dmin,1)} cm ＜ 30 cm（特殊抗彎矩構架柱，土木401-112 §18.4.2.1(a)）。`, ids);
+      if(!DL.okB) add('bad',`<b>柱斷面尺度比不足</b>：最小尺度／垂直尺度 = ${f(DL.dmin,1)}/${f(DL.dmax,1)} = ${f(DL.ratio,3)} ＜ 0.4（§18.4.2.1(b)）。`, ids);
+      if(DL.okA && DL.okB) add('ok',`柱斷面最小尺度 ${f(DL.dmin,1)} cm ≥ 30 cm，尺度比 ${f(DL.ratio,3)} ≥ 0.4（§18.4.2.1）。`, ids);
+    } }
 
   const nd=chk.need;
   if(Math.min(chk.clB,chk.clH) < 0)
@@ -6165,7 +6268,7 @@ function buildReport(M){
     ['斷面區段', M.opt.pile?(M.opt.pile.seis?'樁頂（支承耐震結構，表 18.10.5.7.1）':'樁頂'):M.opt.plastic?(M.opt.code==='bldg'?'柱端加密區（耐震特殊抗彎構材）':'塑鉸區斷面'):'一般斷面'],
     ['斷面', s.type==='circle'?`圓形 D = ${d(s.D,0)} cm（${r.spiral?'螺箍':'圓箍'}）`:s.type==='box'?`中空箱型 B × H = ${d(s.B,0)} × ${d(s.H,0)} cm，t_{w} = ${d(s.tw,0)} cm`:`實心矩形 B × H = ${d(s.B,0)} × ${d(s.H,0)} cm`, 'wide'],
     ['設計依據', (M.opt.pile ? '混凝土結構設計規範（土木401-112，第十三章深基礎、§18.10.5）＋ 建築物基礎構造設計規範（§5.6.3）' : codeText(M.opt.code)) + envText(document.getElementById('envWater').value), 'wide'],
-    ['單位', 'kgf, cm（顯示 tf, tf·m）'],
+    ['單位', loadUnitK()===1 ? 'kgf, cm（顯示 tf, tf·m）' : 'kgf, cm（顯示 tf, tf·m）；載重以 kN、kN·m 輸入，已換算（1 tf = 9.80665 kN）'],
     ['產生時間', new Date().toLocaleString('zh-TW')]]));
 
   o.push(`<div class="rp-h2">1. 斷面與材料</div>`);
@@ -6514,6 +6617,7 @@ function buildReport(M){
     if(bc) o.push(note(`<b>橋梁保護層</b>（公路橋梁設計規範 §7.1.5 表 7.2，${bc.t}）：箍筋 \\(c_o=${d(bc.cTie,1)}\\ ${bc.okTie?'\\ge':'<'}\\ ${d(bc.tie,1)}\\ \\text{cm}\\)；主筋 \\(c_o+d_t=${d(bc.cMain,1)}\\ ${bc.okMain?'\\ge':'<'}\\ ${d(bc.main,1)}\\ \\text{cm}\\)。`));
   }
   if(document.getElementById('envWater').value==='water') o.push(note(waterNoteHtml()));
+  colSummaryReport(M, o, note);
   o.push(`<div class="rp-h2">附註</div>`);
   o.push(note(`1. 長細效應不可忽略時，依「二階效應處理方式」以彎矩放大法放大一階彎矩（建築 §6.6.4；橋梁 §7.3.5.2(5)），或由設計者聲明輸入已含二階效應；kl_u/r > 100 之橋梁構材須另行二階分析。<br>
     2. 塑性形心僅對<b>對稱配筋</b>成立；非對稱配筋之結果不適用。<br>
@@ -6529,6 +6633,41 @@ function buildReport(M){
     fleqn:true, throwOnError:false});
 }
 
+/* 柱檢核彙總（與 Excel「檢核彙總」同類項目）：需求、容量／限值、比值、判定、條號 */
+function colSummaryRows(M){
+  const C = M.ctrlFlex, F = M.fin, c = M.chk, rows = [], d = (x,n=2) => f(x,n);
+  const row = (item, need, cap, ratio, ok, ref) => rows.push({item, need, cap, ratio, ok, ref});
+  const J = b => b ? 'OK' : 'NG';
+  row('撓曲＋軸力 D/C', fdc(C.dc), '1.000', fdc(C.dc), J(Number.isFinite(C.dc) && C.dc <= 1), '土木401-112 §22.4、§10.5.1');
+  for(const sh of [M.shX, M.shY])
+    row(`${sh.dir.toUpperCase()} 向剪力 V_s／V_s,max（tf）`, d(sh.VsReq/TF,1), d(sh.VsMax/TF,1), d(sh.VsReq/sh.VsMax,3), J(!sh.sectionFail && !sh.sectOver),
+      M.opt.code==='bridge' ? '公路橋梁耐震設計規範 §5.3.3' : '土木401-112 §22.5.1.2');
+  row('橫向筋間距 採用／需求（cm）', d(F.sUse,1), d(F.gov.v,2), d(F.sUse/F.gov.v,3), J(!F.tooTight), esc(F.gov.tag));
+  if(M.fin2 && !M.lay.full) row('加密區外間距 採用／需求（cm）', d(M.fin2.sUse,1), d(M.fin2.gov.v,2), d(M.fin2.sUse/M.fin2.gov.v,3), J(!M.fin2.tooTight), esc(M.fin2.gov.tag));
+  { const RL = rhoLimit(M); row('主筋比 ρ_g（%）', `${d(RL.min,1)}～${d(RL.max,1)}`, d(c.rho,3), d(c.rho/RL.max,3), J(c.rho >= RL.min - 1e-9 && c.rho <= RL.max + 1e-9), RL.ref); }
+  row('主筋淨距（cm）', d(c.need,2), d(Math.min(c.clB,c.clH),2), d(c.need/Math.max(1e-9,Math.min(c.clB,c.clH)),3), J(c.clB >= c.need && c.clH >= c.need), '土木401-112 §25.2.3');
+  if(!c.circle && c.hxLim) { const hx = Math.max(c.hxMaxB||0, c.hxMaxH||0); row('受側撐主筋間距 h_x（cm）', d(hx,1), d(c.hxLim,0), d(hx/c.hxLim,3), J(hx <= c.hxLim + 1e-9), M.opt.code==='bridge' ? '公路橋梁耐震設計規範 §5.3.4' : '土木401-112 §18.4.5.2(f)'); }
+  { const DL = colDimLim(M);
+    if(DL.on){ row('柱斷面最小尺度（cm）', '30', d(DL.dmin,1), d(30/DL.dmin,3), J(DL.okA), '土木401-112 §18.4.2.1(a)');
+               row('最小尺度／垂直尺度', '0.4', d(DL.ratio,3), d(0.4/Math.max(1e-9,DL.ratio),3), J(DL.okB), '土木401-112 §18.4.2.1(b)'); } }
+  if(M.scwb){ const S = M.scwb;
+    if(S.exempt) row('強柱弱梁 ΣM_nc ≥ 1.2ΣM_nb', '—', '—', '—', 'N/A（軸壓 ≤ A_g f\'_c/10 得免）', '土木401-112 §18.4.3.2');
+    else for(const A of [S.X, S.Y]) row(`強柱弱梁（繞 ${A.nm} 軸）ΣM_nc／ΣM_nb（tf·m）`, A.given ? d(1.2*A.Mb/TFM,1) : '未輸入', d(A.sum/TFM,1),
+      A.given ? d(1.2*A.Mb/A.sum,3) : '—', A.given ? J(A.ok) : '須另行檢核', '土木401-112 §18.4.3.2'); }
+  { const dv = devVerdict(M.devPlan, 'devPlan'); row('主筋伸展長度與搭接', '—', dv[2], '—', dv[0]==='bad' ? 'NG' : dv[0]==='warn' ? '注意' : 'OK', '土木401-112 第 25 章'); }
+  return rows;
+}
+function colSummaryReport(M, o, note){
+  const rows = colSummaryRows(M), bad = colAlertItems(M).filter(a=>a.lv==='bad');
+  o.push(`<div class="rp-h2">檢核彙總與總判定</div>`);
+  o.push(`<table class="no-break"><thead><tr><th class="l">檢核項目</th><th>需求值</th><th>容量／限值</th><th>比值</th><th>判定</th><th class="l">依據</th></tr></thead><tbody>`
+    + rows.map(q=>`<tr><td class="l">${q.item}</td><td>${q.need}</td><td>${q.cap}</td><td>${q.ratio}</td><td>${q.ok==='NG'?'<b>NG</b>':q.ok}</td><td class="l">${q.ref}</td></tr>`).join('')
+    + `</tbody></table>`);
+  o.push(`<div style="font-size:14px;font-weight:800;padding:8px;margin:6px 0;border:2px solid ${bad.length?'#c00':'#060'};display:inline-block">總判定：${bad.length ? `不合格（NG），共 ${bad.length} 項` : '合格（OK）'}</div>`);
+  if(bad.length) o.push(note(`<b>不合格項目</b>：${bad.map((a,i)=>`(${i+1}) ${a.t}`).join('；')}`));
+  o.push(note('總判定依全部檢核項目（含上表以外之警示，如長細效應、圍束筋量、基樁細則）；「未涵蓋」項目須另行檢核，不計入本判定。'));
+  o.push(confReportHtml('pylon'));
+}
 /* 計算書：基樁規定彙整 */
 function pileReport(M, o, eq, note, d, no){
   const P = M.opt.pile, R = M.pileR;
@@ -6849,8 +6988,11 @@ const loadUnitK = () => { const e = document.getElementById('loadUnit'); return 
 function drawLoads(){
   const tb=document.querySelector('#loadTbl tbody'); tb.innerHTML='';
   const K = loadUnitK(), uF = K===1 ? 'tf' : 'kN', uM = K===1 ? 'tf·m' : 'kN·m';
-  document.querySelectorAll('#loadTbl thead th').forEach((th,j)=>{ const sp = th.querySelector('span'); if(!sp || j<2) return;
-    const base = sp.innerHTML.replace(/^(tf·m|kN·m|tf|kN)/, ''); sp.innerHTML = ([3,4,7].includes(j) ? uM : uF) + base; });
+  { const lu = document.getElementById('loadUnit'); if(lu) lu.dataset.prev = lu.value; }   // 程式設定單位（開啟案件等）後之基準
+  // 表頭單位：只改 .u（上下標轉換後 th 內另有 span，舊版抓到第一個 span 造成「kN P_u / tf」並列）；說明列同步
+  document.querySelectorAll('#loadTbl thead th').forEach((th,j)=>{ const sp = th.querySelector('span.u'); if(!sp || j<2) return;
+    sp.textContent = [3,4,7].includes(j) ? uM : uF; });     // .u 只含單位（「↔ V」另置），直接覆寫不累加
+  document.querySelectorAll('.lu-f').forEach(e => e.textContent = uF); document.querySelectorAll('.lu-m').forEach(e => e.textContent = uM);
   const show = v => { const x = (+v||0)*K; return K===1 ? (Number.isFinite(+v) ? +v : 0) : +x.toFixed(3); };
   LOADS.forEach((L,i)=>{
     const tr=document.createElement('tr');
@@ -7170,14 +7312,15 @@ function beamDeflection(S, m, ctx, gross, icr){
   const IeTot=Ie(Mtot), IeSus=Ie(Msus), IeD=Ie(MD);
   const dD   = dl(MD, IeD);
   const dTot = dl(Mtot, IeTot);
-  const dL   = Math.max(0, dTot - dl(MD, IeTot));    // 即時活載撓度
+  // 即時活載撓度 Δ_L = Δ(D+L) − Δ(D)：I_e 隨使用彎矩變化（表 24.2.3.5），Δ(D) 須以 I_e(M_D) 計算（舊版以 I_e(M_D+M_L) 扣除，低估 Δ_L）
+  const dL   = Math.max(0, dTot - dD);
   const dSus = dl(Msus, IeSus);
   const rhoP = ctx.layers.filter(L2=>{
     const d = S.sign==='pos' ? ctx.g.h-L2.y : L2.y; return d < ctx.g.h/2; })
     .reduce((a,b)=>a+b.A,0) / Math.max(1e-9, S.bw*ctxDepth(ctx));
   const lam = S.xi/(1+50*rhoP);
   const dLT = dSus*lam + dL;
-  return {fr, yt, Mcr, K, Kdesc:DEFL_K[S.deflCase], Ie:IeTot, IeSus, Icr:icr.Icr, Ig:gross.Ig,
+  return {fr, yt, Mcr, K, Kdesc:DEFL_K[S.deflCase], Ie:IeTot, IeSus, IeD, Icr:icr.Icr, Ig:gross.Ig,
           n:icr.n, xNA:icr.x, MD, ML, Msus, Mtot, dD, dL, dSus, dTot, dLT, rhoP, lam,
           limL:L/S.limLive, limT:L/S.limTotal, okL:dL<=L/S.limLive, okT:dLT<=L/S.limTotal};
 }
@@ -9133,7 +9276,9 @@ function buildBeamReport(B){
     =${d(defl.Ie,0)}\\ \\text{cm}^4\\qquad(M_a=M_D+M_L,\\ \\text{表 24.2.3.5(b)})`));
   o.push(eq(`\\Delta=K\\frac{M_a L^2}{E_c I_e},\\qquad K=${d(defl.K,4)}\\quad(\\text{${defl.Kdesc.t}})`));
   o.push(note(`K 之由來：${defl.Kdesc.d}。若支承條件或載重型式不同，請自行改選。`));
-  o.push(eq(`\\Delta_L=${d(defl.dL,4)}\\ \\text{cm}\\ ${defl.okL?'\\le':'\\gt'}\\ \\frac{L}{${d(S.limLive,0)}}=${d(defl.limL,4)}\\ \\text{cm}`));
+  o.push(eq(`\\Delta_{D+L}=${d(defl.dTot,4)}\\ \\text{cm}\\ (I_e=${d(defl.Ie,0)}),\\qquad
+    \\Delta_D=K\\frac{M_D L^2}{E_c I_e(M_D)}=${d(defl.dD,4)}\\ \\text{cm}\\ (I_e(M_D)=${d(defl.IeD,0)})`));
+  o.push(eq(`\\Delta_L=\\Delta_{D+L}-\\Delta_D=${d(defl.dL,4)}\\ \\text{cm}\\ ${defl.okL?'\\le':'\\gt'}\\ \\frac{L}{${d(S.limLive,0)}}=${d(defl.limL,4)}\\ \\text{cm}`));
   o.push(eq(`\\lambda_\\Delta=\\frac{\\xi}{1+50\\rho'}=\\frac{${d(S.xi,1)}}{1+50\\times${d(defl.rhoP,5)}}=${d(defl.lam,4)}
     \\qquad \\Delta_{LT}=\\Delta_{sus}\\lambda_\\Delta+\\Delta_L=${d(defl.dLT,4)}\\ \\text{cm}`));
   o.push(eq(`\\Delta_{LT}=${d(defl.dLT,4)}\\ ${defl.okT?'\\le':'\\gt'}\\ \\frac{L}{${d(S.limTotal,0)}}=${d(defl.limT,4)}\\ \\text{cm}`));
@@ -9169,6 +9314,7 @@ function buildBeamReport(B){
     4. 撓度採土木401-112 表 24.2.3.5 之 \\(I_e\\)（Bischoff 式）；長期乘數 \\(\\xi=${d(S.xi,1)}\\)、持續活載比例 ${d(S.sustain*100,0)}%。<br>
     5. 建議配筋僅列出前 6 組，且限單一號數、最多 2 排。`));
   { const U = beamUncovered(B); if(U.length) o.push(note(`<b>本計算書未涵蓋、須另行檢核</b>：${U.map((t,i)=>`(${i+1}) ${t}`).join('；')}。`)); }
+  o.push(confReportHtml('beam'));
   o.push(`</div>`);
 
   const el=document.getElementById('report');
@@ -9881,7 +10027,20 @@ function pinFit(mod){
     rerender();
   });
   document.getElementById('btnCaseSave').onclick = caseDownload;
-  document.getElementById('loadUnit').addEventListener('change', () => drawLoads());
+  /* H8：切換輸入單位時，詢問現有數值是「僅換算顯示」（內部 tf 不變）或「視為新單位重新解讀」（表內數字不變、內部值換算）——
+     後者用於「把 kN 誤當 tf 輸入」之修正；舊版只換算顯示，使用者以為改好了，載重仍偏大 9.8 倍 */
+  { const lu = document.getElementById('loadUnit'); lu.dataset.prev = lu.value;
+    lu.addEventListener('change', async () => {
+      const from = lu.dataset.prev || 'tf', to = lu.value; if(from === to) return;
+      const nm = u => u==='kN' ? 'kN、kN·m' : 'tf、tf·m';
+      const go = await askChoice('切換載重輸入單位',
+        `表中現有數值原本以 <b>${nm(from)}</b> 輸入。請選擇：<br>・<b>僅換算顯示</b>：載重不變，表內數字改以 ${nm(to)} 顯示。<br>`
+        + `・<b>視為 ${nm(to)} 重新解讀</b>：表內數字不變，改當作 ${nm(to)}（例如分析結果原為 kN 卻以 tf 輸入時），載重將${to==='kN'?'縮小':'放大'} 9.80665 倍。`,
+        [{label:'取消', value:null}, {label:'僅換算顯示', value:'show', primary:true}, {label:`視為 ${nm(to)} 重新解讀`, value:'re'}]);
+      if(!go){ lu.value = from; return; }
+      if(go==='re'){ const k = to==='kN' ? 1/KN_PER_TF : KN_PER_TF; for(const L of LOADS) for(const q of LOAD_NUM) L[q] = (+L[q]||0)*k; }
+      lu.dataset.prev = to; drawLoads(); render();
+    }); }
   document.getElementById('btnMembers').onclick = () => { memRender(); document.getElementById('memOv').classList.add('open'); };
   document.getElementById('memClose').onclick = () => document.getElementById('memOv').classList.remove('open');
   document.getElementById('memAdd').onclick = memAdd;

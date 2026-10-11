@@ -133,6 +133,7 @@ async function screenshots(browser, base){
   { const t = await box('#topbar');
     await shot('18-topbar', [['#btnImport',1],['#btnCaseOpen',2],['#btnCaseSave',3],['#btnXlsx',4],['#btnPreview',5],['#btnPrint',6],['#btnTest',7]], {x:0, y:0, width:W, height:t.height+4}); }
   /* 12 匯出 Excel */
+  await page.evaluate(() => confAll(TAB==='beam' ? 'beam' : 'pylon'));   // 需確認未完成時 Excel 匯出受阻（H7）
   const [dl] = await Promise.all([page.waitForEvent('download', {timeout:90000}), page.click('#btnXlsx')]);
   fs.rmSync(XL, {recursive:true, force:true}); fs.mkdirSync(XL, {recursive:true});
   await dl.saveAs(path.join(XL, 'C1.xlsx'));
