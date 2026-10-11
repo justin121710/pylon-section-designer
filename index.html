@@ -5153,7 +5153,7 @@ function caseApply(c){
   const missing = caseInputs().filter(el => !(el.id in c.values) && !el.closest('#loadTbl,#bLoadTbl'));
   CASE_NOTICE = (c.appVersion !== APP_VERSION && missing.length)
     ? {from: c.appVersion || '（未記錄，ver ' + (c.ver||1) + '）', fields: missing.map(el => pinLabel(el.id))} : null;
-  if(Array.isArray(c.members) && !c._member) MEMBERS = c.members.filter(x => x && x.snap);
+  if(Array.isArray(c.members) && !c._member) MEMBERS = caseMembers(c.members);
   for(const [id,val] of Object.entries(c.values)){
     if(!ok.has(id)) continue;
     const el = document.getElementById(id);
@@ -5161,20 +5161,44 @@ function caseApply(c){
     if(el.tagName==='SELECT' && ![...el.options].some(o=>o.value===String(val))) continue;
     el.value = val;
   }
-  const rows = a => Array.isArray(a) ? a.filter(x=>x && typeof x==='object').map(x=>({...x})) : null;
-  LOADS  = rows(c.loads)  || LOADS;
-  BLOADS = rows(c.bloads) || BLOADS;
+  LOADS  = caseRows(c.loads,  LOAD_NUM)  || LOADS;
+  BLOADS = caseRows(c.bloads, BLOAD_NUM) || BLOADS;
   if(c.axis==='x'||c.axis==='y') AXIS = c.axis;
   if(c.bsign==='pos'||c.bsign==='neg') BSIGN = c.bsign;
   // 報告／Excel 輸出項目屬於案件：舊版案件檔沒有此欄位時回到本案預設
   for(const k of Object.keys(DEVEXP)) delete DEVEXP[k];
-  if(c.devexp && typeof c.devexp==='object') for(const k of ['col','beam']) if(c.devexp[k] && Array.isArray(c.devexp[k].f)) DEVEXP[k] = c.devexp[k];
+  const strs = a => Array.isArray(a) ? a.filter(x => typeof x==='string') : [];
+  if(c.devexp && typeof c.devexp==='object') for(const k of ['col','beam']) if(c.devexp[k] && Array.isArray(c.devexp[k].f))
+    DEVEXP[k] = {f: strs(c.devexp[k].f), v: strs(c.devexp[k].v), t: strs(c.devexp[k].t)};
   try{ localStorage.setItem('rcsd.devexp', JSON.stringify(DEVEXP)); }catch(e){}
   drawLoads(); drawBLoads();
   render(); renderBeam();          // 柱、梁兩個模型都依案件重算（不只目前分頁）
   document.getElementById(c.tab==='beam'?'tabBeam':'tabPylon').click();
 }
 var CASE_NOTICE = null;
+/* 案件檔、構件快照、自動保存皆可能來自外部檔案：載重列只保留已知欄位，數值一律 Number()（非有限值歸零），
+   名稱強制為字串、位置只接受 top/bot——避免檔案內夾帶 HTML／程式碼於畫面重繪時執行。 */
+const LOAD_NUM = ['Pu','Mux','Muy','Vux','Vuy','Tu'], BLOAD_NUM = ['Mpos','Mneg','Vu','Tu'];
+const caseNum = v => { const x = Number(v); return Number.isFinite(x) ? x : 0; };
+function caseRows(a, keys){
+  if(!Array.isArray(a)) return null;
+  const out = a.filter(x => x && typeof x==='object').map(x => {
+    const r = {name: x.name==null ? '' : String(x.name)};
+    for(const k of keys) r[k] = caseNum(k==='Mpos' && x.Mpos==null ? x.Mu : x[k]);   // 舊版梁載重以 Mu 記正彎矩
+    if(x.pos==='top' || x.pos==='bot') r.pos = x.pos;
+    return r; });
+  return out.length ? out : null;
+}
+/* 構件清單：每筆的 id、名稱、模組、時間轉成字串；快照內的載重列同樣清理 */
+function caseMembers(a){
+  if(!Array.isArray(a)) return [];
+  return a.filter(m => m && typeof m==='object' && m.snap && typeof m.snap==='object').map(m => {
+    const snap = {...m.snap};
+    for(const [k, keys] of [['loads', LOAD_NUM], ['bloads', BLOAD_NUM]]){ const r = caseRows(snap[k], keys); if(r) snap[k] = r; else delete snap[k]; }
+    return {id: String(m.id ?? ('m' + Math.random().toString(36).slice(2,9))), name: String(m.name ?? ''), tab: m.tab==='beam' ? 'beam' : 'pylon',
+            saved: typeof m.saved==='string' ? m.saved : '', snap};
+  });
+}
 /* 參數表標籤（找不到時回傳 id） */
 function pinLabel(id){ for(const mod of ['pylon','beam']) for(const g of (PIN_META[mod]||[])) for(const p of g[1]) if(p[0]===id) return String(p[2]).replace(/<[^>]+>/g,''); return id; }
 function caseNotice(){
@@ -5227,9 +5251,15 @@ async function memCsv(){
   await memBatch();
   const rows = [['構件','模組','斷面','撓曲D/C','不合格項數','需確認未完成','判定']].concat(MEMBERS.map(m => { const r = MEM_RES[m.id] || {};
     return [m.name, m.tab==='beam'?'梁／版':'柱', r.txt||'', Number.isFinite(r.dc) ? r.dc.toFixed(3) : '∞', r.bad??'', r.pend??'', r.bad ? 'FAIL' : r.pend ? '未完成' : 'PASS']; }));
-  const csv = '\ufeff' + rows.map(r => r.map(x => /[",\n]/.test(String(x)) ? `"${String(x).replace(/"/g,'""')}"` : x).join(',')).join('\r\n');
+  const csv = '\ufeff' + rows.map(r => r.map(csvCell).join(',')).join('\r\n');
   const a = Object.assign(document.createElement('a'), {href: URL.createObjectURL(new Blob([csv], {type:'text/csv'})), download: `構件總表_${new Date().toISOString().slice(0,10)}.csv`});
   document.body.appendChild(a); a.click(); a.remove();
+}
+/* CSV 儲存格：以 = + - @ Tab CR 開頭者前置單引號，避免試算表當公式執行（CSV／公式注入） */
+function csvCell(x){
+  let s = String(x ?? '');
+  if(/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
 }
 async function memXlsx(){ await memEach(async m => { await exportXlsx(m.name); await new Promise(r => setTimeout(r, 300)); }); }
 document.addEventListener('click', e => {
@@ -5248,7 +5278,7 @@ function saveWarn(on){ const w = document.getElementById('saveWarn'); if(w) w.cl
 function caseRestore(){
   try{ localStorage.setItem('rcsd.probe', '1'); localStorage.removeItem('rcsd.probe'); }catch(e){ saveWarn(true); }
   try{ const raw = localStorage.getItem(CASE_KEY); if(raw) caseApply(JSON.parse(raw)); }catch(e){}
-  try{ const mm = JSON.parse(localStorage.getItem(MEM_KEY) || 'null'); if(Array.isArray(mm) && (!MEMBERS || !MEMBERS.length)) MEMBERS = mm; }catch(e){}
+  try{ const mm = JSON.parse(localStorage.getItem(MEM_KEY) || 'null'); if(Array.isArray(mm) && (!MEMBERS || !MEMBERS.length)) MEMBERS = caseMembers(mm); }catch(e){}
   CASE_READY = true;
   setTimeout(caseNotice, 300);
 }
@@ -6809,10 +6839,10 @@ function drawLoads(){
   const K = loadUnitK(), uF = K===1 ? 'tf' : 'kN', uM = K===1 ? 'tf·m' : 'kN·m';
   document.querySelectorAll('#loadTbl thead th').forEach((th,j)=>{ const sp = th.querySelector('span'); if(!sp || j<2) return;
     const base = sp.innerHTML.replace(/^(tf·m|kN·m|tf|kN)/, ''); sp.innerHTML = ([3,4,7].includes(j) ? uM : uF) + base; });
-  const show = v => { const x = (+v||0)*K; return K===1 ? v : +x.toFixed(3); };
+  const show = v => { const x = (+v||0)*K; return K===1 ? (Number.isFinite(+v) ? +v : 0) : +x.toFixed(3); };
   LOADS.forEach((L,i)=>{
     const tr=document.createElement('tr');
-    const cell=(k,w)=>`<td><input data-i="${i}" data-k="${k}" value="${show(L[k])}" style="width:${w}px;text-align:right"></td>`;
+    const cell=(k,w)=>`<td><input data-i="${i}" data-k="${k}" value="${esc(show(L[k]))}" style="width:${w}px;text-align:right"></td>`;
     const ps = L.pos || '';
     tr.innerHTML=`<td class="l"><input data-i="${i}" data-k="name" value="${esc(L.name)}" style="width:130px"></td>`
       +`<td><select data-i="${i}" data-k="pos" title="同名組合分列「頂」「底」時，長細效應之 M₁/M₂ 由兩端彎矩求得" style="width:52px">`
@@ -8465,7 +8495,7 @@ function drawBLoads(){
   const tb=document.querySelector('#bLoadTbl tbody'); if(!tb) return; tb.innerHTML='';
   BLOADS.forEach((L,i)=>{
     const tr=document.createElement('tr');
-    const c=(k,w)=>`<td><input data-i="${i}" data-k="${k}" value="${L[k]}" style="width:${w}px;text-align:right"></td>`;
+    const c=(k,w)=>`<td><input data-i="${i}" data-k="${k}" value="${esc(Number.isFinite(+L[k]) ? +L[k] : 0)}" style="width:${w}px;text-align:right"></td>`;
     tr.innerHTML=`<td class="l"><input data-i="${i}" data-k="name" value="${esc(L.name)}" style="width:150px"></td>`
       +c('Mpos',78)+c('Mneg',78)+c('Vu',70)+c('Tu',64)
       +`<td><button data-del="${i}" style="padding:2px 7px">✕</button></td>`;
@@ -10158,7 +10188,7 @@ document.querySelectorAll('svg[viewBox]').forEach(fitSvg);
   /* ---------------- UI ---------------- */
   function setMsg(t, cls){
     const m = $('impMsg');
-    m.innerHTML = t ? (cls ? '<span class="imp-tag '+cls+'">'+t+'</span>' : t) : '';
+    m.innerHTML = t ? (cls ? '<span class="imp-tag '+cls+'">'+esc(t)+'</span>' : esc(t)) : '';
   }
   /* localStorage 在無痕模式／瀏覽器封鎖站台儲存時會直接丟例外，
      不包起來會讓整個對話框開到一半就死掉（看起來像「按了沒反應」）。 */
@@ -10204,10 +10234,11 @@ document.querySelectorAll('svg[viewBox]').forEach(fitSvg);
     if(!el) return '—';
     if(el.tagName === 'SELECT'){
       const o = el.options[el.selectedIndex];
-      return o ? o.textContent : el.value;
+      return o ? o.textContent : el.value;   // 由 secCard 統一跳脫
     }
     return el.value;
   }
+  const xe = v => esc(v ?? '');   // 模型輸出一律跳脫後才插入 HTML
 
   /* ---- 把一個斷面畫成可勾選的比對表 ---- */
   function secCard(sec, idx){
@@ -10237,18 +10268,18 @@ document.querySelectorAll('svg[viewBox]').forEach(fitSvg);
       if(el && el.tagName === 'SELECT'){
         let o = '<option value="">（未填）</option>';
         Array.from(el.options).forEach(op=>{
-          o += '<option value="'+op.value+'"'
+          o += '<option value="'+xe(op.value)+'"'
              + (supported && String(op.value) === String(v) ? ' selected' : '')
-             + '>'+op.textContent+'</option>';
+             + '>'+xe(op.textContent)+'</option>';
         });
         ed = '<select class="imp-ed" id="'+edId+'">'+o+'</select>';
       }else{
         ed = '<input class="imp-ed" id="'+edId+'" type="number" step="any" '
-           + 'value="'+(has ? v : '')+'" placeholder="圖上沒寫，可自行填">';
+           + 'value="'+(has ? xe(v) : '')+'" placeholder="圖上沒寫，可自行填">';
       }
       let note = '';
-      if(f.k === 'barSize') note = sec.barSize_as_drawn ? '圖上寫 '+sec.barSize_as_drawn+'（'+bar.why+'）' : '';
-      else if(f.k === 'tieSize') note = sec.tieSize_as_drawn ? '圖上寫 '+sec.tieSize_as_drawn+'（'+tie.why+'）' : '';
+      if(f.k === 'barSize') note = sec.barSize_as_drawn ? '圖上寫 '+xe(sec.barSize_as_drawn)+'（'+xe(bar.why)+'）' : '';
+      else if(f.k === 'tieSize') note = sec.tieSize_as_drawn ? '圖上寫 '+xe(sec.tieSize_as_drawn)+'（'+xe(tie.why)+'）' : '';
       if(!has) note += '<span class="imp-tag warn">圖說沒寫</span>';
       else if(lc.has(f.k)) note += '<span class="imp-tag warn">低信心</span>';
       if(has && !supported) note += '<span class="imp-tag bad">工具不支援此值，已清空</span>';
@@ -10258,17 +10289,17 @@ document.querySelectorAll('svg[viewBox]').forEach(fitSvg);
         +   (has && supported ? ' checked' : '') + '></td>'
         + '<td class="l">'+f.label+(f.u ? ' <span style="color:var(--dim)">('+f.u+')</span>' : '')+'</td>'
         + '<td class="l">'+ed+'</td>'
-        + '<td class="l" style="color:var(--dim)">'+curOf(f.id)+'</td>'
+        + '<td class="l" style="color:var(--dim)">'+xe(curOf(f.id))+'</td>'
         + '<td class="l imp-note">'+note+'</td></tr>';
     });
 
-    const n = sec.n_bars_total;
+    const n = Number.isFinite(+sec.n_bars_total) && +sec.n_bars_total > 0 ? Math.round(+sec.n_bars_total) : null;
     const srcOk = sec.n_bars_source === '圖上標註';
     let barsBlock = '<div class="imp-note" style="margin-top:9px">'
       + '<b>主筋總支數：</b>'
-      + (n ? n+' 支 <span class="imp-tag '+(srcOk?'ok':'warn')+'">來源：'+(sec.n_bars_source||'?')+'</span>'
+      + (n ? n+' 支 <span class="imp-tag '+(srcOk?'ok':'warn')+'">來源：'+xe(sec.n_bars_source||'?')+'</span>'
            : '<span class="imp-tag bad">判讀不出來</span>')
-      + (sec.bars_note_as_drawn ? '　圖上原文：'+sec.bars_note_as_drawn : '')
+      + (sec.bars_note_as_drawn ? '　圖上原文：'+xe(sec.bars_note_as_drawn) : '')
       + (n && !srcOk ? '<br>這個數字不是照抄圖上文字，是模型自己數的，<b>務必自己再數一次</b>。' : '')
       + (n && circ ? '<br>圓柱：主筋總根數直接帶入「主筋總根數」欄（上表）。' : '')
       + (n && !circ ? '<br>單面根數 n<sub>B</sub> / n<sub>H</sub> <b>不會自動填</b>，'
@@ -10284,31 +10315,31 @@ document.querySelectorAll('svg[viewBox]').forEach(fitSvg);
       + '<option value="pylon"'+(isBeam?'':' selected')+'>橋塔／柱斷面模組</option>'
       + '<option value="beam"'+(isBeam?' selected':'')+'>梁斷面模組</option>'
       + '</select></div>'
-      + '<div class="imp-note">圖上判定為 <b>'+(sec.member_type||'?')
+      + '<div class="imp-note">圖上判定為 <b>'+xe(sec.member_type||'?')
       + '</b>；改這個下拉會換成該模組的欄位對照。</div>';
 
     return '<div class="imp-sec">'
-      + '<h3>'+(sec.name||'（未命名斷面）')
-      + '<span class="imp-tag">'+(sec.member_type||'?')+'</span></h3>'
+      + '<h3>'+xe(sec.name||'（未命名斷面）')
+      + '<span class="imp-tag">'+xe(sec.member_type||'?')+'</span></h3>'
       + '<table class="imp-tbl"><thead><tr>'
       + '<th style="width:34px">套用</th><th class="l">參數</th>'
       + '<th class="l">圖說判讀值</th><th class="l">目前值</th><th class="l">說明</th>'
       + '</tr></thead><tbody>'+rows+'</tbody></table>'
       + barsBlock + tgt
       + '<div class="imp-note" style="margin-top:8px"><b>判讀依據：</b>'
-      + (sec.evidence||'')+'</div>'
+      + xe(sec.evidence||'')+'</div>'
       + '</div>';
   }
 
   function renderResult(res){
     if(res){
-      SECTIONS = res.sections || [];
+      SECTIONS = (Array.isArray(res.sections) ? res.sections : []).filter(s => s && typeof s==='object');
       SHEET = res;
       TARGETS = SECTIONS.map(s => s.member_type === 'beam' ? 'beam' : 'pylon');
     }
     let h = '';
-    if(SHEET.sheet_note) h += '<div class="imp-note" style="margin-bottom:9px"><b>整張圖：</b>'+SHEET.sheet_note+'</div>';
-    if(SHEET.unit_note)  h += '<div class="imp-note" style="margin-bottom:11px"><b>單位：</b>'+SHEET.unit_note+'</div>';
+    if(SHEET.sheet_note) h += '<div class="imp-note" style="margin-bottom:9px"><b>整張圖：</b>'+esc(SHEET.sheet_note)+'</div>';
+    if(SHEET.unit_note)  h += '<div class="imp-note" style="margin-bottom:11px"><b>單位：</b>'+esc(SHEET.unit_note)+'</div>';
     if(!SECTIONS.length) h += '<div class="alert a-warn">這張圖判讀不出任何斷面。</div>';
     SECTIONS.forEach((s,i)=>{ h += secCard(s,i); });
     $('impResult').innerHTML = h;
@@ -10358,7 +10389,7 @@ document.querySelectorAll('svg[viewBox]').forEach(fitSvg);
       if(el.tagName === 'SELECT' && !optExists(b.dataset.id, v)) return;
       el.value = v;
       filled.push(el);
-      if(isBeam) nB++; else { nP++; if(sec.n_bars_total) drawTotal = sec.n_bars_total; }
+      if(isBeam) nB++; else { nP++; if(+sec.n_bars_total > 0 && Number.isFinite(+sec.n_bars_total)) drawTotal = Math.round(+sec.n_bars_total); }
     });
 
     // 沒帶進來的欄位在主介面標出來，讓人一眼看到「這格不是圖說給的」
@@ -10466,7 +10497,7 @@ document.querySelectorAll('svg[viewBox]').forEach(fitSvg);
       const mime = f.type || (/\.pdf$/i.test(f.name) ? 'application/pdf' : 'image/png');
       const model = $('impModel').value.trim();
       const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/'
-                            + model + ':generateContent',
+                            + encodeURIComponent(model) + ':generateContent',
         {method:'POST',
          headers:{'Content-Type':'application/json','x-goog-api-key':key},
          body: JSON.stringify({
@@ -10533,13 +10564,13 @@ document.querySelectorAll('svg[viewBox]').forEach(fitSvg);
     const sel = $('secPick'), nm = $('secName');
     if(SECTIONS.length > 1){
       sel.innerHTML = SECTIONS.map((s,i)=>
-        '<option value="'+i+'">'+(s.name || '斷面 '+(i+1))+'</option>').join('');
+        '<option value="'+i+'">'+esc(s.name || '斷面 '+(i+1))+'</option>').join('');
       sel.value = String(window.__curSec || 0);
       sel.style.display = '';
       nm.textContent = '共 ' + SECTIONS.length + ' 個斷面';
     }else{
       sel.style.display = 'none';
-      nm.textContent = SECTIONS.length === 1 ? (SECTIONS[0].name || '') : '';
+      nm.textContent = SECTIONS.length === 1 ? String(SECTIONS[0].name || '') : '';
     }
   }
   $('secPick').onchange = function(){
