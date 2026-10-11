@@ -10203,10 +10203,12 @@ let _fitHost = null;
    ・數學變數（後接 <sub>/<sup> 的字母、希臘小寫、算式中獨立的單一字母、上下標內的字母）→ .mi（KaTeX_Math 斜體）
    ・含變數或數字的非中文連續段（數字、運算子、單位）→ .mr（KaTeX_Main 直體，如同 \text{cm}）
    KaTeX 尚未排版的 \( … \) 原始碼不動；輸入框、下拉選單、SVG（另由 svgTxt 處理）略過。 */
-const TEX_SKIP = 'script,style,textarea,input,select,option,svg,.katex,code,pre,kbd,.mi,.mr,.pin-mk,.no-tex';
+const TEX_SKIP = 'script,style,textarea,input,select,option,svg,.katex,code,pre,kbd,.mi,.mr,.pin-mk,.no-tex,.nosb';   // .nosb：使用者文字（L10）
 function _texSegs(s, nextSub, inSub){
   const s2 = nextSub ? s + '_' : s;
   const ids = _mathIds(s2); ids.delete(s.length);
+  // 條號之款次「§18.4.2.1(a)」「表 22.7.4.1(c)」：括號內單一字母非數學變數，維持直體
+  s.replace(/\d\(([a-z])\)/g, (w, l, off) => { ids.delete(off + 2); return w; });
   if(inSub){   // 上下標內：字母一律斜體，max/min 等函數名除外
     s.replace(/[A-Za-zα-ωϕϑ]+/g, (w, off) => { if(!/^(max|min|cm)$/.test(w)) for(let k=0;k<w.length;k++) ids.add(off+k); return w; });
   }
