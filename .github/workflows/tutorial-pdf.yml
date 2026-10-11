@@ -1,11 +1,12 @@
 # 操作教學與常見問題 PDF 須對應程式與教學原始檔（見 docs/tutorial/check.sh）。
-# 只在推送（合併）到 main 時檢查；過期即重建並以 [skip ci] 機器人提交推回 main，並將兩份 PDF 上傳為 artifact。
+# 只在推送（合併）到 main 時檢查；過期即重建並以機器人提交推回 main，並將兩份 PDF 上傳為 artifact。
 # 分支提交不附 PDF，以免每個提交讓儲存庫增加約 13 MB。亦可於 Actions 頁面手動執行（workflow_dispatch）。
 name: 操作教學 PDF 重建（main）
 on:
   push:
     branches: [main]
   workflow_dispatch:
+# L12：寫入權限只給本工作流程（僅推送到 main 時執行）；actions 以 commit SHA 固定
 permissions:
   contents: write
 concurrency:
@@ -15,10 +16,10 @@ jobs:
   pdf:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262   # v4.4.0
       - id: chk
         run: sh docs/tutorial/check.sh && echo "stale=0" >> "$GITHUB_OUTPUT" || echo "stale=1" >> "$GITHUB_OUTPUT"
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020   # v4.4.0
         if: steps.chk.outputs.stale == '1'
         with: {node-version: 22}
       - name: 安裝建置工具
@@ -34,9 +35,9 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add "docs/RC斷面設計工具_操作教學.pdf" "docs/RC斷面設計工具_常見問題.pdf" docs/tutorial/stamp.txt
-          git commit -m "重建操作教學與常見問題 PDF [skip ci]"
+          git commit -m "重建操作教學與常見問題 PDF"   # GITHUB_TOKEN 推送本就不觸發其他工作流程；僅含 PDF，回歸測試以前一提交為準
           git pull --rebase origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02   # v4.6.2
         with:
           name: tutorial-pdf
           path: |

@@ -1,8 +1,15 @@
 # 數值回歸測試（tests/）：無頭 Chromium 開啟 index.html 直接驗算；Excel 計算書以 LibreOffice 重算後與網頁比對
+# L12：最小權限（唯讀）、同一分支連續推送時取消舊執行、actions 以 commit SHA 固定（註解為對應版本）
 name: 數值回歸測試
 on:
   push:
+    branches: ['**']
   pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: regression-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -10,8 +17,8 @@ jobs:
       run:
         working-directory: tests
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262   # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020   # v4.4.0
         with:
           node-version: 22
           cache: npm

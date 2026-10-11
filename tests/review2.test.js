@@ -286,10 +286,11 @@ test('H1、H2、H4：Excel 之 V_e 取軸力範圍最大值、柱尺寸檢核；
 });
 
 /* ---------------- 第二輪審查 M1～M15 ---------------- */
-test('M1：扭矩門檻依表 22.7.4.1(c) 計入軸力（軸拉折減）', async () => {
+test('M1、L2：扭矩門檻依表 22.7.4.1(c) 計入軸力（軸拉折減）', async () => {
   const r = await page.evaluate(() => { document.getElementById('tabPylon').click(); applyPreset('bldg60');
     LOADS[3].Pu = -40; LOADS[3].Tu = 1.5; drawLoads(); render(); const c = MODEL.shX.all[3]; return {Tth: c.Tth/1e5, tors: c.torsion}; });
-  assert.ok(Math.abs(r.Tth - 1.098) < 0.01, `φT_th ≈ 1.098（${r.Tth}）`); assert.equal(r.tors, true, 'T_u = 1.5 > 1.098 須設計扭矩');
+  // kgf 制原文表 22.7.4.1(c)：√(1 + N_u/(A_g λ√f'c))，1.796 × √(1 − 40000/(3600·√280)) = 1.041
+  assert.ok(Math.abs(r.Tth - 1.041) < 0.01, `φT_th ≈ 1.041（${r.Tth}）`); assert.equal(r.tors, true, 'T_u = 1.5 > 1.041 須設計扭矩');
   await page.evaluate(() => applyPreset('bldg60'));
 });
 
@@ -378,5 +379,56 @@ test('M9、M11：Excel 圓形斷面無 #VALUE!；箱型薄壁剪扭上限與網�
   assert.ok(w.thin, '範例須為薄壁');
   const b = new ExcelJS.Workbook(); await b.xlsx.readFile(path.join(out, 'm11.xlsx')); const L = b.getWorksheet('載重組合');
   w.fail.forEach((arr, k) => arr.forEach((f, i) => assert.equal(+val(L.getCell((k ? 'AG' : 'AF') + (4+i)).value), f, `${k?'Y':'X'} 向第 ${i+1} 組斷面不足判定`)));
+  await page.evaluate(() => applyPreset('bldg60'));
+});
+
+/* ---------------- 第二輪審查 L1～L12 ---------------- */
+test('L2：輕質混凝土 f_r = 2λ√f\'c、T_th 乘 λ', async () => {
+  const r = await page.evaluate(() => { document.getElementById('tabBeam').click(); applyBPreset('bldgJoist'); const e = document.getElementById('bdLight');
+    const opt = [...e.options].map(o => o.value).find(v => Math.abs(+v - 0.75) < 1e-9); e.value = opt; renderBeam();
+    const out = {fr: BMODEL.defl.fr, exp: 2*0.75*Math.sqrt(BMODEL.m.fc), Tthr: BMODEL.sh.Tthr, exp2: BMODEL.m.phiv*0.265*0.75*Math.sqrt(BMODEL.m.fc)*BMODEL.sh.Acp**2/BMODEL.sh.pcp};
+    applyBPreset('bldgJoist'); return out; });
+  assert.ok(Math.abs(r.fr - r.exp) < 1e-9); assert.ok(Math.abs(r.Tthr - r.exp2) < 1e-6);
+});
+
+test('L3、L4：耐震圓形閉合箍筋至少 6 根；尺寸 ≤ 0 說明須大於 0、過大提醒 mm／cm', async () => {
+  const r = await page.evaluate(() => { document.getElementById('tabPylon').click(); applyPreset('circ80');
+    document.getElementById('spiral').value = 'hoop'; document.getElementById('ph').value = '1'; document.getElementById('nCir').value = 5; render();
+    const six = colAlertItems(MODEL).some(a => a.lv==='bad' && /至少 6 根/.test(a.t) && /18\.4\.4\.2/.test(a.t));
+    applyPreset('bldg60'); document.getElementById('B').value = -60; const M = render();
+    const why = (M.badIn.find(b => b.id==='B') || {}).why;
+    document.getElementById('B').value = 6000; render(); const mm = colAlertItems(MODEL).some(a => /mm 當成 cm/.test(a.t));
+    applyPreset('bldg60'); return {six, why, mm}; });
+  assert.deepEqual(r, {six: true, why: '須大於 0', mm: true});
+});
+
+test('L9、L10、L12：構件清單可橫向捲動、名稱不轉上下標；注意級項目只列於需確認區（附去修改按鈕）', async () => {
+  const r = await page.evaluate(() => { MEMBERS = []; document.getElementById('memName').value = 'Col_A'; memAdd(); memRender();
+    const L = document.getElementById('memList'), name = L.querySelector('td b').textContent, sub = !!L.querySelector('td b sub');
+    MEMBERS = []; memSave(); memRender(); document.getElementById('memName').value = '';
+    applyPreset('bldg60'); document.getElementById('lu').value = 20; render();   // 超出常用範圍 → 「注意」級（附參數按鈕）
+    const conf = document.querySelectorAll('#confirmP .conf-go button').length, dupVisible = [...document.querySelectorAll('#alerts .a-warn')].filter(e => e.offsetParent !== null).length;
+    const nWarn = colAlertItems(MODEL).filter(a => a.lv==='warn').length; applyPreset('bldg60');
+    return {ox: getComputedStyle(L).overflowX, name, sub, conf: conf > 0, dupVisible, nWarn}; });
+  assert.equal(r.ox, 'auto'); assert.equal(r.name, 'Col_A'); assert.equal(r.sub, false);
+  assert.ok(r.nWarn > 0 && r.conf, '需確認區附去修改按鈕'); assert.equal(r.dupVisible, 0, '下方清單不重複顯示注意級項目');
+});
+
+test('L5、L8：Excel 長細比已放大時判「已放大」且比值為 δ；基樁塑鉸區說明不稱啟動容量設計剪力', {skip: !hasSoffice && '未安裝 LibreOffice（soffice）'}, async () => {
+  await page.evaluate(() => { document.getElementById('tabPylon').click(); applyPreset('pier100'); render(); });
+  const w = await page.evaluate(() => { const sl = colSlender(MODEL); return {ok: sl.ok, neg: sl.negligible}; });
+  await exportAs('l5');
+  await page.evaluate(() => { applyPreset('pileC120'); render(); });
+  await exportAs('l8');
+  const out = path.join(TMP, 'outl');
+  execFileSync('soffice', ['--headless', '--convert-to', 'xlsx', '--outdir', out, path.join(TMP, 'l5.xlsx'), path.join(TMP, 'l8.xlsx')], {stdio:'ignore', timeout:300000});
+  const load = async n => { const wb = new ExcelJS.Workbook(); await wb.xlsx.readFile(path.join(out, n + '.xlsx')); return wb; };
+  const a = await load('l5'), q = row(a, '長細比 k·lu/r');
+  if(q.judge !== 'PASS'){ assert.equal(q.judge, '已放大'); const ws = a.getWorksheet('檢核表'); let rat;
+    ws.eachRow(rr => { if(String(val(rr.getCell(1).value)).trim()==='長細比 k·lu/r') rat = val(rr.getCell(4).value); });
+    assert.ok(rat >= 1 && rat < 1.5, `比值欄為 δ（${rat}）`); }
+  const b = await load('l8'); let crit = '';
+  b.getWorksheet('檢核表').eachRow(rr => { if(String(val(rr.getCell(1).value)).trim()==='塑鉸區／柱端加密區') crit = String(val(rr.getCell(6).value)); });
+  assert.match(crit, /基樁/); assert.doesNotMatch(crit, /啟動容量設計剪力/);
   await page.evaluate(() => applyPreset('bldg60'));
 });
