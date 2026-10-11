@@ -1,4 +1,4 @@
-a84491a9c4e97ee867cec07fca0005524fca746b  index.html
+4a2bc1ca9b342a156a9b0d7ace570cd37cfd9d0b  index.html
 c68a98d82a0787f79272d38a9a5b7900f0f80d92  calc-xlsx.js
 701264a860b05c5ad84f2b366f518a2ca4140174  docs/tutorial/tutorial.html
 f41570d5bf1aea06be8841fedc5fcb2c7f5d5c57  docs/tutorial/faq.html
