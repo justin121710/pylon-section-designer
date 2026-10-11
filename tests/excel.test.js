@@ -22,6 +22,7 @@ function item(wb, label){
 test('Excel 計算書與網頁一致（C1～C4、H2、H5、M1～M9）', {skip: !hasSoffice && '未安裝 LibreOffice（soffice）'}, async () => {
   const app = await openApp(), page = app.page;
   const exportAs = async name => {
+    await page.evaluate(() => confAll(TAB==='beam' ? 'beam' : 'pylon'));   // H7：需確認未完成時匯出受阻
     const [dl] = await Promise.all([page.waitForEvent('download', {timeout:120000}), page.click('#btnXlsx')]);
     await dl.saveAs(path.join(TMP, name + '.xlsx'));
   };

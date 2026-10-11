@@ -1,27 +1,10 @@
 #!/bin/sh
-# 每次提交前確保 docs/RC斷面設計工具_操作教學.pdf、_常見問題.pdf 對應本次提交的程式與原始檔。
+# 操作教學與常見問題 PDF 改為「合併（推送）到 main 時」由 GitHub Actions（tutorial-pdf.yml）重建並推回 main，
+# 分支提交不附 PDF（避免每個提交讓儲存庫增加約 13 MB）。本 hook 只提示，不阻擋提交。
 # 啟用：git config core.hooksPath .githooks
-# PDF 過期時自動重建並加入本次提交；無法建置時中止提交。
-ROOT=$(git rev-parse --show-toplevel) || exit 1
-cd "$ROOT" || exit 1
+ROOT=$(git rev-parse --show-toplevel) || exit 0
+cd "$ROOT" || exit 0
 sh docs/tutorial/check.sh >/dev/null 2>&1 && exit 0
-
-# 本機沒有建置工具時：RCSD_SKIP_PDF=1 git commit … 可略過，推送後由 CI（tutorial-pdf.yml）重建並推回
-if [ "${RCSD_SKIP_PDF:-0}" = "1" ]; then
-  echo "! 略過操作教學 PDF 重建（RCSD_SKIP_PDF=1）：推送後由 GitHub Actions 重建並推回本分支"; exit 0
-fi
-
-# 只有部分暫存時無法保證建置內容等於提交內容
-for f in $(grep -v '^#' docs/tutorial/inputs.txt | sed '/^[[:space:]]*$/d'); do
-  if ! git diff --quiet -- "$f"; then
-    echo "✗ $f 有未暫存的修改；操作教學 PDF 須依提交內容建置。請先 git add 或 git stash 後再提交。"; exit 1
-  fi
-done
-if [ ! -d docs/tutorial/node_modules ]; then
-  echo "… 安裝教學建置套件（docs/tutorial）"
-  (cd docs/tutorial && npm install --no-audit --no-fund >/dev/null) || { echo "✗ npm install 失敗"; exit 1; }
-fi
-echo "… 操作教學 PDF 已過期，重新建置中（約 1～2 分鐘）"
-(cd docs/tutorial && node build.js) || { echo "✗ 操作教學 PDF 建置失敗，提交已中止"; exit 1; }
-git add "docs/RC斷面設計工具_操作教學.pdf" "docs/RC斷面設計工具_常見問題.pdf" docs/tutorial/stamp.txt
-sh docs/tutorial/check.sh || exit 1
+echo "i 操作教學／常見問題 PDF 與目前程式不同步；合併到 main 後由 GitHub Actions 自動重建（分支上不需重建）。"
+echo "  介面、步驟或檢核有變時，仍請同步修改 docs/tutorial/tutorial.html 與 faq.html 的文字。"
+exit 0

@@ -25,8 +25,11 @@ test('S1：惡意案件檔不執行、載重值清理為數字，自動保存重
   const f = path.join(os.tmpdir(), `rcsd-xss-${process.pid}.json`);
   fs.writeFileSync(f, JSON.stringify(c));
   await page.setInputFiles('#caseFile', f);
+  // H9：有未存檔變更時先詢問（點「直接開啟」）；構件清單詢問時以案件檔取代
+  await page.waitForFunction(() => { const ov = document.getElementById('askOv');
+    if(ov.classList.contains('open')){ const b = [...document.querySelectorAll('#askAct button')].find(x => /直接開啟|以案件檔取代/.test(x.textContent)); if(b) b.click(); }
+    return LOADS.length === 1 && LOADS[0].Mux === 12.5; }, null, {polling: 100});
   fs.unlinkSync(f);
-  await page.waitForFunction(() => LOADS.length === 1 && LOADS[0].Mux === 12.5);
   await page.evaluate(() => { document.getElementById('tabBeam').click(); drawBLoads(); document.getElementById('tabPylon').click(); });
   await page.waitForTimeout(300);
   assert.equal(await pwned(), 0, '開啟案件檔不得執行夾帶的程式碼');

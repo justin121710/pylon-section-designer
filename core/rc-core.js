@@ -11,6 +11,9 @@ const RC_CORE_VERSION = '2026.10-r4';
 const beta1 = fc => Math.max(0.65, Math.min(0.85, 0.85 - 0.05*(fc-280)/70));
 
 const Ecof  = fc => 12000*Math.sqrt(fc);      // 常重混凝土 E_c = 12,000√f'c（土木401-112 §19.2.2.1(b)）
+/* N1：混凝土彈性模數依單位重 w_c（kg/m³）：輕質（λ < 1）或 w_c < 2,160 且介於 1,440～2,560 時用式 (19.2.2.1.a)
+   E_c = w_c^1.5 · 0.11√f'c；其餘常重混凝土用式 (19.2.2.1.b) */
+const Ecw = (fc, wc, lam) => ((lam < 1 || wc < 2160) && wc >= 1440 && wc <= 2560) ? Math.pow(wc, 1.5)*0.11*Math.sqrt(fc) : Ecof(fc);
 
 const EcMander = fc => 15000*Math.sqrt(fc);  // Mander 模型之初始切線模數（≈ 4,700√f'c MPa），屬該模型參數、非規範分析用 E_c
 
@@ -215,5 +218,5 @@ function beamCrack(S, R, m, ctx){
 }
 
 if(typeof module !== 'undefined' && module.exports)
-  module.exports = {RC_CORE_VERSION, beta1, Ecof, EcMander, etTC, phiOf, capPhi, vcZeroRatio, seisKdb, phiAxialBr, balancedPn, phiThrBr,
+  module.exports = {RC_CORE_VERSION, beta1, Ecof, Ecw, EcMander, etTC, phiOf, capPhi, vcZeroRatio, seisKdb, phiAxialBr, balancedPn, phiThrBr,
     sha256, loadPairs, POS_TXT, colSlenderCore, slenderApply, slenderDelta, effFlange, beamCrack};

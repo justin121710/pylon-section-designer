@@ -129,8 +129,10 @@ test('U6、U7：函式庫自 vendor/ 載入；「不再顯示」記住；狀態�
 });
 
 test('U8：載重表 SI 輸入（kN、kN·m）換算為 tf；CSV 依單位解讀；單位防呆', async () => {
-  const r = await page.evaluate(() => { document.getElementById('tabPylon').click(); applyPreset('bldg60');
+  const r = await page.evaluate(async () => { document.getElementById('tabPylon').click(); applyPreset('bldg60');
     const u = document.getElementById('loadUnit'); u.value = 'kN'; u.dispatchEvent(new Event('change'));
+    // H8：切換時詢問「僅換算顯示」或「重新解讀」
+    [...document.querySelectorAll('#askAct button')].find(x => /僅換算顯示/.test(x.textContent)).click(); await new Promise(ok => setTimeout(ok, 0));
     const shown = +document.querySelector('#loadTbl tbody input[data-k="Pu"]').value;
     const inp = document.querySelector('#loadTbl tbody input[data-k="Mux"]'); inp.value = '98.0665'; inp.dispatchEvent(new Event('input'));
     const mux = LOADS[0].Mux;
@@ -145,7 +147,8 @@ test('U8：載重表 SI 輸入（kN、kN·m）換算為 tf；CSV 依單位解讀
   await page.waitForTimeout(300);
   const c = await page.evaluate(() => LOADS.map(L => [L.Pu, L.Mux]));
   near(c[0][0], 100, 1e-9, 'CSV P_u（kN → tf）'); near(c[0][1], 10, 1e-9, 'CSV M_ux');
-  const w = await page.evaluate(() => { const u = document.getElementById('loadUnit'); u.value = 'tf'; u.dispatchEvent(new Event('change'));
+  const w = await page.evaluate(async () => { const u = document.getElementById('loadUnit'); u.value = 'tf'; u.dispatchEvent(new Event('change'));
+    [...document.querySelectorAll('#askAct button')].find(x => /僅換算顯示/.test(x.textContent)).click(); await new Promise(ok => setTimeout(ok, 0));
     LOADS = [{name:'kN 誤當 tf', Pu: 2600*9.80665, Mux: 18*9.8, Muy: 0, Vux: 0, Vuy: 0, Tu: 0}]; drawLoads(); render();
     return colAlertItems(MODEL).some(a => /疑似單位錯誤/.test(a.t)); });
   assert.ok(w, '軸力遠超過 P_o 應提醒疑似單位錯誤');

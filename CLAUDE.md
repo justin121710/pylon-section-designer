@@ -1,13 +1,11 @@
 # 專案規則
 
-## 操作教學與常見問題 PDF 必須在每個提交保持最新
+## 操作教學與常見問題 PDF 於合併到 main 時重建
 
 - `docs/RC斷面設計工具_操作教學.pdf` 與 `docs/RC斷面設計工具_常見問題.pdf` 由 `docs/tutorial/build.js` 分別依 `docs/tutorial/tutorial.html`、`docs/tutorial/faq.html` 建置（共用截圖）；說明見 `docs/tutorial/README.md`。
-- 先確認已啟用 hook：`git config core.hooksPath .githooks`（pre-commit 會在 PDF 過期時自動重建並加入提交）。
-- 修改 `index.html`、`calc-xlsx.js` 或教學原稿時：
-  1. 若介面、操作步驟、檢核項目或規範條文有變，同步修改 `docs/tutorial/tutorial.html` 與 `docs/tutorial/faq.html` 的說明文字（必要時在 `build.js` 增加截圖）；`README.md` 亦同。
-  2. 提交前執行 `sh docs/tutorial/check.sh`；過期就 `cd docs/tutorial && npm run build`，兩份 PDF 與 `stamp.txt` 與程式放在同一個提交。
-  3. 本機無法建置（缺 Playwright、LibreOffice、poppler、Pillow）時，可 `RCSD_SKIP_PDF=1 git commit …` 略過；推送後 GitHub Actions（`tutorial-pdf.yml`）會重建 PDF 並以機器人提交推回同一分支（亦上傳為 artifact）。能本機建置時仍以同一提交更新為原則。
+- **分支提交不要重建或提交 PDF 與 `stamp.txt`**（每份約 6～7 MB，會讓儲存庫快速變大）。推送（合併）到 main 時，GitHub Actions（`tutorial-pdf.yml`）會重建並以機器人提交推回 main。
+- 修改 `index.html`、`calc-xlsx.js` 或教學原稿時，若介面、操作步驟、檢核項目或規範條文有變，仍須同步修改 `docs/tutorial/tutorial.html` 與 `docs/tutorial/faq.html` 的說明文字（必要時在 `build.js` 增加截圖）；`README.md` 亦同。
+- 要確認原稿能正確建置時可在本機 `cd docs/tutorial && npm run build`，但建置產物不要提交（`git checkout -- docs/*.pdf docs/tutorial/stamp.txt`）。
 - 教學與常見問題中的公式與符號一律用 KaTeX（`\( … \)`），與網頁、計算書、Excel 的 LaTeX 風格一致。
 
 ## 規範依據
