@@ -222,7 +222,9 @@ test('H7：需確認未完成時 Excel 匯出受阻，可改匯出標示「不�
 });
 
 test('H8：切換為 kN 時可選「重新解讀」，表頭與說明列只標一種單位', async () => {
-  const r = await page.evaluate(async () => { applyPreset('bldg60'); const pu0 = LOADS[0].Pu;
+  // 前一測試之檔案下載偶爾於此時才使頁面執行環境重建（與受測功能無關）：僅此情形重試一次
+  const once = f => page.evaluate(f).catch(async e => { if(!/context was destroyed/.test(e.message)) throw e; await page.waitForLoadState('load'); return page.evaluate(f); });
+  const r = await once(async () => { applyPreset('bldg60'); const pu0 = LOADS[0].Pu;
     const u = document.getElementById('loadUnit'); u.value = 'kN'; u.dispatchEvent(new Event('change'));
     [...document.querySelectorAll('#askAct button')].find(x => /重新解讀/.test(x.textContent)).click(); await new Promise(ok => setTimeout(ok, 0));
     const out = {pu0, pu: LOADS[0].Pu, shown: +document.querySelector('#loadTbl tbody input[data-k="Pu"]').value,
@@ -431,4 +433,73 @@ test('L5、L8：Excel 長細比已放大時判「已放大」且比值為 δ；�
   b.getWorksheet('檢核表').eachRow(rr => { if(String(val(rr.getCell(1).value)).trim()==='塑鉸區／柱端加密區') crit = String(val(rr.getCell(6).value)); });
   assert.match(crit, /基樁/); assert.doesNotMatch(crit, /啟動容量設計剪力/);
   await page.evaluate(() => applyPreset('bldg60'));
+});
+
+/* ---------------- 第三次審查 N1～N4 ---------------- */
+test('N1：E_c 依 §19.2.2.1——常重 12,000√f\'c；輕質或 w_c < 2,160 改用 w_c^1.5·0.11√f\'c', async () => {
+  const r = await page.evaluate(() => { document.getElementById('tabPylon').click(); applyPreset('bldg60'); render();
+    const fc = MODEL.m.fc, e0 = MODEL.m.Ec;
+    document.getElementById('dLight').value = '0.75'; document.getElementById('dWc').value = 1800; render(); const e1 = MODEL.m.Ec;
+    buildReport(MODEL); const rep = document.getElementById('report').textContent;
+    applyPreset('bldg60'); document.getElementById('dLight').value = '1'; document.getElementById('dWc').value = 2300; render();
+    document.getElementById('tabBeam').click(); applyBPreset('bldgBeam'); document.getElementById('bdWc').value = 2000; renderBeam();
+    const b1 = BMODEL.m.Ec, bfc = BMODEL.m.fc; document.getElementById('bdWc').value = 2300; renderBeam();
+    return {fc, e0, e1, rep: /1,?800\^?.{0,4}1\.5/.test(rep), b1, bfc}; });
+  assert.ok(Math.abs(r.e0 - 12000*Math.sqrt(r.fc)) < 1e-6);
+  assert.ok(Math.abs(r.e1 - Math.pow(1800, 1.5)*0.11*Math.sqrt(r.fc)) < 1e-6, `輕質 E_c ${r.e1}`);
+  assert.ok(Math.abs(r.b1 - Math.pow(2000, 1.5)*0.11*Math.sqrt(r.bfc)) < 1e-6, '梁 w_c < 2,160 用式 (a)');
+  assert.ok(r.rep, '計算書列出 w_c 代入值');
+});
+
+test('N2：梁扭力縱筋選用 §9.5.4.5——受壓區減 M_u/(0.9df_y)，不低於 A_l,min，D/C 不增', async () => {
+  const r = await page.evaluate(() => { document.getElementById('tabBeam').click(); applyBPreset('bldgBeam');
+    BLOADS = [{name:'T', Mpos:30, Mneg:0, Vu:25, Tu:6}]; drawBLoads(); BSIGN = 'pos';
+    document.getElementById('bAl545').value = '0'; renderBeam(); const t0 = {...BMODEL.torsL.rows[0], r:null}, dc0 = BMODEL.ctrl.dc;
+    document.getElementById('bAl545').value = '1'; renderBeam(); const t1 = {...BMODEL.torsL.rows[0], r:null}, dc1 = BMODEL.ctrl.dc;
+    const d = ctxDepth({g:beamShape(BMODEL.S,'pos'), layers:BMODEL.R.layers, m:BMODEL.m, sign:'pos'}), fy = BMODEL.m.fy, Mu = 30*TFM;
+    const AsL = BMODEL.R.AsBot + BMODEL.R.AsTop, shC = BMODEL.R.AsTop/AsL;
+    const msg = beamAlertItems(BMODEL).map(a => optPlain(a)).find(t => /扭力縱筋/.test(t) && /9\.5\.4\.5/.test(t));
+    document.getElementById('bAl545').value = '0'; applyBPreset('bldgBeam');
+    return {t0, t1, dc0, dc1, red: Mu/(0.9*d*fy), shC, msg: !!msg}; });
+  assert.ok(r.t0.red545 === 0 && Math.abs(r.t0.kT - r.t0.kC) < 1e-12, '不採用時頂、底筋等比例扣除');
+  assert.ok(Math.abs(r.t1.red545 - r.red) < 1e-9, `折減量 M_u/(0.9df_y) = ${r.red}`);
+  assert.ok(Math.abs(r.t1.AlC - Math.max(r.t1.AlReq*r.shC - r.red, Math.min(r.t1.AlReq, r.t1.AlMin)*r.shC, 0)) < 1e-9, '受壓區不低於 A_l,min 分攤量');
+  assert.ok(r.t1.kC >= r.t0.kC - 1e-12 && r.dc1 <= r.dc0 + 1e-12, `採用後 D/C 不增（${r.dc0} → ${r.dc1}）`);
+  assert.ok(r.msg, '警示說明採用 §9.5.4.5');
+});
+
+test('N3：梁 Excel 扣除 A_l 後 D/C 為網頁值——修改輸入後撓曲判定與總判定改為須回網頁重算', {skip: !hasSoffice && '未安裝 LibreOffice（soffice）'}, async () => {
+  await page.evaluate(() => { document.getElementById('tabBeam').click(); applyBPreset('bldgBeam');
+    BLOADS = [{name:'T', Mpos:30, Mneg:20, Vu:25, Tu:6}]; drawBLoads(); BSIGN = 'pos'; renderBeam(); });
+  await exportAs('n3');
+  const src = new ExcelJS.Workbook(); await src.xlsx.readFile(path.join(TMP, 'n3.xlsx'));
+  const ws = src.getWorksheet('檢核表'); let fr = 0;
+  ws.eachRow(r => { if(!fr && String(val(r.getCell(1).value)).startsWith("混凝土抗壓強度 f'c")) fr = r.number; });
+  ws.getCell('C' + fr).value = 350;
+  await src.xlsx.writeFile(path.join(TMP, 'n3b.xlsx'));
+  const out = path.join(TMP, 'outn3');
+  execFileSync('soffice', ['--headless', '--convert-to', 'xlsx', '--outdir', out, path.join(TMP, 'n3.xlsx'), path.join(TMP, 'n3b.xlsx')], {stdio:'ignore', timeout:300000});
+  const load = async n => { const wb = new ExcelJS.Workbook(); await wb.xlsx.readFile(path.join(out, n + '.xlsx')); return wb; };
+  const a = await load('n3'), b = await load('n3b');
+  assert.equal(row(a, '網頁值狀態').v, '有效');
+  assert.notEqual(row(a, '撓曲 Mu／φMn（tf·m）').judge, 'N/A');
+  assert.doesNotMatch(String(row(a, '總判定').judge), /須回網頁重算/);
+  assert.match(String(row(b, '網頁值狀態').v), /須回網頁重算/);
+  assert.equal(row(b, '撓曲 Mu／φMn（tf·m）').judge, 'N/A');
+  assert.match(String(row(b, '總判定').judge), /須回網頁重算/);
+  await page.evaluate(() => applyBPreset('bldgBeam'));
+});
+
+test('N4：確認綁定相關輸入——改無關輸入保留注意項目確認，改相關輸入才須重新確認', async () => {
+  const r = await page.evaluate(() => { document.getElementById('tabPylon').click(); applyPreset('bldg60');
+    document.getElementById('lu').value = 20; render(); confAll('pylon');
+    const warn = () => CONF_ITEMS.pylon.filter(q => q.kind==='注意' && (q.ids||[]).includes('lu'));
+    const n = warn().length;
+    // 改載重（與 lu 範圍提醒無關）：該項確認保留
+    LOADS[0].Vux = (+LOADS[0].Vux||0) + 1; drawLoads(); render(); const keepL = warn().every(q => CONFIRM.pylon.has(q.key));
+    document.getElementById('lu').value = 21; render(); const redo = warn().some(q => !CONFIRM.pylon.has(q.key));
+    applyPreset('bldg60'); render(); return {n, keepL, redo}; });
+  assert.ok(r.n > 0, '有綁定 lu 之注意項目');
+  assert.ok(r.keepL, '改無關輸入不須重新確認');
+  assert.ok(r.redo, '改相關輸入須重新確認');
 });

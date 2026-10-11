@@ -65,7 +65,7 @@ pre { font-family: "DejaVu Sans Mono", "WenQuanYi Zen Hei Mono", monospace; font
     <div>二、輸入參數與載重組合（Q6～Q11b）</div>
     <div>三、設計依據、\(\phi\) 值與規範選擇（Q12～Q15）</div>
     <div>四、柱斷面與基樁（Q16～Q26c）</div>
-    <div>五、梁／版斷面（Q27～Q34）</div>
+    <div>五、梁／版斷面（Q27～Q34a）</div>
     <div>六、橫向鋼筋與沿軸向配置（Q35～Q39）</div>
     <div>七、伸展長度、搭接與錨定（Q40～Q46）</div>
     <div>八、計算書、PDF 與 Excel 輸出（Q47～Q50）</div>
@@ -109,7 +109,7 @@ pre { font-family: "DejaVu Sans Mono", "WenQuanYi Zen Hei Mono", monospace; font
     <tr><td>!</td><td>注意，例如 \(D/C\) 介於 0.9～1.0、餘裕不足</td></tr>
     <tr><td>✗</td><td>不符</td></tr>
     <tr><td>未涵蓋</td><td>灰色膠囊：本工具<b>未檢核、須另行檢核</b>的項目（例如梁柱接頭剪力、未輸入 \(\Sigma M_{nb}\) 時之強柱弱梁、橋梁圍束筋延伸入接頭），點擊可看清單</td></tr></table>
-  <p>參數表只有在「有檢核且通過」或有例外時才標記；<b>狀態欄留白代表該列沒有對應檢核</b>，不是漏算。判定列全部 ✓ 也不代表整體合格——「未涵蓋」項目仍須另行檢核。判定分三級：<b>不合格</b>（紅）、<b>需確認</b>（琥珀：未涵蓋項目與「注意」級警示，須在警示分頁逐項勾選，否則不能列印計算書）、參考（提醒）。</p></div>
+  <p>參數表只有在「有檢核且通過」或有例外時才標記；<b>狀態欄留白代表該列沒有對應檢核</b>，不是漏算。判定列全部 ✓ 也不代表整體合格——「未涵蓋」項目仍須另行檢核。判定分三級：<b>不合格</b>（紅）、<b>需確認</b>（琥珀：未涵蓋項目與「注意」級警示，須在警示分頁逐項勾選，否則不能列印計算書；確認綁定相關輸入，改到該項「去修改」所列參數或斷面、材料才須重新勾選）、參考（提醒）。</p></div>
 
   <div class="q"><h3>Q5. 右側結果區的分頁有哪些？</h3>
   <figure><img src="img/02-layout.png"><figcaption>圖 4　畫面配置；<span class="n">6</span> 為結果分頁</figcaption></figure>
@@ -312,6 +312,9 @@ pre { font-family: "DejaVu Sans Mono", "WenQuanYi Zen Hei Mono", monospace; font
 
   <div class="q"><h3>Q34. 預力梁可以算嗎？</h3>
   <p>不行，目前不含預力（PC 梁為第二階段）。</p></div>
+
+  <div class="q"><h3>Q34a. 梁有扭矩時，扭力縱筋怎麼扣？可以用受壓區折減嗎？</h3>
+  <p>有扭矩須設計之組合，所需 \(A_{\ell,req}=\max(A_\ell,A_{\ell,min})\)（§9.5.4.3、§9.6.4.3）預設由頂、底筋<b>等比例扣除</b>後重算 \(\phi M_n\)，取較大 \(D/C\)。④ 群組「受壓區扭矩縱筋折減」選「採用」時依 §9.5.4.5：撓曲受壓側分攤之扭力縱筋減 \(M_u/(0.9df_y)\)（\(M_u\) 為與 \(T_u\) 同一組合者），但不低於 \(A_{\ell,min}\) 之分攤量；受拉側照扣。未建模腹板縱筋，頂、底筋垂直距 \(\gt 30\ \text{cm}\) 時須另配（§9.7.5.1）。</p></div>
 </section>
 
 <section class="chap">
@@ -378,6 +381,7 @@ pre { font-family: "DejaVu Sans Mono", "WenQuanYi Zen Hei Mono", monospace; font
   <p>Excel 包含「檢核表」與「結構計算書(A4)」，<b>所有導出值都是 Excel 公式</b>，在 Excel 內改輸入會重算，P-M 曲線為原生散佈圖會隨輸入更新。但以下內容<b>不會</b>在 Excel 內重算，改了輸入要回網頁重新匯出：</p>
   <ul><li>斷面配筋圖、軸向配置立面、伸展搭接配置圖（匯出當下的 PNG）。</li>
   <li>繫筋根數、\(n_l\)、\(h_x\)、箍筋肢距（匯出當下網頁值）。</li>
+  <li>柱雙軸精確解 \(D/C\)、扣除扭力縱筋後之 \(D/C\)（柱與梁）、梁另一檢核斷面之其他不合格項目（網頁值）：在 Excel 改任一輸入後，相關判定與總判定顯示「須回網頁重算」。</li>
   <li>P-M 圖例的載重組合數（在 Excel 新增組合不會自動上圖）。</li></ul>
   <p>Excel 也不含 Mander 曲線與建議配筋清單。</p>
   <figure><img src="img/26-xl-check.png"><figcaption>圖 23　Excel「檢核表」：輸入、公式、判定標準與規範條號</figcaption></figure>

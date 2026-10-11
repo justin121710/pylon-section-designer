@@ -293,7 +293,8 @@ function buildColumn(ExcelJS, inp){
   S.item({key:'ecu', label:'混凝土極限壓應變 εcu', sym:'εcu', v:inp.ecu, unit:'無因次', kind:'in', fmt:'0.0000', ref:ref401('22.2.2.1')});
   S.item({key:'b1', label:'等值應力塊係數 β₁', sym:'β₁', f:'MAX(0.65,MIN(0.85,0.85-0.05*({fc}-280)/70))', unit:'無因次', fmt:'0.000',
     expr:"β₁ = 0.85 − 0.05(f'c − 280)/70，介於 0.65～0.85", ref:ref401('22.2.2.4.3')});
-  S.item({key:'Ec', label:'混凝土彈性模數 Ec', sym:'Ec', f:'12000*SQRT({fc})', unit:'kgf/cm²', fmt:'#,##0', expr:"Ec = 12,000√f'c（常重混凝土）", ref:ref401('19.2.2.1(b)')});
+  S.item({key:'wc', label:'混凝土單位重 wc', sym:'wc', v:inp.wc||2300, unit:'kg/m³', kind:'in', fmt:'#,##0', crit:'輕質（λ < 1）或 < 2,160 時用式 (a)', ref:ref401('19.2.2.1')});
+  S.item({key:'Ec', label:'混凝土彈性模數 Ec', sym:'Ec', f:'IF(AND(OR({dvLam}<1,{wc}<2160),{wc}>=1440,{wc}<=2560),{wc}^1.5*0.11*SQRT({fc}),12000*SQRT({fc}))', unit:'kgf/cm²', fmt:'#,##0', expr:"輕質：wc^1.5·0.11√f'c（a）；常重：12,000√f'c（b）", ref:ref401('19.2.2.1')});
   S.item({key:'ety', label:'主筋降伏應變 εty', sym:'εty', f:'{fy}/{Es}', unit:'無因次', fmt:'0.00000', expr:'εty = fy / Es', ref:ref401('21.2.2')});
   S.item({key:'phic', label:'壓力控制強度折減因數 φc', sym:'φc', v:inp.phic, unit:'無因次', kind:'in', fmt:'0.00',
     crit:'關鍵假設：橫箍（含圓箍）0.65、螺箍 0.75', ref:ref401('21.2.2'), note:'關鍵假設。橫箍柱（含圓形箍筋）0.65；螺箍柱 0.75（土木401 §21.2.2）。'});
@@ -1637,7 +1638,8 @@ function buildBeam(ExcelJS, inp){
   S.item({key:'Es', label:'鋼筋彈性模數 Es', sym:'Es', v:inp.Es, unit:'kgf/cm²', kind:'in', fmt:'#,##0', ref:ref401('20.2.2.2')});
   S.item({key:'ecu', label:'極限壓應變 εcu', sym:'εcu', v:inp.ecu, unit:'無因次', kind:'in', fmt:'0.0000', ref:ref401('22.2.2.1')});
   S.item({key:'b1', label:'等值應力塊係數 β₁', sym:'β₁', f:'MAX(0.65,MIN(0.85,0.85-0.05*({fc}-280)/70))', unit:'無因次', fmt:'0.000', ref:ref401('22.2.2.4.3')});
-  S.item({key:'Ec', label:'混凝土彈性模數 Ec', sym:'Ec', f:'12000*SQRT({fc})', unit:'kgf/cm²', fmt:'#,##0', expr:"Ec = 12,000√f'c（常重混凝土）", ref:ref401('19.2.2.1(b)')});
+  S.item({key:'wc', label:'混凝土單位重 wc', sym:'wc', v:inp.wc||2300, unit:'kg/m³', kind:'in', fmt:'#,##0', crit:'輕質（λ < 1）或 < 2,160 時用式 (a)', ref:ref401('19.2.2.1')});
+  S.item({key:'Ec', label:'混凝土彈性模數 Ec', sym:'Ec', f:'IF(AND(OR({bvLam}<1,{wc}<2160),{wc}>=1440,{wc}<=2560),{wc}^1.5*0.11*SQRT({fc}),12000*SQRT({fc}))', unit:'kgf/cm²', fmt:'#,##0', expr:"輕質：wc^1.5·0.11√f'c（a）；常重：12,000√f'c（b）", ref:ref401('19.2.2.1')});
   S.item({key:'ety', label:'降伏應變 εty', sym:'εty', f:'{fy}/{Es}', unit:'無因次', fmt:'0.00000', ref:ref401('21.2.2')});
   S.item({key:'n', label:'彈性模數比 n', sym:'n', f:'{Es}/{Ec}', unit:'無因次', fmt:'0.000', ref:ref401('24.2.3.5')});
   S.item({key:'phic', label:'壓力控制 φc', sym:'φc', v:inp.phic, unit:'無因次', kind:'in', fmt:'0.00', ref:ref401('21.2.2')});
@@ -1900,19 +1902,26 @@ function buildBeam(ExcelJS, inp){
     crit:'關鍵假設：水密要求嚴格 0.10；一般戶外 0.15～0.30', ref:'非我國規範明列；參考 ACI 224R 表 4.1', note:'關鍵假設。ACI 224R 建議水密結構 0.10 mm；請依設計準則選定。'});
 
   /* ---------------- 七、檢核彙總 ---------------- */
+  // N3：網頁值（扣除 Aℓ 後 D/C、另一斷面其他不合格項目）於輸入變更後失效：對應判定與總判定改為「須回網頁重算」
+  { const nX = (inp.alt && inp.alt.other || []).length;
+    S.item({key:'bxT', label:'　旗標：採用扣除 Aℓ 後 D/C（網頁值）', f:"--(COUNT('載重組合'!AB4:AC"+(3+NCB)+')>0)', ref:'非規範明列條文，係本表判別用'});
+    S.item({key:'bxUsed', label:'　旗標：判定採用網頁值', f:`--OR({bxT}=1,${nX}>0)`, expr:'扣除 Aℓ 後 D/C 或另一檢核斷面其他不合格項目', ref:'非規範明列條文，係本表判別用'});
+    S.item({key:'bStale', label:'　旗標：輸入已與匯出值不同', f:'0', expr:'逐格比對本表與「載重組合」之輸入格與匯出值', ref:'非規範明列條文，係本表判別用'});
+    S.item({key:'bDCstat', label:'網頁值狀態', f:'IF(AND({bxUsed}=1,{bStale}=1),"須回網頁重算（輸入已變更，網頁值已失效）","有效")',
+      crit:'「須回網頁重算」時採用網頁值之判定與總判定為 N/A', ref:'—'}); }
   S.section('【七、檢核彙總】');
   S.sum({head:true, label:'檢核項目', need:'需求值', cap:'容量／限值', ratio:'比值', judge:'判定'});
   const sumRows=[]; const addSum=o=>sumRows.push(S.sum(o));
   const J = c => ({f:`IF(${c},"PASS","FAIL")`});
-  addSum({label:'撓曲 Mu／φMn（tf·m）', need:{f:'{MuMax}'}, cap:{f:'{phiMn}'}, ratio:{f:'{DC}'}, judge:J('{DC}<=1'), ref:ref401('9.5.1.1')});
+  addSum({label:'撓曲 Mu／φMn（tf·m）', need:{f:'{MuMax}'}, cap:{f:'{phiMn}'}, ratio:{f:'{DC}'}, judge:{f:'IF(AND({bxT}=1,{bStale}=1),"N/A",IF({DC}<=1,"PASS","FAIL"))'}, note:{f:'IF(AND({bxT}=1,{bStale}=1),{bDCstat},"")'}, ref:ref401('9.5.1.1')});
   addSum({label:'受拉鋼筋 As ≧ As,min（cm²）', need:{f:'{AsMin}'}, cap:{f:'{AsT}'}, ratio:{f:'{AsMin}/{AsT}'}, judge:{f:'IF(OR({MuMax}<1E-6,{isS}=1),"N/A",IF({AsT}>={AsMin},"PASS","FAIL"))'}, note:'Mu = 0 時不適用；耐震梁改以上下兩面檢核', ref:ref401('9.6.1.2、7.6.1.1')});
   addSum({label:'拉力控制 εt ≧ εty + 0.003', need:{f:'{ety}+0.003'}, cap:{f:'{et}'}, ratio:{f:'({ety}+0.003)/{et}'}, judge:J('{et}>={ety}+0.003-1E-12'), fmt:'0.00000', ref:ref401('9.3.3.1、表 21.2.2')});
   const oN = {f:'IF({isPos}=1,"負彎矩","正彎矩")&"斷面"'};
-  addSum({label:'另一檢核斷面：撓曲 Mu／φMn（tf·m）', need:{f:'{MuO}'}, cap:{f:'{phiMnO}'}, ratio:{f:'{DCO}'}, judge:{f:'IF({MuO}<1E-6,"N/A",IF({DCO}<=1,"PASS","FAIL"))'}, note:oN, ref:ref401('9.5.1.1')});
+  addSum({label:'另一檢核斷面：撓曲 Mu／φMn（tf·m）', need:{f:'{MuO}'}, cap:{f:'{phiMnO}'}, ratio:{f:'{DCO}'}, judge:{f:'IF(OR({MuO}<1E-6,AND({bxT}=1,{bStale}=1)),"N/A",IF({DCO}<=1,"PASS","FAIL"))'}, note:oN, ref:ref401('9.5.1.1')});
   addSum({label:'另一檢核斷面：As ≧ As,min（cm²）', need:{f:'{AsMinO}'}, cap:{f:'{AsO}'}, ratio:{f:'IF({AsO}>0,{AsMinO}/{AsO},9)'}, judge:{f:'IF(OR({MuO}<1E-6,{isS}=1),"N/A",IF({AsO}>={AsMinO},"PASS","FAIL"))'}, note:'Mu = 0 時不適用；耐震梁改以上下兩面檢核', ref:ref401('9.6.1.2、7.6.1.1')});
   addSum({label:'另一檢核斷面：εt ≧ εty + 0.003', need:{f:'{ety}+0.003'}, cap:{f:'{etO}'}, ratio:{f:'({ety}+0.003)/{etO}'}, judge:{f:'IF({MuO}<1E-6,"N/A",IF({etO}>={ety}+0.003-1E-12,"PASS","FAIL"))'}, fmt:'0.00000', ref:ref401('9.3.3.1、表 21.2.2')});
   { const X = inp.alt && inp.alt.other || [];
-    addSum({label:'另一檢核斷面：其他不合格項目（網頁值）', need:X.length, cap:0, ratio:'—', judge:X.length?'FAIL':'N/A', fmt:'0',
+    addSum({label:'另一檢核斷面：其他不合格項目（網頁值）', need:X.length, cap:0, ratio:'—', judge:{f:X.length?'IF({bStale}=1,"N/A","FAIL")':'"N/A"'}, fmt:'0',
       note: X.length ? ('匯出當下網頁之結果，修改 Excel 輸入後不會更新：' + X.join('；')).slice(0, 1000) : '裂縫等其餘項目以網頁檢核；匯出當下無不合格', ref:'—'}); }
   addSum({label:"泥水中灌注 f'c（kgf/cm²）", need:210, cap:{f:'{fc}'}, ratio:{f:'210/{fc}'}, judge:{f:'IF({bvSlu}<>"泥水中灌注","N/A",IF({fc}>=210,"PASS","FAIL"))'}, note:'Vc × 0.75、伸展與搭接 × 1.3 已計入各項', ref:'建築物基礎構造設計規範 §7.6.2', fmt:'0'});
   addSum({label:'梁剪力：Vs ≦ Vs,max（tf）', need:{f:'{VsReq}'}, cap:{f:'{VsMax}'}, ratio:{f:'{VsReq}/{VsMax}'}, judge:{f:'IF({isSlab}=1,"N/A",IF(AND({VsReq}<={VsMax},{over}=0),"PASS","FAIL"))'}, ref:ref401('22.5.1.2')});
@@ -1964,7 +1973,17 @@ function buildBeam(ExcelJS, inp){
            data:cands2.map(c=>[c[1],{f:'{'+c[0]+'}'}])});
   S.layout();
   const r1=sumRows[0].r, r2=sumRows[sumRows.length-1].r;
-  const jt=S.rows.find(r=>r.key==='jAll'); jt.judge={f:`IF(COUNTIF($E$${r1}:$E$${r2},"FAIL")=0,"PASS","NG")`};
+  const jt=S.rows.find(r=>r.key==='jAll'); jt.judge={f:`IF(AND({bxUsed}=1,{bStale}=1),"N/A（須回網頁重算）",IF(COUNTIF($E$${r1}:$E$${r2},"FAIL")=0,"PASS","NG"))`};
+  { // 輸入是否與匯出值相同：本表輸入格（kind in／list）＋「載重組合」輸入格（同柱）
+    const lit = v => v == null || v === '' ? null : typeof v === 'number' ? (Number.isFinite(v) ? String(v) : null) : `"${String(v).replace(/"/g,'""')}"`;
+    const diff = (ref, v) => { const q = lit(v); return q === null ? `LEN(${ref}&"")>0` : `${ref}<>${q}`; };
+    const conds = S.rows.filter(x => x.t==='item' && (x.kind==='in' || x.kind==='list') && x.key).map(x => diff(`{${x.key}}`, x.v));
+    for(let i=0;i<NCB;i++){ const n=4+i, L=(inp.loads||[])[i], C=`'載重組合'!`;
+      conds.push(diff(`${C}A${n}`, L ? L.name : ''));
+      ['Mpos','Mneg','Vu','Tu'].forEach((k,j)=>conds.push(diff(`${C}${colL(1+j)}${n}`, L ? (+L[k]||0) : null))); }
+    const grp = []; for(let i=0;i<conds.length;i+=200) grp.push(`OR(${conds.slice(i,i+200).join(',')})`);
+    S.rows.find(x=>x.key==='bStale').f = `IFERROR(--OR(${grp.join(',')}),1)`;
+  }
 
   const R = makeResolver([S]);
   const order=['檢核表','結構計算書(A4)','載重組合','撓曲求解','開裂斷面',EL].concat(inp.devFigs&&inp.devFigs.length?[DEVFIG]:[]);

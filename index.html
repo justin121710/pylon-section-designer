@@ -984,6 +984,7 @@ img,video{max-width:100%;height:auto}
       <div class="fld"><span>低軸壓輪廓指數 α</span><input id="alpha" type="number" step="0.05" value="1.0"></div>
       <div class="fld"><span>鋼筋塗布環氧樹脂</span><select id="dEpoxy"><option value="0">否（未塗布）</option><option value="1">是（環氧樹脂塗布）</option></select></div>
       <div class="fld"><span>混凝土單位重</span><select id="dLight"><option value="1">常重混凝土（λ = 1.0）</option><option value="0.75">輕質混凝土（λ = 0.75）</option></select></div>
+      <div class="fld"><span>混凝土單位重 w_c (kg/m³)</span><input id="dWc" type="number" step="10" value="2300"></div>
       <div class="fld" title="建築物基礎構造設計規範 §7.6.2：於泥水中灌注混凝土時，剪力強度折減 25%、鋼筋握持長度增加 30%，f'c ≥ 210 kgf/cm²"><span>混凝土澆置方式</span><select id="dSlurry"><option value="0">一般澆置</option><option value="1">泥水中灌注（連續壁、場鑄樁）</option></select></div>
       <div class="fld"><span>超量鋼筋折減 A<sub>s,req</sub>/A<sub>s,prov</sub></span><input id="dExcess" type="number" step="0.05" value="1"></div>
       <div class="fld"><span>彎鉤／T 頭圍束（ψ<sub>r</sub>、ψ<sub>p</sub>）</span><select id="dPsiR"><option value="1">有平行圍束筋　ψ = 1.0</option><option value="1.6">無　ψ = 1.6</option></select></div>
@@ -1182,6 +1183,8 @@ img,video{max-width:100%;height:auto}
       <div class="fld"><span>淨跨 l<sub>n</sub> (cm)</span><input id="bLn" type="number" step="10" value="1750"></div>
       <div class="fld"><span>重力剪力 V<sub>g</sub> (tf)</span><input id="bVg" type="number" step="1" value="0"></div>
       <div class="fld"><span>扭矩桁架角 θ (°)</span><input id="bTheta" type="number" step="5" value="45"></div>
+      <div class="fld"><span>受壓區扭矩縱筋折減（§9.5.4.5）</span>
+        <select id="bAl545"><option value="0">不採用（保守）</option><option value="1">採用：受壓區 A_l 減 M_u/(0.9df_y)</option></select></div>
       <div class="fld"><span>φ<sub>t</sub> / φ<sub>v</sub></span>
         <span style="display:flex;gap:4px"><input id="bphit" type="number" step="0.05" value="0.90">
         <input id="bphiv" type="number" step="0.05" value="0.75"></span></div>
@@ -1210,6 +1213,7 @@ img,video{max-width:100%;height:auto}
         <option value="0.20" selected>0.20</option><option value="0.25">0.25</option><option value="0.30">0.30</option></select></div>
       <div class="fld"><span>鋼筋塗布環氧樹脂</span><select id="bdEpoxy"><option value="0">否（未塗布）</option><option value="1">是（環氧樹脂塗布）</option></select></div>
       <div class="fld"><span>混凝土單位重</span><select id="bdLight"><option value="1">常重混凝土（λ = 1.0）</option><option value="0.75">輕質混凝土（λ = 0.75）</option></select></div>
+      <div class="fld"><span>混凝土單位重 w_c (kg/m³)</span><input id="bdWc" type="number" step="10" value="2300"></div>
       <div class="fld" title="建築物基礎構造設計規範 §7.6.2：於泥水中灌注混凝土時，剪力強度折減 25%、鋼筋握持長度增加 30%，f'c ≥ 210 kgf/cm²"><span>混凝土澆置方式</span><select id="bdSlurry"><option value="0">一般澆置</option><option value="1">泥水中灌注（連續壁、場鑄樁）</option></select></div>
       <div class="fld"><span>超量鋼筋折減 A<sub>s,req</sub>/A<sub>s,prov</sub></span><input id="bdExcess" type="number" step="0.05" value="1"></div>
       <div class="fld"><span>彎鉤／T 頭圍束（ψ<sub>r</sub>、ψ<sub>p</sub>）</span><select id="bdPsiR"><option value="1">有平行圍束筋　ψ = 1.0</option><option value="1.6">無　ψ = 1.6</option></select></div>
@@ -2272,8 +2276,9 @@ function compute(){
     pmaxf: pos('pmaxf',0.80), alpha: pos('alpha',1.0),
     Ag, Ast
   };
-  m.b1 = beta1(m.fc); m.ety = m.fy/m.Es; m.Ec = Ecof(m.fc); m.circle = type==='circle';
+  m.b1 = beta1(m.fc); m.ety = m.fy/m.Es; m.circle = type==='circle';
   m.lam = parseFloat(document.getElementById('dLight').value) || 1;      // 輕質混凝土 λ（剪力與伸展長度共用）
+  m.wc = pos('dWc', 2300); m.Ec = Ecw(m.fc, m.wc, m.lam);               // N1：§19.2.2.1(a)(b)
   m.slurry = document.getElementById('dSlurry').value==='1';             // 泥水中灌注（基礎構造設計規範 §7.6.2）
   const pile = pileOpt();
   if(pile){ m.pmaxf = 0.80; m.phiAx = PILE_PHI_AX; }                      // 表 22.4.2.1(e)、表 13.4.3.2(a)
@@ -4551,11 +4556,11 @@ function devCheckIds(P, c){
 /* ---------- 輸入合理範圍（只警示、不改值）：防止 φ_t = 62、ε_cu 為負這類打錯而不自知 ---------- */
 const INPUT_RANGE = {
   // L4：斷面尺寸常用範圍（cm）——超出時提醒是否誤把 mm 當 cm 輸入
-  pylon: {B:[20,2000], H:[20,2000], Dia:[20,1500], tw:[10,300], fc:[140,1050], fy:[2800,7000], fyt:[2800,7000], Es:[1.9e6,2.1e6], ecu:[0.002,0.004], esu:[0.03,0.2],
+  pylon: {dWc:[1440,2560], B:[20,2000], H:[20,2000], Dia:[20,1500], tw:[10,300], fc:[140,1050], fy:[2800,7000], fyt:[2800,7000], Es:[1.9e6,2.1e6], ecu:[0.002,0.004], esu:[0.03,0.2],
     phic:[0.5,0.9], phit:[0.75,0.95], phiv:[0.6,0.9], phivB:[0.7,0.9], pmaxf:[0.7,0.9], alpha:[0.5,2.5],
     covO:[2,20], covI:[2,20], dagg:[0.5,5], lu:[30,10000], slK:[0.5,3], slKy:[0.5,3], slM12:[-1,1], slBeta:[0,1], Lv:[10,10000], phio:[1,2], theta:[25,60],
     dExcess:[0.2,1], dAncCov:[2,15], dHBot:[10,1000], dHTop:[10,1000], dLapGap:[0,15]},
-  beam: {bw:[15,500], bh:[10,600], bhf:[5,100], bL:[100,10000], bLn:[50,10000], bfc:[140,1050], bfy:[2800,7000], bfyt:[2800,7000], bEs:[1.9e6,2.1e6], becu:[0.002,0.004],
+  beam: {bdWc:[1440,2560], bw:[15,500], bh:[10,600], bhf:[5,100], bL:[100,10000], bLn:[50,10000], bfc:[140,1050], bfy:[2800,7000], bfyt:[2800,7000], bEs:[1.9e6,2.1e6], becu:[0.002,0.004],
     bphit:[0.75,0.95], bphiv:[0.6,0.9], bCover:[2,15], bDagg:[0.5,5], bTheta:[25,60], bSustain:[0,1], bXi:[0,3],
     bLimLive:[120,1000], bLimTotal:[120,1000], bRhoTs:[0.0012,0.01], bdExcess:[0.2,1], bdHc:[15,500], bdAncCov:[2,15], bdLapGap:[0,15]}
 };
@@ -5502,7 +5507,7 @@ function colXlsxInput(){
   const g=id=>document.getElementById(id).value;
   return {code: g('codeBasis')==='bridge'?'bridge':'bldg', env:g('envWater'), type:g('secType'),
     B:num('B',600), H:num('H',800), D:num('Dia',100), tw:num('tw',90), covO:num('covO',7.5), covI:num('covI',5), dagg:num('dagg',2.5),
-    fc:num('fc',280), fy:+g('fy'), fyt:+g('fyt'), Es:num('Es',2.04e6), ecu:num('ecu',0.003),
+    fc:num('fc',280), wc:num('dWc',2300), fy:+g('fy'), fyt:+g('fyt'), Es:num('Es',2.04e6), ecu:num('ecu',0.003),
     phic:num('phic',0.65), phit:num('phit',0.9), phiv:num('phiv',0.75), pmaxf:num('pmaxf',0.8), alpha:num('alpha',1),
     barSize:g('barSize'), tieSize:g('tieSize'), nB:num('nB',4), nH:num('nH',4), nCir:num('nCir',12),
     dbl:g('dbl')==='1', spiral:g('spiral')==='spiral', tieAll:g('tieLayout')==='all', ph:g('ph')==='1',
@@ -5529,7 +5534,7 @@ function beamXlsxInput(){
   const g=id=>document.getElementById(id).value, ty=g('bType');
   return {type: ty==='T'?'T':'rect', slab: ty==='slab', sign: BSIGN, env: g('envWater'),
     bw:num('bw',45), h:num('bh',110), hf:num('bhf',22), L:num('bL',1800), sSpacing:num('bSpacing',250), edge:g('bEdge')==='1', flPos:({'0':'int','1':'edge','2':'iso'})[g('bEdge')]||'int', bf:num('bBf',120), sClear:num('bSclear',205),
-    cover:num('bCover',4), dagg:num('bDagg',2.5), fc:num('bfc',280), fy:+g('bfy'), fyt:+g('bfyt'), Es:num('bEs',2.04e6), ecu:num('becu',0.003),
+    cover:num('bCover',4), dagg:num('bDagg',2.5), fc:num('bfc',280), wc:num('bdWc',2300), fy:+g('bfy'), fyt:+g('bfyt'), Es:num('bEs',2.04e6), ecu:num('becu',0.003),
     phic:num('bphic',0.65), phit:num('bphit',0.9), phiv:num('bphiv',0.75),
     botSize:g('bBotSize'), topSize:g('bTopSize'), tieSize:g('bTieSize'), nBot:num('bNbot',4), nTop:num('bNtop',2),
     spBot:num('bSpBot',15), spTop:num('bSpTop',15), nLegs:num('bNlegs',2), rhoTs:num('bRhoTs',0.0018),
@@ -6066,14 +6071,18 @@ function renderAlerts(M){
 var CONFIRM = {pylon:new Map(), beam:new Map()}, CONF_ITEMS = {pylon:[], beam:[]};
 const confKey = t => String(t).replace(/<[^>]+>/g,'').replace(/\s+/g,' ').trim();
 /* 模組輸入雜湊（不含構件名稱、範本選單、另一模組）：柱＝#app 與柱載重；梁＝#appBeam 與梁載重；設計依據、環境兩者共用 */
-function confInputHash(mod){
+/* N4：確認綁定之輸入範圍——注意項目只綁其「去修改」所列輸入（#loadTbl／#bLoadTbl 為載重表），另加規範依據；
+   未列輸入者與未涵蓋項目綁本模組全部輸入（未涵蓋項目不含載重：其範圍隨載重改變時，項目文字本身即改變） */
+function confInputHash(mod, ids, noLoads){
   const skip = new Set(['memName','bMemName','preset','bPreset']), v = {};
+  const want = ids && ids.length ? new Set([...ids, 'codeBasis']) : null;
   for(const el of caseInputs()){
-    if(skip.has(el.id)) continue;
+    if(skip.has(el.id) || (want && !want.has(el.id))) continue;
     const beamEl = el.id==='bType' || !!el.closest('#appBeam'), shared = el.id==='codeBasis' || el.id==='envWater';
     if(shared || (mod==='beam') === beamEl) v[el.id] = el.value;
   }
-  return sha256(JSON.stringify({v, L: mod==='beam' ? BLOADS : LOADS})).slice(0,16);
+  const useL = want ? (want.has('#loadTbl') || want.has('#bLoadTbl')) : !noLoads;
+  return sha256(JSON.stringify(useL ? {v, L: mod==='beam' ? BLOADS : LOADS} : {v})).slice(0,16);
 }
 const confStamp = () => new Date().toISOString();
 /* 存檔用：只保留目前清單中已勾選者 */
@@ -6089,12 +6098,12 @@ function confReportHtml(mod){
   const tm = x => { const d = new Date(x); return isNaN(d) ? '—' : d.toLocaleString('zh-TW'); };
   return `<div class="rp-h3">設計者確認事項</div><table class="no-break"><thead><tr><th class="l">類別</th><th class="l">項目</th><th>確認</th><th>確認時間</th></tr></thead><tbody>`
     + L.map(q=>{ const t = CONFIRM[mod].get(q.key); return `<tr><td class="l">${q.kind}</td><td class="l">${q.t}</td><td>${CONFIRM[mod].has(q.key)?'已確認':'<b>未確認</b>'}</td><td>${CONFIRM[mod].has(q.key)?tm(t):'—'}</td></tr>`; }).join('')
-    + `</tbody></table><div class="rp-note">確認以項目內容與本模組全部輸入為準；任一輸入變更即須重新確認。</div>`;
+    + `</tbody></table><div class="rp-note">確認以項目內容與相關輸入為準（注意項目：該項「去修改」所列輸入與載重；未涵蓋項目：本模組全部斷面與材料輸入）；相關輸入變更即須重新確認。</div>`;
 }
 function renderConfirm(mod, items, uncov){
-  const h = confInputHash(mod);
+  const hU = confInputHash(mod, null, true), hC = new Map(), hOf = ids => { const k = (ids||[]).join(','); if(!hC.has(k)) hC.set(k, confInputHash(mod, ids)); return hC.get(k); };
   const list = [...(uncov||[]).map(t=>({kind:'未涵蓋', t:`須另行檢核：${t}`})), ...items.filter(a=>a.lv==='warn').map(a=>({kind:'注意', t:a.t, ids:a.ids}))]
-    .map(q=>({...q, key: confKey(q.t) + '｜' + h}));
+    .map(q=>({...q, key: confKey(q.t) + '｜' + (q.kind==='未涵蓋' ? hU : hOf(q.ids))}));
   CONF_ITEMS[mod] = list;
   const host = document.getElementById(mod==='beam' ? 'bConfirm' : 'confirmP'); if(!host) return;
   if(!list.length){ host.innerHTML = ''; return; }
@@ -6385,7 +6394,7 @@ function buildReport(M){
       : `B\\,H=${d(s.B,0)}\\times${d(s.H,0)}`}=${d(M.Ag,0)}\\ \\text{cm}^2`));
   o.push(eq(`\\rho_g=\\frac{A_{st}}{A_g}=\\frac{${d(M.Ast,1)}}{${d(M.Ag,0)}}=${d(M.chk.rho/100,5)}=${d(M.chk.rho,3)}\\%`));
   o.push(eq(`\\varepsilon_{ty}=\\frac{f_y}{E_s}=\\frac{${d(m.fy,0)}}{${d(m.Es,0)}}=${d(m.ety,5)}
-    \\qquad E_c=12000\\sqrt{f'_c}=12000\\sqrt{${d(m.fc,0)}}=${d(m.Ec,0)}\\ \\text{kgf/cm}^2\\ (\\S19.2.2.1)`));
+    \\qquad ${ecTex(m, d)}`));
 
   o.push(`</div><div class="rp-page">`);
   o.push(`<div class="rp-h2">2. 斷面配筋圖</div>`);
@@ -6730,6 +6739,12 @@ function buildReport(M){
     fleqn:true, throwOnError:false});
 }
 
+/* 計算書 E_c 式（N1）：輕質或 w_c < 2,160 用式 (19.2.2.1.a)，其餘 (19.2.2.1.b) */
+function ecTex(m, d){
+  const light = ((m.lam||1) < 1 || m.wc < 2160) && m.wc >= 1440 && m.wc <= 2560;
+  return light ? `E_c=w_c^{1.5}\\,0.11\\sqrt{f'_c}=${kn(m.wc,0)}^{1.5}\\times0.11\\times\\sqrt{${d(m.fc,0)}}=${d(m.Ec,0)}\\ \\text{kgf/cm}^2\\ (\\text{式 19.2.2.1.a})`
+               : `E_c=12000\\sqrt{f'_c}=12000\\sqrt{${d(m.fc,0)}}=${d(m.Ec,0)}\\ \\text{kgf/cm}^2\\ (\\text{式 19.2.2.1.b})`;
+}
 /* 柱檢核彙總（與 Excel「檢核彙總」同類項目）：需求、容量／限值、比值、判定、條號 */
 function colSummaryRows(M){
   const C = M.ctrlFlex, F = M.fin, c = M.chk, rows = [], d = (x,n=2) => f(x,n);
@@ -8197,6 +8212,7 @@ function computeBeam(){
     seismic: document.getElementById('bSeismic').value==='1',
     ln: pos('bLn',1750), Vg: Math.max(0,num('bVg',0)),
     theta: pos('bTheta',45),
+    al545: document.getElementById('bAl545').value==='1',
     MD: Math.max(0,num('bMD',0)), ML: Math.max(0,num('bML',0)),
     MDn: Math.max(0,num('bMDn',0)), MLn: Math.max(0,num('bMLn',0)),
     sustain: Math.min(1,Math.max(0,num('bSustain',0.2))), xi: pos('bXi',2.0),
@@ -8225,8 +8241,9 @@ function computeBeam(){
     Es: pos('bEs',2.04e6), ecu: pos('becu',0.003),
     phit: pos('bphit',0.90), phic: pos('bphic',0.65), phiv: pos('bphiv',0.75)
   };
-  m.b1 = beta1(m.fc); m.ety = m.fy/m.Es; m.Ec = Ecof(m.fc);
+  m.b1 = beta1(m.fc); m.ety = m.fy/m.Es;
   m.lam = parseFloat(document.getElementById('bdLight').value) || 1;     // 輕質混凝土 λ（剪力與伸展長度共用）
+  m.wc = pos('bdWc', 2300); m.Ec = Ecw(m.fc, m.wc, m.lam);              // N1：§19.2.2.1(a)(b)
   m.slurry = document.getElementById('bdSlurry').value==='1';            // 泥水中灌注（基礎構造設計規範 §7.6.2）
 
   const R = beamBars(S);
@@ -8266,7 +8283,8 @@ function computeBeam(){
   let ctrl = res.length ? res.reduce((a,b)=> b.dc>a.dc?b:a, res[0]) : null;
 
   const sh = beamShearDesign(S,R,m,ctx,res,solPos?solPos.Mn:0,solNeg?solNeg.Mn:0);
-  /* 扭力縱筋（§9.5.4.3：與撓曲鋼筋相加；§9.6.4.3 A_l,min）：有扭矩之組合，頂、底筋等比例扣除 max(A_l, A_l,min) 後重算 φM_n。
+  /* 扭力縱筋（§9.5.4.3：與撓曲鋼筋相加；§9.6.4.3 A_l,min）：有扭矩之組合，頂、底筋等比例扣除 max(A_l, A_l,min) 後重算 φM_n；
+     選用 §9.5.4.5 時，受壓側分攤量減 M_u/(0.9df_y)（M_u 與 T_u 同組合），不低於 A_l,min 之分攤量。
      本工具未建模腹板縱筋；若另配腹板筋分擔 A_l，本檢核偏保守。 */
   const torsL = {any:false, rows:[]};
   if(!S.slab){
@@ -8274,12 +8292,20 @@ function computeBeam(){
     for(const c of sh.all){
       if(!c.tors) continue;
       const a = 1.33*Math.sqrt(m.fc)*Acp/m.fy - c.AtS*ph*m.fyt/m.fy, b = 1.33*Math.sqrt(m.fc)*Acp/m.fy - (1.75*S.bw/m.fyt)*ph*m.fyt/m.fy;
-      const AlMin = Math.max(0, Math.min(a, b)), AlReq = Math.max(c.Al, AlMin), kf = 1 - AlReq/Math.max(1e-9, AsL), r = c.ctrl;
+      const AlMin = Math.max(0, Math.min(a, b)), AlReq = Math.max(c.Al, AlMin), r = c.ctrl;
+      /* §9.5.4.5（選用）：撓曲受壓區之扭矩縱筋可減 M_u/(0.9 d f_y)，但不得低於 §9.6.4 之 A_l,min（依面積比分配） */
+      const shT = AsTen/Math.max(1e-9, AsL), shC = AsCom/Math.max(1e-9, AsL);
+      const red545 = (S.al545 && AsCom > 1e-9) ? r.k.Mu/(0.9*d*m.fy) : 0;
+      const AlC = Math.max(AlReq*shC - red545, Math.min(AlReq, AlMin)*shC, 0), AlT = AlReq*shT;
+      const kT = 1 - AlT/Math.max(1e-9, AsTen), kC = AsCom > 1e-9 ? 1 - AlC/AsCom : 1;
+      const kf = Math.min(kT, kC);
       let phiMnR = 0;
-      if(kf > 0 && !noTen){ const so = beamSolve({...ctx, layers: ctx.layers.map(L=>({...L, A:L.A*kf}))}); phiMnR = so ? phiOf(so.eps_t, m)*so.Mn : 0; }
+      if(kT > 0 && kC >= 0 && !noTen){
+        const top = ctx.layers[ctx.layers.length-1], isTen = L => (S.sign==='pos') === (L !== top);   // 最後一層為頂筋
+        const so = beamSolve({...ctx, layers: ctx.layers.map(L=>({...L, A:L.A*(isTen(L) ? kT : kC)}))}); phiMnR = so ? phiOf(so.eps_t, m)*so.Mn : 0; }
       r.dc0 = r.dc; r.dcT = r.k.Mu <= 1e-6 ? (kf > 0 ? 0 : Infinity) : (phiMnR > 0 ? r.k.Mu/phiMnR : Infinity);
       r.dc = Math.max(r.dc, r.dcT); r.AlReq = AlReq;
-      torsL.any = true; torsL.rows.push({name:r.L.name, Al:c.Al, AlMin, AlReq, kf, r, AtS:c.AtS});
+      torsL.any = true; torsL.rows.push({name:r.L.name, Al:c.Al, AlMin, AlReq, kf, kT, kC, AlC, AlT, red545, r, AtS:c.AtS});
     }
     if(torsL.any) ctrl = res.reduce((a,b)=> b.dc>a.dc?b:a, res[0]);
   }
@@ -8813,7 +8839,7 @@ function renderBeam(){
   pinNA('beam', ['bhf','bSpacing','bEdge'], S.type!=='T');
   if(S.type==='T'){ pinNA('beam', ['bSpacing'], S.flPos!=='int'); pinNA('beam', ['bSclear'], S.flPos!=='edge'); }
   pinNA('beam', ['bBf'], !(S.type==='T' && S.flPos==='iso'));
-  pinNA('beam', ['bw','bSclear','bNbot','bNtop','bTieSize','bNlegs','bHoop','bSeismic','bLn','bVg','bTheta'], S.slab);
+  pinNA('beam', ['bw','bSclear','bNbot','bNtop','bTieSize','bNlegs','bHoop','bSeismic','bLn','bVg','bTheta','bAl545'], S.slab);
   pinNA('beam', ['bSpBot','bSpTop','bRhoTs'], !S.slab);
   pinNA('beam', ['bWlim'], S.env!=='water');
   if(S.type!=='T' && !S.slab) pinNA('beam', ['bSclear'], true);
@@ -9001,9 +9027,9 @@ function beamAlertItems(B){
   if(B.sh.over) add('bad',`<b>剪扭斷面應力超限</b>：${f(B.sh.lhs,1)} > ${f(B.sh.rhs,1)} kgf/cm²（實心斷面採平方根合成）。`, ['bw','bh','#bLoadTbl']);
   { const U = beamUncovered(B); if(U.length) add('info',`<b>本工具未涵蓋、須另行檢核</b>（判定列「未涵蓋」）：${U.join('；')}。`, []); }
   if(B.torsL && B.torsL.any){   // 扭力縱筋（§9.5.4.3、§9.6.4.3、§9.7.5）
-    const W = B.torsL.rows.reduce((a,b)=> b.AlReq>a.AlReq ? b : a), ids = ['bBotSize','bNbot','bTopSize','bNtop','#bLoadTbl'];
+    const W = B.torsL.rows.reduce((a,b)=> b.AlReq>a.AlReq ? b : a), ids = ['bBotSize','bNbot','bTopSize','bNtop','bAl545','#bLoadTbl'];
     add(W.kf <= 0 ? 'bad' : 'info', `<b>扭力縱筋</b>（土木401-112 §9.5.4.3、§9.6.4.3）：A_l = ${f(W.Al,2)}、A_l,min = ${f(W.AlMin,2)} → 需 ${f(W.AlReq,2)} cm²（組合「${esc(W.name)}」）；`
-      + (W.kf <= 0 ? `<b>超過頂、底筋總量，須另配縱筋</b>。` : `頂、底筋等比例扣除後重算 φM_n，D/C ${fdc(W.r.dc0)} → ${fdc(W.r.dc)}（未計腹板縱筋，偏保守）。`), ids);
+      + (W.kf <= 0 ? `<b>超過頂、底筋總量，須另配縱筋</b>。` : (S.al545 && W.red545 > 0 ? `受拉側依面積比扣 ${f(W.AlT,2)} cm²；受壓側依 §9.5.4.5 減 M_u/(0.9df_y) = ${f(W.red545,2)} cm² 後扣 ${f(W.AlC,2)} cm²` : `頂、底筋等比例扣除`) + `後重算 φM_n，D/C ${fdc(W.r.dc0)} → ${fdc(W.r.dc)}（未計腹板縱筋，偏保守）。`), ids);
     const dt = BAR[S.tieSize].d, vGap = S.h - 2*(S.cover + dt) - Math.max(B.R.dbB, B.R.dbT);
     if(vGap > 30 + 1e-9) add('warn',`<b>腹板須配扭力縱筋</b>：頂、底筋垂直間距 ${f(vGap,1)} cm ＞ 30 cm，縱向扭力鋼筋應沿閉合箍筋周邊分布、間距 ≤ 30 cm（§9.7.5.1），每側腹板至少 ${Math.ceil(vGap/30)-1} 根。本工具未建模腹板縱筋，請另行配置並確認。`, ['bh','#bLoadTbl']);
     const hMax = Math.max(B.crack ? B.crack.sAct : 0, ...[B.R.r1, Math.round(S.nTop)].filter(n=>n>1).map(n => (S.bw - 2*(S.cover+dt) - (n===B.R.r1?B.R.dbB:B.R.dbT))/(n-1)));
@@ -9184,7 +9210,7 @@ function buildBeamReport(B){
         <td class="l">箍筋</td><td class="l">${S.slab?'不配置':`${S.tieSize} ${S.nLegs} 肢`}</td></tr>
   </tbody></table>`);
   o.push(eq(`\\beta_1=\\max\\!\\left(0.65,\\min\\!\\left(0.85,\\;0.85-0.05\\frac{f'_c-280}{70}\\right)\\right)=${d(m.b1,4)}
-    \\qquad E_c=12000\\sqrt{f'_c}=${d(m.Ec,0)}\\ \\text{kgf}/\\text{cm}^2\\ (\\S19.2.2.1)`));
+    \\qquad ${ecTex(m, d)}`));
   { const c=B.clr, line=(lab,v,need,n,db,sp)=> v===null ? '' :
       eq(S.slab ? `s_{clear,${lab}}=s-d_b=${d(sp,1)}-${d(db,2)}=${d(v,2)}\\ ${v>=need-1e-9?'\\ge':'\\lt'}\\ \\max(2.5,\\ d_b,\\ \\tfrac43 d_{agg})=${d(need,2)}\\ \\text{cm}`
                 : `s_{clear,${lab}}=\\frac{b_w-2(c_c+d_t)-n\\,d_b}{n-1}=\\frac{${d(S.bw,1)}-2(${d(S.cover,1)}+${d(R.dt,2)})-${n}\\times${d(db,2)}}{${n}-1}=${d(v,2)}\\ ${v>=need-1e-9?'\\ge':'\\lt'}\\ ${d(need,2)}\\ \\text{cm}`);
@@ -9560,7 +9586,8 @@ const PIN_META = {
     ]],
     ['伸展長度與搭接', [
       ['dEpoxy','ψ_e','鋼筋塗布','','環氧樹脂塗布鋼筋降低握裹：直線 ψ_e = 1.5（淨保護層 < 3d_b 或淨距 < 6d_b）或 1.2；彎鉤、T 頭 1.2。','土木401 §25.4.2.5、§25.4.3.2',''],
-      ['dLight','λ','混凝土單位重','','輕質混凝土 λ = 0.75：剪力 V_c 折減、伸展長度放大；擴頭鋼筋僅適用常重混凝土。','土木401 §19.2.4、§22.5.5.1、§25.4.1.4',''],
+      ['dLight','λ','混凝土種類（輕質 λ）','','輕質混凝土 λ = 0.75：剪力 V_c 折減、伸展長度放大；擴頭鋼筋僅適用常重混凝土。','土木401 §19.2.4、§22.5.5.1、§25.4.1.4',''],
+      ['dWc','w_c','混凝土單位重','kg/m³','輕質混凝土（λ < 1）或 w_c < 2,160 時 E_c = w_c^1.5·0.11√f′c（式 19.2.2.1.a），影響長細效應之 EI；常重混凝土 E_c = 12,000√f′c。','土木401 §19.2.2.1',''],
       ['dSlurry','—','混凝土澆置方式','','泥水中灌注（連續壁、場鑄樁）：混凝土剪力強度 V_c × 0.75（折減 25%），直線、彎鉤、擴頭、受壓伸展長度與搭接長度 × 1.3（增加 30%），且 f\'c 不得小於 210 kgf/cm²。',
        '建築物基礎構造設計規範 §7.6.2 第 2 款（本文係對鋼筋混凝土地下牆而言）',
        '同條並要求「提高一級強度供料」；場鑄樁於水中或泥水中澆注時，澆注強度應再提高 35 kgf/cm²（§5.6.3 第 2 款）。輸入之 f\'c 為規定抗壓強度。'],
@@ -9617,6 +9644,7 @@ const PIN_META = {
       ['bLn','l_n','淨跨','cm','T 梁有效翼緣寬（ℓ_n/8、ℓ_n/12，表 6.3.2.1）；V_e 的分母；沿梁軸向配置箍筋的總長（耐震梁兩端 2h 加密）。','耐震：l_n ≥ 4d',''],
       ['bVg','V_g','重力剪力','tf','V_e = (M_pr⁺+M_pr⁻)/l_n + V_g。','',''],
       ['bTheta','θ','扭矩桁架角','°','A_t/s 與扭矩縱筋 A_l。','',''],
+      ['bAl545','—','受壓區扭矩縱筋折減','—','§9.5.4.5：撓曲受壓區扭矩縱筋可減 M_u/(0.9df_y)，不低於 A_l,min；預設不採用。','',''],
       ['bphit','φ_t','拉力控制','','φM_n = φ·M_n。','ε_t ≥ ε_ty + 0.003 時 φ = 0.90（表 21.2.2）',''],
       ['bphiv','φ_v','剪力 / 扭矩','','V_s 需求 = V_des/φ_v − V_c。','土木401 為 0.75','']
     ]],
@@ -9635,7 +9663,8 @@ const PIN_META = {
     ]],
     ['伸展長度與搭接', [
       ['bdEpoxy','ψ_e','鋼筋塗布','','環氧樹脂塗布鋼筋降低握裹：直線 ψ_e = 1.5（淨保護層 < 3d_b 或淨距 < 6d_b）或 1.2；彎鉤、T 頭 1.2。','土木401 §25.4.2.5、§25.4.3.2',''],
-      ['bdLight','λ','混凝土單位重','','輕質混凝土 λ = 0.75：剪力 V_c 折減、伸展長度放大；擴頭鋼筋僅適用常重混凝土。','土木401 §19.2.4、§22.5.5.1、§25.4.1.4',''],
+      ['bdLight','λ','混凝土種類（輕質 λ）','','輕質混凝土 λ = 0.75：剪力 V_c 折減、伸展長度放大；擴頭鋼筋僅適用常重混凝土。','土木401 §19.2.4、§22.5.5.1、§25.4.1.4',''],
+      ['bdWc','w_c','混凝土單位重','kg/m³','輕質混凝土（λ < 1）或 w_c < 2,160 時 E_c = w_c^1.5·0.11√f′c（式 19.2.2.1.a），影響撓度（E_c、n、I_cr）與裂縫寬度；常重混凝土 E_c = 12,000√f′c。','土木401 §19.2.2.1',''],
       ['bdSlurry','—','混凝土澆置方式','','泥水中灌注（連續壁、場鑄樁）：混凝土剪力強度 V_c × 0.75（折減 25%），直線、彎鉤、擴頭、受壓伸展長度與搭接長度 × 1.3（增加 30%），且 f\'c 不得小於 210 kgf/cm²。',
        '建築物基礎構造設計規範 §7.6.2 第 2 款（本文係對鋼筋混凝土地下牆而言）',
        '同條並要求「提高一級強度供料」；場鑄樁於水中或泥水中澆注時，澆注強度應再提高 35 kgf/cm²（§5.6.3 第 2 款）。輸入之 f\'c 為規定抗壓強度。'],
