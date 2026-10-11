@@ -594,6 +594,9 @@ body .ws-tabs button[aria-selected=true]{color:var(--acc-h);font-weight:700}
 .conf-h .conf-sub{flex:1 1 260px;min-width:0;color:var(--dim)}
 .conf-kind{flex-shrink:0;font-size:11px;padding:0 6px;border-radius:9px;background:var(--warn,#b26a00);color:#fff;height:18px;line-height:18px}
 .rp-unconf{border:2px solid #b26a00;color:#7a4a00;background:#fff7e6;padding:8px 12px;margin:0 0 10px;font-size:12px}
+.rp-held{border:4px solid #c00;padding:40px 28px;margin:60px 0;text-align:center;color:#000;background:#fff}
+.rp-held-t{font-size:28px;font-weight:800;color:#c00;margin-bottom:18px}
+.rp-held p{font-size:14px;margin:8px 0}
 @media print{.rp-unconf{display:none}}
 body.rp-open .ws-tabs{display:none}
 /* 自測：開發者用，平時隱藏分頁、按鈕只留淡色圖示 */
@@ -1359,6 +1362,11 @@ function applyBlocked(mod, bad){
   if(!bn){ bn = document.createElement('div'); bn.className = 'blk-banner'; bn.setAttribute('role','alert'); ws.querySelector('.ws-tabs').after(bn); }
   bn.innerHTML = on ? `<b>輸入不完整，已停止計算</b>：${bad.map(b=>`${esc(b.label)}（${esc(b.why)}）`).join('、')}。<br>`
     + '請修正參數表中標紅的欄位；在此之前不顯示任何結果，也不提供計算書、Excel 與建議配筋。' : '';
+}
+/* 輸入一變：預覽中立即重建計算書；未預覽時清空，避免舊內容被瀏覽器列印（Ctrl+P）印出 */
+function rpSync(build){
+  const el = document.getElementById('report'); if(!el) return;
+  if(el.classList.contains('preview')) build(); else if(!el.dataset.held) el.innerHTML = '';
 }
 const isBlocked = mod => { const M = mod==='beam' ? BMODEL : MODEL; return !!(M && M.badIn && M.badIn.length); };
 const blockedMsg = mod => '輸入不完整，已停止計算，無法產生結果：\n\n'
@@ -5216,7 +5224,7 @@ const memCurName = () => memName(TAB==='beam' ? 'bMemName' : 'memName') || (TAB=
 function memSummary(){
   const beam = TAB==='beam';
   if(beam){ const B = BMODEL || renderBeam(); if(!B || (B.badIn && B.badIn.length)) return {dc:NaN, bad:1, pend:0, txt:'輸入不完整'};
-    return {dc: B.ctrl ? B.ctrl.dc : 0, bad: beamAlertItems(B).filter(a=>a.lv==='bad').length, pend: confPending('beam').length,
+    return {dc: beamDcGov(B).dc, bad: beamAlertItems(B).filter(a=>a.lv==='bad').length, pend: confPending('beam').length,
             txt: `${B.S.slab ? '版' : B.S.type==='T' ? 'T 梁' : '矩形梁'} ${f(B.S.bw,0)}×${f(B.S.h,0)}`}; }
   const M = MODEL || render(); if(!M || (M.badIn && M.badIn.length)) return {dc:NaN, bad:1, pend:0, txt:'輸入不完整'};
   return {dc: M.ctrlFlex.dc, bad: colAlertItems(M).filter(a=>a.lv==='bad').length, pend: confPending('pylon').length,
@@ -5443,7 +5451,11 @@ function beamXlsxInput(){
     legGap: BMODEL && BMODEL.leg ? BMODEL.leg.gap : 0, hoop: g('bHoop'), legPos: BMODEL && BMODEL.leg ? BMODEL.leg.pos : [], legPosT: BMODEL && BMODEL.leg ? BMODEL.leg.posT : [],
     dev: devOpts('bd'), devX: devXBeam(), waterNotes: [WATER_SCOPE, ...WATER_LOADS],
     loads: BLOADS.map((L,i)=>({name:L.name, Mpos:+(L.Mpos??L.Mu??0)||0, Mneg:+(L.Mneg??0)||0, Vu:+L.Vu||0, Tu:+L.Tu||0,
-      ...(()=>{ const q = BMODEL && BMODEL.res[i]; return {AlReq: q && q.AlReq != null ? q.AlReq : null, dcT: q && q.dcT != null ? q.dcT : null}; })()})),
+      ...(()=>{ const q = BMODEL && BMODEL.res[i], qo = BMODEL && BMODEL.alt && BMODEL.alt.has && BMODEL.alt.B.res[i];
+        return {AlReq: q && q.AlReq != null ? q.AlReq : null, dcT: q && q.dcT != null ? q.dcT : null, dcTo: qo && qo.dcT != null ? qo.dcT : null}; })()})),
+    // 另一檢核斷面：撓曲、A_s,min、ε_t 於 Excel 以公式檢核；其餘不合格項目（裂縫等）以網頁值列入檢核彙總
+    alt: BMODEL && BMODEL.alt ? {sign: BMODEL.alt.sign, has: BMODEL.alt.has,
+      other: beamAltBad(BMODEL, beamAlertItems(BMODEL)).filter(a=>a.fx!=='flex').map(a=>optPlain(a).replace(/\s+/g,' ').trim())} : null,
     meta:{project:'', member:memName('bMemName'), version:APP_VERSION, codeHash:codeHash(), inputHash:inputHash()}};
 }
 async function exportXlsx(fname){
@@ -5701,7 +5713,7 @@ function render(){
   applyBlocked('pylon', M.badIn);
   renderSummary(M); renderAlerts(M); verdictPylon(M);
   pinStatus('pylon', M.badIn.length ? pinMapBlocked(M) : pinMapPylon(M));
-  if(document.getElementById('report').classList.contains('preview')) buildReport(M);
+  rpSync(() => buildReport(M));
   caseAutosave();
   optAfterRender('pylon'); setupSync();
   return M;
@@ -7987,6 +7999,11 @@ function computeBeam(){
   // 版：A_s,min = ρ_min·b·h（溫度收縮鋼筋，ACI 7.6.1.1）；梁：max(0.8√f'c/f_y, 14/f_y)·b_w·d
   const AsMin = S.slab ? S.rhoTs*S.bw*S.h : Math.max(0.8*Math.sqrt(m.fc)/m.fy, 14/m.fy)*S.bw*d;
   const rho = AsTen/(S.bw*d);
+  /* 耐震特殊抗彎構材（土木401-112 §18.3.3.1）：上下兩面鋼筋在任何斷面皆須 ≥ §9.6.1.2 之 A_s,min，
+     且拉力鋼筋比 ρ ≤ (f'c+100)/(4f_y) 及 0.025。兩面各以其受拉時之有效深度計算，與目前檢核斷面無關。 */
+  const face = (As, dd) => ({As, d:dd, rho: As/(S.bw*dd), AsMin: Math.max(0.8*Math.sqrt(m.fc)/m.fy, 14/m.fy)*S.bw*dd});
+  const seisFace = {bot: face(R.AsBot, ctxDepth(ctxPos)), top: face(R.AsTop, ctxDepth(ctxNeg)),
+    rhoMax: Math.min((m.fc+100)/(4*m.fy), 0.025)};
 
   // 同一組載重同時帶正、負彎矩；依目前檢核的斷面取對應值
   const noLoads = !BLOADS.length;
@@ -8049,11 +8066,35 @@ function computeBeam(){
   const leg  = S.slab ? null : beamLeg(S,sh,R);
 
   BMODEL = {S,m,R,EF,gross,icr,ctxPos,ctxNeg,ctx,solPos,solNeg,sol,phi,phiMn,phiPos,phiNeg,
-            d,AsTen,AsCom,AsMin,rho,res,ctrl,sh,torsL,defl,crack,cw,clr,sug,noTen,noLoads,
+            d,AsTen,AsCom,AsMin,rho,seisFace,res,ctrl,sh,torsL,defl,crack,cw,clr,sug,noTen,noLoads,
             fin:{cands,gov,sUse,tooTight}, fin2, lay, leg};
   BMODEL.devX = devXBeam(); BMODEL.dev = beamDev(BMODEL); BMODEL.devPlan = beamDevPlan(BMODEL);
   if(BMODEL.lay) BMODEL.lay = BMODEL.devPlan.lay;
+  // 另一檢核斷面（正↔負彎矩）同時檢核：判定列、警示、計算書、Excel 皆取兩者最不利（畫面停在哪一向只決定顯示哪一個斷面的圖與明細）
+  if(!OPT_QUIET) BMODEL.alt = beamAltSign(BMODEL);
   return BMODEL;
+}
+/* 以另一檢核斷面重算（試算模式，不重繪、不遞迴）。has：該向有彎矩需求（任一組合 M_u ≠ 0）才判定該向之撓曲相關項目 */
+function beamAltSign(B){
+  const sign = B.S.sign==='pos' ? 'neg' : 'pos';
+  const v = beamEvalSign({}, sign);
+  if(!v || !v.B) return null;
+  const C = v.B.ctrl;
+  return {sign, B:v.B, items:v.items, has: !v.B.noLoads && !!C && C.k.Mu > 1e-6};
+}
+/* 檢核斷面名稱 */
+const beamSignName = (sign, slab) => slab ? (sign==='pos' ? '正彎矩斷面' : '負彎矩斷面') : (sign==='pos' ? '跨中正彎矩斷面' : '支承負彎矩斷面');
+/* 兩檢核斷面之撓曲 D/C 取最不利者：{dc, r（控制組合）, sign} */
+function beamDcGov(B){
+  const a = {dc: B.ctrl ? B.ctrl.dc : 0, r: B.ctrl, sign: B.S.sign};
+  const o = B.alt && B.alt.has && B.alt.B.ctrl;
+  return o && !(o.dc <= a.dc) ? {dc: o.dc, r: o, sign: B.alt.sign} : a;
+}
+/* 另一檢核斷面之不合格項目（併入目前畫面）：隨斷面而異之項目（fx 標記）一律列出，其餘與目前斷面相同者不重複 */
+function beamAltBad(B, own){
+  if(!B.alt || !B.alt.has) return [];
+  const base = new Set(own.filter(a=>a.lv==='bad').map(optKey));
+  return B.alt.items.filter(a => a.lv==='bad' && (a.fx || !base.has(optKey(a))));
 }
 
 /* ---------- 耐震梁：加密區（自柱面 2h）以外之箍筋間距 ----------
@@ -8552,6 +8593,9 @@ function renderBeam(){
                           : (S.sign==='pos'?'跨中正彎矩（翼緣受壓）':'支承負彎矩（翼緣受拉）'));
   h+=kv('控制組合', C?esc(C.L.name):'—');
   h+=`<div class="kv"><span>D/C = \\(\\displaystyle \\frac{M_u}{\\phi M_n}\\)</span><b ${dcCol}>${C?fdc(C.dc):'—'}</b></div>`;
+  if(B.alt){ const AC = B.alt.B.ctrl, on = B.alt.has && AC;
+    h+=kv(`另一斷面（${beamSignName(B.alt.sign,S.slab)}）D/C`, on ? `${fdc(AC.dc)}（${esc(AC.L.name)}）` : 'M_u = 0，不判定',
+      !on ? '' : AC.dc>1||!Number.isFinite(AC.dc) ? 'style="color:var(--bad)"' : AC.dc>0.9 ? 'style="color:var(--warn)"' : 'style="color:var(--ok)"'); }
   h+=kv('φM_n', f(B.phiMn/TFM,1)+' tf·m');
   h+=kv('中性軸 c / 應力塊 a', `${f(B.sol.c,2)} / ${f(B.sol.a,2)} cm`);
   h+=kv('ε_t（最外拉力筋）', f(B.sol.eps_t,5)+`　φ = ${f(B.phi,3)}`);
@@ -8609,9 +8653,10 @@ function renderBeam(){
   renderBeamAlerts(B);
   if(B.badIn.length) verdictBlocked(B, 'bAlerts');
   else {
-    const sh=B.sh, dcSt = !C ? 'ok' : (!Number.isFinite(C.dc)||C.dc>1) ? 'bad' : C.dc>0.9 ? 'warn' : 'ok';
+    // 撓曲 D/C 取正、負彎矩兩檢核斷面之最不利者（另一斷面控制時註明斷面）
+    const sh=B.sh, G=beamDcGov(B), DF=beamDefl(B), dcSt = !G.r ? 'ok' : (!Number.isFinite(G.dc)||G.dc>1) ? 'bad' : G.dc>0.9 ? 'warn' : 'ok';
     renderVerdict([
-      [dcSt,'撓曲 D/C',C?fdc(C.dc):'—',C?C.L.name:'','bSummary',['bh','bBotSize','bNbot','bTopSize','bNtop','#bLoadTbl']],
+      [dcSt,'撓曲 D/C',G.r?fdc(G.dc):'—',G.r?(G.sign===S.sign?G.r.L.name:`${beamSignName(G.sign,S.slab)} · ${G.r.L.name}`):'','bSummary',['bh','bBotSize','bNbot','bTopSize','bNtop','#bLoadTbl']],
       ...(S.slab
         ? [[sh.slabFail?'bad':'ok','剪力 V_u/φV_c',f(sh.Vdes/Math.max(1e-9,sh.phiVc),2),'不配剪力筋','bSummary',['bh','#bLoadTbl']],
            [F.tooTight?'bad':'ok','主筋',`底 ${bBarTxt(S,'bot')}`,`間距 ≤ ${f(F.gov.v,1)}`,'bSummary',['bSpBot','bSpTop','bBotSize']]]
@@ -8623,14 +8668,14 @@ function renderBeam(){
       [B.crack.ok?'ok':'bad','裂縫',`${f(B.crack.sAct,1)} / ${f(B.crack.sLim,1)} cm`,'','bSummary',['bNbot','bBotSize','bCover']],
       (()=>{ const c=B.clr, vals=[c.bot,c.top].filter(v=>v!==null), mn=vals.length?Math.min(...vals):null;
         return [c.okB&&c.okT?'ok':'bad','主筋淨距', mn===null?'—':(mn<0?'排不下':`${f(mn,1)} cm`), `需 ≥ ${f(Math.max(c.needB,c.needT),1)}`,'bSummary',['bNbot','bNtop','bBotSize','bTopSize','bw','bDagg']]; })(),
-      ...(B.defl.na ? [] : [[B.defl.okL&&B.defl.okT?'ok':'warn','撓度',`Δ_LT ${f(B.defl.dLT,2)} / ${f(B.defl.limT,2)} cm`,'','bSummary',['bh','bML','bMD','bDeflCase','bLimTotal']]]),
+      ...(DF.na ? [] : [[DF.okL&&DF.okT?'ok':'warn','撓度',`Δ_LT ${f(DF.dLT,2)} / ${f(DF.limT,2)} cm`,'','bSummary',['bh','bML','bMD','bDeflCase','bLimTotal']]]),
       devVerdict(B.devPlan,'bDevPlan'),
       ...(beamUncovered(B).length ? [uncovPill(beamUncovered(B), 'bAlerts')] : []),
     ],'bAlerts');
   }
   stampCalc();
   pinStatus('beam', B.badIn.length ? pinMapBlocked(B) : pinMapBeam(B));
-  if(document.getElementById('report').classList.contains('preview')) buildBeamReport(B);
+  rpSync(() => buildBeamReport(B));
   caseAutosave();
   optAfterRender('beam'); setupSync();
   return B;
@@ -8644,7 +8689,8 @@ function renderBeamAlerts(B){
 /* 梁警示清單（純資料）：畫面警示與「建議配筋」判定共用 */
 function beamAlertItems(B){
   const {S,m}=B, A=[];
-  const add=(lv,t,ids)=>A.push({lv,t,ids});
+  // fx：隨檢核斷面（正／負彎矩）而異之項目（'flex' 撓曲強度、A_s,min、ε_t；'crack' 裂縫）；併入另一檢核斷面時一律列出
+  const add=(lv,t,ids,fx)=>A.push(fx ? {lv,t,ids,fx} : {lv,t,ids});
   if(B.badIn && B.badIn.length) add('bad',`<b>輸入不完整，已停止計算</b>：${B.badIn.map(b=>`${esc(b.label)}（${esc(b.why)}）`).join('、')}。修正後才顯示結果。`, B.badIn.map(b=>b.id));
   if(B.badIn && B.badIn.length) return A;   // 停止計算：以佔位值算出之其他警示不列出
   rangeAlerts('beam', add);
@@ -8654,18 +8700,27 @@ function beamAlertItems(B){
     if(!S.slab && m.fyt > lim + 1) add('bad',`<b>箍筋 f_yt = ${f(m.fyt,0)} 超過剪力鋼筋設計上限 ${lim}</b>（土木401-112 表 20.2.2.4(a)）。`, ['bfyt']);
     else if(!S.slab && B.sh && B.sh.tors && m.fyt > 4200 + 1) add('bad',`<b>扭力鋼筋 f_yt = ${f(m.fyt,0)} 超過 4200</b>（表 20.2.2.4(a)）。`, ['bfyt']);
   }
-  if(B.noTen) add('bad',`<b>無受拉鋼筋</b>：目前檢核${S.sign==='pos'?'正彎矩（底層受拉）':'負彎矩（頂層受拉）'}，但${S.sign==='pos'?'底':'頂'}層未配置鋼筋，斷面無法抵抗此方向彎矩。`, ['bNbot','bNtop','bSpBot','bSpTop']);
+  if(B.noTen) add('bad',`<b>無受拉鋼筋</b>：目前檢核${S.sign==='pos'?'正彎矩（底層受拉）':'負彎矩（頂層受拉）'}，但${S.sign==='pos'?'底':'頂'}層未配置鋼筋，斷面無法抵抗此方向彎矩。`, ['bNbot','bNtop','bSpBot','bSpTop'], 'flex');
   const C=B.ctrl;
   if(C){
-    if(!Number.isFinite(C.dc)) add('bad',`<b>φM_n = 0，斷面無撓曲容量</b>。`, ['bh','bBotSize','bNbot','bTopSize','bNtop','#bLoadTbl']);
-    else if(C.dc>1) add('bad',`<b>撓曲不足：D/C = ${fdc(C.dc)} > 1.0</b>（${esc(C.L.name)}）。M_u = ${f(C.k.Mu/TFM,1)} > φM_n = ${f(B.phiMn/TFM,1)} tf·m。`, ['bh','bBotSize','bNbot','bTopSize','bNtop','#bLoadTbl']);
+    if(!Number.isFinite(C.dc)) add('bad',`<b>φM_n = 0，斷面無撓曲容量</b>。`, ['bh','bBotSize','bNbot','bTopSize','bNtop','#bLoadTbl'], 'flex');
+    else if(C.dc>1) add('bad',`<b>撓曲不足：D/C = ${fdc(C.dc)} > 1.0</b>（${esc(C.L.name)}）。M_u = ${f(C.k.Mu/TFM,1)} > φM_n = ${f(B.phiMn/TFM,1)} tf·m。`, ['bh','bBotSize','bNbot','bTopSize','bNtop','#bLoadTbl'], 'flex');
     else if(C.dc>0.9) add('warn',`撓曲 D/C = ${fdc(C.dc)}，餘裕不足 10%。`, ['bh','bBotSize','bNbot','bTopSize','bNtop','#bLoadTbl']);
     else add('ok',`撓曲 D/C = ${fdc(C.dc)} ≤ 1.0，通過。`, ['bh','bBotSize','bNbot','bTopSize','bNtop','#bLoadTbl']);
   }
   // A_s,min 係針對「有撓曲拉力」之斷面；此斷面若無彎矩需求（如簡支梁之支承負彎矩）則不適用
   const noMoment = !C || C.k.Mu < 1e-6;
-  if(noMoment) add('info',`此斷面之 M_u = 0，無撓曲拉力需求，<b>A_s,min 不適用</b>（現有 A_s = ${f(B.AsTen,2)} cm²，若該處實際有彎矩請於載重表填入）。`, ['#bLoadTbl']);
-  else if(B.AsTen < B.AsMin) add('bad',`<b>受拉鋼筋量不足</b>：A_s = ${f(B.AsTen,2)} < A_s,min = ${S.slab?`ρ_min·b·h = ${f(S.rhoTs,4)}×100×${f(S.h,0)}`:"max(0.8√f'_c/f_y, 14/f_y)·b_w·d"} = ${f(B.AsMin,2)} cm²。`, ['bBotSize','bNbot','bTopSize','bNtop','bSpBot','bSpTop']);
+  if(S.seismic && !S.slab){   // 耐震梁：上下兩面皆須 ≥ A_s,min 且 ρ ≤ min((f'c+100)/(4f_y), 0.025)，與彎矩方向無關（§18.3.3.1）
+    const F = B.seisFace, rM = F.rhoMax, coef = "max(0.8√f'_c/f_y, 14/f_y)·b_w·d";
+    for(const [k, nm, ids] of [['bot','底筋',['bBotSize','bNbot','bw']], ['top','頂筋',['bTopSize','bNtop','bw']]]){
+      const q = F[k];
+      if(q.As < q.AsMin - 1e-9) add('bad',`<b>耐震梁${nm}量不足</b>：A_s = ${f(q.As,2)} < A_s,min = ${coef} = ${f(q.AsMin,2)} cm²（d = ${f(q.d,2)} cm）。耐震梁上下兩面鋼筋在任何斷面皆須符合 §9.6.1.2（土木401-112 §18.3.3.1）。`, ids);
+      else add('ok',`耐震梁${nm} A_s = ${f(q.As,2)} ≥ A_s,min = ${f(q.AsMin,2)} cm²（§18.3.3.1、§9.6.1.2）。`, ids);
+      if(q.rho > rM + 1e-12) add('bad',`<b>耐震梁${nm}鋼筋比 ρ = ${f(q.rho*100,3)}% > 上限 ${f(rM*100,3)}%</b>：\\(\\displaystyle \\rho\\le\\min\\left(\\frac{f'_c+100}{4f_y},\\ 0.025\\right)\\)（土木401-112 §18.3.3.1）。`, ids);
+      else add('ok',`耐震梁${nm} ρ = ${f(q.rho*100,3)}% ≤ ${f(rM*100,3)}%（§18.3.3.1）。`, ids);
+    }
+  }else if(noMoment) add('info',`此斷面之 M_u = 0，無撓曲拉力需求，<b>A_s,min 不適用</b>（現有 A_s = ${f(B.AsTen,2)} cm²，若該處實際有彎矩請於載重表填入）。`, ['#bLoadTbl']);
+  else if(B.AsTen < B.AsMin) add('bad',`<b>受拉鋼筋量不足</b>：A_s = ${f(B.AsTen,2)} < A_s,min = ${S.slab?`ρ_min·b·h = ${f(S.rhoTs,4)}×100×${f(S.h,0)}`:"max(0.8√f'_c/f_y, 14/f_y)·b_w·d"} = ${f(B.AsMin,2)} cm²。`, ['bBotSize','bNbot','bTopSize','bNtop','bSpBot','bSpTop'], 'flex');
   else add('ok',`A_s = ${f(B.AsTen,2)} ≥ A_s,min = ${f(B.AsMin,2)} cm²。`, ['bBotSize','bNbot','bTopSize','bNtop']);
 
   { const c=B.clr;
@@ -8675,7 +8730,7 @@ function beamAlertItems(B){
     else if(!c.okT) add('bad',`<b>頂筋淨距不足</b>：${f(c.top,2)} cm ＜ \\(\\displaystyle \\max\\left(2.5,\\ d_b,\\ \\frac{4}{3}d_{agg}\\right)\\) = ${f(c.needT,2)} cm（土木401 §25.2.1）。${S.slab?'請加大間距或改用較細鋼筋。':'頂筋為單排，請減少根數、改用較粗號數減少根數或加寬腹板。'}`, ['bNtop','bTopSize','bw','bDagg','bSpTop']);
     if(c.okB && c.okT) add('ok',`主筋淨距：底 ${c.bot===null?'—':f(c.bot,2)}、頂 ${c.top===null?'—':f(c.top,2)} cm，皆 ≥ \\(\\displaystyle \\max\\left(2.5,\\ d_b,\\ \\frac{4}{3}d_{agg}\\right)\\)。`, ['bNbot','bNtop','bw','bDagg']);
   }
-  if(B.sol.eps_t < etTC(B.m)) add('bad',`<b>未達拉力控制</b>：ε_t = ${f(B.sol.eps_t,5)} < ε_ty + 0.003 = ${f(etTC(B.m),5)}（φ = ${f(B.phi,3)}）。P_u < 0.1f'_cA_g 之非預力梁須為拉力控制（土木401-112 §9.3.3.1、表 21.2.2）——減少拉力筋、加壓力筋或加大斷面。`, (S.sign==='neg' ? ['bNtop','bTopSize','bSpTop','bh'] : ['bNbot','bBotSize','bSpBot','bh']));
+  if(B.sol.eps_t < etTC(B.m)) add('bad',`<b>未達拉力控制</b>：ε_t = ${f(B.sol.eps_t,5)} < ε_ty + 0.003 = ${f(etTC(B.m),5)}（φ = ${f(B.phi,3)}）。P_u < 0.1f'_cA_g 之非預力梁須為拉力控制（土木401-112 §9.3.3.1、表 21.2.2）——減少拉力筋、加壓力筋或加大斷面。`, (S.sign==='neg' ? ['bNtop','bTopSize','bSpTop','bh'] : ['bNbot','bBotSize','bSpBot','bh']), 'flex');
   else add('ok',`ε_t = ${f(B.sol.eps_t,5)} ≥ ε_ty + 0.003 = ${f(etTC(B.m),5)}，拉力控制，φ = ${f(B.phi,2)}（§9.3.3.1）。`, (S.sign==='neg' ? ['bNtop','bTopSize','bSpTop','bh'] : ['bNbot','bBotSize','bSpBot','bh']));
 
   if(S.type==='T' && S.sign==='pos'){
@@ -8705,17 +8760,17 @@ function beamAlertItems(B){
     const r = B.phiNeg>0 ? B.phiPos/B.phiNeg : 0;
     if(r < 0.5) add('bad',`<b>接頭面正彎矩強度不足</b>：φM_n⁺/φM_n⁻ = ${f(r,3)} < 0.50（土木401 §18.3.3.2）。需增加底筋。`, ['bNbot','bBotSize']);
     else add('ok',`接頭面 φM_n⁺/φM_n⁻ = ${f(r,3)} ≥ 0.50。`, ['bNbot','bBotSize']);
-    if(B.rho > 0.025) add('bad',`<b>ρ = ${f(B.rho*100,3)}% > 2.5%</b>，超過耐震特殊抗彎構材上限（土木401 §18.3.3.1）。`, ['bNbot','bNtop','bw']);
     if(S.bw < Math.max(0.3*S.h,25)) add('bad',`<b>腹板過窄</b>：b_w = ${f(S.bw,0)} < max(0.3h, 25) = ${f(Math.max(0.3*S.h,25),1)} cm（土木401 §18.3.2.1）。`, ['bw']);
     if(S.ln < 4*B.d) add('bad',`<b>淨跨不足</b>：l_n = ${f(S.ln,0)} < 4d = ${f(4*B.d,0)} cm，不適用梁之規定（土木401 §18.3.2.1）。`, ['bLn']);
     add('info',`「任一斷面 M_n ≥ 25% 端部最大值」需整根梁的彎矩包絡線，<b>本工具無法由單一斷面判斷</b>，請另行檢核。`);
   }
-  add(B.crack.ok?'ok':'bad',`裂縫控制（土木401-112 表 24.3.2）：${S.sign==='neg'?'頂筋':'底排鋼筋'}中心距 ${f(B.crack.sAct,1)} cm ${B.crack.ok?'≤':'＞'} 上限 \\(\\displaystyle \\min\\left(38\\cdot\\frac{2800}{f_s}-2.5c_c,\\ 30\\cdot\\frac{2800}{f_s}\\right)\\) = ${f(B.crack.sLim,1)} cm　（\\(\\displaystyle f_s=\\frac{2}{3}f_y\\) = ${f(B.crack.fs,0)} kgf/cm²）`, S.sign==='neg' ? (S.slab ? ['bSpTop','bTopSize','bCover'] : ['bNtop','bTopSize','bCover']) : (S.slab ? ['bSpBot','bBotSize','bCover'] : ['bNbot','bBotSize','bCover']));
-  if(B.defl.na) add('info','撓度以跨中正彎矩斷面檢核；目前檢核支承負彎矩斷面，不判定撓度。');
-  else add(B.defl.okL&&B.defl.okT?'ok':'warn',
-    `撓度：即時活載 Δ_L = ${f(B.defl.dL,3)} cm ${B.defl.okL?'≤':'＞'} \\(\\displaystyle \\frac{L}{${S.limLive}}\\) = ${f(B.defl.limL,3)} cm；`+
-    `長期總撓度 Δ_LT = ${f(B.defl.dLT,3)} cm ${B.defl.okT?'≤':'＞'} \\(\\displaystyle \\frac{L}{${S.limTotal}}\\) = ${f(B.defl.limT,3)} cm。`+
-    `<br>M_cr = ${f(B.defl.Mcr/TFM,1)} tf·m，I_g = ${f(B.defl.Ig,0)}、I_cr = ${f(B.defl.Icr,0)}、I_e = ${f(B.defl.Ie,0)} cm⁴，λ_Δ = ${f(B.defl.lam,3)}。`, ['bh','bML','bMD','bDeflCase','bLimLive','bLimTotal']);
+  add(B.crack.ok?'ok':'bad',`裂縫控制（土木401-112 表 24.3.2）：${S.sign==='neg'?'頂筋':'底排鋼筋'}中心距 ${f(B.crack.sAct,1)} cm ${B.crack.ok?'≤':'＞'} 上限 \\(\\displaystyle \\min\\left(38\\cdot\\frac{2800}{f_s}-2.5c_c,\\ 30\\cdot\\frac{2800}{f_s}\\right)\\) = ${f(B.crack.sLim,1)} cm　（\\(\\displaystyle f_s=\\frac{2}{3}f_y\\) = ${f(B.crack.fs,0)} kgf/cm²）`, S.sign==='neg' ? (S.slab ? ['bSpTop','bTopSize','bCover'] : ['bNtop','bTopSize','bCover']) : (S.slab ? ['bSpBot','bBotSize','bCover'] : ['bNbot','bBotSize','bCover']), 'crack');
+  const DF = beamDefl(B), dTag = DF===B.defl ? '' : `【${beamSignName('pos', S.slab)}】`;
+  if(DF.na) add('info','撓度以跨中正彎矩斷面檢核；目前檢核支承負彎矩斷面，不判定撓度。');
+  else add(DF.okL&&DF.okT?'ok':'warn',
+    `${dTag}撓度：即時活載 Δ_L = ${f(DF.dL,3)} cm ${DF.okL?'≤':'＞'} \\(\\displaystyle \\frac{L}{${S.limLive}}\\) = ${f(DF.limL,3)} cm；`+
+    `長期總撓度 Δ_LT = ${f(DF.dLT,3)} cm ${DF.okT?'≤':'＞'} \\(\\displaystyle \\frac{L}{${S.limTotal}}\\) = ${f(DF.limT,3)} cm。`+
+    `<br>M_cr = ${f(DF.Mcr/TFM,1)} tf·m，I_g = ${f(DF.Ig,0)}、I_cr = ${f(DF.Icr,0)}、I_e = ${f(DF.Ie,0)} cm⁴，λ_Δ = ${f(DF.lam,3)}。`, ['bh','bML','bMD','bDeflCase','bLimLive','bLimTotal']);
   if(S.slab){
     if(B.fin.tooTight) add('bad',`<b>版主筋間距過大</b>：${f(B.fin.sUse,1)} cm ＞ min(3h, 45) = ${f(B.fin.gov.v,1)} cm（土木401／ACI 7.7.2.3）。`, ['bSpBot','bSpTop']);
     add(B.sh.slabFail?'bad':'ok', B.sh.slabFail
@@ -8739,7 +8794,7 @@ function beamAlertItems(B){
     const c=B.cw;
     add(c.ok?'ok':'bad',`${c.ok?'':'<b>'}水工裂縫寬度${c.ok?'':'超限</b>'}：使用載重 M_s = M_D + M_L = ${f(c.Ms/TFM,1)} tf·m，f_s = ${f(c.fs,0)} kgf/cm²，`
       + `w = 1.1×10⁻⁵ β f_s ∛(d_c A) = <b>${f(c.w,3)} mm</b> ${c.ok?'≤':'＞'} ${f(c.wLim,2)} mm（Gergely-Lutz／ACI 224R）。`
-      + (c.ok?'':'可縮小鋼筋間距、改用較細鋼筋或增加鋼筋量以降低 f_s。'), S.sign==='neg' ? ['bCover','bNtop','bSpTop','bTopSize','bWlim'] : ['bCover','bNbot','bSpBot','bBotSize','bWlim']);
+      + (c.ok?'':'可縮小鋼筋間距、改用較細鋼筋或增加鋼筋量以降低 f_s。'), S.sign==='neg' ? ['bCover','bNtop','bSpTop','bTopSize','bWlim'] : ['bCover','bNbot','bSpBot','bBotSize','bWlim'], 'crack');
     if(S.cover < 5) add('warn',`水工／環境結構：保護層 ${f(S.cover,1)} cm ＜ 5 cm，建議至少 5 cm（參考 ACI 350）。`, ['bCover']);
     if(S.slab && S.rhoTs < 0.003) add('warn',`水工／環境結構：版最小鋼筋比 ρ_min = ${f(S.rhoTs,4)}，ACI 350 依伸縮縫間距要求約 0.003～0.005。`, ['bRhoTs']);
     add('info',`水工加嚴<b>未包含</b> ACI 350 的環境耐久係數 S_d（放大需求強度）；若設計準則要求，請將 S_d 乘入輸入之 M_u、V_u。`);
@@ -8748,8 +8803,17 @@ function beamAlertItems(B){
   slurryAlerts(m, add, 'bfc', 'bdSlurry');
   add('info',`<b>本模組為第一階段 RC 梁</b>，不含預力。預力梁（有效預力、施工/使用階段應力、f_ps）為第二階段。`);
   devAlerts(B.devPlan, add);
+  if(B.alt){   // 另一檢核斷面：撓曲相關項目與其餘不同之不合格項目併入（標示斷面名稱）
+    const tag = `【${beamSignName(B.alt.sign, S.slab)}】`, AC = B.alt.B.ctrl, ids = ['bh','bBotSize','bNbot','bTopSize','bNtop','#bLoadTbl'];
+    if(B.alt.has){
+      for(const a of beamAltBad(B, A)) add('bad', tag + a.t, a.ids, a.fx);
+      if(AC.dc <= 1) add(AC.dc > 0.9 ? 'warn' : 'ok', `${tag}撓曲 D/C = ${fdc(AC.dc)} ≤ 1.0（${esc(AC.L.name)}）${AC.dc > 0.9 ? '，餘裕不足 10%' : '，通過'}。`, ids);
+    }else if(!B.noLoads) add('info', `${tag}各組合之 M_u 皆為 0，該斷面不判定撓曲（若該處實際有彎矩請於載重表填入）。`, ['#bLoadTbl']);
+  }
   return A;
 }
+/* 撓度為跨度性質，以跨中正彎矩斷面檢核：目前檢核負彎矩斷面時取另一檢核斷面之結果 */
+const beamDefl = B => (B.defl.na && B.alt && B.alt.B && !B.alt.B.defl.na) ? B.alt.B.defl : B.defl;
 
 /* ---------- 梁：自測 ---------- */
 function beamSelfTest(){
@@ -8933,11 +8997,25 @@ function buildBeamReport(B){
     for(const r of B.res) o.push(`<tr${r===B.ctrl?' style="font-weight:700;background:#f0f0f0"':''}>
       <td class="l">${esc(r.L.name)}</td><td>${d(r.Mused,1)}</td><td>${d(r.L.Vu,1)}</td><td>${d(r.L.Tu,1)}</td><td>${fdc(r.dc)}</td></tr>`);
     o.push(`</tbody></table>`);
-    if(B.ctrl){
-      o.push(eq(`D/C=\\frac{M_u}{\\phi M_n}=\\frac{${d(B.ctrl.k.Mu/TFM,2)}}{${d(B.phiMn/TFM,2)}}=${fdc(B.ctrl.dc)}`));
-      o.push(`<div style="font-size:14px;font-weight:800;padding:8px;border:2px solid ${B.ctrl.dc>1?'#c00':'#060'};display:inline-block">
-        D/C = ${fdc(B.ctrl.dc)} ${B.ctrl.dc>1?'> 1.0 　不合格（NG）':'≤ 1.0 　合格（OK）'}</div>`);
-    }
+    if(B.ctrl) o.push(eq(`D/C=\\frac{M_u}{\\phi M_n}=\\frac{${d(B.ctrl.k.Mu/TFM,2)}}{${d(B.phiMn/TFM,2)}}=${fdc(B.ctrl.dc)}`));
+  }
+  /* 正、負彎矩兩檢核斷面皆判定，取最不利者（本計算書之明細為目前檢核斷面） */
+  if(B.alt){
+    const row = (X, sg, on) => { const C = X.ctrl, ok = on && C;
+      return `<tr><td class="l">${beamSignName(sg, S.slab)}${sg===S.sign?'（本計算書明細）':''}</td><td class="l">${ok?esc(C.L.name):'—'}</td>
+        <td>${ok?d(C.k.Mu/TFM,2):'0'}</td><td>${d(X.phiMn/TFM,2)}</td><td>${ok?fdc(C.dc):'—'}</td>
+        <td>${!ok?'M_u = 0，不判定':C.dc>1||!Number.isFinite(C.dc)?'NG':'OK'}</td></tr>`; };
+    o.push(`<div class="rp-h3">4.0 正、負彎矩兩檢核斷面之撓曲判定</div>`);
+    o.push(`<table class="no-break"><thead><tr><th class="l">檢核斷面</th><th class="l">控制組合</th><th>M_u (tf·m)</th><th>φM_n (tf·m)</th><th>D/C</th><th>判定</th></tr></thead><tbody>
+      ${row(B, S.sign, !!(B.ctrl && B.ctrl.k.Mu > 1e-6))}${row(B.alt.B, B.alt.sign, B.alt.has)}</tbody></table>`);
+  }
+  { const G = beamDcGov(B);
+    if(G.r) o.push(`<div style="font-size:14px;font-weight:800;padding:8px;border:2px solid ${G.dc>1?'#c00':'#060'};display:inline-block">
+      撓曲${B.alt?`（兩檢核斷面取最不利：${beamSignName(G.sign, S.slab)}）`:''} D/C = ${fdc(G.dc)} ${G.dc>1?'> 1.0 　不合格（NG）':'≤ 1.0 　合格（OK）'}</div>`);
+    const bad = beamAlertItems(B).filter(a=>a.lv==='bad');
+    o.push(note(bad.length
+      ? `<b>不合格項目（含另一檢核斷面，共 ${bad.length} 項）</b>：${bad.map((a,i)=>`(${i+1}) ${a.t}`).join('；')}`
+      : `全部檢核項目（含${B.alt?beamSignName(B.alt.sign, S.slab):'另一檢核斷面'}）均無不合格。`));
   }
   if(B.sug.length){
     o.push(`<div class="rp-h3">4.1 建議配筋（${pos?'底筋・最多 2 排':'頂筋・單排'}，單一號數）</div>`);
@@ -9069,7 +9147,9 @@ function buildBeamReport(B){
     o.push(`<table class="no-break"><thead><tr><th class="l">項目</th><th class="l">規定</th><th>實際</th><th>判定</th></tr></thead><tbody>
       <tr><td class="l">腹板寬</td><td class="l">b_w ≥ max(0.3h, 25 cm)</td><td>${d(S.bw,0)} / ${d(Math.max(0.3*S.h,25),1)} cm</td><td>${S.bw>=Math.max(0.3*S.h,25)?'OK':'NG'}</td></tr>
       <tr><td class="l">淨跨</td><td class="l">l_n ≥ 4d</td><td>${d(S.ln,0)} / ${d(4*B.d,0)} cm</td><td>${S.ln>=4*B.d?'OK':'NG'}</td></tr>
-      <tr><td class="l">鋼筋比</td><td class="l">ρ ≤ 0.025</td><td>${d(B.rho,5)}</td><td>${B.rho<=0.025?'OK':'NG'}</td></tr>
+      ${[['bot','底筋'],['top','頂筋']].map(([k,nm])=>{ const q = B.seisFace[k], rM = B.seisFace.rhoMax;
+        return `<tr><td class="l">${nm}量</td><td class="l">A_s ≥ A_s,min（§9.6.1.2，上下兩面）</td><td>${d(q.As,2)} / ${d(q.AsMin,2)} cm²</td><td>${q.As>=q.AsMin-1e-9?'OK':'NG'}</td></tr>
+      <tr><td class="l">${nm}鋼筋比</td><td class="l">ρ ≤ min((f'c+100)/(4f_y), 0.025) = ${d(rM,5)}</td><td>${d(q.rho,5)}</td><td>${q.rho<=rM+1e-12?'OK':'NG'}</td></tr>`; }).join('')}
       <tr><td class="l">接頭面正彎矩</td><td class="l">φM_n⁺ ≥ 0.50 φM_n⁻</td><td>${d(r,3)}</td><td>${r>=0.5?'OK':'NG'}</td></tr>
       <tr><td class="l">加密區長度</td><td class="l">自柱面 2h</td><td>${d(sh.confLen,0)} cm</td><td>—</td></tr>
       <tr><td class="l">加密區間距</td><td class="l">s ≤ min(d/4, ${seisKdb(m.fy)}d_b, 15 cm)</td><td>${d(sh.sConf,2)} cm</td><td>${fin.sUse<=sh.sConf?'OK':'NG'}</td></tr>
@@ -9643,6 +9723,7 @@ function pinFit(mod){
     document.getElementById(P+'Apply').onclick=()=>applyLoadCsv(mod);
   }
   const buildActive=()=> TAB==='beam' ? buildBeamReport(BMODEL||renderBeam()) : buildReport(MODEL||render());
+  var PRINT_OK = false;   // 經「列印」按鈕通過阻擋與確認後才為 true（beforeprint 不再改寫）
   const setPreview = on => {
     const el=document.getElementById('report'), b=document.getElementById('btnPreview');
     el.classList.toggle('preview', on);
@@ -9685,8 +9766,29 @@ function pinFit(mod){
     document.title = (mn ? mn+'_' : '') + (TAB==='beam' ? ((BMODEL&&BMODEL.S.slab)?'RC版設計檢核計算書':'RC梁斷面設計檢核計算書') : colReportTitle(MODEL||render()).replace(/\s|／/g,''))
       + `_${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}`;
     window.addEventListener('afterprint', ()=>{ document.title = t0; }, {once:true});
-    setTimeout(()=>{ window.print(); document.title = t0; },260);   // 部分瀏覽器不觸發 afterprint
+    setTimeout(()=>{ PRINT_OK = true; try{ window.print(); } finally{ PRINT_OK = false; } document.title = t0; },260);   // 部分瀏覽器不觸發 afterprint
   };
+  /* 瀏覽器列印（Ctrl+P、選單）不經「列印」按鈕：列印前一律依目前輸入重新產生計算書；
+     輸入不完整或需確認未完成時，改印整頁「未完成，不得送審」，不印出任何計算內容 */
+  window.addEventListener('beforeprint', ()=>{
+    if(PRINT_OK) return;
+    const el = document.getElementById('report'), mod = TAB==='beam' ? 'beam' : 'pylon';
+    const P = isBlocked(mod) ? null : confPending(mod);
+    const why = isBlocked(mod) ? '輸入不完整，已停止計算，無法產生結果。'
+      : P.length ? `尚有 ${P.length} 項「需確認」未勾選（警示分頁），確認完成前不得列印送審。` : '';
+    if(why){
+      el.dataset.held = '1';
+      el.innerHTML = `<div class="rp-held"><div class="rp-held-t">計算書未完成，不得送審</div><p>${esc(why)}</p>`
+        + `<p>請回到 RC 斷面設計工具完成後，以「列印 / 存成 PDF」按鈕列印。</p></div>`;
+      return;
+    }
+    try{ buildActive(); }catch(e){ el.dataset.held = '1'; el.innerHTML = `<div class="rp-held"><div class="rp-held-t">計算書產生失敗，不得送審</div><p>${esc(e.message)}</p></div>`; }
+  });
+  window.addEventListener('afterprint', ()=>{
+    const el = document.getElementById('report');
+    if(el.dataset.held){ delete el.dataset.held; el.innerHTML = ''; }
+    if(el.classList.contains('preview')) setPreview(true);   // 預覽中：恢復預覽內容與「需確認」標示
+  });
 
 
   const ps=document.getElementById('preset');

@@ -1663,6 +1663,16 @@ function buildBeam(ExcelJS, inp){
   S.item({key:'AsMin', label:'最少受拉鋼筋 As,min', sym:'As,min', unit:'cm²', fmt:'0.00',
     f:'IF({isSlab}=1,{rhoTs}*{bw}*{h},MAX(0.8*SQRT({fc})/{fy},14/{fy})*{bw}*{d})',
     expr:"梁 max(0.8√f'c/fy, 14/fy)·bw·d；版 ρmin·b·h", ref:ref401('9.6.1.2、7.6.1.1')});
+  // 上下兩面各自受拉時之有效深度（耐震梁兩面皆檢核 §18.3.3.1；另一檢核斷面之 As,min）
+  const dGrp = (sg) => { const D = y => sg==='pos' ? `({h}-${y})` : y, on = y => `(${D(y)}>{h}/2)`;
+    return `IFERROR((${on('{y1}')}*{A1}*${D('{y1}')}+${on('{y2}')}*{A2}*${D('{y2}')}+${on('{yT}')}*{AT}*${D('{yT}')})/(${on('{y1}')}*{A1}+${on('{y2}')}*{A2}+${on('{yT}')}*{AT}),0.8*{h})`; };
+  S.item({key:'dPos', label:'有效深度 d（正彎矩，底筋受拉）', sym:'d', f:dGrp('pos'), unit:'cm', fmt:'0.00', expr:'受壓緣至底側受拉鋼筋群形心', ref:ref401('22.2')});
+  S.item({key:'dNeg', label:'有效深度 d（負彎矩，頂筋受拉）', sym:'d', f:dGrp('neg'), unit:'cm', fmt:'0.00', expr:'受壓緣至頂側受拉鋼筋群形心', ref:ref401('22.2')});
+  S.item({key:'rhoB', label:'底筋鋼筋比', sym:'ρ', f:'({A1}+{A2})/({bw}*{dPos})', unit:'無因次', fmt:'0.00000', ref:'—'});
+  S.item({key:'rhoTp', label:'頂筋鋼筋比', sym:'ρ', f:'{AT}/({bw}*{dNeg})', unit:'無因次', fmt:'0.00000', ref:'—'});
+  S.item({key:'AsMinB', label:'底筋 As,min（耐震梁上下兩面）', sym:'As,min', f:'MAX(0.8*SQRT({fc})/{fy},14/{fy})*{bw}*{dPos}', unit:'cm²', fmt:'0.00', ref:ref401('18.3.3.1、9.6.1.2')});
+  S.item({key:'AsMinTp', label:'頂筋 As,min（耐震梁上下兩面）', sym:'As,min', f:'MAX(0.8*SQRT({fc})/{fy},14/{fy})*{bw}*{dNeg}', unit:'cm²', fmt:'0.00', ref:ref401('18.3.3.1、9.6.1.2')});
+  S.item({key:'rhoMaxS', label:'耐震梁拉力鋼筋比上限', sym:'ρmax', f:'MIN(({fc}+100)/(4*{fy}),0.025)', unit:'無因次', fmt:'0.00000', expr:"min((f'c + 100)/(4fy), 0.025)", ref:ref401('18.3.3.1')});
 
   /* ---------------- 四、撓曲 ---------------- */
   S.section('【四、撓曲強度（中性軸以 ΣF = 0 二分求解，詳「撓曲求解」）】');
@@ -1693,6 +1703,17 @@ function buildBeam(ExcelJS, inp){
   S.item({key:'Mneg', label:'φMn⁻（負彎矩，耐震用）', f:"'撓曲求解'!F4", unit:'tf·m', fmt:'#,##0.00', kind:'link', ref:ref401('18.3.3.2')});
   S.item({key:'MprP', label:'Mpr⁺（1.25fy、φ=1）', f:"'撓曲求解'!F5", unit:'tf·m', fmt:'#,##0.00', kind:'link', ref:ref401('18.3.5.1')});
   S.item({key:'MprN', label:'Mpr⁻（1.25fy、φ=1）', f:"'撓曲求解'!F6", unit:'tf·m', fmt:'#,##0.00', kind:'link', ref:ref401('18.3.5.1')});
+  // 另一檢核斷面（正↔負彎矩）：判定取兩者最不利（網頁同時檢核兩向）
+  const mxAbs = c => `MAX(MAX('載重組合'!${c}4:${c}`+(3+NCB)+`),-MIN('載重組合'!${c}4:${c}`+(3+NCB)+`))`;
+  S.item({key:'MuO', label:'另一檢核斷面 Mu（各組合最大）', sym:'Mu', f:`IF({isPos}=1,${mxAbs('C')},${mxAbs('B')})`, unit:'tf·m', fmt:'#,##0.00', expr:'目前為正彎矩時取 Mu⁻，反之取 Mu⁺', ref:'—'});
+  S.item({key:'AsO', label:'另一檢核斷面受拉鋼筋', sym:'As', f:'IF({isPos}=1,{AT},{A1}+{A2})', unit:'cm²', fmt:'0.00', ref:'—'});
+  S.item({key:'phiMnO', label:'另一檢核斷面 φMn', sym:'φMn', f:'IF({AsO}<=0,0,IF({isPos}=1,{Mneg},{Mpos}))', unit:'tf·m', fmt:'#,##0.00', expr:'受拉側無鋼筋時取 0', ref:ref401('9.5.1.1')});
+  S.item({key:'DCO', label:'另一檢核斷面撓曲 D/C', sym:'D/C', f:"IF({MuO}<=1E-6,0,MAX(IF({phiMnO}>0,{MuO}/{phiMnO},1E9),MAX('載重組合'!AC4:AC"+(3+NCB)+')))', unit:'無因次', fmt:FMT_INF,
+    expr:'Mu/φMn；有扭矩須設計之組合另取扣除 Aℓ 後之 D/C（「載重組合」AC 欄，網頁值）', crit:'≦ 1.0（Mu = 0 時不判定）', ref:ref401('9.5.1.1')});
+  S.item({key:'etO', label:'另一檢核斷面 εt', sym:'εt', f:"IF({isPos}=1,'撓曲求解'!C7,'撓曲求解'!B7)", unit:'無因次', fmt:'0.00000', kind:'link', crit:'≧ εty + 0.003', ref:ref401('9.3.3.1')});
+  S.item({key:'dO', label:'另一檢核斷面有效深度', sym:'d', f:'IF({isPos}=1,{dNeg},{dPos})', unit:'cm', fmt:'0.00', ref:'—'});
+  S.item({key:'AsMinO', label:'另一檢核斷面 As,min', sym:'As,min', f:'IF({isSlab}=1,{rhoTs}*{bw}*{h},MAX(0.8*SQRT({fc})/{fy},14/{fy})*{bw}*{dO})', unit:'cm²', fmt:'0.00', ref:ref401('9.6.1.2、7.6.1.1')});
+  S.item({key:'DCG', label:'撓曲 D/C（兩檢核斷面取最不利）', sym:'D/C', f:'MAX({DC},{DCO})', unit:'無因次', fmt:FMT_INF, crit:'≦ 1.0', ref:ref401('9.5.1.1')});
 
   /* ---------------- 五、剪力與扭矩 ---------------- */
   S.section('【五、剪力與扭矩】');
@@ -1841,8 +1862,15 @@ function buildBeam(ExcelJS, inp){
   const sumRows=[]; const addSum=o=>sumRows.push(S.sum(o));
   const J = c => ({f:`IF(${c},"PASS","FAIL")`});
   addSum({label:'撓曲 Mu／φMn（tf·m）', need:{f:'{MuMax}'}, cap:{f:'{phiMn}'}, ratio:{f:'{DC}'}, judge:J('{DC}<=1'), ref:ref401('9.5.1.1')});
-  addSum({label:'受拉鋼筋 As ≧ As,min（cm²）', need:{f:'{AsMin}'}, cap:{f:'{AsT}'}, ratio:{f:'{AsMin}/{AsT}'}, judge:{f:'IF({MuMax}<1E-6,"N/A",IF({AsT}>={AsMin},"PASS","FAIL"))'}, note:'Mu = 0 時不適用', ref:ref401('9.6.1.2、7.6.1.1')});
+  addSum({label:'受拉鋼筋 As ≧ As,min（cm²）', need:{f:'{AsMin}'}, cap:{f:'{AsT}'}, ratio:{f:'{AsMin}/{AsT}'}, judge:{f:'IF(OR({MuMax}<1E-6,{isS}=1),"N/A",IF({AsT}>={AsMin},"PASS","FAIL"))'}, note:'Mu = 0 時不適用；耐震梁改以上下兩面檢核', ref:ref401('9.6.1.2、7.6.1.1')});
   addSum({label:'拉力控制 εt ≧ εty + 0.003', need:{f:'{ety}+0.003'}, cap:{f:'{et}'}, ratio:{f:'({ety}+0.003)/{et}'}, judge:J('{et}>={ety}+0.003-1E-12'), fmt:'0.00000', ref:ref401('9.3.3.1、表 21.2.2')});
+  const oN = {f:'IF({isPos}=1,"負彎矩","正彎矩")&"斷面"'};
+  addSum({label:'另一檢核斷面：撓曲 Mu／φMn（tf·m）', need:{f:'{MuO}'}, cap:{f:'{phiMnO}'}, ratio:{f:'{DCO}'}, judge:{f:'IF({MuO}<1E-6,"N/A",IF({DCO}<=1,"PASS","FAIL"))'}, note:oN, ref:ref401('9.5.1.1')});
+  addSum({label:'另一檢核斷面：As ≧ As,min（cm²）', need:{f:'{AsMinO}'}, cap:{f:'{AsO}'}, ratio:{f:'IF({AsO}>0,{AsMinO}/{AsO},9)'}, judge:{f:'IF(OR({MuO}<1E-6,{isS}=1),"N/A",IF({AsO}>={AsMinO},"PASS","FAIL"))'}, note:'Mu = 0 時不適用；耐震梁改以上下兩面檢核', ref:ref401('9.6.1.2、7.6.1.1')});
+  addSum({label:'另一檢核斷面：εt ≧ εty + 0.003', need:{f:'{ety}+0.003'}, cap:{f:'{etO}'}, ratio:{f:'({ety}+0.003)/{etO}'}, judge:{f:'IF({MuO}<1E-6,"N/A",IF({etO}>={ety}+0.003-1E-12,"PASS","FAIL"))'}, fmt:'0.00000', ref:ref401('9.3.3.1、表 21.2.2')});
+  { const X = inp.alt && inp.alt.other || [];
+    addSum({label:'另一檢核斷面：其他不合格項目（網頁值）', need:X.length, cap:0, ratio:'—', judge:X.length?'FAIL':'N/A', fmt:'0',
+      note: X.length ? ('匯出當下網頁之結果，修改 Excel 輸入後不會更新：' + X.join('；')).slice(0, 1000) : '裂縫等其餘項目以網頁檢核；匯出當下無不合格', ref:'—'}); }
   addSum({label:"泥水中灌注 f'c（kgf/cm²）", need:210, cap:{f:'{fc}'}, ratio:{f:'210/{fc}'}, judge:{f:'IF({bvSlu}<>"泥水中灌注","N/A",IF({fc}>=210,"PASS","FAIL"))'}, note:'Vc × 0.75、伸展與搭接 × 1.3 已計入各項', ref:'建築物基礎構造設計規範 §7.6.2', fmt:'0'});
   addSum({label:'梁剪力：Vs ≦ Vs,max（tf）', need:{f:'{VsReq}'}, cap:{f:'{VsMax}'}, ratio:{f:'{VsReq}/{VsMax}'}, judge:{f:'IF({isSlab}=1,"N/A",IF(AND({VsReq}<={VsMax},{over}=0),"PASS","FAIL"))'}, ref:ref401('22.5.1.2')});
   addSum({label:'加密區外箍筋間距 採用／需求（cm）', need:{f:'{sUse2}'}, cap:{f:'{sGov2}'}, ratio:{f:'{sUse2}/{sGov2}'}, judge:{f:'IF({isS}=0,"N/A",IF({sUse2}<={sGov2},"PASS","FAIL"))'}, note:{f:'"控制："&{sGov2Tag}'}, ref:ref401('18.3.4.6')});
@@ -1859,7 +1887,10 @@ function buildBeam(ExcelJS, inp){
   addSum({label:'長期總撓度（cm）', need:{f:'{dLT}'}, cap:{f:'{L}/{limT}'}, ratio:{f:'{dLT}/({L}/{limT})'}, judge:{f:'IF({isPos}=0,"N/A",IF({dLT}<={L}/{limT},"PASS","FAIL"))'}, fmt:'0.000', note:'同上', ref:ref401('24.2.2')});
   addSum({label:'耐震：bw ≧ max(0.3h, 25)（cm）', need:{f:'MAX(0.3*{h},25)'}, cap:{f:'{bw}'}, ratio:{f:'MAX(0.3*{h},25)/{bw}'}, judge:{f:'IF({isS}=0,"N/A",IF({bw}>=MAX(0.3*{h},25),"PASS","FAIL"))'}, ref:ref401('18.3.2.1')});
   addSum({label:'耐震：ln ≧ 4d（cm）', need:{f:'4*{d}'}, cap:{f:'{ln}'}, ratio:{f:'4*{d}/{ln}'}, judge:{f:'IF({isS}=0,"N/A",IF({ln}>=4*{d},"PASS","FAIL"))'}, ref:ref401('18.3.2.1')});
-  addSum({label:'耐震：ρ ≦ 0.025', need:{f:'{rho}'}, cap:0.025, ratio:{f:'{rho}/0.025'}, judge:{f:'IF({isS}=0,"N/A",IF({rho}<=0.025,"PASS","FAIL"))'}, fmt:'0.0000', ref:ref401('18.3.3.1')});
+  addSum({label:"耐震：底筋 ρ ≦ min((f'c+100)/(4fy), 0.025)", need:{f:'{rhoB}'}, cap:{f:'{rhoMaxS}'}, ratio:{f:'{rhoB}/{rhoMaxS}'}, judge:{f:'IF({isS}=0,"N/A",IF({rhoB}<={rhoMaxS}+1E-12,"PASS","FAIL"))'}, fmt:'0.0000', ref:ref401('18.3.3.1')});
+  addSum({label:"耐震：頂筋 ρ ≦ min((f'c+100)/(4fy), 0.025)", need:{f:'{rhoTp}'}, cap:{f:'{rhoMaxS}'}, ratio:{f:'{rhoTp}/{rhoMaxS}'}, judge:{f:'IF({isS}=0,"N/A",IF({rhoTp}<={rhoMaxS}+1E-12,"PASS","FAIL"))'}, fmt:'0.0000', ref:ref401('18.3.3.1')});
+  addSum({label:'耐震：底筋 As ≧ As,min（cm²）', need:{f:'{AsMinB}'}, cap:{f:'{A1}+{A2}'}, ratio:{f:'IF({A1}+{A2}>0,{AsMinB}/({A1}+{A2}),9)'}, judge:{f:'IF({isS}=0,"N/A",IF({A1}+{A2}>={AsMinB}-1E-9,"PASS","FAIL"))'}, note:'上下兩面皆須符合 §9.6.1.2', ref:ref401('18.3.3.1、9.6.1.2')});
+  addSum({label:'耐震：頂筋 As ≧ As,min（cm²）', need:{f:'{AsMinTp}'}, cap:{f:'{AT}'}, ratio:{f:'IF({AT}>0,{AsMinTp}/{AT},9)'}, judge:{f:'IF({isS}=0,"N/A",IF({AT}>={AsMinTp}-1E-9,"PASS","FAIL"))'}, note:'上下兩面皆須符合 §9.6.1.2', ref:ref401('18.3.3.1、9.6.1.2')});
   addSum({label:'耐震：φMn⁺ ≧ 0.5φMn⁻', need:{f:'0.5*{Mneg}'}, cap:{f:'{Mpos}'}, ratio:{f:'0.5*{Mneg}/{Mpos}'}, judge:{f:'IF({isS}=0,"N/A",IF({Mpos}>=0.5*{Mneg},"PASS","FAIL"))'}, ref:ref401('18.3.3.2')});
   addSum({label:'底筋支承內錨定（cm）', need:{f:'{bvLenb}'}, cap:{f:'{bvAv}'}, ratio:{f:'IF({bvAv}>0,{bvLenb}/{bvAv},0)'}, judge:{f:'IF(AND({bvAnc}="擴頭",{bvhdb}<>"適用"),"FAIL",IF({bvLenb}<={bvAv}+1E-9,"PASS","FAIL"))'}, ref:R401('25.4、18.5.5')});
   addSum({label:'頂筋支承內錨定（cm）', need:{f:'{bvLent}'}, cap:{f:'{bvAv}'}, ratio:{f:'IF({bvAv}>0,{bvLent}/{bvAv},0)'}, judge:{f:'IF(NOT(IF({isSlab}=1,{spT}>0,ROUND({nTop},0)>0)),"N/A",IF(AND({bvAnc}="擴頭",{bvhdt}<>"適用"),"FAIL",IF({bvLent}<={bvAv}+1E-9,"PASS","FAIL")))'}, ref:R401('25.4、18.5.5')});
@@ -1909,11 +1940,11 @@ function buildBeam(ExcelJS, inp){
 
 function buildBeamLoads(ws, R, loads){
   const nm='載重組合', r=f=>({f:R(f,nm)});
-  ws.columns=[24,12,12,12,12,4,14,12,12].concat(Array(19).fill(11)).map(w=>({width:w}));
+  ws.columns=[24,12,12,12,12,4,14,12,12].concat(Array(20).fill(11)).map(w=>({width:w}));
   put(ws,'A1','梁／版載重組合（已乘載重因數；每公尺寬或每梁）',{sec:true});
   ['組合名稱','Mu⁺ (tf·m)','Mu⁻ (tf·m)','Vu (tf)','Tu (tf·m)','','檢核用 Mu (tf·m)','|Vu| (tf)','D/C',
    'Vdes (tf)','Vc 歸零','Vc (tf)','Vs 需求 (tf)','扭矩須設計','At/s (cm²/cm)','剪扭超限','s 強度 (cm)','s 規範 (cm)','s 扭矩 (cm)','斷面不足','s 控制 (cm)','排序鍵',
-   '一般區 Vs (tf)','一般區 s 強度','一般區 s 規範','一般區 s 控制','Aℓ,req (cm²，網頁值)','扣除 Aℓ 後 D/C（網頁值）'].forEach((h,j)=>{ if(h) put(ws,colL(j)+'3',h,{head:true}); });
+   '一般區 Vs (tf)','一般區 s 強度','一般區 s 規範','一般區 s 控制','Aℓ,req (cm²，網頁值)','扣除 Aℓ 後 D/C（網頁值）','另一檢核斷面扣除 Aℓ 後 D/C（網頁值）'].forEach((h,j)=>{ if(h) put(ws,colL(j)+'3',h,{head:true}); });
   put(ws,'J2','逐組合剪扭檢核（扭矩不一定與最大剪力同組）：斷面不足者優先，其次需求間距最小者控制；扭矩僅外圍閉合肢有效（土木401-112 §9.5.4.3 解說）');
   for(let i=0;i<NCB;i++){
     const n=4+i, L=loads[i];
@@ -1924,6 +1955,7 @@ function buildBeamLoads(ws, R, loads){
     // 扭力縱筋（§9.5.4.3、§9.6.4.3）：頂、底筋等比例扣除 max(Aℓ, Aℓ,min) 後之 D/C（AB 欄，網頁值）取較大者
     put(ws,'AA'+n, L && Number.isFinite(L.AlReq) ? L.AlReq : null, {fmt:'#,##0.0'});
     put(ws,'AB'+n, L && L.dcT != null ? (Number.isFinite(L.dcT) ? L.dcT : BIG) : null, {fmt:FMT_INF});
+    put(ws,'AC'+n, L && L.dcTo != null ? (Number.isFinite(L.dcTo) ? L.dcTo : BIG) : null, {fmt:FMT_INF});
     put(ws,'I'+n, r(`IF(A${n}="","",MAX(IF(G${n}<=1E-6,0,IF({phiMn}>0,G${n}/{phiMn},1E9)),IF(ISNUMBER(AB${n}),AB${n},0)))`),{fmt:FMT_INF});
     const on = `A${n}<>""`, T = `ABS(E${n})`;
     put(ws,'J'+n, r(`IF(${on},IF({isS}=1,MAX({Ve},H${n}),H${n}),"")`),{fmt:'#,##0.00'});
@@ -1994,8 +2026,9 @@ function buildBeamSolve(ws, R){
     // φ（僅 fy 區塊需要）
     const g=geo(sg), dmax=`MAX(${g.d1},IF({r2}>0,${g.d2},-1E9),${g.dT})`, et=`{ecu}*(${dmax}-${col}8)/${col}8`;
     put(ws,col+'10', r(`IF(${et}<={ety},{phic},IF(${et}>={ety}+0.003,{phit},{phic}+({phit}-{phic})*(${et}-{ety})/0.003))`),{fmt:'0.000'});
+    put(ws,col+'7', r(et),{fmt:'0.00000'});
   });
-  put(ws,'A8','c 收斂值 (cm)',{head:true}); put(ws,'A9','Mn (tf·m)',{head:true}); put(ws,'A10','φ',{head:true});
+  put(ws,'A7','εt（最外受拉筋）',{head:true}); put(ws,'A8','c 收斂值 (cm)',{head:true}); put(ws,'A9','Mn (tf·m)',{head:true}); put(ws,'A10','φ',{head:true});
   put(ws,'A3','目前檢核斷面');
   put(ws,'B3', r('IF({isPos}=1,B8,C8)'),{fmt:'0.0000'});
   put(ws,'E3','φMn⁺'); put(ws,'F3',{f:'B10*B9'},{fmt:'#,##0.00'});
@@ -2077,6 +2110,8 @@ function buildA4Beam(ws, R, inp, jRow, sumRows){
   a.data('最外受拉筋應變','εt','{et}','—','≧ εty + 0.003（拉力控制）','0.00000');
   a.data('設計彎矩強度','φMn','{phiMn}','tf·m','—','#,##0.00');
   a.data('撓曲應力比','D/C','{DC}','—','Mu/φMn',FMT_INF);
+  a.data('另一檢核斷面 D/C','D/C','{DCO}','—','Mu = 0 時為 0（不判定）',FMT_INF);
+  a.data('撓曲應力比（兩斷面最不利）','D/C','{DCG}','—','網頁判定列同',FMT_INF);
   a.sub('4.1a 各載重組合');
   a.ctable(['組合','Mu⁺ (tf·m)','Mu⁻ (tf·m)','Vu (tf)','檢核 D/C'], i=>{ const r=4+i, L=`'載重組合'!`;
     return [`${L}A${r}&""`, `IF(${L}A${r}="","",${L}B${r})`, `IF(${L}A${r}="","",${L}C${r})`, `IF(${L}A${r}="","",${L}D${r})`,
@@ -2128,7 +2163,7 @@ function buildA4Beam(ws, R, inp, jRow, sumRows){
   [2,3,4,5,6].forEach(j=>{ const c=ws.getCell(tn,j); c.fill={type:'pattern',pattern:'solid',fgColor:{argb:K.amber}}; c.border=box(K.grid); c.font={name:FONT,size:10,bold:true}; });
   const tj=ws.getCell(tn,6); tj.value={formula:`'檢核表'!E${jRow}`}; tj.alignment={horizontal:'center'};
   a.chap('六、結論');
-  a.para('6.1',{f:'{type}&" b × h = "&TEXT({bw},"0")&" × "&TEXT({h},"0")&" cm；撓曲 D/C = "&TEXT({DC},"0.000")&"；總判定 "&\'檢核表\'!E'+jRow},28);
+  a.para('6.1',{f:'{type}&" b × h = "&TEXT({bw},"0")&" × "&TEXT({h},"0")&" cm；撓曲 D/C（兩檢核斷面取最不利）= "&TEXT({DCG},"0.000")&"；總判定 "&\'檢核表\'!E'+jRow},28);
   a.para('6.2',{f:'IF(\'檢核表\'!E'+jRow+'="PASS","本斷面各項檢核均符合規定，可供施工圖說使用。","本斷面有檢核項目不符規定，應調整斷面或配筋後重新計算。")'},22);
   a.chap('七、限制與注意事項');
   a.para('7.1','未檢核：整根梁彎矩包絡線（任一斷面 Mn ≧ 端部 25%）、鋼筋延伸與搭接、ACI 350 環境耐久係數 Sd、剪力尺寸效應 λs。',28);

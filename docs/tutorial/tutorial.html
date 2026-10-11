@@ -309,7 +309,7 @@ pre { font-family: "DejaVu Sans Mono", "WenQuanYi Zen Hei Mono", monospace; font
 <section class="chap">
   <figure><img src="img/17-report-sl.png"><figcaption>圖 18　計算書內容：每條公式展開「公式 → 代入 → 化簡 → 單位」</figcaption></figure>
   <p>計算書每條公式展開四層，方便審查者逐式手算複核。內容依序為斷面與材料、配筋圖、P-M、剪力與扭矩、圍束、軸向配置、伸展與搭接、<b>長細效應判定</b>、附註與簽署欄。</p>
-  <div class="warn"><b>需確認項目</b>判定列「需確認」不為 0 時（本工具未涵蓋之檢核、「注意」級警示），按列印會先跳出提醒：請到「警示」分頁逐項檢視並勾選，全部確認後才能列印；預覽頂端會標示未完成。</div>
+  <div class="warn"><b>需確認項目</b>判定列「需確認」不為 0 時（本工具未涵蓋之檢核、「注意」級警示），按列印會先跳出提醒：請到「警示」分頁逐項檢視並勾選，全部確認後才能列印；預覽頂端會標示未完成。直接以瀏覽器列印（Ctrl+P）時，計算書一律依目前輸入重新產生；輸入不完整或需確認未完成時只會印出一頁「計算書未完成，不得送審」。</div>
   <div class="note"><b>可追溯性</b>計算書表頭印出程式版本、程式碼雜湊與輸入 SHA-256；公式元件與 Excel 函式庫隨附於 <code>vendor/</code>，離線或公司內網亦可排版與匯出（只帶走 <code>index.html</code> 時才需連 CDN）。</div>
 </section>
 
@@ -373,7 +373,7 @@ pre { font-family: "DejaVu Sans Mono", "WenQuanYi Zen Hei Mono", monospace; font
   <p>按左上角設計對象按鈕，<span class="n">1</span>構件類型選「梁／版斷面」，<span class="n">2</span>選斷面型式（矩形、T 型、單位寬版），<span class="n">3</span>選範本，填構件名稱後，按「下一步」輸入載重並取得建議配筋，或按「直接進入主畫面」。柱與梁兩個模組的資料各自保留，可隨時切換。</p>
   <figure><img src="img/24-beam.png" style="max-height:90mm"><figcaption>圖 24　梁模組主畫面</figcaption></figure>
   <ol>
-    <li><span class="n">1</span>「跨中正彎矩／支承負彎矩」切換斷面受力狀態。負彎矩時 T 梁翼緣受拉，斷面退化為 \(b_w\times h\) 矩形，拉力筋改取頂筋。</li>
+    <li><span class="n">1</span>「跨中正彎矩／支承負彎矩」切換畫面顯示的斷面（圖、明細與計算書第 1～3 節）。負彎矩時 T 梁翼緣受拉，斷面退化為 \(b_w\times h\) 矩形，拉力筋改取頂筋。<b>判定一律同時檢核兩個斷面</b>：判定列、警示、計算書（第 4 節）、構件清單與 Excel 皆取兩者最不利，另一斷面的項目以【支承負彎矩斷面】等字樣標示；某一斷面各組合 \(M_u\) 皆為 0 時該斷面不判定撓曲。</li>
     <li><span class="n">2</span>參數群組：斷面幾何、材料、配筋、耐震／剪力、使用性（撓度）、伸展長度與搭接。</li>
     <li><span class="n">3</span>結果分頁多了「載重組合」。</li>
   </ol>
