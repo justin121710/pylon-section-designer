@@ -35,14 +35,15 @@ const setup = (preset, inputs, loads) => page.evaluate(([preset, inputs, loads])
 test('H2：建築無側移柱彎矩放大 δ_ns = C_m/(1 − P_u/0.75P_c)（§6.6.4.5）', async () => {
   const L = {name:'A', Pu:200, Mux:10, Muy:0};
   const inp = await setup('bldg60', {lu:600, slFrame:'braced', slTreat:'mag', slK:1, slKy:1, slM12:-1, slBeta:0.6}, [L]);
-  const r = await page.evaluate(() => { const q = MODEL.res[0]; return {d: q.Lk.slx.d, Mux: q.Lk.Mux, Muy: q.Lk.Muy, lam: MODEL.SL ? MODEL.SL.lamX : null}; });
+  const r = await page.evaluate(() => { const q = MODEL.res[0]; return {d: q.Lk.slx.d, dy: q.Lk.sly.d, Mux: q.Lk.Mux, Muy: q.Lk.Muy, minAx: q.Lk.minAx, lam: MODEL.SL ? MODEL.SL.lamX : null}; });
   // 獨立計算：E_c = 12,000√f'c；(EI)_eff = 0.4E_cI_g/(1 + β_dns)；k l_u/r = 600/(0.3·60) = 33.3 > 34 + 12(−1) = 22 → 須考慮
   const Ec = 12000*Math.sqrt(inp.fc), Ig = inp.B*inp.H**3/12, EI = 0.4*Ec*Ig/1.6, Pc = Math.PI**2*EI/(1*600)**2;
   const Pu = L.Pu*1000, d = Math.max(1, 1.0/(1 - Pu/(0.75*Pc)));            // C_m = 0.6 − 0.4(−1) = 1.0
   const M2 = Math.max(L.Mux*1e5, Pu*(1.5 + 0.03*inp.H));
   near(r.d, d, 1e-9, 'δ_ns');
-  near(r.Mux, d*M2, 1e-9, '放大後 M_ux');
-  assert.equal(r.Muy, 0, '最小偏心距不需兩軸同時施加');
+  // §6.6.4.5.4：M_2,min 兩軸分別、不同時施加（R-04）：Y 向一階彎矩為零，另檢核「Y 向 δ·M_2,min、X 向 δ·M_2」取 D/C 大者
+  if(r.minAx === 'y'){ near(r.Mux, d*L.Mux*1e5, 1e-9, '另一情況 X 向不加最小值'); near(r.Muy, r.dy*Pu*(1.5 + 0.03*inp.B), 1e-9, 'Y 向 δ·M_2,min'); }
+  else { near(r.Mux, d*M2, 1e-9, '放大後 M_ux'); assert.equal(r.Muy, 0, '最小偏心距不需兩軸同時施加'); }
 });
 
 test('H2：建築有側移柱 δ_s 依 Q（§6.6.4.6.2(a)），Q 使 δ_s > 1.5 時改用 ΣP_c 法', async () => {

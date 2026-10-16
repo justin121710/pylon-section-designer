@@ -5,7 +5,7 @@
    本檔為計算核心之一部分，修改後須同步重建教學 PDF（見 docs/tutorial/inputs.txt）。
    ========================================================================= */
 'use strict';
-const RC_CORE_VERSION = '2026.10-r4';
+const RC_CORE_VERSION = '2026.10-r5';
 
 /* ---------- 基本力學 ---------- */
 const beta1 = fc => Math.max(0.65, Math.min(0.85, 0.85 - 0.05*(fc-280)/70));
@@ -14,6 +14,9 @@ const Ecof  = fc => 12000*Math.sqrt(fc);      // 常重混凝土 E_c = 12,000√
 /* N1：混凝土彈性模數依單位重 w_c（kg/m³）：輕質（λ < 1）或 w_c < 2,160 且介於 1,440～2,560 時用式 (19.2.2.1.a)
    E_c = w_c^1.5 · 0.11√f'c；其餘常重混凝土用式 (19.2.2.1.b) */
 const Ecw = (fc, wc, lam) => ((lam < 1 || wc < 2160) && wc >= 1440 && wc <= 2560) ? Math.pow(wc, 1.5)*0.11*Math.sqrt(fc) : Ecof(fc);
+
+/* §22.5.3.1、§22.7.2.1：計算 V_c、T_th、T_cr 所用之 √f'c 不得大於 26.5 kgf/cm²（梁、櫊柵小梁具最小腹筋時之放寬 §22.5.3.2 僅適用 V_c） */
+const sqfc = fc => Math.min(Math.sqrt(fc), 26.5);
 
 const EcMander = fc => 15000*Math.sqrt(fc);  // Mander 模型之初始切線模數（≈ 4,700√f'c MPa），屬該模型參數、非規範分析用 E_c
 
@@ -28,9 +31,9 @@ function phiOf(eps_t, m){
 }
 
 /* ---------- 剪力 / 扭矩 / 圍束筋 ---------- */
-/* 塑鉸區 V_c 歸零門檻：橋梁 N_u < 0.1f'c·A_g；建築柱 N_u < A_g·f'c/20（土木401 §18.4.6.2.1，
-   另一條件「地震引致剪力 ≥ 設計剪力之半」在耐震設計柱端視為成立，保守取之） */
-const vcZeroRatio = code => code==='bldg' ? 0.05 : 0.10;
+/* 建築柱塑鉸區 V_c 歸零之軸力門檻 N_u < A_g·f'c/20（土木401-112 §18.4.6.2.1(b)；條件 (a) 由呼叫端判定）。
+   橋梁不適用：公路橋梁耐震設計規範 §5.3.3 以式 (5-3) V_c = 0.53(0.33 + F)√f'c·A_e 折減，無歸零門檻（見 VcBridge） */
+const vcZeroRatio = () => 0.05;
 
 /* 耐震箍筋間距之主筋直徑倍數（土木401 §18.3.4.4、§18.4.5.3、§18.4.5.5）：f_y 4200 → 6、5000 → 5.5、5600 → 5 */
 const seisKdb = fy => fy <= 4200+1e-6 ? 6 : fy <= 5000+1e-6 ? 5.5 : 5;
@@ -130,22 +133,42 @@ function colSlenderCore(s, m, o){
   return {rX, rY, how, IgX, IgY, kX, kY, luX, luY, lamX, lamY, lam, lim, limX, limY, limB, needX, needY, m12x, m12y,
           pairs: !!(o.slPairs && o.slPairs.any), m12in: o.slM12,
           sway:o.slSway, k:kX, lu:luX, m12, ok: !needX && !needY, bridge,
-          treat: o.slTreat, beta: o.slBeta, Q: o.slQ, Ec: m.Ec, phic: m.phic,
+          treat: o.slTreat, beta: o.slBeta, betaS: o.slBetaS || 0, Q: o.slQ, Ec: m.Ec, phic: m.phic,
           hX: s.type==='circle' ? s.D : s.H, hY: s.type==='circle' ? s.D : s.B,
           over100: bridge && lam > 100, kLow: !o.slSway && Math.min(kX, kY) < 1 - 1e-9,
+          kSwayLow: !!o.slSway && Math.min(kX, kY) <= 1 + 1e-9,          // 有側移構架 k 應 > 1（§6.6.4.4.3；橋梁 §7.3.5.2(3)）
           ref: bridge ? '公路橋梁設計規範 §7.3.5.2' : '土木401-112 §6.2.5.1'};
 }
 
-/* 對一組載重套用彎矩放大（M_ux、M_uy 分別計算；最小偏心距不需兩軸同時施加，兩向彎矩皆為零時只施加於 X 向） */
+/* 對一組載重套用彎矩放大（M_ux、M_uy 分別計算）。
+   §6.6.4.5.4（橋梁 §7.3.5.2(6) 同）：M_2,min 兩軸「分別」計算、不需同時施加（解說）。
+   基本情況：兩向彎矩皆非零時各取 δ·max(M_2, M_2,min)；一向為零時該向取 0；兩向皆零時施加於 X 向。
+   另一情況（Lk.slAlt）：彎矩為零之軸若須計長細效應，改於該軸施加 δ·M_2,min、另一軸取 δ·M_2（不加最小值），
+   由呼叫端以 D/C 較大者為準（chooseSlender）。 */
 function slenderApply(SL, Lk, pr){
   const both0 = Lk.Mux <= 1e-9 && Lk.Muy <= 1e-9;
   // C_m 之 M_1/M_2：頂／底配對之組合由兩端彎矩求得，其餘用輸入值
   const dx = slenderDelta(SL, 'x', Lk.Pu, Lk.Mux, pr ? pr.m12x : SL.m12in), dy = slenderDelta(SL, 'y', Lk.Pu, Lk.Muy, pr ? pr.m12y : SL.m12in);
+  const act = q => q.M2min != null && Number.isFinite(q.d);
+  const amp0 = (q, M) => M <= 1e-9 ? 0 : (Number.isFinite(q.d) ? q.d : Infinity)*M;
+  let alt = null;
+  if(Lk.Muy <= 1e-9 && act(dy) && dy.Mc > 0) alt = {ax:'y', Mux: amp0(dx, Lk.Mux), Muy: dy.Mc};
+  else if(Lk.Mux <= 1e-9 && !both0 && act(dx) && dx.Mc > 0) alt = {ax:'x', Mux: dx.Mc, Muy: amp0(dy, Lk.Muy)};
   if(Lk.Muy <= 1e-9 && !both0){ dy.Mc = 0; dy.minGov = false; }
   if(Lk.Mux <= 1e-9 && !both0){ dx.Mc = 0; dx.minGov = false; }
   if(both0) dy.Mc = 0;
-  Lk.Mux1 = Lk.Mux; Lk.Muy1 = Lk.Muy; Lk.slx = dx; Lk.sly = dy;
+  Lk.Mux1 = Lk.Mux; Lk.Muy1 = Lk.Muy; Lk.slx = dx; Lk.sly = dy; Lk.slAlt = alt; Lk.minAx = null;
   Lk.Mux = dx.Mc; Lk.Muy = dy.Mc;
+}
+/* 兩情況擇 D/C 較大者：evalDC(Lk) 回傳 D/C；採用另一情況時 Lk.minAx = 'x'／'y'（M_2,min 施加之軸） */
+function chooseSlender(Lk, evalDC){
+  const base = evalDC(Lk);
+  if(!Lk.slAlt) return base;
+  const L2 = {...Lk, Mux: Lk.slAlt.Mux, Muy: Lk.slAlt.Muy}, alt = evalDC(L2);
+  const dcOf = r => r && typeof r === 'object' ? r.dc : r;
+  if(!(dcOf(alt) > dcOf(base))) return base;
+  Lk.Mux = L2.Mux; Lk.Muy = L2.Muy; Lk.minAx = Lk.slAlt.ax;
+  return alt;
 }
 
 /* 單一載重組合、單一軸之彎矩放大。ax 'x'：M_ux（I_gx、k_x、l_u,x、h = H）；'y'：M_uy。回傳設計彎矩 Mc 與各係數（kgf、cm） */
@@ -160,7 +183,8 @@ function slenderDelta(SL, ax, Pu, Mu, m12 = SL.m12in ?? SL.m12){
   if(SL.bridge){
     // §7.3.5.2(5)：EI = (E_cI_g/2.5)/(1+β_d)；δ_b = C_m/(1 − P_u/φP_c)，δ_s = 1/(1 − ΣP_u/φΣP_c)（以本柱 P_u/P_c 代替）
     const EI = SL.Ec*Ig/2.5/(1+SL.beta), phi = SL.phic;
-    const Cm = Math.max(0.4, 0.6 + 0.4*(-m12));               // M_1b/M_2b 單曲度為正
+    // M_1b/M_2b 單曲度為正；§7.3.5.2(6)b：兩端本質上無彎矩（M_2 由最小偏心距控制且一階彎矩為零）時 M_1b/M_2b 取 1.0，C_m = 1.0
+    const Cm = Mu <= 1e-9 ? 1 : Math.max(0.4, 0.6 + 0.4*(-m12));
     const PcB = Math.PI**2*EI/((SL.sway ? 1 : k)*lu)**2, db = amp(Cm, PcB, phi);
     if(SL.sway){ const PcS = Math.PI**2*EI/(k*lu)**2, ds = amp(1, PcS, phi); d = Math.max(db, ds); parts = {EI, Cm, PcB, db, PcS, ds, phi}; }
     else { d = db; parts = {EI, Cm, PcB, db, phi}; }
@@ -169,8 +193,8 @@ function slenderDelta(SL, ax, Pu, Mu, m12 = SL.m12in ?? SL.m12){
     const Cm = 0.6 - 0.4*m12, EIns = 0.4*SL.Ec*Ig/(1+SL.beta);
     const PcN = Math.PI**2*EIns/((SL.sway ? 1 : k)*lu)**2, dn = amp(Cm, PcN, 0.75);
     if(SL.sway){
-      // §6.6.4.6.2：(a) δ_s = 1/(1 − Q)（δ_s > 1.5 時不得使用）或 (b) 1/(1 − ΣP_u/0.75ΣP_c)，(EI)eff 以 β_ds = 0；本工具以本柱 P_u/P_c 代替 Σ
-      const EIs = 0.4*SL.Ec*Ig, PcS = Math.PI**2*EIs/(k*lu)**2;
+      // §6.6.4.6.2：(a) δ_s = 1/(1 − Q)（δ_s > 1.5 時不得使用）或 (b) 1/(1 − ΣP_u/0.75ΣP_c)，(EI)eff = 0.4E_cI_g/(1+β_ds)（持續側力比，輸入，預設 0）；本工具以本柱 P_u/P_c 代替 Σ
+      const EIs = 0.4*SL.Ec*Ig/(1+(SL.betaS||0)), PcS = Math.PI**2*EIs/(k*lu)**2;
       const dsQ = SL.Q > 0 ? (SL.Q < 1 ? 1/(1-SL.Q) : Infinity) : null, dsB = amp(1, PcS, 0.75);
       const ds = dsQ !== null && dsQ <= 1.5 ? Math.max(1, dsQ) : dsB;
       // §6.6.4.6.4：沿柱長之二階效應依 §6.6.4.5（無側移，k = 1.0）
@@ -218,5 +242,5 @@ function beamCrack(S, R, m, ctx){
 }
 
 if(typeof module !== 'undefined' && module.exports)
-  module.exports = {RC_CORE_VERSION, beta1, Ecof, Ecw, EcMander, etTC, phiOf, capPhi, vcZeroRatio, seisKdb, phiAxialBr, balancedPn, phiThrBr,
-    sha256, loadPairs, POS_TXT, colSlenderCore, slenderApply, slenderDelta, effFlange, beamCrack};
+  module.exports = {RC_CORE_VERSION, beta1, sqfc, Ecof, Ecw, EcMander, etTC, phiOf, capPhi, vcZeroRatio, seisKdb, phiAxialBr, balancedPn, phiThrBr,
+    sha256, loadPairs, POS_TXT, colSlenderCore, slenderApply, chooseSlender, slenderDelta, effFlange, beamCrack};
