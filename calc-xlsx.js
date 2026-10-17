@@ -1683,7 +1683,7 @@ function buildBeam(ExcelJS, inp){
   S.item({key:'nLegs', label:'箍筋肢數', sym:'nlegs', v:inp.nLegs, unit:'肢', kind:'in', ref:ref401('9.7.6.2')});
   S.item({key:'hoopT', label:'外箍型式', v: inp.hoop==='cap' ? '兩件式（U 形肋筋＋繫筋封口）' : '一體式閉合箍', kind:'list', list:['一體式閉合箍','兩件式（U 形肋筋＋繫筋封口）'],
     ref:ref401('18.3.4.3'), note:'兩件式：U 形肋筋兩端 135°，頂部繫筋一端 135°、一端 90°（相鄰箍交替；單側樓板時 90° 端置樓板側）。不影響肢數與強度。'});
-  S.item({key:'perRow', label:'每排可排根數', f:'IF({isSlab}=1,{nBot},MAX(1,INT(({bw}-2*({cover}+{dt})+2.5)/({dbB}+2.5))))', unit:'根', expr:'淨距 2.5 cm', ref:ref401('25.2.1')});
+  S.item({key:'perRow', label:'每排可排根數', f:'IF({isSlab}=1,{nBot},MAX(1,INT(({bw}-2*({cover}+{dt})+MAX(2.5,{dbB},4/3*{dagg}))/({dbB}+MAX(2.5,{dbB},4/3*{dagg})))))', unit:'根', expr:'淨距 max(2.5, db, 4/3·dagg)', ref:ref401('25.2.1')});
   S.item({key:'rows', label:'底筋排數', f:'IF({isSlab}=1,1,MIN(2,ROUNDUP({nBot}/MAX(1,{perRow}),0)))', unit:'排', expr:'自動判斷，上限 2 排', ref:'—'});
   S.item({key:'r1', label:'第 1 排根數', f:'IF({rows}<=1,{nBot},ROUNDUP({nBot}/2,0))', unit:'根', fmt:'0.00', ref:'—'});
   S.item({key:'r2', label:'第 2 排根數', f:'{nBot}-{r1}', unit:'根', fmt:'0.00', ref:'—'});

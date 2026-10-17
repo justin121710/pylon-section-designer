@@ -7238,7 +7238,9 @@ function beamBars(S){
     return {layers, perRow:S.nBot, rows:1, r1:S.nBot, r2:0, dbB, dbT, dt:0,
             AsBot:S.nBot*AbB, AsTop:S.nTop*AbT};
   }
-  const perRow = Math.max(1, Math.floor((S.bw - 2*(S.cover+dt) + S.sClearBar)/(dbB + S.sClearBar)));
+  // §25.2.1：同層主筋淨距 ≥ max(2.5, d_b, 4/3·d_agg)——自動分排依此估每排根數（舊版只用 2.5 cm，造成假性「淨距不足」）
+  const clrB = Math.max(S.sClearBar, dbB, (4/3)*(S.dagg||2.5));
+  const perRow = Math.max(1, Math.floor((S.bw - 2*(S.cover+dt) + clrB)/(dbB + clrB)));
   const rows = S.botRows==='auto' ? Math.min(2, Math.ceil(S.nBot/Math.max(1,perRow))) : +S.botRows;
   const r1 = rows<=1 ? S.nBot : Math.ceil(S.nBot/2);
   const r2 = S.nBot - r1;
@@ -7515,7 +7517,8 @@ function beamSuggest(S, m, Mu, lim=6, every=false){   // every：版列出每個
   }
   for(const size of MAIN_SIZES){
     const db=BAR[size].d, Ab=BAR[size].A;
-    const perRow = Math.floor((S.bw - 2*(S.cover+BAR[S.tieSize].d) + S.sClearBar)/(db + S.sClearBar));
+    const clr = Math.max(S.sClearBar, db, (4/3)*(S.dagg||2.5));       // §25.2.1
+    const perRow = Math.floor((S.bw - 2*(S.cover+BAR[S.tieSize].d) + clr)/(db + clr));
     if(perRow<2) continue;
     const nMax = S.sign==='pos' ? 2*perRow : perRow;   // 頂筋僅單排
     for(let n=2; n<=nMax; n++){

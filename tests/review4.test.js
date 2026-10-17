@@ -131,3 +131,12 @@ test('Excel：新增 f_yt 上限、K_tr、D36 搭接、單獨 T 梁 h_f、耐震
     assert.ok(b.includes(l), `梁檢核表缺「${l}」`);
   await page.evaluate(() => { document.getElementById('tabPylon').click(); applyPreset('bldg60'); });
 });
+
+test('R-24：梁自動分排之每排根數以淨距 max(2.5, d_b, 4/3·d_agg) 估算', async () => {
+  const r = await page.evaluate(() => { document.getElementById('tabBeam').click(); applyBPreset('bldgBeam');
+    const g = (id, v) => { document.getElementById(id).value = v; };
+    g('bw', 40); g('bCover', 4); g('bTieSize', '#4'); g('bBotSize', '#8'); g('bNbot', 6); g('bDagg', 2.5); const B = renderBeam();
+    const out = {rows: B.R.rows, clrOk: B.clr.bot === null || B.clr.bot >= Math.max(2.5, BAR['#8'].d, 4/3*2.5) - 1e-9};
+    applyBPreset('bldgBeam'); return out; });
+  assert.equal(r.rows, 2, '6-#8 於 b_w = 40 須分兩排'); assert.ok(r.clrOk, '分排後底筋淨距合格');
+});
