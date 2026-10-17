@@ -848,6 +848,13 @@ function buildElevSheet(ws, R, vertical, NH){
 }
 
 /* ---------- 水工結構：載重來源與檢核定位（文字由網頁傳入，匯出時為水工環境才列出） ---------- */
+/* 簽證責任（與網頁計算書「適用範圍、驗證與簽證責任」同義）與簽證技師列 */
+const SIGNOFF_XL = '簽證責任：本工具為斷面層級之輔助計算（驗證範圍 f\'c 210～420、主筋 fy 4200、常重混凝土，見《驗證與安全性流程》手冊）；'
+  + '輸入與施工圖一致、載重組合完整且單位與正負號正確、「未涵蓋」項目另行檢核、工程判斷項目之採用與執業範圍，均由簽證技師確認負責。';
+function signerRow(ws, a){
+  const n = a.row(); ws.mergeCells(n,2,n,6); ws.getRow(n).height = 22;
+  const c = ws.getCell(n,2); c.value = '簽證技師：　　　　　　科別：　　　　　執業執照字號：　　　　　　簽章：'; c.font = {name:FONT,size:9}; c.alignment = {vertical:'bottom'};
+}
 function waterParas(a, inp, k0){
   if(inp.env!=='water' || !Array.isArray(inp.waterNotes)) return;
   inp.waterNotes.forEach((t, i) => a.para(`7.${k0+i}`, (i===0 ? '水工結構－' : '水工載重來源－') + t, Math.max(18, Math.ceil(t.length/40)*13 + 6)));
@@ -1588,7 +1595,7 @@ function buildA4Column(ws, S, R, inp, jRow, sumRows){
   a.chap('七、限制與注意事項');
   a.para('7.1','P-M 以 '+NPM+' 點離散；雙軸 D/C 為網頁旋轉中性軸精確解之匯出值（於 Excel 修改輸入、載重不會重算，請回網頁重新匯出）；參考用之載重輪廓法以 '+NIT+' 次二分迭代；與網頁結果可能於小數第三位有差。',40);
   a.para('7.2','有側移構架之 δs 以本柱 Pc 代替樓層 ΣPc（多柱樓層請輸入 Q）、未計剪力尺寸效應 λs；箱型牆片 Ash 拆解為關鍵假設，須自行確認；bc 配對依解說 R18.4.5.4（垂直）。',28);
-  a.para('7.3','輸入資料（尺寸、材料、載重）須經設計者核實；版次修改應更新封面版次。',22);
+  a.para('7.3','輸入資料（尺寸、材料、載重）須經設計者核實；版次修改應更新封面版次。'+SIGNOFF_XL,48);
   a.para('7.4','色碼：淺藍底藍框＝輸入；黃底金框＝下拉輸入；白底細灰框＝公式；綠字＝連結；淺琥珀底＝總判定。',26);
   waterParas(a, inp, 5);
 
@@ -1597,6 +1604,7 @@ function buildA4Column(ws, S, R, inp, jRow, sumRows){
   ws.mergeCells(sg,3,sg,4); ws.mergeCells(sg,5,sg,6); ws.mergeCells(sl,3,sl,4); ws.mergeCells(sl,5,sl,6);
   [[2,'設計'],[3,'校核'],[5,'審核']].forEach(([j,h])=>{ const c=ws.getCell(sg,j); c.value=h; c.font={name:FONT,size:9,bold:true}; c.alignment={horizontal:'center'};
     ws.getCell(sl,j).border={bottom:side(K.black)}; });
+  signerRow(ws, a);
   const fig = a4Figures(ws, a, '附圖　斷面配筋圖與 P-M 互制曲線（匯出當下之網頁圖面；P-M 逐點數值詳「P-M_X」「P-M_Y」工作表）', 1);
   const elev = a4Elev(ws, a, '附圖　沿柱軸向箍筋配置立面（匯出當下之網頁圖面；柱寬為示意）', FIG_EL_ROWS);
   const devPics = a4DevFigs(ws, a, '附圖　主筋伸展與搭接配置', inp.devFigs);
@@ -2259,13 +2267,14 @@ function buildA4Beam(ws, R, inp, jRow, sumRows){
   a.para('6.2',{f:'IF(\'檢核表\'!E'+jRow+'="PASS","本斷面各項檢核均符合規定，可供施工圖說使用。","本斷面有檢核項目不符規定，應調整斷面或配筋後重新計算。")'},22);
   a.chap('七、限制與注意事項');
   a.para('7.1','未檢核：整根梁彎矩包絡線（任一斷面 Mn ≧ 端部 25%）、ACI 350 環境耐久係數 Sd。伸展、錨定、搭接與截斷點見第五之二節；版之 Vc 已含尺寸效應 λs。',28);
-  a.para('7.2','輸入資料（尺寸、材料、載重、使用彎矩）須經設計者核實；版次修改應更新封面版次。',22);
+  a.para('7.2','輸入資料（尺寸、材料、載重、使用彎矩）須經設計者核實；版次修改應更新封面版次。'+SIGNOFF_XL,48);
   a.para('7.3','色碼：淺藍底藍框＝輸入；黃底金框＝下拉輸入；白底細灰框＝公式；綠字＝連結；淺琥珀底＝總判定。',26);
   waterParas(a, inp, 4);
   a.blank();
   const sg=a.row(), sl=a.row(); ws.getRow(sl).height=45;
   ws.mergeCells(sg,3,sg,4); ws.mergeCells(sg,5,sg,6); ws.mergeCells(sl,3,sl,4); ws.mergeCells(sl,5,sl,6);
   [[2,'設計'],[3,'校核'],[5,'審核']].forEach(([j,h])=>{ const c=ws.getCell(sg,j); c.value=h; c.font={name:FONT,size:9,bold:true}; c.alignment={horizontal:'center'}; ws.getCell(sl,j).border={bottom:side(K.black)}; });
+  signerRow(ws, a);
   const fig = a4Figures(ws, a, '附圖　斷面圖（匯出當下之網頁圖面）', 0);
   const elev = inp.slab ? null : a4Elev(ws, a, '附圖　沿梁軸向箍筋配置立面（匯出當下之網頁圖面；梁深為示意）', FIG_ELB_ROWS);
   const devPics = a4DevFigs(ws, a, '附圖　主筋伸展與搭接配置', inp.devFigs);

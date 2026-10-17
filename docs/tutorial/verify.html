@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>RC 斷面設計工具 驗證與安全性流程</title>
+<!-- 驗證與安全性流程手冊原稿：由 build.js 列印為 docs/RC斷面設計工具_驗證與安全性流程.pdf。
+     數字來自建置時實算（img/vv-data.js：tests/vv-cases.js 驗證案例、變形關係示例、tests/mutation.js 突變測試），不得手抄。
+     公式與符號一律以 KaTeX \( … \) 排版 -->
+<link rel="stylesheet" href="node_modules/katex/dist/katex.min.css">
+<script src="node_modules/katex/dist/katex.min.js"></script>
+<script src="node_modules/katex/dist/contrib/auto-render.min.js"></script>
+<script src="img/vv-data.js"></script>
+<style>
+@page { size: A4; margin: 16mm 15mm 16mm 15mm; }
+* { box-sizing: border-box; }
+body { font-family: "WenQuanYi Zen Hei", "Noto Sans CJK TC", sans-serif; color: #1f2937; font-size: 10.2pt; line-height: 1.62; margin: 0; }
+h1 { font-size: 22pt; margin: 0 0 6mm; color: #0f4c5c; }
+h2 { font-size: 15pt; color: #0f4c5c; border-bottom: 2px solid #0f4c5c; padding-bottom: 2mm; margin: 0 0 4mm; break-after: avoid; }
+h3 { font-size: 11.5pt; margin: 5mm 0 2mm; color: #111827; break-after: avoid; }
+p { margin: 0 0 2.5mm; }
+ol, ul { margin: 0 0 3mm; padding-left: 6mm; }
+li { margin-bottom: 1.2mm; }
+.chap { break-before: page; }
+figure { margin: 3mm 0 4mm; break-inside: avoid; text-align: center; }
+figure img { max-width: 100%; max-height: 110mm; width: auto; border: 1px solid #d1d5db; border-radius: 2mm; }
+figcaption { font-size: 9pt; color: #6b7280; margin-top: 1.5mm; }
+.katex { font-size: 1.04em; }
+.tip, .warn, .note { border-radius: 2mm; padding: 2.5mm 3.5mm; margin: 3mm 0; font-size: 9.6pt; break-inside: avoid; }
+.tip { background: #ecfdf5; border-left: 4px solid #059669; }
+.warn { background: #fff7ed; border-left: 4px solid #ea580c; }
+.note { background: #eff6ff; border-left: 4px solid #2563eb; }
+.tip b:first-child, .warn b:first-child, .note b:first-child { margin-right: 1.5mm; }
+table { border-collapse: collapse; width: 100%; margin: 2mm 0 4mm; font-size: 9pt; }
+tr { break-inside: avoid; }
+th, td { border: 1px solid #d1d5db; padding: 1.3mm 1.8mm; text-align: left; vertical-align: top; }
+th { background: #f3f4f6; }
+td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.c, th.c { text-align: center; }
+td.blank { background: #fffbeb; }
+code { font-family: "DejaVu Sans Mono", monospace; font-size: 8.6pt; background: #f3f4f6; padding: 0.3mm 1mm; border-radius: 1mm; }
+.cover { height: 250mm; display: flex; flex-direction: column; justify-content: center; }
+.cover .sub { font-size: 13pt; color: #374151; margin-bottom: 14mm; }
+.cover .meta { font-size: 10pt; color: #6b7280; }
+.toc { columns: 2; column-gap: 10mm; font-size: 10.5pt; }
+.toc div { margin-bottom: 1.6mm; }
+.toc a { color: inherit; text-decoration: none; }
+.flow { display: flex; flex-wrap: wrap; gap: 2mm; align-items: center; margin: 3mm 0 5mm; }
+.flow span { background: #0f4c5c; color: #fff; border-radius: 1.5mm; padding: 1.2mm 2.5mm; font-size: 9.3pt; }
+.flow i { color: #9ca3af; font-style: normal; }
+.ok { color: #047857; font-weight: 700; }
+.ext { color: #b45309; font-weight: 700; }
+.cont { color: #1d4ed8; font-weight: 700; }
+.case { break-before: page; }
+.steps { margin: 2mm 0 3mm; font-size: 9.4pt; }
+.steps div { margin: 0 0 1.4mm; break-inside: avoid; }
+.steps .sl { display: inline-block; min-width: 34mm; color: #374151; font-weight: 700; }
+.kpi { display: flex; gap: 3mm; margin: 3mm 0 4mm; }
+.kpi div { flex: 1; border: 1px solid #d1d5db; border-radius: 2mm; padding: 2mm 3mm; background: #f9fafb; }
+.kpi b { display: block; font-size: 15pt; color: #0f4c5c; }
+.kpi span { font-size: 8.6pt; color: #6b7280; }
+.small { font-size: 8.8pt; color: #4b5563; }
+</style>
+</head>
+<body>
+
+<section class="cover">
+  <h1>RC 斷面設計工具<br>驗證與安全性流程</h1>
+  <div class="sub">供土木、結構、水利、水保技師與一般工程師計算、檢核與簽證使用<br>驗證案例（手算、獨立求解器）、變形測試、突變測試、保守度登錄表與簽證作業流程</div>
+  <div class="meta">本手冊所有對照數字均於建置時由程式實算產生（與回歸測試同一來源），非手抄<br>全程 kgf-cm 制；載重以 tf、tf·m 表示；條號依土木401-112<br><br><span id="ver">（版本資訊於建置時寫入）</span><br><span id="ver2"></span></div>
+</section>
+
+<section class="chap">
+  <h2>目錄</h2>
+  <div class="toc">
+    <div><a href="#s1">一、目的、適用對象與結論摘要</a></div>
+    <div><a href="#s2">二、安全性完善流程總覽</a></div>
+    <div><a href="#s3">三、驗證案例 V1～V8（手算對照）</a></div>
+    <div><a href="#s4">四、與商用軟體比對之作業程序</a></div>
+    <div><a href="#s5">五、變形測試</a></div>
+    <div><a href="#s6">六、突變測試（計算核心）</a></div>
+    <div><a href="#s7">七、保守度登錄表</a></div>
+    <div><a href="#s8">八、操作安全機制</a></div>
+    <div><a href="#s9">九、技師計算、檢核與簽證作業流程</a></div>
+    <div><a href="#s10">十、尚待外部協助事項與建議時程</a></div>
+    <div><a href="#sA">附錄 A　自動化測試清單</a></div>
+    <div><a href="#sB">附錄 B　商用軟體比對紀錄表（空白）</a></div>
+  </div>
+</section>
+
+<!-- ====================================================================== -->
+<section class="chap" id="s1">
+  <h2>一、目的、適用對象與結論摘要</h2>
+  <p>技師以軟體計算並簽證，需要能回答三個問題：</p>
+  <ol>
+    <li><b>算得對嗎？</b>——同一題目以手算、獨立程式與商用軟體計算，結果是否一致（第三、四章）。</li>
+    <li><b>錯的時候會被發現嗎？往哪個方向錯？</b>——測試是否抓得到注入的錯誤（第五、六章）；近似與工程判斷偏保守還是偏不保守（第七章）。</li>
+    <li><b>能否追溯、能否負責？</b>——輸入來源、版本雜湊、需確認項目、未涵蓋項目與簽證責任是否寫在計算書上（第八、九章）。</li>
+  </ol>
+  <p>本手冊說明為了讓本工具達到「可供簽證使用」之程度所需的全部步驟，並以實際案例示範：先假設一個案例，以本工具求得數據，再與手算（規範原式＋應變諧和試算）、獨立纖維求解器比較；商用軟體之比對程序與紀錄表亦一併列出，供取得軟體授權之單位執行。</p>
+  <div class="kpi" id="kpi"></div>
+  <div class="note"><b>結論</b><span id="concl"></span>商用軟體比對、技師盲測與第三方審查須由外部單位執行，列於第十章。</div>
+  <div class="warn"><b>重要</b>本工具為<b>斷面層級</b>之輔助計算。結構分析、載重組合之產生、梁柱接頭、基礎承載與整體穩定不在範圍內；輸入之內力須由設計者自結構分析結果取得並核實。<b>簽證責任在簽證技師。</b></div>
+</section>
+
+<!-- ====================================================================== -->
+<section class="chap" id="s2">
+  <h2>二、安全性完善流程總覽</h2>
+  <div class="flow"><span>A 規範依據核對</span><i>→</i><span>B 計算正確性</span><i>→</i><span>C 保守度</span><i>→</i><span>D 操作安全</span><i>→</i><span>E 簽證適用性</span><i>→</i><span>F 變更管制</span><i>→</i><span>G 外部驗證</span></div>
+  <p>狀態：<span class="ok">✓ 已完成</span>（本 repo 內可重現）、<span class="cont">△ 持續</span>（每次修改都要做）、<span class="ext">◯ 需外部</span>（需軟體授權、執業技師或第三方）。</p>
+  <table>
+    <tr><th style="width:9%">階段</th><th style="width:25%">步驟</th><th>內容與產出</th><th class="c" style="width:9%">狀態</th></tr>
+    <tr><td rowspan="2">A 規範依據</td><td>A1 規範原文逐條核對</td><td>條號、公式、係數以原文核對；核對狀態記於 <code>specs/README.md</code></td><td class="c ok">✓</td></tr>
+    <tr><td>A2 新增或修改檢核時重新核對</td><td>CLAUDE.md 規定：修改規範檢核須同步更新核對狀態</td><td class="c cont">△</td></tr>
+    <tr><td rowspan="7">B 計算正確性</td><td>B1 手算驗證案例</td><td>第三章 V1～V8：P-M 特徵點、單軸 D/C、剪力、容量設計剪力、圍束筋、梁撓曲與剪力、長細效應、水工版裂縫寬度、驗證範圍端點</td><td class="c ok">✓</td></tr>
+    <tr><td>B2 獨立求解器比對</td><td><code>tests/oracle.js</code> 纖維法，不引用工具函式；方形、矩形、大型矩形、箱型亂數載重</td><td class="c ok">✓</td></tr>
+    <tr><td>B3 變形測試</td><td>第五章 MR1～MR11：單調、旋轉不變、正負號、組合順序、連續性</td><td class="c ok">✓</td></tr>
+    <tr><td>B4 突變測試</td><td>第六章：對計算核心注入錯誤，測試須全部抓到（等價突變逐項寫明理由）</td><td class="c ok">✓</td></tr>
+    <tr><td>B5 Excel 與網頁一致</td><td>匯出 Excel 以 LibreOffice 重算後與網頁比對（<code>excel.test.js</code>）</td><td class="c ok">✓</td></tr>
+    <tr><td>B6 商用軟體比對</td><td>第四章程序、附錄 B 紀錄表：spColumn、SAP2000／ETABS Section Designer、midas 等</td><td class="c ext">◯</td></tr>
+    <tr><td>B7 已簽證案例盲測</td><td>執業技師以已簽證之實際案例匿名比對</td><td class="c ext">◯</td></tr>
+    <tr><td rowspan="3">C 保守度</td><td>C1 保守度登錄表</td><td>第七章：每項近似與工程判斷之偏誤方向與處理方式</td><td class="c ok">✓</td></tr>
+    <tr><td>C2 數值誤差方向</td><td>回歸測試要求工具 \(D/C\) 不得低於基準超過 0.1%；\(D/C\) 顯示無條件進位</td><td class="c ok">✓</td></tr>
+    <tr><td>C3 偏不保守之近似改為「需確認」</td><td>有側移 \(\delta_s\) 以本柱代替樓層等，列入需確認並於計算書列為工程判斷</td><td class="c ok">✓</td></tr>
+    <tr><td rowspan="5">D 操作安全</td><td>D1 輸入範圍與單位防呆</td><td>超出常用範圍、軸力疑似 kN 誤為 tf、無效輸入停止計算</td><td class="c ok">✓</td></tr>
+    <tr><td>D2 驗證範圍外警示</td><td>\(f'_c\) 210～420、主筋 \(f_y\) 4200、\(f_{yt}\le 4200\)、常重混凝土以外列「需確認」</td><td class="c ok">✓</td></tr>
+    <tr><td>D3 AI 判讀欄位標示</td><td>「從圖說匯入」填入且未修改之欄位列「需確認」</td><td class="c ok">✓</td></tr>
+    <tr><td>D4 數值異常不得默默通過</td><td>主要結果為 NaN 時判不合格</td><td class="c ok">✓</td></tr>
+    <tr><td>D5 案件檔與追溯</td><td>版本、程式 SHA-256、輸入 SHA-256 印於計算書；舊版案件檔提示缺欄</td><td class="c ok">✓</td></tr>
+    <tr><td rowspan="3">E 簽證適用性</td><td>E1 計算書「適用範圍、驗證與簽證責任」</td><td>驗證範圍、本構件是否在範圍內、工程判斷項目、簽證技師確認事項</td><td class="c ok">✓</td></tr>
+    <tr><td>E2 簽證技師欄</td><td>網頁計算書與 Excel 計算書：姓名、科別、執業執照字號、簽章</td><td class="c ok">✓</td></tr>
+    <tr><td>E3 未涵蓋與需確認</td><td>未完成確認不得列印送審版（印「草稿、不得送審」）</td><td class="c ok">✓</td></tr>
+    <tr><td rowspan="2">F 變更管制</td><td>F1 每次推送自動回歸</td><td>GitHub Actions 執行全部測試與突變測試；任一項失敗即判紅燈，不應合併</td><td class="c cont">△</td></tr>
+    <tr><td>F2 手冊隨程式重建</td><td>合併到 main 時重建本手冊，數字與該版程式一致</td><td class="c cont">△</td></tr>
+    <tr><td rowspan="3">G 外部驗證</td><td>G1 第三方審查</td><td>技師公會、學校或顧問公司審查本手冊與程式</td><td class="c ext">◯</td></tr>
+    <tr><td>G2 付費規範核對</td><td>ACI 350（環境耐久係數 \(S_d\)）、CNS 560 表 12 前段等</td><td class="c ext">◯</td></tr>
+    <tr><td>G3 水利、水保規範納入</td><td>水利署施工綱要規範 03310、水土保持技術規範之量化規定</td><td class="c ext">◯</td></tr>
+  </table>
+</section>
+
+<!-- ====================================================================== -->
+<section class="chap" id="s3">
+  <h2>三、驗證案例 V1～V8（手算對照）</h2>
+  <h3>3.1 作法</h3>
+  <ol>
+    <li><b>假設案例</b>：選定斷面、材料、配筋與載重（各案例開頭說明），涵蓋柱、梁、版，建築、耐震與水工。</li>
+    <li><b>以本工具求得數據</b>：程式開啟網頁、套用範本並改輸入，直接讀取工具內部數值（非畫面四捨五入值）。</li>
+    <li><b>手算</b>：<code>tests/vv-cases.js</code> 只用斷面幾何、CNS 560 鋼筋表與規範原式計算，<b>不引用工具任何計算函式</b>。應變諧和以試算中性軸深度 \(c\) 使 \(\Sigma F = 0\)（等同手算表格逐步試算）；雙軸以獨立纖維求解器（<code>tests/oracle.js</code>）為基準。</li>
+    <li><b>比較</b>：相對差 \(\left|x_{\text{工具}}-x_{\text{手算}}\right|/\left|x_{\text{手算}}\right|\) 須小於容許誤差。閉合式與逐點應變諧和 0.01%；工具 P-M 曲線取樣內插 0.5%；雙軸數值解 1.5%。</li>
+    <li><b>商用軟體</b>：表中「spColumn」「SAP2000 SD」欄位留白（底色淡黃），依第四章程序填入（附錄 B）。</li>
+  </ol>
+  <div class="note"><b>為何手算與工具一致到小數很多位？</b>兩者依同一規範假設（等效應力塊、\(\varepsilon_{cu}=0.003\)、鋼筋彈塑性、受壓區內鋼筋扣除 \(0.85f'_c\)）各自獨立實作；閉合式項目差異為 0 屬正常。若出現差異，代表其中一方之公式、幾何或係數有誤，必須找出原因。例：建立 V6 時，手算先以範本「每公尺 7 根」計受壓筋，與工具差 0.34%，追查後確認工具依間距換算 \(100/15 = 6.67\) 根才是正確輸入——差異的追查本身就是驗證的價值。</div>
+  <div id="cases"></div>
+</section>
+
+<!-- ====================================================================== -->
+<section class="chap" id="s4">
+  <h2>四、與商用軟體比對之作業程序</h2>
+  <div class="warn"><b>需外部執行</b>本章需 spColumn、SAP2000／ETABS、midas 等授權軟體，本 repo 無法代為執行。請依下列程序建模，將結果填入附錄 B，連同軟體版本與設定截圖存檔。</div>
+  <h3>4.1 比對對象之選擇：斷面設計軟體，而非一般有限元素分析</h3>
+  <p>本工具計算的是<b>規範定義之斷面設計強度</b>（等效矩形應力塊、\(\varepsilon_{cu}=0.003\)、強度折減因數 \(\phi\)、\(\phi P_{n,max}\) 截斷）。應比對之商用軟體為同樣依 ACI 318／土木401 計算 P-M 互制與剪力之<b>斷面設計模組</b>：</p>
+  <table>
+    <tr><th style="width:26%">軟體</th><th>適用比對項目</th><th>注意</th></tr>
+    <tr><td>spColumn（StructurePoint）</td><td>P-M、雙軸 \(D/C\)、\(\phi P_{n,max}\)、平衡點、純彎</td><td>Code 選 ACI 318-19；Bars 用 User-defined 輸入 CNS 560 面積；Confinement 選 Tied</td></tr>
+    <tr><td>SAP2000／ETABS Section Designer</td><td>P-M 互制曲面、雙軸</td><td>確認互制曲面採規範之等效矩形應力塊與 \(\phi\)，而非以材料非線性應力-應變曲線積分；與 Concrete Frame Design 之 PMM 不一致時以後者為準</td></tr>
+    <tr><td>ETABS／SAP2000 Concrete Frame Design</td><td>柱 \(D/C\)、剪力需求 \(A_v/s\)、容量設計剪力</td><td>確認 \(\phi\)、\(V_c\) 公式版本（ACI 318-19 表 22.5.5.1）與耐震構架類別</td></tr>
+    <tr><td>midas Civil／Gen（RC Design）</td><td>橋墩 P-M、剪力、長細效應</td><td>設計規範與單位設定；橋梁另需設定公路橋梁耐震設計規範</td></tr>
+    <tr><td>一般有限元素分析（ABAQUS、midas FEA、DIANA 等）</td><td><b>不適合直接比對規範強度</b>；可用於構材層級之彎矩-曲率、韌性或實驗比對</td><td>非線性材料模型、無 \(\phi\)、無規範截斷，數值本質不同</td></tr>
+  </table>
+  <h3>4.2 建模步驟（以 V1 為例）</h3>
+  <ol>
+    <li><b>單位</b>：kgf、cm（或 tf、m）；若軟體僅提供 SI，\(1\ \text{tf}=9.80665\ \text{kN}\)、\(1\ \text{kgf/cm}^2 = 0.0980665\ \text{MPa}\)，比對時換回 kgf-cm。</li>
+    <li><b>材料</b>：\(f'_c = 280\)、\(f_y = 4200\ \text{kgf/cm}^2\)、\(E_s = 2.04\times10^6\)、\(\varepsilon_{cu}=0.003\)；\(\beta_1 = 0.85\)；應力塊 \(0.85f'_c\)。</li>
+    <li><b>斷面</b>：60 × 60 cm；主筋 12 根，單根面積 5.067 cm²（CNS 560 D25），中心距外緣 \(4+1.27+2.54/2 = 6.54\) cm，每面 4 根等距（含角隅）。</li>
+    <li><b>折減因數</b>：橫箍 \(\phi_c = 0.65\)、\(\phi_t = 0.90\)，依 \(\varepsilon_t\) 線性過渡（表 21.2.2，\(\varepsilon_{ty}=f_y/E_s\)）；\(P_{n,max} = 0.80P_o\)。</li>
+    <li><b>載重</b>：\(P_u = 200\ \text{tf}\)、\(M_{ux} = 30\ \text{tf·m}\)（V1）；\(P_u=150\)、\(M_{ux}=25\)、\(M_{uy}=20\)（V4，雙軸）。</li>
+    <li><b>讀取</b>：\(P_o\)、\(\phi P_{n,max}\)、平衡點 \((P_b, M_b)\)、純彎 \(\phi M_n\)、\(D/C\)（spColumn 之 Capacity Ratio；SAP2000 之 PMM Ratio）。</li>
+    <li><b>紀錄</b>：軟體名稱、版本、設定畫面截圖、輸出報表，填入附錄 B。</li>
+  </ol>
+  <h3>4.3 容許差與差異原因判別</h3>
+  <table>
+    <tr><th style="width:30%">項目</th><th class="c" style="width:14%">容許差</th><th>超出時優先檢查</th></tr>
+    <tr><td>\(P_o\)、\(\phi P_{n,max}\)、平衡點、純彎</td><td class="c">±1%</td><td>鋼筋面積表（CNS 560 vs ASTM）、保護層定義（至箍筋外緣或至主筋中心）、\(P_{n,max}\) 係數 0.80、受壓區鋼筋是否扣除混凝土</td></tr>
+    <tr><td>單軸、雙軸 \(D/C\)</td><td class="c">±2%</td><td>定偏心射線法或定軸力法、雙軸以等軸力輪廓或 Bresler、曲線取樣密度</td></tr>
+    <tr><td>\(V_c\)、\(V_s\)、\(A_v/s\)</td><td class="c">±1%</td><td>\(V_c\) 公式版本（土木401-112 表 22.5.5.1 vs 舊版 0.53(1 + N_u/140A_g)）、\(d\) 之定義（拉力鋼筋群形心或 0.8h）、\(\sqrt{f'_c}\le 26.5\)</td></tr>
+    <tr><td>\(M_{pr}\)、\(V_e\)</td><td class="c">±2%</td><td>1.25\(f_y\)、\(\phi=1\)；軸力取組合區間最大值或單一組合</td></tr>
+  </table>
+  <p>差異超出容許值時，<b>先以第三章手算判斷哪一方正確</b>，再記錄原因；確認為本工具錯誤者須修正並新增回歸測試。</p>
+</section>
+
+<!-- ====================================================================== -->
+<section class="chap" id="s5">
+  <h2>五、變形測試</h2>
+  <p>驗證案例只能比對有限的題目。變形測試（metamorphic testing）檢查「物理上一定成立的關係」，不需要知道正確答案，可對任意輸入抓出公式、方向配對、分支或內插之系統性錯誤。程式見 <code>tests/metamorphic.test.js</code>，每次推送自動執行。</p>
+  <table>
+    <tr><th style="width:9%">編號</th><th style="width:40%">關係</th><th>可抓出之錯誤類型</th></tr>
+    <tr><td>MR1</td><td>主筋根數增加 → \(D/C\) 遞減</td><td>鋼筋座標或面積累加錯誤</td></tr>
+    <tr><td>MR2</td><td>主筋號數增加 → \(D/C\) 遞減</td><td>鋼筋表、直徑與位置連動錯誤</td></tr>
+    <tr><td>MR3</td><td>保護層增加 → \(D/C\) 不減</td><td>有效深度方向錯誤</td></tr>
+    <tr><td>MR4</td><td>彎矩等比放大 → \(D/C\) 不減</td><td>射線交點、截斷線處理錯誤</td></tr>
+    <tr><td>MR5</td><td>斷面旋轉 90°（\(B\leftrightarrow H\)、兩向載重對調）→ \(D/C\)、剪力需求、箍筋間距相同</td><td>X／Y 向配對錯誤（例如剪力方向與彎矩平面配錯）</td></tr>
+    <tr><td>MR6、MR7</td><td>彎矩反號、載重組合順序反轉 → 結果相同</td><td>只取第一組或最後一組、正負號處理錯誤</td></tr>
+    <tr><td>MR8</td><td>軸力由拉到壓細掃描 → \(D/C\) 連續，\(0.1f'_cA_g\) 兩側無跳躍</td><td>分段式不連續、\(\phi\) 過渡錯誤、取樣漏點</td></tr>
+    <tr><td>MR9</td><td>\(V_u\) 增加 → \(V_s\) 需求不減</td><td>\(V_c\) 與 \(V_u\) 混用</td></tr>
+    <tr><td>MR10</td><td>箍筋號數增加 → 強度需求間距增加</td><td>\(A_v\)、肢數計算錯誤</td></tr>
+    <tr><td>MR11</td><td>梁腹寬增加 → \(\phi M_n\) 不減；拉力控制內拉力筋增加 → \(\phi M_n\) 增加</td><td>應力塊寬度、平衡方程式錯誤</td></tr>
+  </table>
+  <h3>示例數值（本版次實算）</h3>
+  <div id="mr"></div>
+  <div class="note"><b>開發時抓到的例子</b>MR10 原寫為「箍筋加粗 → 需求間距不減」，測試失敗：#4 之 24.12 cm 小於 #3 之 24.25 cm。追查為 \(d/2\) 間距上限控制，箍筋加粗使 \(d\) 略減，屬正確行為；關係修正為「強度需求間距」。變形關係本身也需要工程判斷。</div>
+</section>
+
+<!-- ====================================================================== -->
+<section class="chap" id="s6">
+  <h2>六、突變測試（計算核心）</h2>
+  <p>測試通過不代表測試有效。突變測試（mutation testing）逐一對計算核心 <code>core/rc-core.js</code> 注入一個小錯誤（係數 × 1.1、\(&lt;\) 與 \(\le\) 互換、min 與 max 互換、且與或互換），再執行單元測試；測試失敗表示錯誤被「殺死」。存活之突變若非等價，即代表驗證盲區，必須補測試。</p>
+  <div class="kpi" id="mutkpi"></div>
+  <div id="mutop"></div>
+  <h3>等價突變（不計入分母）</h3>
+  <p>等價突變不改變任何可能之輸出（例如 \(\phi\) 於 \(\varepsilon_t = \varepsilon_{ty}\) 處連續，\(\le\) 改 \(&lt;\) 結果相同）。每一類均於 <code>tests/mutation.js</code> 之 <code>EQUIV</code> 寫明理由，供審查：</p>
+  <div id="mutequiv"></div>
+  <div class="note"><b>開發時的發現</b>首次執行時突變分數僅約 25%：長細效應、有效翼寬、裂縫間距等函式只有瀏覽器端之整合測試，單元測試未逐項鎖定係數與分支。已補足單元測試，現於 CI 以 <code>node tests/mutation.js --check</code> 把關：任何非等價突變存活即失敗。</div>
+  <p class="small">範圍限制：突變測試目前涵蓋 <code>core/rc-core.js</code>（不需瀏覽器，約 1 分鐘）。<code>index.html</code> 內其餘計算（P-M、雙軸、剪力、伸展長度）由驗證案例、獨立求解器與變形測試把關；宜持續把純計算移入 <code>core/</code> 以擴大突變測試範圍。</p>
+</section>
+
+<!-- ====================================================================== -->
+<section class="chap" id="s7">
+  <h2>七、保守度登錄表</h2>
+  <p>凡規範未明定、由本工具採用之讀法、近似或數值方法，逐項列出偏誤方向與處理方式。<b>偏不保守或視情況者，一律列入「需確認」並印於計算書之工程判斷</b>，簽證技師必須知情。</p>
+  <table>
+    <tr><th style="width:24%">項目</th><th style="width:34%">本工具作法</th><th class="c" style="width:11%">偏誤方向</th><th>處理</th></tr>
+    <tr><td>P-M 曲線取樣與內插</td><td>中性軸深度對數取樣 260 點，點間線性內插</td><td class="c">保守</td><td>凸包絡線之弦在曲線內側；V1、V7、V8 純彎與 \(D/C\) 驗證差 &lt; 0.02%</td></tr>
+    <tr><td>雙軸 \(D/C\)</td><td>旋轉中性軸網格解（§22.2 一般方法）；Bresler、PCA 僅列參考</td><td class="c">±0.2%</td><td>回歸測試要求不低於獨立求解器 0.1% 以上；\(D/C&gt;0.99\) 時提醒數值誤差</td></tr>
+    <tr><td>\(D/C\) 顯示</td><td>小數 3 位無條件進位</td><td class="c">保守</td><td>避免顯示 1.000 卻不合格或四捨五入後看似合格</td></tr>
+    <tr><td>有側移 \(\delta_s\)</td><td>未輸入 \(Q\) 時以本柱 \(P_u/P_c\) 代替樓層 \(\Sigma P_u/\Sigma P_c\)</td><td class="c ext">視情況</td><td><b>需確認</b>＋計算書工程判斷；本柱軸力比低於樓層平均時偏不保守，請輸入 \(Q\) 或採二階分析</td></tr>
+    <tr><td>彎矩未分 \(M_{ns}\)、\(M_s\)</td><td>全部視為側移彎矩放大</td><td class="c">保守</td><td>計算書註明</td></tr>
+    <tr><td>扭力縱筋</td><td>自主筋等比例扣除，未採 §9.5.4.5 受壓區折減（柱）</td><td class="c">保守</td><td>計算書工程判斷</td></tr>
+    <tr><td>扭矩門檻係數</td><td>表 22.7.4.1 kgf 制原文係數 1（SI 換算約 1.05）</td><td class="c">保守</td><td>依原文</td></tr>
+    <tr><td>柱端 \(V_c\) 歸零</td><td>預設 §18.4.6.2.1 (a)(b)；可選僅依軸力</td><td class="c">依規範／保守</td><td>選後者時列工程判斷</td></tr>
+    <tr><td>箱型 \(A_e\)</td><td>\(\min(0.8A_g, b_wd)\)</td><td class="c">保守</td><td>橋梁規範未區分中空斷面；列工程判斷</td></tr>
+    <tr><td>橋梁塑鉸區 \(h_x\)</td><td>參考建築 §18.4.5.2(e) 35 cm 提醒</td><td class="c">保守（提醒）</td><td>列工程判斷</td></tr>
+    <tr><td>箍筋肢橫向間距（柱）</td><td>參考 ACI 318-19 表 10.7.6.5.2</td><td class="c">保守（提醒）</td><td>列工程判斷</td></tr>
+    <tr><td>\(A_{sh}\) 之 \(b_c\) 配對</td><td>預設垂直讀法（解說 R18.4.5.4）；平行讀法僅供比較</td><td class="c ext">平行者不保守</td><td>選平行時參數表標示「非規範」、計算書以粗體列工程判斷</td></tr>
+    <tr><td>箱型高軸力 \(A_{sh}\) 第三式</td><td>\(A_{ch}\) 對箱型無定義，不套用</td><td class="c ext">未檢核</td><td>列「未涵蓋、須另行檢核」</td></tr>
+    <tr><td>水工環境耐久係數 \(S_d\)</td><td>強度需求未乘 \(S_d\)（ACI 350）</td><td class="c ext">未檢核</td><td>水工模式列「未涵蓋、須另行檢核」；輸入內力須自行乘入</td></tr>
+    <tr><td>水工保護層、最小鋼筋比</td><td>參考 ACI 350（≥ 5 cm、0.003）</td><td class="c">保守（提醒）</td><td>列工程判斷</td></tr>
+    <tr><td>裂縫寬度</td><td>Gergely-Lutz（ACI 224R），使用載重</td><td class="c">經驗式</td><td>容許值由設計者選定；列工程判斷</td></tr>
+    <tr><td>實心斷面繫筋</td><td>以貫穿全斷面建模</td><td class="c ext">超寬斷面不適用</td><td>已知限制；超寬斷面改用套疊箍筋</td></tr>
+    <tr><td>塑性形心、雙軸網格</td><td>對稱配筋假設</td><td class="c">—</td><td>工具配筋產生器只產生雙軸對稱配置</td></tr>
+  </table>
+</section>
+
+<!-- ====================================================================== -->
+<section class="chap" id="s8">
+  <h2>八、操作安全機制</h2>
+  <p>實務上最常見的錯誤來自輸入，不在公式。本工具之防呆分三級：<b>不合格</b>（紅）、<b>需確認</b>（琥珀，未逐項勾選前不得列印送審版）、<b>參考</b>。</p>
+  <table>
+    <tr><th style="width:28%">機制</th><th>觸發條件與行為</th></tr>
+    <tr><td>無效輸入停止計算</td><td>空白、壁厚 ≥ 短邊之半、非整數根數等：停止計算、欄位標紅、擋下 Excel 與建議配筋</td></tr>
+    <tr><td>常用範圍警示</td><td>如斷面 &gt; 2000 cm（疑似 mm 誤為 cm）、\(\phi\) 超出 0.5～0.95</td></tr>
+    <tr><td>單位防呆</td><td>最大 \(|P_u| &gt; 2.5P_o\)：疑似 kN 誤為 tf；SI 輸入可一鍵換算</td></tr>
+    <tr><td><b>驗證範圍外</b>（本次新增）</td><td>\(f'_c\) 不在 210～420、主筋 \(f_y\ne 4200\)、\(f_{yt}&gt;4200\)、輕質混凝土：列「需確認」，計算書標示本構件超出驗證範圍</td></tr>
+    <tr><td><b>AI 判讀欄位</b>（本次新增）</td><td>「從圖說匯入」填入且尚未修改之欄位逐一列名為「需確認」；修改該欄或套用範本、開啟案件後解除</td></tr>
+    <tr><td><b>數值異常</b>（本次新增）</td><td>\(D/C\)、\(V_s\)、\(V_e\)、間距、\(\rho_g\)、\(A_{sh}\) 等出現 NaN：判不合格，不得默默顯示空白或通過</td></tr>
+    <tr><td><b>偏不保守之近似</b>（本次新增）</td><td>有側移 \(\delta_s\) 以本柱代替樓層：由「參考」升為「需確認」</td></tr>
+    <tr><td>需確認綁定輸入</td><td>勾選以項目文字＋相關輸入雜湊為鍵，輸入一改即須重新確認；存入案件檔</td></tr>
+    <tr><td>列印閘門</td><td>需確認未完成：列印與 Excel 改為「草稿、不得送審」</td></tr>
+    <tr><td>追溯</td><td>計算書印版本、程式 SHA-256、輸入 SHA-256；案件檔記錄版本，舊檔缺欄提示</td></tr>
+  </table>
+  <figure><img src="img/v-confirm.png"><figcaption>圖 8.1　需確認項目：超出驗證範圍（\(f'_c = 490\)）與有側移 \(\delta_s\) 之工程判斷</figcaption></figure>
+  <figure><img src="img/v-signoff.png"><figcaption>圖 8.2　計算書「適用範圍、驗證與簽證責任」與簽證技師欄</figcaption></figure>
+</section>
+
+<!-- ====================================================================== -->
+<section class="chap" id="s9">
+  <h2>九、技師計算、檢核與簽證作業流程</h2>
+  <div class="flow"><span>1 設計依據</span><i>→</i><span>2 輸入核對</span><i>→</i><span>3 載重</span><i>→</i><span>4 檢核</span><i>→</i><span>5 需確認</span><i>→</i><span>6 未涵蓋</span><i>→</i><span>7 抽核</span><i>→</i><span>8 列印簽證</span><i>→</i><span>9 存檔</span></div>
+  <table>
+    <tr><th style="width:16%">步驟</th><th>工作內容</th><th style="width:28%">留存紀錄</th></tr>
+    <tr><td>1 設計依據</td><td>選建築或橋梁、一般或水工；確認構件型式（柱、梁、版、基樁）與耐震類別</td><td>計算書表頭</td></tr>
+    <tr><td>2 輸入核對</td><td>尺寸、材料、主筋與箍筋、保護層逐欄與施工圖核對；「從圖說匯入」之欄位尤須逐欄核對</td><td>需確認勾選紀錄（含時間）</td></tr>
+    <tr><td>3 載重</td><td>自結構分析輸出（ETABS、SAP2000、midas…）取各組合內力；確認單位、正負號、地震正負向、最小軸力與上拔、滿水／空槽等情境；水工結構另依設計準則乘 \(S_d\)</td><td>分析輸出檔名與版本（另存）</td></tr>
+    <tr><td>4 檢核</td><td>判定列無不合格；\(D/C&gt;0.9\) 者審視餘裕</td><td>計算書</td></tr>
+    <tr><td>5 需確認</td><td>逐項閱讀並勾選；工程判斷項目不同意者改輸入或另行設計</td><td>計算書「設計者確認事項」</td></tr>
+    <tr><td>6 未涵蓋</td><td>梁柱接頭、強柱弱梁（未輸入時）、伸入接頭長度、\(S_d\) 等另行檢核</td><td>另行計算書</td></tr>
+    <tr><td>7 抽核</td><td>每案至少抽一個構件，依第三章方法手算 \(P_o\)、一個 P-M 點與 \(V_c\)；超出驗證範圍之構件必須抽核</td><td>手算紙本</td></tr>
+    <tr><td>8 列印簽證</td><td>計算書末頁之「簽證技師確認事項」逐項確認後簽章（姓名、科別、執業執照字號）</td><td>簽證計算書</td></tr>
+    <tr><td>9 存檔</td><td>存案件檔（.json）；計算書所印版本與雜湊可唯一對應程式與輸入</td><td>案件檔、計算書</td></tr>
+  </table>
+  <h3>各科技師注意事項</h3>
+  <table>
+    <tr><th style="width:18%">科別</th><th>注意事項</th></tr>
+    <tr><td>結構、土木技師</td><td>建築物依土木401-112＋建築物耐震設計規範；簽證資格依建築法、技師法及各科執業範圍規定（本工具不判斷簽證資格）。特殊抗彎矩構架之接頭剪力、強柱弱梁須另行檢核或輸入接頭梁 \(\Sigma M_{nb}\)。</td></tr>
+    <tr><td>水利技師</td><td>滯洪池、調節池、渠道等水工結構選「水工」模式：保護層、裂縫寬度與最小鋼筋比加嚴；本工具為強度設計，對應下水道設施耐震設計 Level 2；Level 1 與常時之容許應力檢核（止裂、不漏水）不在範圍。ACI 350 之 \(S_d\) 須自行乘入內力；水利署施工綱要規範 03310 之材料耐久規定尚未納入。</td></tr>
+    <tr><td>水土保持技師</td><td>擋土牆、沉砂滯洪設施之 RC 斷面可用「單位寬版」或「梁」模組；水土保持技術規範之載重、安全係數與穩定檢核（滑動、傾倒、承載）不在本工具範圍，須另行依該規範計算；該規範之量化規定尚未逐條核對納入。</td></tr>
+    <tr><td>一般工程師</td><td>可用於設計與檢核；送審、簽證須由具該科執業資格之技師為之。</td></tr>
+  </table>
+</section>
+
+<!-- ====================================================================== -->
+<section class="chap" id="s10">
+  <h2>十、尚待外部協助事項與建議時程</h2>
+  <table>
+    <tr><th style="width:5%">#</th><th style="width:30%">事項</th><th>需要的協助</th><th style="width:22%">完成判準</th></tr>
+    <tr><td>1</td><td>商用軟體比對（B6）</td><td>具 spColumn、SAP2000／ETABS、midas 授權之單位，依第四章對 V1、V2、V4、V5、V6 建模</td><td>附錄 B 全部填妥且在容許差內，或差異原因已釐清</td></tr>
+    <tr><td>2</td><td>已簽證案例盲測（B7）</td><td>二、三位執業技師提供已簽證之柱、梁、版各數例（匿名）</td><td>判定一致；不一致者有書面原因</td></tr>
+    <tr><td>3</td><td>第三方審查（G1）</td><td>技師公會、學校或顧問公司審查本手冊、計算書與程式</td><td>審查意見回覆完畢</td></tr>
+    <tr><td>4</td><td>付費規範核對（G2）</td><td>購買 ACI 350-20、ACI 350.3-20、CNS 560 全文</td><td>\(S_d\) 可納入計算；<code>specs/README.md</code> 更新</td></tr>
+    <tr><td>5</td><td>水利、水保規範（G3）</td><td>取得水利署施工綱要規範 03310、水土保持技術規範最新版</td><td>量化規定逐條核對，納入或列未涵蓋</td></tr>
+  </table>
+  <p>建議順序：1 → 4 → 2 → 5 → 3。每完成一項，更新本手冊第二章狀態並重建。</p>
+</section>
+
+<!-- ====================================================================== -->
+<section class="chap" id="sA">
+  <h2>附錄 A　自動化測試清單</h2>
+  <p>每次推送（含分支）由 GitHub Actions 執行；任一項失敗即判紅燈，不應合併。本機：<code>cd tests && npm ci && npm test</code>；突變測試：<code>node tests/mutation.js --check</code>。</p>
+  <table>
+    <tr><th style="width:28%">檔案</th><th>內容</th></tr>
+    <tr><td><code>verification.test.js</code></td><td>第三章驗證案例 V1～V8：工具值須與手算一致，且 \(D/C\) 不得偏低</td></tr>
+    <tr><td><code>metamorphic.test.js</code></td><td>第五章變形測試 MR1～MR11</td></tr>
+    <tr><td><code>mutation.js</code></td><td>第六章突變測試（計算核心）</td></tr>
+    <tr><td><code>core.test.js</code></td><td>計算核心單元測試：\(\beta_1\)、\(E_c\)、\(\phi\)、平衡軸力、長細效應、有效翼寬、裂縫間距、SHA-256</td></tr>
+    <tr><td><code>independent.test.js</code></td><td>獨立纖維求解器比對雙軸 \(D/C\)（方形、矩形、大型矩形、箱型，亂數載重含軸拉）</td></tr>
+    <tr><td><code>regression.test.js</code>、<code>high.test.js</code>、<code>medium.test.js</code></td><td>單軸 P-M 逐點、容量設計剪力配對、Bresler、雙軸連續性、長細效應、無效輸入、扭力縱筋、範本無不合格等</td></tr>
+    <tr><td><code>review2.test.js</code>、<code>review4.test.js</code></td><td>第二、三、四次全程式審查之修正項目</td></tr>
+    <tr><td><code>excel.test.js</code></td><td>Excel 匯出經 LibreOffice 重算後與網頁一致</td></tr>
+    <tr><td><code>security.test.js</code></td><td>惡意案件檔、AI 回傳內容、CSV 公式注入</td></tr>
+    <tr><td><code>usability.test.js</code>、<code>ux2.test.js</code></td><td>需確認閘門、版本雜湊、單位防呆、介面不截斷等</td></tr>
+  </table>
+</section>
+
+<section class="chap" id="sB">
+  <h2>附錄 B　商用軟體比對紀錄表（空白）</h2>
+  <table>
+    <tr><th>軟體名稱</th><td class="blank" style="width:30%"></td><th>版本</th><td class="blank"></td></tr>
+    <tr><th>執行單位／人員</th><td class="blank"></td><th>日期</th><td class="blank"></td></tr>
+    <tr><th>設計規範設定</th><td class="blank" colspan="3"></td></tr>
+  </table>
+  <div id="blankB"></div>
+  <p class="small">差異原因代碼：A 鋼筋面積表；B 保護層定義；C \(\phi\) 或 \(P_{n,max}\) 設定；D 應力塊或材料曲線；E 單位換算；F 曲線取樣或數值方法；G 規範版本；H 其他（請說明）。</p>
+  <table><tr><th style="width:20%">簽名</th><td class="blank" style="height:18mm"></td><th style="width:20%">審核</th><td class="blank"></td></tr></table>
+</section>
+
+<script>
+(function(){
+  const V = window.VV, esc = s => String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  const num = x => { const a = Math.abs(x); return a >= 1000 ? x.toFixed(1) : a >= 100 ? x.toFixed(2) : a >= 1 ? x.toFixed(3) : x.toPrecision(4); };
+  const pct = r => r === 0 ? '0' : r < 1e-6 ? '&lt; 0.0001%' : (r*100).toFixed(4) + '%';
+  const unit = u => u ? esc(u) : '—';
+  const lbl = s => esc(s).replace(/([A-Za-zφ])_([A-Za-z0-9,]+)/g, '$1<sub>$2</sub>');
+  document.getElementById('ver2').textContent = `程式版本 ${V.ver.app}　程式雜湊 ${V.ver.code}`;
+  const nItems = V.cases.reduce((a, c) => a + c.rows.length, 0), nOk = V.cases.reduce((a, c) => a + c.rows.filter(r => r.ok).length, 0);
+  const maxRel = Math.max(...V.cases.flatMap(c => c.rows.map(r => r.rel)));
+  document.getElementById('kpi').innerHTML = `<div><b>${V.cases.length} 案 / ${nItems} 項</b><span>驗證案例與比對項目</span></div>`
+    + `<div><b>${nOk} / ${nItems}</b><span>在容許誤差內一致</span></div><div><b>${(maxRel*100).toFixed(3)}%</b><span>最大相對差（雙軸數值解）</span></div>`
+    + `<div><b>${(V.mut.score*100).toFixed(1)}%</b><span>突變分數（${V.mut.killed} 殺死 / ${V.mut.total - V.mut.equivalent} 非等價）</span></div>`;
+  { const dcs = V.cases.flatMap(c => c.rows.filter(r => /^dc/.test(r.k) && r.k !== 'dcB'));
+    const lo = dcs.filter(r => r.tool < r.hand), worst = Math.max(0, ...lo.map(r => (r.hand - r.tool)/r.hand));
+    document.getElementById('concl').innerHTML = `本版次之驗證案例 ${nOk} / ${nItems} 項在容許誤差內一致；涉及曲線取樣或數值解之 \\(D/C\\) 共 ${dcs.length} 項，`
+      + (lo.length ? `其中 ${lo.length} 項略低於基準（最大 ${(worst*100).toFixed(4)}%，在回歸測試允許之 0.1% 內）。` : '本工具值均不低於基準值（偏差方向為保守）。'); }
+  document.getElementById('cases').innerHTML = V.cases.map(c => `<div class="case"><h3>${esc(c.id)}　${esc(c.title)}</h3><p>${esc(c.desc)}</p>`
+    + `<div class="steps">${c.steps.map(([l, t]) => `<div><span class="sl">${esc(l)}</span>\\(\\displaystyle ${t}\\)</div>`).join('')}</div>`
+    + `<table><tr><th>項目</th><th class="c">單位</th><th class="n">手算</th><th class="n">本工具</th><th class="n">相對差</th><th class="n">容許</th><th class="c">判定</th><th class="c">spColumn</th><th class="c">SAP2000 SD</th></tr>`
+    + c.rows.map(r => `<tr><td>${lbl(r.label)}</td><td class="c">${unit(r.unit)}</td><td class="n">${num(r.hand/r.s)}</td><td class="n">${num(r.tool/r.s)}</td>`
+      + `<td class="n">${pct(r.rel)}</td><td class="n">${(r.tol*100).toFixed(r.tol < 1e-3 ? 2 : 1)}%</td><td class="c ${r.ok ? 'ok' : 'ext'}">${r.ok ? '✓' : '✗'}</td><td class="blank"></td><td class="blank"></td></tr>`).join('')
+    + `</table></div>`).join('');
+  const m = V.mr;
+  document.getElementById('mr').innerHTML = `<table><tr><th style="width:30%">關係</th><th>本工具結果（建築 RC 方柱 60×60 範本改輸入）</th></tr>`
+    + `<tr><td>MR1 每面主筋根數 3 → 6</td><td>${m.bars.map(([n, d]) => `${n} 根：${d.toFixed(4)}`).join('　→　')}</td></tr>`
+    + `<tr><td>MR3 保護層 3 → 8 cm</td><td>${m.cover.map(([c, d]) => `${c} cm：${d.toFixed(4)}`).join('　→　')}</td></tr>`
+    + `<tr><td>MR5 40×90 與旋轉後 90×40</td><td>${m.rot[0].toFixed(6)}　與　${m.rot[1].toFixed(6)}（差 ${(Math.abs(m.rot[0]-m.rot[1])/m.rot[0]*100).toFixed(4)}%）</td></tr></table>`;
+  const U = V.mut, op = {NUM:'數值常數 × 1.1', CMP:'比較運算子 < ↔ ≤、> ↔ ≥', MM:'Math.min ↔ Math.max', LOG:'&& ↔ ||'};
+  document.getElementById('mutkpi').innerHTML = `<div><b>${U.total}</b><span>突變總數</span></div><div><b>${U.killed}</b><span>被測試殺死</span></div>`
+    + `<div><b>${U.equivalent}</b><span>等價（逐項說明）</span></div><div><b>${U.total - U.killed - U.equivalent}</b><span>非等價存活</span></div><div><b>${(U.score*100).toFixed(1)}%</b><span>突變分數</span></div>`;
+  document.getElementById('mutop').innerHTML = `<table><tr><th>突變運算子</th><th class="n">個數</th></tr>${Object.entries(U.byOp).map(([k, v]) => `<tr><td>${esc(op[k] || k)}</td><td class="n">${v}</td></tr>`).join('')}</table>`;
+  document.getElementById('mutequiv').innerHTML = `<table><tr><th>等價理由</th><th class="n" style="width:12%">個數</th></tr>${U.equiv.map(e => `<tr><td>${esc(e.why)}</td><td class="n">${e.n}</td></tr>`).join('')}</table>`;
+  document.getElementById('blankB').innerHTML = V.cases.filter(c => ['V1','V2','V4','V5','V6'].includes(c.id)).map(c => `<h3>${esc(c.id)}　${esc(c.title)}</h3>`
+    + `<table><tr><th>項目</th><th class="c">單位</th><th class="n">本工具</th><th class="c" style="width:16%">商用軟體</th><th class="c" style="width:11%">相對差</th><th class="c" style="width:10%">判定</th><th class="c" style="width:12%">差異原因</th></tr>`
+    + c.rows.map(r => `<tr><td>${lbl(r.label)}</td><td class="c">${unit(r.unit)}</td><td class="n">${num(r.tool/r.s)}</td><td class="blank"></td><td class="blank"></td><td class="blank"></td><td class="blank"></td></tr>`).join('') + `</table>`).join('');
+  renderMathInElement(document.body, {delimiters: [{left: '\\(', right: '\\)', display: false}], throwOnError: false});   // 錯誤以 .katex-error 呈現，build.js 檢出即中止
+  document.fonts.ready.then(() => { window.__ready = true; });
+})();
+</script>
+</body>
+</html>

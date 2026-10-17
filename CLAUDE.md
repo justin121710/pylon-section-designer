@@ -2,9 +2,9 @@
 
 ## 操作教學與常見問題 PDF 於合併到 main 時重建
 
-- `docs/RC斷面設計工具_操作教學.pdf` 與 `docs/RC斷面設計工具_常見問題.pdf` 由 `docs/tutorial/build.js` 分別依 `docs/tutorial/tutorial.html`、`docs/tutorial/faq.html` 建置（共用截圖）；說明見 `docs/tutorial/README.md`。
+- `docs/RC斷面設計工具_操作教學.pdf`、`docs/RC斷面設計工具_常見問題.pdf` 與 `docs/RC斷面設計工具_驗證與安全性流程.pdf` 由 `docs/tutorial/build.js` 分別依 `docs/tutorial/tutorial.html`、`docs/tutorial/faq.html`、`docs/tutorial/verify.html` 建置（共用截圖；驗證手冊之數字由建置時執行 `tests/vv-cases.js` 與 `tests/mutation.js` 產生）；說明見 `docs/tutorial/README.md`。
 - **分支提交不要重建或提交 PDF 與 `stamp.txt`**（每份約 6～7 MB，會讓儲存庫快速變大）。推送（合併）到 main 時，GitHub Actions（`tutorial-pdf.yml`）會重建並以機器人提交推回 main。
-- 修改 `index.html`、`calc-xlsx.js` 或教學原稿時，若介面、操作步驟、檢核項目或規範條文有變，仍須同步修改 `docs/tutorial/tutorial.html` 與 `docs/tutorial/faq.html` 的說明文字（必要時在 `build.js` 增加截圖）；`README.md` 亦同。
+- 修改 `index.html`、`calc-xlsx.js` 或教學原稿時，若介面、操作步驟、檢核項目或規範條文有變，仍須同步修改 `docs/tutorial/tutorial.html` 與 `docs/tutorial/faq.html` 的說明文字（必要時在 `build.js` 增加截圖）；`README.md` 亦同。新增或修改計算時，於 `tests/vv-cases.js` 增補手算對照、於 `docs/tutorial/verify.html` 之保守度登錄表登錄新的近似或工程判斷；修改 `core/rc-core.js` 後須通過 `node tests/mutation.js --check`。
 - 要確認原稿能正確建置時可在本機 `cd docs/tutorial && npm run build`，但建置產物不要提交（`git checkout -- docs/*.pdf docs/tutorial/stamp.txt`）。
 - 教學與常見問題中的公式與符號一律用 KaTeX（`\( … \)`），與網頁、計算書、Excel 的 LaTeX 風格一致。
 

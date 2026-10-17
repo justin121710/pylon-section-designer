@@ -1,8 +1,13 @@
-# 影響操作教學與常見問題 PDF 內容的檔案（相對 repo 根目錄）。任一檔變更後都必須重新建置 PDF。
+# 影響操作教學、常見問題、驗證與安全性流程 PDF 內容的檔案（相對 repo 根目錄）。任一檔變更後都必須重新建置 PDF。
 index.html
 calc-xlsx.js
 docs/tutorial/tutorial.html
 docs/tutorial/faq.html
+docs/tutorial/verify.html
 docs/tutorial/build.js
 docs/tutorial/inputs.txt
 core/rc-core.js
+tests/vv-cases.js
+tests/oracle.js
+tests/mutation.js
+tests/core.test.js

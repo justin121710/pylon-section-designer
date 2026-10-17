@@ -1,8 +1,9 @@
-/* 建置操作教學 PDF：docs/RC斷面設計工具_操作教學.pdf
+/* 建置操作教學 PDF：docs/RC斷面設計工具_操作教學.pdf（另含常見問題、驗證與安全性流程兩份）
    1. 以本機 HTTP 伺服器開啟 index.html（CDN 改由本目錄 node_modules 提供），依教學步驟操作並截圖 → img/
    2. 匯出 Excel，以 LibreOffice 轉 PDF、pdftoppm 轉圖並裁白邊 → img/26、27
-   3. 以 Chromium 列印 tutorial.html（KaTeX 排版公式與符號）為 A4 PDF
-   4. 寫入 stamp.txt（輸入檔的 git blob 雜湊），供 check.sh／pre-commit／CI 判斷 PDF 是否為最新
+   3. 驗證數據：執行 tests/vv-cases.js 之驗證案例、變形關係示例與 tests/mutation.js 突變測試 → img/vv-data.js
+   4. 以 Chromium 列印 tutorial.html、faq.html、verify.html（KaTeX 排版公式與符號）為 A4 PDF
+   5. 寫入 stamp.txt（輸入檔的 git blob 雜湊），供 check.sh／pre-commit／CI 判斷 PDF 是否為最新
 
    需求：Node 18+、本目錄 npm install、Chromium（npx playwright install chromium）、
          LibreOffice（soffice）、poppler-utils（pdftoppm）、python3 + Pillow。
@@ -15,6 +16,7 @@ const HERE = __dirname, ROOT = path.resolve(HERE, '../..'), NM = path.join(HERE,
 const IMG = path.join(HERE, 'img'), XL = path.join(HERE, 'xl');
 const OUT = path.join(ROOT, 'docs', 'RC斷面設計工具_操作教學.pdf');
 const OUT_FAQ = path.join(ROOT, 'docs', 'RC斷面設計工具_常見問題.pdf');
+const OUT_VV = path.join(ROOT, 'docs', 'RC斷面設計工具_驗證與安全性流程.pdf');
 const INPUTS = fs.readFileSync(path.join(HERE, 'inputs.txt'), 'utf8').split('\n').map(s => s.trim()).filter(s => s && !s.startsWith('#'));   // 影響 PDF 內容的檔案
 const W = 1440, H = 900;
 
@@ -241,6 +243,60 @@ bb=ImageOps.invert(im).getbbox(); im.crop((max(0,bb[0]-16),max(0,bb[1]-16),min(w
   }
 }
 
+/* ---------- 驗證與安全性流程手冊之數據（建置時實算，非手抄） ----------
+   驗證案例 V1～V8（tests/vv-cases.js：手算 vs 工具）、變形關係示例、突變測試結果與兩張截圖 → img/vv-data.js（window.VV） */
+async function verifyData(browser, base){
+  const {CASES, runCase} = require(path.join(ROOT, 'tests', 'vv-cases.js'));
+  const ctx = await browser.newContext({viewport:{width:W, height:H}, deviceScaleFactor:1.5});
+  await ctx.route(/^https?:\/\/(?!127\.0\.0\.1)/, r => {
+    const m = r.request().url().match(/cdn\.jsdelivr\.net\/npm\/([^@]+)@[^/]+\/(.*)$/);
+    if(m && fs.existsSync(path.join(NM, m[1], m[2]))) return r.fulfill({path: path.join(NM, m[1], m[2])});
+    return r.abort();
+  });
+  const page = await ctx.newPage(); const errs = []; page.on('pageerror', e => errs.push(e.message));
+  page.on('dialog', d => d.dismiss().catch(() => {}));
+  await page.goto(base + '/index.html'); await page.waitForFunction(() => typeof MODEL !== 'undefined' && MODEL && typeof applyPreset === 'function');
+  await page.evaluate(() => { const b = document.getElementById('setupSkip'); if(b) b.click(); }); await page.waitForTimeout(800);
+  const cases = [];
+  for(const C of CASES){
+    const {H: hh, rows} = await runCase(page, C);
+    const bad = rows.filter(r => !r.ok); if(bad.length) throw new Error(`驗證案例 ${C.id} 不一致：` + bad.map(r => r.label).join('、'));
+    cases.push({id: C.id, title: C.title, desc: C.desc, steps: hh.steps, rows});
+    console.log('  驗證案例', C.id, '：', rows.length, '項一致');
+  }
+  const ver = await page.evaluate(() => ({app: APP_VERSION, code: codeHash()}));
+  // 變形關係示例（數值）：主筋根數、保護層、旋轉 90°
+  const L = [{name:'A', Pu:200, Mux:30, Muy:12, Vux:6, Vuy:14, Tu:0}, {name:'B', Pu:90, Mux:14, Muy:34, Vux:15, Vuy:5, Tu:0}];
+  const dcOf = (inputs, loads) => page.evaluate(([inputs, loads]) => { document.getElementById('tabPylon').click(); applyPreset('bldg60');
+    for(const [k, v] of Object.entries(inputs)) document.getElementById(k).value = v; LOADS = loads.map(l => ({...l})); drawLoads(); render(); return MODEL.ctrlFlex.dc; }, [inputs, loads]);
+  const mr = {bars: [], cover: [], rot: null};
+  for(const n of [3, 4, 5, 6]) mr.bars.push([n, await dcOf({nB: n, nH: n}, L)]);
+  for(const c of [3, 4, 5, 6, 8]) mr.cover.push([c, await dcOf({covO: c}, L)]);
+  { const R = [{name:'A', Pu:180, Mux:45, Muy:15, Vux:7, Vuy:30, Tu:0}];
+    mr.rot = [await dcOf({B: 40, H: 90, nB: 3, nH: 6, ph: '0'}, R), await dcOf({B: 90, H: 40, nB: 6, nH: 3, ph: '0'}, R.map(l => ({...l, Mux: l.Muy, Muy: l.Mux, Vux: l.Vuy, Vuy: l.Vux})))]; }
+  // 截圖：需確認項目（有側移 δ_s 近似、超出驗證範圍）與計算書「適用範圍、驗證與簽證責任」
+  await page.evaluate(() => { applyPreset('bldg60'); const S = (k, v) => { document.getElementById(k).value = v; };
+    S('fc', 490); S('lu', 600); S('slK', 1.5); S('slKy', 1.5); render();
+    document.querySelector('#wsP .ws-tabs [data-pane="warn"]').click(); });
+  await page.waitForTimeout(600);
+  { const r = await page.evaluate(() => { const e = document.getElementById('confirmP'); e.scrollIntoView({block:'start'}); const b = e.getBoundingClientRect(); return {x:b.left, y:b.top, width:b.width, height:b.height}; });
+    await page.screenshot({path: path.join(IMG, 'v-confirm.png'), clip: {x: r.x - 6, y: Math.max(0, r.y - 6), width: r.width + 12, height: Math.min(r.height + 12, H - r.y)}}); }
+  await page.evaluate(() => { CONFIRM.pylon.clear(); applyPreset('bldg60'); document.querySelector('#wsP .ws-tabs [data-pane="fig"]').click(); });
+  await page.click('#btnPreview'); await page.waitForTimeout(2000);
+  { const r = await page.evaluate(() => { const h = [...document.querySelectorAll('#report .rp-h3')].find(x => /簽證責任/.test(x.textContent));
+      h.scrollIntoView({block:'start'}); window.scrollBy(0, -10); const a = h.getBoundingClientRect(), z = document.querySelector('#report .rp-sign').getBoundingClientRect();
+      return {x: a.left - 10, y: a.top - 6, width: Math.max(a.width, z.width) + 20, height: z.bottom - a.top + 14}; });
+    await page.screenshot({path: path.join(IMG, 'v-signoff.png'), clip: {...r, height: Math.min(r.height, H - r.y)}}); }
+  await page.click('#rpBack');
+  await ctx.close();
+  if(errs.length) throw new Error('網頁執行錯誤：' + errs.join(' | '));
+  console.log('  突變測試（約 1 分鐘）');
+  const mut = require(path.join(ROOT, 'tests', 'mutation.js')).run();
+  if(mut.survived.length) throw new Error(`突變測試有 ${mut.survived.length} 個非等價突變存活，請先補測試`);
+  fs.writeFileSync(path.join(IMG, 'vv-data.js'), 'window.VV = ' + JSON.stringify({ver, cases, mr, mut: {total: mut.total, byOp: mut.byOp, killed: mut.killed, equivalent: mut.equivalent, score: mut.score,
+    equiv: [...new Map(mut.equiv.map(e => [e.why, e])).values()].map(e => ({why: e.why, n: mut.equiv.filter(q => q.why === e.why).length}))}}) + ';\n');
+}
+
 /* ---------- 輸入檔雜湊（git blob） ---------- */
 function stampText(){
   return INPUTS.map(f => execFileSync('git', ['hash-object', path.join(ROOT, f)]).toString().trim() + '  ' + f).join('\n') + '\n';
@@ -269,11 +325,13 @@ async function tutorialPdf(browser, base, src = 'tutorial.html', out = OUT, titl
   const srv = await serve(), base = `http://127.0.0.1:${srv.address().port}`;
   const browser = await chromium.launch(process.env.CHROMIUM_PATH ? {executablePath: process.env.CHROMIUM_PATH} : {});
   try{
-    console.log('1/3 操作截圖'); await screenshots(browser, base);
-    console.log('2/3 Excel 頁面'); excelImages();
-    console.log('3/3 產生 PDF'); await tutorialPdf(browser, base);
+    console.log('1/4 操作截圖'); await screenshots(browser, base);
+    console.log('2/4 Excel 頁面'); excelImages();
+    console.log('3/4 驗證數據'); await verifyData(browser, base);
+    console.log('4/4 產生 PDF'); await tutorialPdf(browser, base);
     await tutorialPdf(browser, base, 'faq.html', OUT_FAQ, '常見問題');
+    await tutorialPdf(browser, base, 'verify.html', OUT_VV, '驗證與安全性流程');
     fs.writeFileSync(path.join(HERE, 'stamp.txt'), stampText());
-    console.log('完成：', path.relative(ROOT, OUT), '、', path.relative(ROOT, OUT_FAQ));
+    console.log('完成：', [OUT, OUT_FAQ, OUT_VV].map(f => path.relative(ROOT, f)).join('、'));
   } finally { await browser.close(); srv.close(); }
 })().catch(e => { console.error('建置失敗：', e.message); process.exit(1); });

@@ -3,17 +3,20 @@
 輸出（A4，含標註截圖；公式與符號以 KaTeX 排版，與網頁、計算書、Excel 的 LaTeX 風格一致）：
 - `docs/RC斷面設計工具_操作教學.pdf`：原稿 `tutorial.html`
 - `docs/RC斷面設計工具_常見問題.pdf`：原稿 `faq.html`（原 FAQ.md，改為附圖問答；截圖 `img/f-*.png` 由 build.js 另行拍攝，其餘沿用教學截圖）
+- `docs/RC斷面設計工具_驗證與安全性流程.pdf`：原稿 `verify.html`（技師簽證用驗證手冊）；對照數字由 build.js 執行 `tests/vv-cases.js`（驗證案例）、
+  變形關係示例與 `tests/mutation.js`（突變測試）寫入 `img/vv-data.js`，截圖 `img/v-*.png`
 
 | 檔案 | 用途 |
 |---|---|
 | `faq.html` | 常見問題原稿，規則同 `tutorial.html` |
+| `verify.html` | 驗證與安全性流程手冊原稿，數字一律由 `img/vv-data.js` 帶入（不得手抄），規則同 `tutorial.html` |
 | `tutorial.html` | 教學原稿。公式、符號一律寫成 `\( … \)`（KaTeX），例如 `\(V_c\)`、`\(\dfrac{kl_u}{r}\le 22\)`；不要用 `<sub>`／`<sup>` 或純文字 φ、≤ |
 | `build.js` | 開啟 `index.html` 依教學步驟操作截圖（紅框編號）、匯出 Excel 轉圖、列印 PDF，並寫入 `stamp.txt` |
 | `inputs.txt` | 影響 PDF 內容的檔案清單；任一檔變更即須重建 |
 | `stamp.txt` | 建置當時各輸入檔的 git blob 雜湊（由 build.js 產生，勿手改） |
 | `check.sh` | 比對 `stamp.txt` 與目前提交內容；過期時回傳失敗 |
 
-## 合併到 main 時重建 PDF
+## 合併到 main 時重建 PDF（三份）
 
 - **GitHub Actions**（`.github/workflows/tutorial-pdf.yml`）：推送（合併）到 `main` 時執行 `check.sh`，PDF 過期即重建，
   以 `[skip ci]` 機器人提交推回 `main`，並上傳為 artifact；亦可在 Actions 頁面手動執行。

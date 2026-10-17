@@ -27,3 +27,5 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libreoffice-calc-nogui
       - run: npm test
+      - name: 突變測試（計算核心，非等價突變不得存活）
+        run: node mutation.js --check
