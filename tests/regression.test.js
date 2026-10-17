@@ -179,7 +179,7 @@ test('C3：2 肢時與 A_v/(A_v/s + 2A_t/s) 相同（圓柱）', async () => {
 /* ------------------------------------------------------------------ */
 const beamCase = loads => page.evaluate(loads => {
   document.getElementById('tabBeam').click();
-  applyBPreset('bldgBeam'); BLOADS = loads; drawBLoads(); renderBeam();
+  applyBPreset('bldgBeam'); document.getElementById('bNlegs').value = 2; BLOADS = loads; drawBLoads(); renderBeam();   // 2 肢情境（範本已改 3 肢）
   const B = BMODEL;
   return {ctrl: B.sh.ctrl.L.name, Tu: B.sh.Tu, tors: B.sh.tors, sStr: B.sh.sStr, sUse: B.fin.sUse, s2: B.fin2 ? B.fin2.sUse : null,
           nlegs: B.sh.nlegs, At1: B.sh.At1, AtS: B.sh.AtS, AvS: B.sh.AvS, all: B.sh.all.length};
