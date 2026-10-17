@@ -2103,7 +2103,8 @@ const PRESETS = {
            {name:'1.2D+L+E (X)',Pu:205,Mux:12,Muy:40,Vux:23,Vuy:6,Tu:0},
            {name:'1.2D+L+E (Y)',Pu:210,Mux:42,Muy:12,Vux:6,Vuy:24,Tu:0},
            {name:'0.9D+E (Y)',Pu:95,Mux:38,Muy:11,Vux:6,Vuy:22,Tu:0}]},
-  pond80: {label:'地下滯洪池柱', code:'bldg', ph:'1', lu:650, scwbMb:200, ancBot:'hook90', hBot:100, ancTop:'hook90', hTop:80, ancCov:5,
+  // 地下滯洪池柱：周邊連續壁／側牆與頂、底版提供側向支撐 → 無側移構架（k = 1.0）
+  pond80: {label:'地下滯洪池柱', code:'bldg', ph:'1', lu:650, slFrame:'braced', slK:1, scwbMb:200, ancBot:'hook90', hBot:100, ancTop:'hook90', hTop:80, ancCov:5,
     type:'solid', B:80, H:80, tw:20, fc:280, bar:'#8', nB:5, nH:5, tie:'#4',
     covO:5, covI:5, Lv:325, dagg:2.5,
     loads:[{name:'1.2D+1.6L（頂版覆土）',Pu:520,Mux:22,Muy:15,Vux:5,Vuy:7,Tu:0},
@@ -2175,7 +2176,7 @@ function applyPreset(key){
   S('vcRule', P.vcRule || 'ab'); S('brMnP', P.brMnP || 'max'); S('brPD', P.brPD || 0); S('brVelX', P.brVelX || 0); S('brVelY', P.brVelY || 0); S('brPe', P.brPe || 0);
   S('brPhiMode', P.brPhiMode || '401');
   // 長細比：範本值僅示意（建築框架柱 k = 1.0；懸臂墩柱、橋塔取理論值 k = 2.0），實際請依構架分析決定
-  S('slFrame', P.slFrame || 'sway'); S('slK', P.slK || ((P.phEnds || (P.code==='bldg' ? '2' : '1'))==='1' ? 2 : 1)); S('slM12', P.slM12 ?? -1);
+  S('slFrame', P.slFrame || 'sway'); S('slK', P.slK || ((P.phEnds || (P.code==='bldg' ? '2' : '1'))==='1' ? 2 : 1.2));   // 範本預設有側移構架：懸臂 k = 2；兩端束制取示意值 1.2（§6.6.4.4.3 有側移 k > 1，實際依構架分析） S('slM12', P.slM12 ?? -1);
   S('slKy', P.slKy || document.getElementById('slK').value); S('slLuY', P.slLuY || 0);
   S('slTreat', P.slTreat || 'mag'); S('slBeta', P.slBeta ?? 0.6); S('slBetaS', P.slBetaS ?? 0); S('slQ', P.slQ || 0);
   S('scwbNc', P.scwbNc || 2); S('scwbMbX', P.scwbMb || 0); S('scwbMbY', P.scwbMb || 0);
