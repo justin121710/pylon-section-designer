@@ -1738,16 +1738,17 @@ function radialDC(poly, Mu, Pu, cap, phitPnt){
 function phiMnAtP(cv,m,P){
   const cap=capPhi(m)*cv.PnMax;
   if(P> cap+1e-6) return 0;
-  // 快取：雙軸二分會反覆呼叫。前置純拉點 (φ_tP_nt, 0)：最低取樣點與純拉之間線性內插，不回傳 0
-  const A=cv._phiPM || (cv._phiPM = [{P:m.phit*cv.Pnt, M:0}, ...cv.pts.map(p=>({P:p.phi*p.Pn,M:p.phi*p.Mn}))].sort((a,b)=>a.P-b.P));
-  if(P<=A[0].P||P>=A[A.length-1].P) return 0;
+  // 快取：雙軸二分會反覆呼叫。前置純拉點 (φ_tP_nt, 0)：最低取樣點與純拉之間線性內插，不回傳 0。
+  // 維持 c 之順序、不依 P 排序：φ 過渡區 φP_n 可隨 c 回降（re-entrant notch），同一軸力有多個分支時取最內側（彎矩最小），與 biaxMcap 一致
+  const A=cv._phiPM || (cv._phiPM = [{P:m.phit*cv.Pnt, M:0}, ...cv.pts.map(p=>({P:p.phi*p.Pn,M:p.phi*p.Mn}))]);
+  let best=Infinity;
   for(let i=0;i<A.length-1;i++){
-    if(P>=A[i].P && P<=A[i+1].P){
-      const t=(P-A[i].P)/((A[i+1].P-A[i].P)||1);
-      return A[i].M+t*(A[i+1].M-A[i].M);
-    }
+    const p=A[i], q=A[i+1];
+    if(P<Math.min(p.P,q.P) || P>Math.max(p.P,q.P)) continue;
+    const t=(P-p.P)/((q.P-p.P)||1), M=p.M+t*(q.M-p.M);
+    if(M<best) best=M;
   }
-  return 0;
+  return best<Infinity ? best : 0;
 }
 /* 軸力區間 [P0, P1] 內之最大 M_n（容量設計：§18.4.6.1.1「作用於每一柱端上各種因數化軸力範圍內之最大可能彎矩強度」）。
    曲線為取樣點間線性內插，區間最大值必在端點或區間內之取樣點（含平衡點附近）。回傳 {M, P} */

@@ -490,6 +490,58 @@ test('N3：梁 Excel 扣除 A_l 後 D/C 為網頁值——修改輸入後撓曲�
   await page.evaluate(() => applyBPreset('bldgBeam'));
 });
 
+test('R2：柱 Excel 單軸＋扭矩（扣除 A_l 後 D/C 網頁值）與自訂繫筋——修改輸入後撓曲判定與總判定改為須回網頁重算', {skip: !hasSoffice && '未安裝 LibreOffice（soffice）'}, async () => {
+  const setup = async custom => page.evaluate(custom => { document.getElementById('tabPylon').click(); applyPreset('bldg60');
+    LOADS = custom ? [{name:'U', Pu:150, Mux:30, Muy:0, Vux:0, Vuy:10, Tu:0}]
+                   : [{name:'T', Pu:150, Mux:30, Muy:0, Vux:0, Vuy:10, Tu:8}];
+    drawLoads(); if(custom) document.getElementById('tieLayout').value = 'custom'; render();
+    return {dcT: MODEL.res[0].dcT, exact: MODEL.res[0].bi.method===BIAX_EXACT}; }, custom);
+  const t = await setup(false);
+  assert.ok(Number.isFinite(t.dcT), '單軸＋扭矩組合須有扣除 A_l 後 D/C（AX 欄）');
+  assert.equal(t.exact, false, '單軸組合不採雙軸精確解（AQ 欄為空）');
+  await exportAs('r2t');
+  await setup(true); await exportAs('r2c');
+  const files = [];
+  for(const n of ['r2t', 'r2c']){
+    const src = new ExcelJS.Workbook(); await src.xlsx.readFile(path.join(TMP, n + '.xlsx'));
+    const ws = src.getWorksheet('檢核表'); let fr = 0;
+    ws.eachRow(r => { if(!fr && String(val(r.getCell(1).value)).startsWith("混凝土抗壓強度 f'c")) fr = r.number; });
+    ws.getCell('C' + fr).value = 350;
+    await src.xlsx.writeFile(path.join(TMP, n + 'b.xlsx'));
+    files.push(path.join(TMP, n + '.xlsx'), path.join(TMP, n + 'b.xlsx'));
+  }
+  const out = path.join(TMP, 'outr2');
+  execFileSync('soffice', ['--headless', '--convert-to', 'xlsx', '--outdir', out, ...files], {stdio:'ignore', timeout:300000});
+  const load = async n => { const wb = new ExcelJS.Workbook(); await wb.xlsx.readFile(path.join(out, n + '.xlsx')); return wb; };
+  for(const n of ['r2t', 'r2c']){
+    const a = await load(n), b = await load(n + 'b');
+    assert.equal(row(a, '撓曲 D/C 狀態').v, '有效', `${n}：未修改時有效`);
+    assert.doesNotMatch(String(row(a, '總判定').judge), /須回網頁重算/);
+    assert.match(String(row(b, '撓曲 D/C 狀態').v), /須回網頁重算/, `${n}：修改 f'c 後須回網頁重算`);
+    assert.equal(row(b, '撓曲＋軸力 D/C').judge, 'N/A');
+    assert.match(String(row(b, '總判定').judge), /須回網頁重算/);
+  }
+  await page.evaluate(() => { document.getElementById('tieLayout').value = 'code'; cTiesSet(null); applyPreset('bldg60'); });
+});
+
+test('R1：phiMnAtP 於 φ 過渡區內凹段取最內側分支（與 biaxMcap 一致）', async () => {
+  const r = await page.evaluate(() => { document.getElementById('tabPylon').click(); applyPreset('box600');
+    const M = MODEL, m = M.m, cv = M.cvY, cap = capPhi(m)*cv.PnMax;
+    // (φP_n, φM_n) 依 c 順序之折線；於全軸力範圍找出有多個分支（交點）之軸力
+    const A = cv.pts.map(p => ({P:p.phi*p.Pn, M:p.phi*p.Mn})), hits = [];
+    for(let k=1;k<400;k++){
+      const P = cap*k/400, Ms = [];
+      for(let i=0;i<A.length-1;i++){ const a = A[i], b = A[i+1]; if((a.P-P)*(b.P-P) <= 0 && a.P !== b.P) Ms.push(a.M + (P-a.P)/(b.P-a.P)*(b.M-a.M)); }
+      if(Ms.length >= 3) hits.push({P, inner: Math.min(...Ms), outer: Math.max(...Ms), tool: phiMnAtP(cv, m, P)});
+    }
+    applyPreset('bldg60');
+    return hits; });
+  assert.ok(r.length > 0, 'box600 Y 軸應有 φ 過渡區內凹段（同一軸力多個分支）');
+  assert.ok(r.some(h => h.outer > 1.2*h.inner), '外側分支明顯較大（驗證案例確在內凹段）');
+  for(const h of r) assert.ok(Math.abs(h.tool/h.inner - 1) < 1e-9,
+    `P = ${(h.P/1000).toFixed(0)} tf：取最內側分支 ${(h.inner/1e5).toFixed(0)} tf·m（工具 ${(h.tool/1e5).toFixed(0)}）`);
+});
+
 test('N4：確認綁定相關輸入——改無關輸入保留注意項目確認，改相關輸入才須重新確認', async () => {
   const r = await page.evaluate(() => { document.getElementById('tabPylon').click(); applyPreset('bldg60');
     document.getElementById('lu').value = 20; render(); confAll('pylon');

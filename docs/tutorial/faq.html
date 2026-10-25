@@ -380,8 +380,8 @@ pre { font-family: "DejaVu Sans Mono", "WenQuanYi Zen Hei Mono", monospace; font
   <div class="q long"><h3>Q48. Excel 計算書和網頁有什麼不同？可以在 Excel 裡直接改嗎？</h3>
   <p>Excel 包含「檢核表」與「結構計算書(A4)」，<b>所有導出值都是 Excel 公式</b>，在 Excel 內改輸入會重算，P-M 曲線為原生散佈圖會隨輸入更新。但以下內容<b>不會</b>在 Excel 內重算，改了輸入要回網頁重新匯出：</p>
   <ul><li>斷面配筋圖、軸向配置立面、伸展搭接配置圖（匯出當下的 PNG）。</li>
-  <li>繫筋根數、\(n_l\)、\(h_x\)、箍筋肢距（匯出當下網頁值）。</li>
-  <li>柱雙軸精確解 \(D/C\)、扣除扭力縱筋後之 \(D/C\)（柱與梁）、梁另一檢核斷面之其他不合格項目（網頁值）：在 Excel 改任一輸入後，相關判定與總判定顯示「須回網頁重算」。</li>
+  <li>繫筋根數、\(n_l\)、\(h_x\)、箍筋肢距（匯出當下網頁值）；繫筋採「自訂（點選）」時，在 Excel 改任一輸入後撓曲判定與總判定顯示「須回網頁重算」。</li>
+  <li>柱雙軸精確解 \(D/C\)、扣除扭力縱筋後之 \(D/C\)（柱與梁；柱之單軸、圓形組合亦同）、梁另一檢核斷面之其他不合格項目（網頁值）：在 Excel 改任一輸入後，相關判定與總判定顯示「須回網頁重算」。</li>
   <li>P-M 圖例的載重組合數（在 Excel 新增組合不會自動上圖）。</li></ul>
   <p>Excel 也不含 Mander 曲線與建議配筋清單。</p>
   <figure><img src="img/26-xl-check.png"><figcaption>圖 23　Excel「檢核表」：輸入、公式、判定標準與規範條號</figcaption></figure>
