@@ -483,6 +483,27 @@ function buildColumn(ExcelJS, inp){
   S.item({key:'scwbJ', label:'強柱弱梁', sym:'ΣMnc ≧ 1.2ΣMnb', unit:'—',
     f:'IF(OR({isBldg}=0,{isPH}=0),"不適用",IF({scwbEx}=1,"得免（軸壓 ≦ Agf′c/10）",IF(OR({scwbMbX}<=0,{scwbMbY}<=0),"未輸入 ΣMnb（須另行檢核）",IF(AND({scwbNc}*{scwbMncX}>=1.2*{scwbMbX},{scwbNc}*{scwbMncY}>=1.2*{scwbMbY}),"符合","不符"))))',
     crit:'ΣMnc = 柱數 × Mnc ≧ (6/5)ΣMnb；不符時柱之側向強度與勁度不得計入（§18.4.3.3）', ref:ref401('18.4.3.2')});
+  // 梁柱接頭剪力（§18.5.4、表 18.5.4.3、§15.4.2.4、§18.5.2.3(d)；網頁 colJoint 同）
+  { const JI = inp.joint || {x:{}, y:{}};
+    S.item({key:'bjOn', label:'梁柱接頭剪力檢核', v:JI.on?'檢核':'不檢核', kind:'list', list:['不檢核','檢核'], ref:ref401('18.5.4')});
+    S.item({key:'bjAct', label:'　旗標：檢核梁柱接頭', f:'--AND({bjOn}="檢核",{isBldg}=1,{isPH}=1,{isPile}=0)', ref:'—'});
+    S.item({key:'bjEq', label:'圓柱等面積方形邊長', f:'SQRT(PI()*{Din}^2/4)', unit:'cm', fmt:'0.0', ref:ref401('R18.5.2.3')});
+    for(const [D, d, dep, wid] of [['X','x','Be','He'],['Y','y','He','Be']]){
+      const q = JI[d] || {}, k = s0 => `bj${D}${s0}`;
+      S.item({key:k('Cfg'), label:`接頭：沿 ${D} 向之梁`, v:q.cfg==='ext'?'僅一側':'兩側連續', kind:'list', list:['兩側連續','僅一側'], ref:ref401('15.2.7')});
+      S.item({key:k('Bw'), label:`接頭：沿 ${D} 向梁寬 bw`, v:q.bw??40, unit:'cm', kind:'in', fmt:'0', ref:'—'});
+      S.item({key:k('Hb'), label:`接頭：沿 ${D} 向梁深 h`, v:q.hb??70, unit:'cm', kind:'in', fmt:'0', ref:'—'});
+      S.item({key:k('At'), label:`接頭：沿 ${D} 向梁頂筋 As`, v:q.At??0, unit:'cm²', kind:'in', fmt:'0.00', ref:'—'});
+      S.item({key:k('Ab'), label:`接頭：沿 ${D} 向梁底筋 As`, v:q.Ab??0, unit:'cm²', kind:'in', fmt:'0.00', ref:'—'});
+      S.item({key:k('Tr'), label:`接頭：${D} 向之橫向梁圍束`, v:q.tr===false?'無':'有', kind:'list', list:['有','無'], ref:ref401('15.2.8')});
+      S.item({key:k('hJ'), label:`接頭深度（${D} 向）`, f:`IF({isCirc}=1,{bjEq},{${dep}})`, unit:'cm', fmt:'0.0', ref:ref401('15.4.2.4')});
+      S.item({key:k('wC'), label:`接頭柱寬（垂直 ${D} 向）`, f:`IF({isCirc}=1,{bjEq},{${wid}})`, unit:'cm', fmt:'0.0', ref:'—'});
+      S.item({key:k('bE'), label:`有效接頭寬（${D} 向）`, f:`MIN({${k('wC')}},{${k('Bw')}}+2*MIN({${k('hJ')}}/4,MAX(0,({${k('wC')}}-{${k('Bw')}})/2)))`, unit:'cm', fmt:'0.0', expr:'柱寬，但 ≦ bw + 2·min(深度/4, 梁側至柱邊)', ref:ref401('15.4.2.4')});
+      S.item({key:k('k'), label:`表 18.5.4.3 係數（${D} 向）`, f:`IF({scwbNc}>=2,IF({${k('Cfg')}}="兩側連續",IF({${k('Tr')}}="有",5.3,3.9),IF({${k('Tr')}}="有",3.9,3.2)),IF({${k('Cfg')}}="兩側連續",IF({${k('Tr')}}="有",3.9,3.2),IF({${k('Tr')}}="有",3.2,2.1)))`, unit:'—', fmt:'0.0', expr:'柱連續（柱數 2）／梁連續／橫向梁圍束', ref:ref401('表 18.5.4.3')});
+      S.item({key:k('Vu'), label:`接頭剪力 Vu（${D} 向）`, f:`1.25*{fy}*IF({${k('Cfg')}}="兩側連續",{${k('At')}}+{${k('Ab')}},MAX({${k('At')}},{${k('Ab')}}))/1000`, unit:'tf', fmt:'#,##0.0', expr:'1.25fy·As（柱剪力保守不扣）', ref:ref401('18.5.2.1、18.5.4.1')});
+      S.item({key:k('Pn'), label:`接頭設計剪力強度 φVn（${D} 向）`, f:`0.85*{${k('k')}}*{dvLam}*SQRT({fc})*{${k('hJ')}}*{${k('bE')}}/1000`, unit:'tf', fmt:'#,##0.0', expr:"0.85·k·λ√f'c·Aj", ref:ref401('18.5.4.3、21.2.4.4')});
+    }
+  }
   S.item({key:'theta', label:'扭矩桁架角 θ', sym:'θ', v:inp.theta, unit:'°', kind:'in', fmt:'0', crit:'非預力構材取 45°', ref:ref401('22.7.6.1.2')});
   S.item({key:'pair', label:'Ash 之 bc 配對', v:inp.ashPerp?'垂直（肢的跨距）':'平行（量至肢外緣）', kind:'list', list:['垂直（肢的跨距）','平行（量至肢外緣）'],
     crit:'解說 R18.4.5.4：bc 為垂直構成 Ash 之箍筋肢之核心尺度（＝垂直）；「平行」僅供比較', ref:ref401('18.4.5.4、解說 R18.4.5.4'),
@@ -743,6 +764,7 @@ function buildColumn(ExcelJS, inp){
   addSum({label:'橋墩施工縫剪力 需求／Vj（tf）', need:{f:'{cjVreq}'}, cap:{f:'{cjVj}'}, ratio:{f:'IF({cjVj}>0,{cjVreq}/{cjVj},9)'}, judge:{f:'IF({cjOn}=0,"N/A",IF({cjVj}>={cjVreq}-1E-6,"PASS","FAIL"))'}, fmt:'#,##0', ref:'公路橋梁耐震設計規範 §5.6'});
   addSum({label:'施工縫不得設於主筋搭接處', need:0, cap:{f:'{cjLap}'}, ratio:{f:'{cjLap}'}, judge:{f:'IF({cjOn}=0,"N/A",IF({cjLap}=0,"PASS","FAIL"))'}, fmt:'0', ref:'公路橋梁耐震設計規範 §5.6'});
   addSum({label:'基樁最小配置鋼筋樁長（cm）', need:{f:'{pileLmin}'}, cap:{f:'{pileL}-{pileZb}'}, ratio:{f:'{pileLmin}/MAX(1,{pileL}-{pileZb})'}, judge:{f:'IF(OR({isPile}=0,{pileSeis}=0),"N/A",IF(AND({pileSite}<>"第三類",{pileLf}<=0),"參考",IF({pileL}-{pileZb}>={pileLmin}-1E-6,"PASS","FAIL")))'}, note:{f:'IF(AND({isPile}=1,{pileSeis}=1,{pileSite}<>"第三類",{pileLf}<=0),"撓曲長度未輸入","")'}, fmt:'#,##0', ref:ref401('表 18.10.5.7.1')});
+  for(const D of ['X','Y']) addSum({label:`梁柱接頭剪力（沿 ${D} 向之梁）（tf）`, need:{f:`{bj${D}Vu}`}, cap:{f:`{bj${D}Pn}`}, ratio:{f:`IF({bj${D}Pn}>0,{bj${D}Vu}/{bj${D}Pn},9)`}, judge:{f:`IF(OR({bjAct}=0,{bj${D}At}+{bj${D}Ab}<=0),"N/A",IF(AND({bj${D}Vu}<={bj${D}Pn}+1E-6,{bj${D}hJ}>={bj${D}Hb}/2-1E-9),"PASS","FAIL"))`}, fmt:'#,##0.0', ref:ref401('18.5.4、18.5.2.3(d)')});
   addSum({label:'柱底箍筋延伸入基礎 需求／可用（cm）', need:{f:'{jxNeedB}'}, cap:{f:'{dvAvB}'}, ratio:{f:'IF({dvAvB}>0,{jxNeedB}/{dvAvB},9)'}, judge:{f:'IF({jxOnB}=0,"N/A",IF({jxNeedB}<={dvAvB}+1E-9,"PASS","FAIL"))'}, fmt:'0', ref:R401('18.10.2.3')+'；公路橋梁耐震設計規範 §5.3.5'});
   addSum({label:'柱頂箍筋延伸入接頭 需求／可用（cm）', need:{f:'{jxNeedT}'}, cap:{f:'{jxAvT}'}, ratio:{f:'IF({jxAvT}>0,{jxNeedT}/{jxAvT},9)'}, judge:{f:'IF({jxOnT}=0,"N/A",IF({jxNeedT}<={jxAvT}+1E-9,"PASS","FAIL"))'}, fmt:'0', ref:R401('18.5.3.1')+'；公路橋梁耐震設計規範 §5.3.5'});
   addSum({label:'甲級搭接 As,使用／As,需求', need:2, cap:{f:'IF({dvExc}>0,1/{dvExc},1)'}, ratio:{f:'2*{dvExc}'}, judge:{f:'IF({dvSp}<>"甲級搭接","N/A",IF({dvExc}<=0.5+1E-9,"PASS","FAIL"))'}, ref:R401('表 25.5.2.1')});

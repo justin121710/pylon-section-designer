@@ -368,3 +368,41 @@ test('基樁：Excel 最小配置鋼筋樁長、箍筋與續接同網頁（Libre
   }
   await page.evaluate(() => applyPreset('bldg60'));
 });
+
+/* ---------------- 梁柱接頭剪力（§18.5.4） ---------------- */
+const jRun = set => page.evaluate(set => { document.getElementById('tabPylon').click(); applyPreset('bldg60');
+  for(const [id, v] of Object.entries(set || {})) document.getElementById(id).value = v;
+  const M = render();
+  return {J: M.joint, unc: colUncovered(M), fy: M.m.fy, fc: M.m.fc, lam: M.m.lam || 1, B: M.s.B, H: M.s.H}; }, set);
+
+test('梁柱接頭：V_u = 1.25f_y·A_s，φV_n = 0.85kλ√f′c·A_j（表 18.5.4.3、§15.4.2.4），預設不檢核列未涵蓋', async () => {
+  const n = await jRun({});
+  assert.equal(n.J, null); assert.ok(n.unc.some(t => /18\.5\.4/.test(t)));
+  const set = {bjOn: '1', bjXAt: 30, bjXAb: 20, bjXBw: 40, bjXCfg: 'int', bjXTr: '1', bjYAt: 30, bjYAb: 20, bjYBw: 40, bjYCfg: 'ext', bjYTr: '0', scwbNc: '2'};
+  const r = await jRun(set), x = r.J.dirs[0], y = r.J.dirs[1];
+  assert.ok(Math.abs(x.Vu - 1.25*r.fy*50) < 1e-6, '兩側連續 T + C'); assert.ok(Math.abs(y.Vu - 1.25*r.fy*30) < 1e-6, '僅一側 max(T, C)');
+  assert.equal(x.k, 5.3); assert.equal(y.k, 3.2);
+  const bwE = Math.min(r.H, 40 + 2*Math.min(r.B/4, (r.H - 40)/2));
+  assert.ok(Math.abs(x.Aj - r.B*bwE) < 1e-6, 'A_j');
+  assert.ok(Math.abs(x.phiVn - 0.85*5.3*r.lam*Math.sqrt(r.fc)*x.Aj) < 1e-6);
+  assert.ok(!r.unc.some(t => /18\.5\.4/.test(t)), '已檢核不列未涵蓋');
+  const top = await jRun({...set, scwbNc: '1'});
+  assert.equal(top.J.dirs[0].k, 3.9, '頂層柱：柱不連續');
+  await page.evaluate(() => applyPreset('bldg60'));
+});
+
+test('梁柱接頭：Excel 同網頁（LibreOffice 重算）', {skip: !hasSoffice && '未安裝 LibreOffice（soffice）'}, async () => {
+  const cases = [{bjOn: '1', bjXAt: 30, bjXAb: 20, bjYAt: 40, bjYAb: 25, bjYCfg: 'ext', bjYTr: '0'}, {bjOn: '1', bjXAt: 80, bjXAb: 60, bjYAt: 10, bjYAb: 10, scwbNc: '1'}];
+  const web = [];
+  for(let i=0;i<cases.length;i++){ web.push(await jRun(cases[i])); await exportAs('bj' + i); }
+  const load = recalc(cases.map((_, i) => 'bj' + i), 'outbj');
+  for(let i=0;i<cases.length;i++){
+    const wb = await load('bj' + i), r = web[i];
+    for(const q of r.J.dirs){ const D = q.d.toUpperCase();
+      assert.ok(Math.abs(Number(row(wb, `接頭設計剪力強度 φVn（${D} 向）`).v) - q.phiVn/1000) < 0.05, `${i} ${D}：φVn`);
+      assert.ok(Math.abs(Number(row(wb, `接頭剪力 Vu（${D} 向）`).v) - q.Vu/1000) < 0.05, `${i} ${D}：Vu`);
+      assert.equal(row(wb, `梁柱接頭剪力（沿 ${D} 向之梁）（tf）`).judge, q.ok && q.depthOk ? 'PASS' : 'FAIL', `${i} ${D}：判定`);
+    }
+  }
+  await page.evaluate(() => applyPreset('bldg60'));
+});

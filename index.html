@@ -947,6 +947,20 @@ img,video{max-width:100%;height:auto}
         <select id="scwbNc"><option value="2">2（接頭上、下皆有柱）</option><option value="1">1（頂層柱）</option></select></div>
       <div class="fld"><span>接頭梁 ΣM<sub>nb</sub>（繞 X 軸，tf·m）</span><input id="scwbMbX" type="number" step="5" value="0"></div>
       <div class="fld"><span>接頭梁 ΣM<sub>nb</sub>（繞 Y 軸，tf·m）</span><input id="scwbMbY" type="number" step="5" value="0"></div>
+      <div class="fld"><span>梁柱接頭剪力（§18.5.4）</span><select id="bjOn"><option value="0">不檢核（列未涵蓋）</option><option value="1">檢核（輸入接頭梁）</option></select></div>
+      <div class="fld"><span>接頭：沿 X 向之梁</span><select id="bjXCfg"><option value="int">兩側皆有梁（連續，§15.2.7）</option><option value="ext">僅一側（外側接頭）</option></select></div>
+      <div class="fld"><span>接頭：沿 X 向梁寬 b<sub>w</sub> (cm)</span><input id="bjXBw" type="number" step="5" value="40"></div>
+      <div class="fld"><span>接頭：沿 X 向梁深 h (cm)</span><input id="bjXHb" type="number" step="5" value="70"></div>
+      <div class="fld"><span>接頭：沿 X 向梁頂筋 A<sub>s</sub> (cm²)</span><input id="bjXAt" type="number" step="1" value="0"></div>
+      <div class="fld"><span>接頭：沿 X 向梁底筋 A<sub>s</sub> (cm²)</span><input id="bjXAb" type="number" step="1" value="0"></div>
+      <div class="fld"><span>接頭：X 向之橫向梁圍束（§15.2.8）</span><select id="bjXTr"><option value="1">有（兩側橫向梁寬 ≥ 3/4 柱寬）</option><option value="0">無</option></select></div>
+      <div class="fld"><span>接頭：沿 Y 向之梁</span><select id="bjYCfg"><option value="int">兩側皆有梁（連續，§15.2.7）</option><option value="ext">僅一側（外側接頭）</option></select></div>
+      <div class="fld"><span>接頭：沿 Y 向梁寬 b<sub>w</sub> (cm)</span><input id="bjYBw" type="number" step="5" value="40"></div>
+      <div class="fld"><span>接頭：沿 Y 向梁深 h (cm)</span><input id="bjYHb" type="number" step="5" value="70"></div>
+      <div class="fld"><span>接頭：沿 Y 向梁頂筋 A<sub>s</sub> (cm²)</span><input id="bjYAt" type="number" step="1" value="0"></div>
+      <div class="fld"><span>接頭：沿 Y 向梁底筋 A<sub>s</sub> (cm²)</span><input id="bjYAb" type="number" step="1" value="0"></div>
+      <div class="fld"><span>接頭：Y 向之橫向梁圍束（§15.2.8）</span><select id="bjYTr"><option value="1">有（兩側橫向梁寬 ≥ 3/4 柱寬）</option><option value="0">無</option></select></div>
+
       <div class="fld"><span>柱淨高 l<sub>u</sub> (cm)</span><input id="lu" type="number" step="10" value="300"></div>
       <div class="fld"><span>側向位移支撐</span>
         <select id="slFrame"><option value="sway">無側向位移支撐（有側移）</option><option value="braced">有側向位移支撐（無側移）</option></select></div>
@@ -2210,7 +2224,7 @@ function applyPreset(key){
   { const bl = (P.code||'bridge')==='bldg';
     S('dAncBot', P.ancBot || (bl ? 'through' : 'hook90')); S('dAncTop', P.ancTop || (bl ? 'through' : 'hook90'));
     S('dHBot', P.hBot || (bl ? 70 : 200)); S('dHTop', P.hTop || (bl ? 70 : 180)); S('dAncCov', P.ancCov || (bl ? 4 : 7.5));
-    S('dSplice', P.splice || 'B'); S('dStagger', P.stagger ? '1' : '0'); S('dLapGap', P.lapGap || 0); S('dStock', P.stock ?? 1200); S('dFtgEdge', P.ftgEdge ? '1' : '0'); S('dBrStag', P.brStag ? '1' : '0'); S('dBrAnc', P.brAnc ? '1' : '0'); S('dCj', P.cj || 'none'); S('dCjH', P.cjH || 0); S('dCjMu', '1'); }
+    S('dSplice', P.splice || 'B'); S('dStagger', P.stagger ? '1' : '0'); S('dLapGap', P.lapGap || 0); S('dStock', P.stock ?? 1200); S('dFtgEdge', P.ftgEdge ? '1' : '0'); S('dBrStag', P.brStag ? '1' : '0'); S('dBrAnc', P.brAnc ? '1' : '0'); S('bjOn', P.bjOn || '0'); S('dCj', P.cj || 'none'); S('dCjH', P.cjH || 0); S('dCjMu', '1'); }
   if(P.type==='circle'){ S('Dia',P.D); S('nCir',P.nCir); S('spiral',P.spiral||'spiral'); }
   LOADS = P.loads.map(l=>({...l}));
   drawLoads(); render();
@@ -5746,7 +5760,7 @@ function colXlsxInput(){
     phio:num('phio',1.3), phivB:num('phivB',0.85), Lv:num('Lv',4000), lu:num('lu',300), theta:num('theta',45), ashPerp:g('ashPair')!=='para',
     brExpo:g('brExpo'), slSway:g('slFrame')!=='braced', slK:num('slK',1), slM12:Math.max(-1,Math.min(1,num('slM12',-1))),
     slKy:num('slKy',1), slLuY:Math.max(0,num('slLuY',0)), slTreat:g('slTreat'), slBeta:num('slBeta',0.6), slBetaS:Math.max(0,num('slBetaS',0)), slQ:Math.max(0,num('slQ',0)),
-    scwbNc: g('scwbNc')==='1' ? 1 : 2, scwbMbX: num('scwbMbX',0), scwbMbY: num('scwbMbY',0),
+    scwbNc: g('scwbNc')==='1' ? 1 : 2, scwbMbX: num('scwbMbX',0), scwbMbY: num('scwbMbY',0), joint: colJointInputs(true),
     vcRule: g('vcRule'), brPhiMode: g('brPhiMode'), brMnP: g('brMnP'), brPD: num('brPD',0), brVelX: num('brVelX',0), brVelY: num('brVelY',0), brPe: num('brPe',0),
     phEnds: g('phEnds')==='1' ? 1 : 2, layTotal: MODEL && MODEL.lay ? MODEL.lay.total : 60,
     dev: devOpts('d'), devX: (()=>{ const X = devXCol(); return MODEL && MODEL.opt.pile ? {...X, ancBot:'through'} : X; })(),
@@ -5946,12 +5960,42 @@ document.addEventListener('click',e=>{
 });
 document.addEventListener('keydown', e=>{ if(e.key==='Escape') vdPopClose(); });
 window.addEventListener('scroll', vdPopClose, true);
+/* 梁柱接頭（土木401-112 §18.5；建築特殊抗彎矩構架柱，選用）：
+   §18.5.4.1 接頭剪力 V_u = 梁筋 1.25f_y 之拉、壓力（兩側皆有梁：T + C；僅一側：max(T, C)）− 柱剪力（保守不扣），梁筋 f_y 同柱主筋；
+   表 18.5.4.3 V_n = k·λ√f'c·A_j（柱於接頭上方連續 §15.2.6：取強柱弱梁之「柱數 = 2」；梁連續 §15.2.7；橫向梁圍束 §15.2.8），φ = 0.85（§21.2.4.4）；
+   §15.4.2.4 A_j = 剪力方向柱全深 × 有效寬（柱寬，但 ≤ b_w + 2·min(深度/4, 梁側至柱邊距離)，梁置中）；圓柱取等面積方形；箱型以外框計（接頭實心）。
+   §18.5.2.3(d) 接頭深度 ≥ 梁深/2；§18.5.3.3 梁寬大於柱核心寬且無橫向梁圍束時，核心外梁筋須以穿過柱之橫向鋼筋圍束（提醒）。 */
+function colJointInputs(all){
+  const g = id => document.getElementById(id);
+  if(!g('bjOn') || (!all && g('bjOn').value!=='1')) return null;
+  const d = D => ({cfg: g(`bj${D}Cfg`).value, bw: Math.max(1, num(`bj${D}Bw`,40)), hb: Math.max(1, num(`bj${D}Hb`,70)),
+    At: Math.max(0, num(`bj${D}At`,0)), Ab: Math.max(0, num(`bj${D}Ab`,0)), tr: g(`bj${D}Tr`).value==='1'});
+  return {on: g('bjOn').value==='1', colCont: g('scwbNc').value==='2', x: d('X'), y: d('Y')};
+}
+function colJoint(M, X){
+  const {s, m, opt, r} = M;
+  if(!X || opt.code!=='bldg' || !opt.plastic || opt.pile) return null;
+  const lam = m.lam || 1, sq = Math.sqrt(m.fc), circ = s.type==='circle', eqs = circ ? Math.sqrt(Math.PI*s.D*s.D/4) : 0;
+  const dirs = ['x','y'].map(d => {
+    const q = X[d], hJ = circ ? eqs : d==='x' ? s.B : s.H, wC = circ ? eqs : d==='x' ? s.H : s.B;
+    const bwE = Math.min(wC, q.bw + 2*Math.min(hJ/4, Math.max(0, (wC - q.bw)/2))), Aj = hJ*bwE;
+    const beamCont = q.cfg==='int';
+    const k = X.colCont ? (beamCont ? (q.tr ? 5.3 : 3.9) : (q.tr ? 3.9 : 3.2)) : (beamCont ? (q.tr ? 3.9 : 3.2) : (q.tr ? 3.2 : 2.1));
+    const T = 1.25*m.fy*q.At, C = 1.25*m.fy*q.Ab, Vu = beamCont ? T + C : Math.max(T, C);
+    const Vn = k*lam*sq*Aj, phiVn = 0.85*Vn;
+    const coreW = wC - 2*(r.covO + BAR[r.tieSize].d), outside = !circ && q.bw > coreW + 1e-9;
+    return {d, ...q, hJ, wC, bwE, Aj, k, beamCont, T, C, Vu, Vn, phiVn, ok: Vu <= phiVn + 1e-6, depthOk: hJ >= q.hb/2 - 1e-9,
+            noBars: !(q.At > 0 || q.Ab > 0), coreW, outside, outsideWarn: outside && !q.tr};
+  });
+  return {colCont: X.colCont, lam, dirs};
+}
 /* 本工具未涵蓋、須另行檢核之項目（判定列「未涵蓋」膠囊與警示、計算書附註共用） */
 function colUncovered(M){
   const o = M.opt, out = [];
   if(o.pile){ if(M.pileLen && M.pileLen.req && M.pileLen.lfMissing) out.push('基樁撓曲長度（0.4M_cr ＞ M_u 之深度，表 18.10.5.7.1(d)）：未輸入，最小配置鋼筋樁長未計入'); out.push('樁帽、基樁群與地盤承載（建築物基礎構造設計規範）'); return out; }
   if(o.code==='bldg' && o.plastic){
-    out.push('梁柱接頭剪力強度（土木401-112 §18.5.4）'); out.push('柱核心外梁縱向鋼筋之圍束（§18.5.3.3）');
+    if(!M.joint || M.joint.dirs.some(q => q.noBars)) out.push('梁柱接頭剪力強度（土木401-112 §18.5.4）：參數表「梁柱接頭剪力」選檢核並輸入接頭梁');
+    if(!M.joint) out.push('柱核心外梁縱向鋼筋之圍束（§18.5.3.3）');
     if(M.scwb && !M.scwb.exempt && !(M.scwb.X.given && M.scwb.Y.given)) out.push('強柱弱梁 ΣM_nc ≥ 1.2ΣM_nb（§18.4.3.2，未輸入接頭梁 ΣM_nb）');
     if(M.conf && M.conf.highAx && M.s.type==='box') out.push('箱型柱高軸力之橫向鋼筋量（表 18.4.5.4 (c) 式，A_ch 對箱型無明確定義）');
   }
@@ -5963,7 +6007,7 @@ function colUncovered(M){
 }
 function beamUncovered(B){
   if(B.S.slab || !B.S.seismic) return [];
-  return ['梁柱接頭剪力強度與接頭內橫向鋼筋（土木401-112 §18.5.3、§18.5.4）', '強柱弱梁（於柱側檢核，§18.4.3.2）',
+  return ['梁柱接頭剪力強度（於柱模組「梁柱接頭剪力」檢核，§18.5.4）', '強柱弱梁（於柱側檢核，§18.4.3.2）',
     ...(B.S.c2 > 0 ? [] : ['梁寬超出支承柱寬之限制（§18.3.2.1(c)）：輸入支承柱寬 c₂ 後檢核']),
     ...(B.hingeZ ? [] : ['跨內可能撓曲降伏斷面兩側 2h 之加密（§18.3.4.1(b)）：若有，輸入其位置後加密'])];
 }
@@ -6022,6 +6066,7 @@ function colPipeline(){
   M.dev=colDev(M);                     // 不依軸向配置；基樁最小配置鋼筋樁長需 l_d，故先算
   M.lay=colLayout(M);
   M.devX=devXCol(); M.devPlan=colDevPlan(M); M.lay=M.devPlan.lay;
+  M.joint = colJoint(M, colJointInputs());
   const cf=M.conf.finalize(M.fin.sUse);
   M.cf=cf; M.MD=cf.MD;
   return M;
@@ -6055,7 +6100,8 @@ function render(){
   pinNA('pylon', ['brMnP'], M.opt.code==='bldg' || M.opt.phEnds!==1);
   pinNA('pylon', ['brPD'], M.opt.code==='bldg' || M.opt.phEnds!==1 || M.opt.brMnP!=='dead');
   pinNA('pylon', ['phEnds'], !M.opt.plastic);
-  pinNA('pylon', ['scwbMbX','scwbMbY','scwbNc'], !(M.opt.plastic && M.opt.code==='bldg' && !M.opt.pile));
+  pinNA('pylon', ['scwbMbX','scwbMbY','scwbNc','bjOn'], !(M.opt.plastic && M.opt.code==='bldg' && !M.opt.pile));
+  pinNA('pylon', ['X','Y'].flatMap(D => ['Cfg','Bw','Hb','At','Ab','Tr'].map(k => `bj${D}${k}`)), !M.joint);
   pinNA('pylon', ['pileL','pileSite','pileEccMode','pileE','pileInfl'], !PL);
   pinNA('pylon', ['lu','slFrame','slK','slKy','slLuY','slTreat','slBeta','slBetaS','slQ','pmaxf','dAncBot','dHBot'], PL);    // 基樁：長細效應、柱淨高、軸力截斷、底端錨定不適用
   if(PL){ pinNA('pylon', ['pileSite'], !M.opt.pile.seis); pinNA('pylon', ['pileE'], M.opt.pile.mode!=='user'); pinNA('pylon', ['slM12'], true); }
@@ -6518,6 +6564,15 @@ function colAlertItems(M){
     else if(!W.X.given || !W.Y.given) add('warn',`<b>強柱弱梁未完整檢核</b>（土木401-112 §18.4.3.2，特殊抗彎矩構架柱必須符合）：${t(W.X)}；${t(W.Y)}。請輸入構入接頭之梁標稱彎矩強度總和 ΣM_nb（T 形梁含有效翼寬內板筋）。`, ids);
     else add(W.ok ? 'ok' : 'bad', `${W.ok ? '強柱弱梁' : '<b>強柱弱梁不符</b>'}（§18.4.3.2，M_nc 取各組合軸力下之最小值）：${t(W.X)}；${t(W.Y)}。`
       + (W.ok ? '' : '不符時該柱之側向強度與勁度不得計入結構強度與勁度（§18.4.3.3），須加大柱斷面或配筋。'), ids);
+  }
+  if(M.joint) for(const q of M.joint.dirs){ // 梁柱接頭（§18.5）
+    const D = q.d.toUpperCase(), ids = [`bj${D}Cfg`,`bj${D}Bw`,`bj${D}Hb`,`bj${D}At`,`bj${D}Ab`,`bj${D}Tr`,'scwbNc','B','H','Dia','fc'];
+    if(q.noBars){ add('warn', `<b>梁柱接頭（沿 ${D} 向之梁）未輸入梁筋</b>：請輸入接頭梁頂筋、底筋面積（§18.5.4）。`, ids); continue; }
+    add(q.ok ? 'ok' : 'bad', `${q.ok ? '梁柱接頭剪力' : '<b>梁柱接頭剪力不足</b>'}（沿 ${D} 向之梁，土木401-112 §18.5.4）：V_u = 1.25f_y(${q.beamCont ? 'A_s,頂 + A_s,底' : 'max(A_s,頂, A_s,底)'}) = ${f(q.Vu/TF,1)} tf ${q.ok ? '≤' : '＞'} φV_n = 0.85 × ${q.k}λ√f'c·A_j = ${f(q.phiVn/TF,1)} tf`
+      + `（A_j = ${f(q.hJ,0)} × ${f(q.bwE,0)} cm²；柱${M.joint.colCont ? '於接頭上方連續' : '頂層'}、梁${q.beamCont ? '兩側連續' : '僅一側'}、${q.tr ? '有' : '無'}橫向梁圍束；柱剪力保守不扣）`
+      + (q.ok ? '。' : '：加大柱斷面、提高 f′c 或減少梁筋。'), ids);
+    if(!q.depthOk) add('bad', `<b>接頭深度不足</b>（沿 ${D} 向）：柱深 ${f(q.hJ,0)} cm ＜ 梁深/2 = ${f(q.hb/2,1)} cm（§18.5.2.3(d)）。`, ids);
+    if(q.outsideWarn) add('warn', `<b>柱核心外之梁縱筋須圍束</b>（沿 ${D} 向）：梁寬 ${f(q.bw,0)} cm ＞ 柱核心寬 ${f(q.coreW,1)} cm 且無橫向梁圍束，核心外梁筋應以穿過柱之橫向鋼筋圍束（間距依 §18.3.4.4，§18.5.3.3）。`, ids);
   }
   { // 扭力縱筋（§9.5.4.3、§9.6.4.3、§9.7.5）
     const T = M.torsL, ids = ['barSize','nB','nH','nCir','tieSize','#loadTbl'];
@@ -7010,6 +7065,8 @@ function colSummaryRows(M){
     if(S.exempt) row('強柱弱梁 ΣM_nc ≥ 1.2ΣM_nb', '—', '—', '—', 'N/A（軸壓 ≤ A_g f\'_c/10 得免）', '土木401-112 §18.4.3.2');
     else for(const A of [S.X, S.Y]) row(`強柱弱梁（繞 ${A.nm} 軸）ΣM_nc／ΣM_nb（tf·m）`, A.given ? d(1.2*A.Mb/TFM,1) : '未輸入', d(A.sum/TFM,1),
       A.given ? d(1.2*A.Mb/A.sum,3) : '—', A.given ? J(A.ok) : '須另行檢核', '土木401-112 §18.4.3.2'); }
+  if(M.joint) for(const q of M.joint.dirs) if(!q.noBars)
+    row(`梁柱接頭剪力（沿 ${q.d.toUpperCase()} 向之梁）V_u／φV_n（tf）`, d(q.Vu/TF,1), d(q.phiVn/TF,1), d(q.Vu/q.phiVn,3), J(q.ok && q.depthOk), '土木401-112 §18.5.4、表 18.5.4.3、§18.5.2.3(d)');
   { const dv = devVerdict(M.devPlan, 'devPlan'); row('主筋伸展長度與搭接', '—', dv[2], '—', dv[0]==='bad' ? 'NG' : dv[0]==='warn' ? '注意' : 'OK', '土木401-112 第 25 章'); }
   return rows;
 }
