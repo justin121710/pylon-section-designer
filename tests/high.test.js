@@ -193,7 +193,8 @@ test('H6：未涵蓋項目以「未涵蓋」顯示，不得呈現為全數合格
   await setup('pier100');
   const r = await page.evaluate(() => ({t: document.getElementById('verdict').innerText, list: colUncovered(MODEL)}));
   assert.match(r.t, /未涵蓋/);
-  assert.ok(r.list.some(s => /§5\.3\.5/.test(s)), '橋梁應列出圍束鋼筋延伸入接頭（§5.3.5）');
+  assert.ok(r.list.some(s => /§5\.5/.test(s)), '橋梁應列出橋柱接頭部（§5.5）');
+  assert.ok(!r.list.some(s => /§5\.3\.5/.test(s)), '圍束鋼筋延伸入接頭（§5.3.5）已納入檢核，不列未涵蓋');
 });
 
 test('H6：橋梁塑鉸區內不續接（§5.3.6），第三類續接器亦同；建築第三類可設於任何位置', async () => {

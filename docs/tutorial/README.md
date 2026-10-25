@@ -1,8 +1,8 @@
 # 操作教學與常見問題 PDF 建置
 
 輸出（A4，含標註截圖；公式與符號以 KaTeX 排版，與網頁、計算書、Excel 的 LaTeX 風格一致）：
-- `docs/RC斷面設計工具_操作教學.pdf`：原稿 `tutorial.html`
-- `docs/RC斷面設計工具_常見問題.pdf`：原稿 `faq.html`（原 FAQ.md，改為附圖問答；截圖 `img/f-*.png` 由 build.js 另行拍攝，其餘沿用教學截圖）
+- `docs/RC構件設計工具_操作教學.pdf`：原稿 `tutorial.html`
+- `docs/RC構件設計工具_常見問題.pdf`：原稿 `faq.html`（原 FAQ.md，改為附圖問答；截圖 `img/f-*.png` 由 build.js 另行拍攝，其餘沿用教學截圖）
 
 | 檔案 | 用途 |
 |---|---|

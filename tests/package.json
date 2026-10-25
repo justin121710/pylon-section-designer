@@ -1,7 +1,7 @@
 {
   "name": "rcsd-regression",
   "private": true,
-  "description": "RC 斷面設計工具之數值回歸測試（無頭 Chromium 載入 index.html 後直接驗算）",
+  "description": "RC 構件設計工具之數值回歸測試（無頭 Chromium 載入 index.html 後直接驗算）",
   "scripts": {
     "test": "node --test --test-concurrency=1"
   },

@@ -1,7 +1,7 @@
 {
   "name": "rcsd-tutorial",
   "private": true,
-  "description": "建置 docs/RC斷面設計工具_操作教學.pdf（截圖、Excel 圖、KaTeX 排版）",
+  "description": "建置 docs/RC構件設計工具_操作教學.pdf（截圖、Excel 圖、KaTeX 排版）",
   "scripts": {
     "build": "node build.js",
     "check": "sh check.sh"

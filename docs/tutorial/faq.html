@@ -2,8 +2,8 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-<title>RC 斷面設計工具 常見問題</title>
-<!-- 常見問題（FAQ）原稿：由 build.js 截圖並列印為 docs/RC斷面設計工具_常見問題.pdf。公式與符號一律以 KaTeX \( … \) 排版 -->
+<title>RC 構件設計工具 常見問題</title>
+<!-- 常見問題（FAQ）原稿：由 build.js 截圖並列印為 docs/RC構件設計工具_常見問題.pdf。公式與符號一律以 KaTeX \( … \) 排版 -->
 <link rel="stylesheet" href="node_modules/katex/dist/katex.min.css">
 <script src="node_modules/katex/dist/katex.min.js"></script>
 <script src="node_modules/katex/dist/contrib/auto-render.min.js"></script>
@@ -53,9 +53,9 @@ pre { font-family: "DejaVu Sans Mono", "WenQuanYi Zen Hei Mono", monospace; font
 <body>
 
 <section class="cover">
-  <h1>RC 斷面設計工具<br>常見問題（FAQ）</h1>
+  <h1>RC 構件設計工具<br>常見問題（FAQ）</h1>
   <div class="sub">工程師／技師版：操作流程與工程實務問答<br>附操作截圖，與《操作教學》同步建置</div>
-  <div class="meta">細部公式與條號見 README.md；操作步驟見《RC斷面設計工具_操作教學.pdf》<br>全程 kgf-cm 制；載重表輸入為 tf、tf·m；條號依土木401-112<br><br><span id="ver">（版本資訊於建置時寫入）</span></div>
+  <div class="meta">細部公式與條號見 README.md；操作步驟見《RC構件設計工具_操作教學.pdf》<br>全程 kgf-cm 制；載重表輸入為 tf、tf·m；條號依土木401-112<br><br><span id="ver">（版本資訊於建置時寫入）</span></div>
 </section>
 
 <section class="chap">
@@ -358,10 +358,13 @@ pre { font-family: "DejaVu Sans Mono", "WenQuanYi Zen Hei Mono", monospace; font
   <div class="q"><h3>Q43. 搭接或機械式續接可以放在哪裡？</h3>
   <ul><li>建築耐震柱：中央 1/2 淨高。</li><li>橋梁：塑鉸區外（公路橋梁耐震設計規範 §5.3.6，塑鉸區內主筋以不續接為原則；第三類續接器亦同）。</li><li>耐震梁：接頭及 \(2h\) 範圍外；錯開時需 \(2l_{st}\)。</li>
   <li>基樁：工具建議設於樁頂加密區外。</li>
-  <li>機械式續接第一、二類不得設於接頭面或降伏臨界斷面 \(2h\) 內（柱中央 1/2 除外），第三類不限。</li></ul></div>
+  <li>機械式續接第一、二類不得設於接頭面或降伏臨界斷面 \(2h\) 內（柱中央 1/2 除外），第三類不限。</li>
+  <li><b>橋梁續接錯開</b>：公路橋梁耐震設計規範 §5.3.5 末段要求「鋼筋之續接應予錯開，且雙層鋼筋之續接點不得在同一處」。參數表「橋梁主筋續接錯開」預設不強制，改為「強制」時未錯開判不合格（機械式續接列注意，請於圖說錯開）。</li>
+  <li><b>長構材（橋墩、橋塔、基樁）</b>：參數表「主筋定尺長度」（預設 1,200 cm，0＝不限）。任一段下料長超過定尺時，工具自上述續接處向上（頂段過長）或向下（底段過長）以步距 \(\lfloor(\text{定尺}-l_{st})/5\rfloor\times 5\) cm 增設續接，位置仍限於可續接範圍；範圍內放不下時判不合格（可改第三類機械式續接或特訂長度）。總覽圖、軸向配置與下料表會列出每一處續接。</li></ul></div>
 
   <div class="q"><h3>Q44. 錨定空間不足怎麼處理？</h3>
-  <p>工具檢核錨定長度 \(\le\) 構材尺寸 \(-\) 保護層。不足時可考慮：改用擴頭（\(l_{dt}\) 較短，需滿足 D36 以下、常重、淨保護層 \(\ge 2d_b\)、中心距 \(\ge 3d_b\)）、改用 180° 彎鉤、加深基礎或改小號數多根。注意柱筋受壓時彎鉤與擴頭不計入 \(l_{dc}\)。</p></div>
+  <p>工具檢核錨定長度 \(\le\) 構材尺寸 \(-\) 保護層。不足時可考慮：改用擴頭（\(l_{dt}\) 較短，需滿足 D36 以下、常重、淨保護層 \(\ge 2d_b\)、中心距 \(\ge 3d_b\)）、改用 180° 彎鉤、加深基礎或改小號數多根。注意柱筋受壓時彎鉤與擴頭不計入 \(l_{dc}\)。</p>
+  <p>橋梁柱筋錨入基礎、帽梁預設依條文取 \(1.25\times\) 所選錨定長度（§5.5）；參數表「橋梁主筋錨定長度」可改為依解說 C5.5：\(\max(1.25\,l_{d},\ 24d_{b})\)，不以彎鉤或擴頭抵減錨定長度（較長、偏保守），由設計者決定。</p></div>
 
   <div class="q"><h3>Q45. 「鋼筋下料長度表」可以直接給加工廠嗎？</h3>
   <p>不建議直接使用。下料長度<b>未扣彎曲伸長、未含續接器</b>，請依加工廠的彎曲伸長表調整後再下料。</p></div>
@@ -380,8 +383,8 @@ pre { font-family: "DejaVu Sans Mono", "WenQuanYi Zen Hei Mono", monospace; font
   <div class="q long"><h3>Q48. Excel 計算書和網頁有什麼不同？可以在 Excel 裡直接改嗎？</h3>
   <p>Excel 包含「檢核表」與「結構計算書(A4)」，<b>所有導出值都是 Excel 公式</b>，在 Excel 內改輸入會重算，P-M 曲線為原生散佈圖會隨輸入更新。但以下內容<b>不會</b>在 Excel 內重算，改了輸入要回網頁重新匯出：</p>
   <ul><li>斷面配筋圖、軸向配置立面、伸展搭接配置圖（匯出當下的 PNG）。</li>
-  <li>繫筋根數、\(n_l\)、\(h_x\)、箍筋肢距（匯出當下網頁值）。</li>
-  <li>柱雙軸精確解 \(D/C\)、扣除扭力縱筋後之 \(D/C\)（柱與梁）、梁另一檢核斷面之其他不合格項目（網頁值）：在 Excel 改任一輸入後，相關判定與總判定顯示「須回網頁重算」。</li>
+  <li>繫筋根數、\(n_l\)、\(h_x\)、箍筋肢距（匯出當下網頁值）；繫筋採「自訂（點選）」時，在 Excel 改任一輸入後撓曲判定與總判定顯示「須回網頁重算」。</li>
+  <li>柱雙軸精確解 \(D/C\)、扣除扭力縱筋後之 \(D/C\)（柱與梁；柱之單軸、圓形組合亦同）、梁另一檢核斷面之其他不合格項目（網頁值）：在 Excel 改任一輸入後，相關判定與總判定顯示「須回網頁重算」。</li>
   <li>P-M 圖例的載重組合數（在 Excel 新增組合不會自動上圖）。</li></ul>
   <p>Excel 也不含 Mander 曲線與建議配筋清單。</p>
   <figure><img src="img/26-xl-check.png"><figcaption>圖 23　Excel「檢核表」：輸入、公式、判定標準與規範條號</figcaption></figure>
