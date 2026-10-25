@@ -1816,6 +1816,12 @@ function buildBeam(ExcelJS, inp){
   S.item({key:'isS', label:'　旗標：耐震', f:'--AND({seis}="是",{isSlab}=0)', ref:'非規範明列條文，係本表判別用'});
   S.item({key:'ln', label:'淨跨 ln', sym:'ln', v:inp.ln, unit:'cm', kind:'in', fmt:'#,##0', ref:ref401('18.3.5.1')});
   S.item({key:'Vg', label:'重力剪力 Vg', sym:'Vg', v:inp.Vg, unit:'tf', kind:'in', fmt:'0.0', ref:ref401('18.3.5.1')});
+  S.item({key:'shZ', label:'剪力筋沿梁軸向', v:inp.shearZ?'依剪力圖分區':'不分區', kind:'list', list:['不分區','依剪力圖分區'], ref:'—',
+    note:'依剪力圖分區：設計剪力自柱面線性降至跨中（均布載重）；一般梁中央 ln/2 以 ln/4 處剪力、耐震梁 2h 外以 2h 處剪力設計；懸臂不適用'});
+  S.item({key:'Vmid', label:'跨中剪力 Vu,中', sym:'Vu,中', v:inp.Vmid||0, unit:'tf', kind:'in', fmt:'0.0', ref:'—', note:'活載重排列之跨中剪力；耐震梁另取 Ve − Vg 之大者'});
+  S.item({key:'zOn', label:'　旗標：依剪力圖分區', f:'--AND({isSlab}=0,{shZ}="依剪力圖分區",{defl}<>"懸臂・均佈",{ln}>0)', ref:'—'});
+  S.item({key:'xZ', label:'分區設計剪力位置（距柱面）', f:'IF({zOn}=1,IF({isS}=1,2*{h},{ln}/4),0)', unit:'cm', fmt:'0.0', expr:'耐震梁 2h；一般梁 ln/4', ref:'—'});
+  S.item({key:'VmZ', label:'跨中剪力（分區用）', f:'IF({isS}=1,MAX({Ve}-{Vg},{Vmid}),{Vmid})', unit:'tf', fmt:'0.00', expr:'一般梁 Vu,中；耐震梁 max(Ve − Vg, Vu,中)', ref:'—'});
   S.item({key:'theta', label:'扭矩桁架角 θ', sym:'θ', v:inp.theta, unit:'°', kind:'in', ref:ref401('22.7.6.1.2')});
   S.item({key:'bGov', label:'剪扭控制組合（列序）', f:"IFERROR(MATCH(MIN('載重組合'!V4:V"+(3+NCB)+"),'載重組合'!V4:V"+(3+NCB)+',0),1)', unit:'',
     expr:'各組合逐一檢核（「載重組合」J～Y 欄），斷面不足者優先，其次取需求間距最小者', ref:'非規範明列條文，係本表判別用'});
@@ -1874,11 +1880,12 @@ function buildBeam(ExcelJS, inp){
   S.item({key:'sStr2', label:'加密區外強度需求間距', sym:'s', f:"N(INDEX('載重組合'!X4:X"+(3+NCB)+',{bGov2}))', unit:'cm', fmt:FMT_SINF, expr:'At,單肢 / (At/s + (Av/s)/nlegs)', ref:ref401('22.5.8.5.3')});
   S.item({key:'sCode2', label:'加密區外規範間距上限', sym:'s', f:"N(INDEX('載重組合'!Y4:Y"+(3+NCB)+',{bGov2}))', unit:'cm', fmt:'0.00', expr:"Vs ≦ 1.06√f'c·bw·d：min(d/2, 60)；否則 min(d/4, 30)", ref:ref401('9.7.6.2.2')});
   S.item({key:'sTors2', label:'加密區外扭矩間距上限', sym:'s', f:"N(INDEX('載重組合'!S4:S"+(3+NCB)+',{bGov2}))', unit:'cm', fmt:FMT_SINF, ref:ref401('9.7.6.3.3')});
-  S.item({key:'sSeis2', label:'耐震梁加密區外上限', sym:'s', f:'{d}/2', unit:'cm', fmt:'0.00', expr:'d/2', ref:ref401('18.3.4.6')});
+  S.item({key:'sSeis2', label:'耐震梁加密區外上限', sym:'s', f:`IF({isS}=1,{d}/2,${BIG})`, unit:'cm', fmt:FMT_SINF, expr:'d/2（一般梁不適用）', ref:ref401('18.3.4.6')});
   const cands2 = [['sStr2','剪力＋扭矩強度需求（Vc 不折減）'],['sMin','最小剪力鋼筋量 Av,min'],['sCode2','規範間距上限'],['sSeis2','耐震梁加密區外 d/2'],['sTors2','扭矩 min(ph/8, 30)'],['sComp','受壓筋圍束 min(16db, 48dt, 最小尺度)']];
-  S.item({key:'sGov2', label:'加密區外控制需求間距', sym:'s', unit:'cm', fmt:'0.00', f:'IF({isS}=1,MIN('+cands2.map(c=>'{'+c[0]+'}').join(',')+'),{sGov})', expr:'非耐震梁同 sGov', ref:'—'});
-  S.item({key:'sGov2Tag', label:'加密區外控制項', f:'IF({isS}=1,INDEX({rng:candName2},MATCH({sGov2},{rng:candVal2},0)),"（全長同一間距）")', ref:'—'});
-  S.item({key:'sUse2', label:'加密區外採用間距', sym:'s₂', unit:'cm', fmt:'0.0', f:'IF({isS}=1,IFERROR(_xlfn.AGGREGATE(14,6,{rng:sList}/(({rng:sList}<={sGov2})*({rng:sFlag}=0)),1),7.5),{sUse})', ref:'非規範明列條文，係施工慣用間距'});
+  S.item({key:'sGov2', label:'加密區外控制需求間距', sym:'s', unit:'cm', fmt:'0.00', f:'IF(OR({isS}=1,{zOn}=1),MIN('+cands2.map(c=>'{'+c[0]+'}').join(',')+'),{sGov})', expr:'不分區之一般梁同 sGov', ref:'—'});
+  S.item({key:'sGov2Tag', label:'加密區外控制項', f:'IF(OR({isS}=1,{zOn}=1),INDEX({rng:candName2},MATCH({sGov2},{rng:candVal2},0)),"（全長同一間距）")', ref:'—'});
+  S.item({key:'sUse2', label:'加密區外採用間距', sym:'s₂', unit:'cm', fmt:'0.0', f:'IF(OR({isS}=1,{zOn}=1),IFERROR(_xlfn.AGGREGATE(14,6,{rng:sList}/(({rng:sList}<={sGov2})*({rng:sFlag}=0)),1),7.5),{sUse})', ref:'非規範明列條文，係施工慣用間距'});
+  S.item({key:'zMid', label:'　旗標：一般梁中央區放大間距', f:'--AND({isS}=0,{zOn}=1,{sUse2}>{sUse}+1E-9)', crit:'1＝兩端 ln/4 以 s₁、中央 ln/2 以 s₂', ref:'—'});
   // L7：肢距為網頁依實際肢位算得之值——標為輸入格（可依實際配置改填），不再以一般公式格外觀呈現寫死值
   S.item({key:'legG', label:'箍筋肢橫向間距（實際肢位相鄰最大值，網頁值）', sym:'s⊥', unit:'cm', fmt:'0.0', kind:'in', v: inp.slab ? 0 : (inp.legGap ?? 0), crit:'網頁依肢位計算之匯出值；改配置時請改填',
     expr: inp.slab ? '版不配箍筋' : '肢位（肢中心線距左緣）：' + (inp.legPos||[]).map(x=>x.toFixed(1)).join('、') + ' cm' + (inp.legPosT && String(inp.legPosT)!==String(inp.legPos) ? '（底筋高程）；頂筋高程 ' + inp.legPosT.map(x=>x.toFixed(1)).join('、') + ' cm' : '') + '；外箍、肋筋之肢在主筋外側 (db+dt)/2，繫筋貼主筋側邊；取相鄰兩肢之最大距離（匯出當下網頁值）', ref:ref401('9.7.6.2.2')});
@@ -1887,8 +1894,8 @@ function buildBeam(ExcelJS, inp){
   S.item({key:'legL', label:'肢距上限', sym:'s⊥,max', unit:'cm', fmt:'0.0',
     f:'MIN(IF({VsReq}*1000>1.06*SQRT({fc})*{bw}*{d},MIN({d}/2,30),MIN({d},60)),IF({isS}=1,35,1E9))',
     expr:"Vs ≦ 1.06√f'c·bw·d：min(d, 60)；否則 min(d/2, 30)；耐震梁另 ≦ 35（以肢距估受側撐主筋間距）", ref:ref401('9.7.6.2.2、18.3.4.2')});
-  S.item({key:'nEnds', label:'加密區端數', f:'IF({isS}=1,2,0)', unit:'端', expr:'耐震梁兩端；一般梁 0（全長同一間距）', ref:ref401('18.3.4.1')});
-  S.item({key:'lo', label:'加密區長度 2h', sym:'2h', f:'2*{h}', unit:'cm', fmt:'0.0', ref:ref401('18.3.4.1')});
+  S.item({key:'nEnds', label:'加密區端數', f:'IF(OR({isS}=1,{zMid}=1),2,0)', unit:'端', expr:'耐震梁兩端；一般梁依剪力圖分區時兩端 ln/4，否則 0（全長同一間距）', ref:ref401('18.3.4.1')});
+  S.item({key:'lo', label:'加密區（端部區）長度', sym:'lo', f:'IF({zMid}=1,{ln}/4,2*{h})', unit:'cm', fmt:'0.0', expr:'耐震梁 2h；一般梁分區時 ln/4', ref:ref401('18.3.4.1')});
   S.item({key:'Lel', label:'沿軸向配置長度（淨跨）', sym:'ln', f:'{ln}', unit:'cm', fmt:'#,##0', ref:'—'});
   layoutItems(S, '支', ref401('18.3.4.4'), '第一支 ≦ 5 cm（§18.3.4.4）');
 
@@ -2104,7 +2111,8 @@ function buildBeamLoads(ws, R, loads){
     put(ws,'U'+n, {f:`IF(${on},MIN(Q${n},R${n},S${n}),"")`},{fmt:FMT_SINF});
     // 排序鍵：斷面不足者最先；其次需求間距小、設計剪力大、Vu 大者（與網頁 beamShearDesign 相同）
     put(ws,'V'+n, {f:`IF(${on},IF(T${n}=1,-1E12,0)+U${n}-J${n}*1E-6-H${n}*1E-9,"")`},{fmt:'0.000'});
-    put(ws,'W'+n, r(`IF(${on},MAX(0,J${n}/{phiv}-{Vc2}),"")`),{fmt:'#,##0.00'});
+    // 加密區外／中央區：依剪力圖分區時設計剪力取 xZ 處（自柱面 J 線性降至跨中 min(J, VmZ)）
+    put(ws,'W'+n, r(`IF(${on},MAX(0,IF({zOn}=1,J${n}-(J${n}-MIN(J${n},{VmZ}))*MIN(1,{xZ}/({ln}/2)),J${n})/{phiv}-{Vc2}),"")`),{fmt:'#,##0.00'});
     put(ws,'X'+n, r(`IF(${on},IF(${oL('W'+n)}>1E-9,{At}/${oL('W'+n)},${BIG}),"")`),{fmt:FMT_SINF});
     put(ws,'Y'+n, r(`IF(${on},IF(W${n}*1000>1.06*SQRT({fc})*{bw}*{d},MIN({d}/4,30),MIN({d}/2,60)),"")`),{fmt:'0.00'});
     put(ws,'Z'+n, {f:`IF(${on},MIN(X${n},Y${n},S${n}),"")`},{fmt:FMT_SINF});

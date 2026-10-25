@@ -137,3 +137,49 @@ test('箍筋延伸：Excel 需求長度與數量同網頁（LibreOffice 重算�
   }
   await page.evaluate(() => applyPreset('bldg60'));
 });
+
+/* ---------------- 梁剪力筋依剪力圖分區 ---------------- */
+const beamZ = (key, set, loads) => page.evaluate(([key, set, loads]) => { document.getElementById('tabBeam').click(); applyBPreset(key);
+  if(loads) BLOADS.forEach(l => Object.assign(l, loads));
+  drawBLoads();
+  for(const [id, v] of Object.entries(set || {})) document.getElementById(id).value = v;
+  const B = renderBeam();
+  return {s1: B.fin.sUse, s2: B.fin2 ? B.fin2.sUse : null, x: B.fin2 ? B.fin2.x : null, Vx: B.fin2 ? B.fin2.Vx/1000 : null, zMid: !!B.zMid,
+    Ve: B.sh.Ve/1000, total: B.lay ? B.lay.total : null, zones: B.lay ? B.lay.zones.map(z => ({tag:z.tag, a:z.a, b:z.b, s:z.s})) : [], ln: B.S.ln, h: B.S.h}; }, [key, set, loads]);
+
+test('剪力分區：一般梁中央 l_n/2 以 l_n/4 處剪力、耐震梁 2h 外以 2h 處剪力設計；懸臂與無效益時不分區', async () => {
+  const hiV = {Vu: 150};
+  const a = await beamZ('gradeBeam', {}, hiV);
+  assert.equal(a.zMid, false); assert.equal(a.zones.length, 1, '預設不分區');
+  const z = await beamZ('gradeBeam', {bShearZ: '1', bVmid: 20}, hiV);
+  assert.ok(z.zMid && z.s2 > z.s1, `中央區間距放大（${z.s1} → ${z.s2}）`);
+  assert.ok(Math.abs(z.Vx - (150 - (150 - 20)*0.5)) < 1e-6, `l_n/4 處 V = 85（${z.Vx}）`);
+  assert.deepEqual(z.zones.map(q => q.tag), ['端部區', '中央區', '端部區']);
+  assert.ok(Math.abs(z.zones[0].b - z.ln/4) < 1e-6);
+  assert.ok(z.total < a.total, `支數減少（${a.total} → ${z.total}）`);
+  const sz = await beamZ('gradeBeam', {bShearZ: '1', bVmid: 20, bSeismic: '1', bVg: 40}, hiV);
+  const Vm = Math.max(sz.Ve - 40, 20);
+  assert.equal(sz.x, 2*sz.h);
+  assert.ok(Math.abs(sz.Vx - (150 - (150 - Vm)*Math.min(1, 2*sz.h/(sz.ln/2)))) < 1e-6, `耐震梁 2h 處 V（${sz.Vx}）`);
+  const s0 = await beamZ('gradeBeam', {bSeismic: '1', bVg: 40}, hiV);
+  assert.ok(sz.s2 >= s0.s2, '耐震梁分區後加密區外間距不小於不分區');
+  const c = await beamZ('gradeBeam', {bShearZ: '1', bVmid: 20, bDeflCase: 'cantUDL'}, hiV);
+  assert.equal(c.zMid, false, '懸臂不分區');
+  const p = await beamZ('gradeBeam', {bShearZ: '1'});
+  assert.equal(p.zMid, false, '間距由 d/2 控制時無效益，維持全長同一間距');
+  await page.evaluate(() => { applyBPreset('bldgBeam'); document.getElementById('tabPylon').click(); });
+});
+
+test('剪力分區：Excel 間距與支數同網頁（LibreOffice 重算）', {skip: !hasSoffice && '未安裝 LibreOffice（soffice）'}, async () => {
+  const hiV = {Vu: 150};
+  const cases = [[{}, hiV], [{bShearZ: '1', bVmid: 20}, hiV], [{bShearZ: '1', bVmid: 20, bSeismic: '1', bVg: 40}, hiV], [{bShearZ: '1'}, null]];
+  const web = [];
+  for(let i=0;i<cases.length;i++){ web.push(await beamZ('gradeBeam', ...cases[i])); await exportAs('bz' + i); }
+  const load = recalc(cases.map((_, i) => 'bz' + i), 'outbz');
+  for(let i=0;i<cases.length;i++){
+    const wb = await load('bz' + i), r = web[i], tag = JSON.stringify(cases[i][0]);
+    assert.equal(Number(row(wb, '全長合計數量').v), r.total, `${tag}：支數`);
+    if(r.s2 != null) assert.equal(Number(row(wb, '加密區外採用間距').v), r.s2, `${tag}：s₂`);
+  }
+  await page.evaluate(() => { applyBPreset('bldgBeam'); document.getElementById('tabPylon').click(); });
+});
