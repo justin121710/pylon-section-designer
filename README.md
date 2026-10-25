@@ -1,4 +1,7 @@
-# RC 斷面設計工具
+# RC 構件設計工具
+
+> 原名「RC 斷面設計工具」（儲存庫 `pylon-section-designer`）。功能已涵蓋伸展搭接、沿軸向箍筋配置與下料，改名為 RC 構件設計工具（儲存庫 `rc-member-designer`）；
+> 舊案件檔（.json）仍可直接開啟。
 
 單一 HTML 檔（`index.html`），零打包、零後端。適用一般建築、地下結構（如滯洪池）與橋梁的 RC 柱、梁、版。
 頂列分頁切換兩個模組：
@@ -30,8 +33,8 @@
 
 全程 **kgf-cm 制**。
 
-> 操作步驟見 [操作教學 PDF](docs/RC斷面設計工具_操作教學.pdf)；實務問答見 [常見問題 PDF](docs/RC斷面設計工具_常見問題.pdf)（工程師／技師版，附截圖）。
-> 圖文操作教學（PDF，含截圖）：[docs/RC斷面設計工具_操作教學.pdf](docs/RC斷面設計工具_操作教學.pdf)；合併到 main 時由 GitHub Actions 自動重建（見 [docs/tutorial/README.md](docs/tutorial/README.md)）。
+> 操作步驟見 [操作教學 PDF](docs/RC構件設計工具_操作教學.pdf)；實務問答見 [常見問題 PDF](docs/RC構件設計工具_常見問題.pdf)（工程師／技師版，附截圖）。
+> 圖文操作教學（PDF，含截圖）：[docs/RC構件設計工具_操作教學.pdf](docs/RC構件設計工具_操作教學.pdf)；合併到 main 時由 GitHub Actions 自動重建（見 [docs/tutorial/README.md](docs/tutorial/README.md)）。
 
 | 係數 | 值 | 出處 |
 |---|---|---|

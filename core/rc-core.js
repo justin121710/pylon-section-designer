@@ -1,5 +1,5 @@
 /* =========================================================================
-   rc-core.js — RC 斷面設計工具之純計算函式（U9）
+   rc-core.js — RC 構件設計工具之純計算函式（U9）
    不讀寫 DOM、不依賴全域狀態，網頁（<script src>，宣告為全域）與 Node（require）共用，
    以 tests/core.test.js 直接做單元測試。單位：kgf、cm。
    本檔為計算核心之一部分，修改後須同步重建教學 PDF（見 docs/tutorial/inputs.txt）。

@@ -1,6 +1,6 @@
 {
-  "name": "RC 斷面設計工具",
-  "short_name": "RC 斷面設計",
+  "name": "RC 構件設計工具",
+  "short_name": "RC 構件設計",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

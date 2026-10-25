@@ -1,4 +1,4 @@
-/* 建置操作教學 PDF：docs/RC斷面設計工具_操作教學.pdf
+/* 建置操作教學 PDF：docs/RC構件設計工具_操作教學.pdf
    1. 以本機 HTTP 伺服器開啟 index.html（CDN 改由本目錄 node_modules 提供），依教學步驟操作並截圖 → img/
    2. 匯出 Excel，以 LibreOffice 轉 PDF、pdftoppm 轉圖並裁白邊 → img/26、27
    3. 以 Chromium 列印 tutorial.html（KaTeX 排版公式與符號）為 A4 PDF
@@ -13,8 +13,8 @@ const http = require('http'), path = require('path'), fs = require('fs'), { exec
 
 const HERE = __dirname, ROOT = path.resolve(HERE, '../..'), NM = path.join(HERE, 'node_modules');
 const IMG = path.join(HERE, 'img'), XL = path.join(HERE, 'xl');
-const OUT = path.join(ROOT, 'docs', 'RC斷面設計工具_操作教學.pdf');
-const OUT_FAQ = path.join(ROOT, 'docs', 'RC斷面設計工具_常見問題.pdf');
+const OUT = path.join(ROOT, 'docs', 'RC構件設計工具_操作教學.pdf');
+const OUT_FAQ = path.join(ROOT, 'docs', 'RC構件設計工具_常見問題.pdf');
 const INPUTS = fs.readFileSync(path.join(HERE, 'inputs.txt'), 'utf8').split('\n').map(s => s.trim()).filter(s => s && !s.startsWith('#'));   // 影響 PDF 內容的檔案
 const W = 1440, H = 900;
 
@@ -260,7 +260,7 @@ async function tutorialPdf(browser, base, src = 'tutorial.html', out = OUT, titl
   await page.evaluate(t => { document.getElementById('ver').textContent = t; },
     `建置日期：${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}　對應程式：index.html ${idx}`);
   await page.pdf({path: out, format:'A4', printBackground:true, displayHeaderFooter:true, headerTemplate:'<div></div>',
-    footerTemplate:`<div style="width:100%;font-size:8px;color:#9ca3af;text-align:center;font-family:sans-serif">RC 斷面設計工具 ${title}　·　<span class="pageNumber"></span> / <span class="totalPages"></span></div>`,
+    footerTemplate:`<div style="width:100%;font-size:8px;color:#9ca3af;text-align:center;font-family:sans-serif">RC 構件設計工具 ${title}　·　<span class="pageNumber"></span> / <span class="totalPages"></span></div>`,
     margin:{top:'16mm', bottom:'16mm', left:'15mm', right:'15mm'}});
   await page.close();
 }

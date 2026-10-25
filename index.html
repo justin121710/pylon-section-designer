@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>RC 斷面設計工具（橋塔／柱・梁）</title>
+<title>RC 構件設計工具（橋塔／柱・梁）</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2032%2032%22%3E%3Crect%20x%3D%224%22%20y%3D%224%22%20width%3D%2224%22%20height%3D%2224%22%20fill%3D%22none%22%20stroke%3D%22%230F5F6B%22%20stroke-width%3D%222.8%22%2F%3E%3Cg%20fill%3D%22%230F5F6B%22%3E%3Ccircle%20cx%3D%2210.5%22%20cy%3D%2210.5%22%20r%3D%222.5%22%2F%3E%3Ccircle%20cx%3D%2221.5%22%20cy%3D%2210.5%22%20r%3D%222.5%22%2F%3E%3Ccircle%20cx%3D%2210.5%22%20cy%3D%2221.5%22%20r%3D%222.5%22%2F%3E%3Ccircle%20cx%3D%2221.5%22%20cy%3D%2221.5%22%20r%3D%222.5%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
 <!-- 主畫面圖示：iOS 不採用 SVG／data URI，須以 PNG apple-touch-icon（180×180）；Android／桌面 PWA 讀 manifest（只帶走 index.html 時缺檔不影響運作） -->
 <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
@@ -11,7 +11,7 @@
 <meta name="theme-color" content="#0F5F6B">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="RC 斷面設計">
+<meta name="apple-mobile-web-app-title" content="RC 構件設計">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -792,8 +792,8 @@ img,video{max-width:100%;height:auto}
 
 <header id="topbar">
   <div class="tb-brand">
-    <svg class="logo" viewBox="0 0 32 32" role="img" aria-label="RC 斷面設計"><use href="#logoMark"/></svg>
-    <span class="tb-name">RC 斷面設計</span>
+    <svg class="logo" viewBox="0 0 32 32" role="img" aria-label="RC 構件設計"><use href="#logoMark"/></svg>
+    <span class="tb-name">RC 構件設計</span>
   </div>
   <button id="btnSetup" type="button" class="tb-setup" title="變更構件類型、斷面型式、範本、設計依據與環境"><span id="setupSum">柱斷面</span><span class="tb-setup-ed" aria-hidden="true">變更</span></button>
   <!-- 斷面切換：只有在匯入到 2 個以上斷面時才出現（見 secPicker） -->
@@ -1335,7 +1335,7 @@ img,video{max-width:100%;height:auto}
 <script>
 "use strict";
 /* =========================================================================
-   RC 橋塔斷面設計工具
+   RC 構件設計工具
    單位系統：kgf, cm（全程內部運算）；顯示 P=tf, M=tf·m, V=tf, T=tf·m
    規範：混凝土結構設計規範(土木401) + 公路橋梁耐震設計規範
    ========================================================================= */
@@ -5646,7 +5646,7 @@ const caseMark = () => { try{ CASE_BASE = caseKey(); }catch(e){} };
 function caseDownload(){
   const c = caseSnapshot(), d = new Date(), p = n=>String(n).padStart(2,'0');
   caseMark();
-  const name = `RC斷面設計_${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}.json`;
+  const name = `RC構件設計_${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}.json`;
   const url = URL.createObjectURL(new Blob([JSON.stringify(c,null,1)], {type:'application/json'}));
   const a = Object.assign(document.createElement('a'), {href:url, download:name});
   document.body.appendChild(a); a.click(); a.remove();
@@ -10172,7 +10172,7 @@ function pinFit(mod){
     if(why){
       el.dataset.held = '1';
       el.innerHTML = `<div class="rp-held"><div class="rp-held-t">計算書未完成，不得送審</div><p>${esc(why)}</p>`
-        + `<p>請回到 RC 斷面設計工具完成後，以「列印 / 存成 PDF」按鈕列印。</p></div>`;
+        + `<p>請回到 RC 構件設計工具完成後，以「列印 / 存成 PDF」按鈕列印。</p></div>`;
       return;
     }
     try{ buildActive(); }catch(e){ el.dataset.held = '1'; el.innerHTML = `<div class="rp-held"><div class="rp-held-t">計算書產生失敗，不得送審</div><p>${esc(e.message)}</p></div>`; }

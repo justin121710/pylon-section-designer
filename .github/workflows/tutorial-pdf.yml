@@ -34,12 +34,12 @@ jobs:
           cd docs/tutorial && node build.js && cd ../..
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add "docs/RC斷面設計工具_操作教學.pdf" "docs/RC斷面設計工具_常見問題.pdf" docs/tutorial/stamp.txt
+          git add "docs/RC構件設計工具_操作教學.pdf" "docs/RC構件設計工具_常見問題.pdf" docs/tutorial/stamp.txt
           git commit -m "重建操作教學與常見問題 PDF"   # GITHUB_TOKEN 推送本就不觸發其他工作流程；僅含 PDF，回歸測試以前一提交為準
           git pull --rebase origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02   # v4.6.2
         with:
           name: tutorial-pdf
           path: |
-            docs/RC斷面設計工具_操作教學.pdf
-            docs/RC斷面設計工具_常見問題.pdf
+            docs/RC構件設計工具_操作教學.pdf
+            docs/RC構件設計工具_常見問題.pdf

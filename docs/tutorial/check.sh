@@ -4,8 +4,8 @@
 # 用於 .githooks/pre-commit 與 GitHub Actions；只需要 git。
 cd "$(git rev-parse --show-toplevel)" || exit 2
 T=docs/tutorial
-PDF="docs/RC斷面設計工具_操作教學.pdf"
-FAQ="docs/RC斷面設計工具_常見問題.pdf"
+PDF="docs/RC構件設計工具_操作教學.pdf"
+FAQ="docs/RC構件設計工具_常見問題.pdf"
 exp=$(grep -v '^#' "$T/inputs.txt" | sed '/^[[:space:]]*$/d' | while read -r f; do
   b=$(git ls-files -s -- "$f" | awk '{print $2}')
   [ -n "$b" ] || b=$(git hash-object -- "$f" 2>/dev/null)

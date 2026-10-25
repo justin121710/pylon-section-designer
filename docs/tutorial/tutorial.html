@@ -2,7 +2,7 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-<title>RC 斷面設計工具 操作教學</title>
+<title>RC 構件設計工具 操作教學</title>
 <!-- 公式與符號一律以 KaTeX 排版（與網頁、計算書、Excel 的 LaTeX 風格一致）；KaTeX 由本目錄 npm 套件提供，建置時不需外網 -->
 <link rel="stylesheet" href="node_modules/katex/dist/katex.min.css">
 <script src="node_modules/katex/dist/katex.min.js"></script>
@@ -48,7 +48,7 @@ pre { font-family: "DejaVu Sans Mono", "WenQuanYi Zen Hei Mono", monospace; font
 <body>
 
 <section class="cover">
-  <h1>RC 斷面設計工具<br>操作教學</h1>
+  <h1>RC 構件設計工具<br>操作教學</h1>
   <div class="sub">柱斷面（矩形／中空箱型／圓形）・梁／版斷面<br>從開啟工具到產出計算書與 Excel 的完整流程</div>
   <div class="meta">適用對象：結構工程師、技師、繪圖與校核人員<br>規範依據：土木401-112、建築物耐震設計規範、公路橋梁耐震設計規範<br>單位：kgf-cm（載重輸入 tf、tf·m）<br>本教學以範本「建築 RC 方柱」（構件 C1）與「橋面板 T 梁」（構件 G1）為例<br><br><span id="ver">（版本資訊於建置時寫入）</span></div>
 </section>
@@ -440,7 +440,7 @@ pre { font-family: "DejaVu Sans Mono", "WenQuanYi Zen Hei Mono", monospace; font
     <tr><td>建議配筋找不到合格配置</td><td>斷面太小、\(V_s\) 超過上限，或續接／錨定條件限制號數</td><td>依清單下方原因加大斷面或提高 \(f'_c\)；改機械式續接可放寬號數</td></tr>
     <tr><td>警示「須考慮長細效應」</td><td>\(kl_{u}/r\) 超過門檻</td><td>確認 \(k\) 與側向位移支撐；載重改用含二階效應的結果</td></tr>
   </table>
-  <p style="font-size:9pt;color:#6b7280">更多問答請見《RC斷面設計工具_常見問題.pdf》；公式與條號細節請見 README.md。</p>
+  <p style="font-size:9pt;color:#6b7280">更多問答請見《RC構件設計工具_常見問題.pdf》；公式與條號細節請見 README.md。</p>
 </section>
 
 <script>

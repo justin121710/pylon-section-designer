@@ -236,7 +236,7 @@ const colL = n => { let s=''; n++; while(n>0){ const m=(n-1)%26; s=String.fromCh
    ====================================================================== */
 function buildColumn(ExcelJS, inp){
   const wb = new ExcelJS.Workbook();
-  wb.creator = 'RC 斷面設計工具'; wb.created = new Date();
+  wb.creator = 'RC 構件設計工具'; wb.created = new Date();
   wb.calcProperties = {fullCalcOnLoad:true};
   const S = new CalcSheet('檢核表');
   const ref401 = s => `土木401-112 §${s}`;
@@ -1611,7 +1611,7 @@ function buildA4Column(ws, S, R, inp, jRow, sumRows){
 const NBI = 50;     // 中性軸二分迭代次數
 function buildBeam(ExcelJS, inp){
   const wb = new ExcelJS.Workbook();
-  wb.creator='RC 斷面設計工具'; wb.created=new Date(); wb.calcProperties={fullCalcOnLoad:true};
+  wb.creator='RC 構件設計工具'; wb.created=new Date(); wb.calcProperties={fullCalcOnLoad:true};
   const S = new CalcSheet('檢核表');
   const ref401 = s => `土木401-112 §${s}`;
   S.title('RC 梁／版斷面設計檢核表（矩形梁／T 型梁／單位寬版，kgf-cm 制）');
