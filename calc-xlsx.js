@@ -730,6 +730,8 @@ function buildColumn(ExcelJS, inp){
   addSum({label:'頂端受壓直段 ldc（cm）', need:{f:'{dvldcU}'}, cap:{f:'{dvCvT}'}, ratio:{f:'IF({dvCvT}>0,{dvldcU}/{dvCvT},0)'}, judge:{f:'IF({dvAncT}="貫穿續接","N/A",IF({dvldcU}<={dvCvT}+1E-9,"PASS","FAIL"))'}, ref:R401('25.4.9、25.4.1.2')});
   addSum({label:'續接區段 所需／可續接範圍（cm）', need:{f:'{dvZone}'}, cap:{f:'{dvA1}-{dvA0}'}, ratio:{f:'IF({dvA1}-{dvA0}>0,{dvZone}/({dvA1}-{dvA0}),0)'}, judge:J('{dvFit}=1'), ref:R401('18.4.4.3、18.2.7.2')});
   addSum({label:'主筋最長下料／定尺長度（cm）', need:{f:'{dvMaxL}'}, cap:{f:'{dvStock}'}, ratio:{f:'IF({dvStock}>0,{dvMaxL}/{dvStock},0)'}, judge:{f:'IF({dvStkOn}=0,"N/A",IF({dvStkOK}=1,"PASS","FAIL"))'}, fmt:'0', ref:'施工（鋼筋定尺）'});
+  addSum({label:'柱底箍筋延伸入基礎 需求／可用（cm）', need:{f:'{jxNeedB}'}, cap:{f:'{dvAvB}'}, ratio:{f:'IF({dvAvB}>0,{jxNeedB}/{dvAvB},9)'}, judge:{f:'IF({jxOnB}=0,"N/A",IF({jxNeedB}<={dvAvB}+1E-9,"PASS","FAIL"))'}, fmt:'0', ref:R401('18.10.2.3')+'；公路橋梁耐震設計規範 §5.3.5'});
+  addSum({label:'柱頂箍筋延伸入接頭 需求／可用（cm）', need:{f:'{jxNeedT}'}, cap:{f:'{jxAvT}'}, ratio:{f:'IF({jxAvT}>0,{jxNeedT}/{jxAvT},9)'}, judge:{f:'IF({jxOnT}=0,"N/A",IF({jxNeedT}<={jxAvT}+1E-9,"PASS","FAIL"))'}, fmt:'0', ref:R401('18.5.3.1')+'；公路橋梁耐震設計規範 §5.3.5'});
   addSum({label:'甲級搭接 As,使用／As,需求', need:2, cap:{f:'IF({dvExc}>0,1/{dvExc},1)'}, ratio:{f:'2*{dvExc}'}, judge:{f:'IF({dvSp}<>"甲級搭接","N/A",IF({dvExc}<=0.5+1E-9,"PASS","FAIL"))'}, ref:R401('表 25.5.2.1')});
   addSum({label:'搭接處淨距（cm）', need:{f:'{need}'}, cap:{f:'{dvClrL}'}, ratio:{f:'IF({dvClrL}>0,{need}/{dvClrL},9)'}, judge:{f:'IF({dvMech}=1,"N/A",IF({dvClrL}>={need}-1E-9,"PASS","FAIL"))'}, ref:R401('25.5.1.2、25.2.3')});
   addSum({label:'大於 D36 之鋼筋不得搭接（主筋 db，cm）', need:{f:'{db}'}, cap:3.58, ratio:{f:'{db}/3.58'}, judge:{f:'IF({dvMech}=1,"N/A",IF({db}>3.59,"FAIL","PASS"))'}, fmt:'0.00', note:'改用機械式續接或改小號數（受壓搭接例外見 §25.5.5.3）', ref:R401('25.5.1.1')});
@@ -1012,6 +1014,18 @@ function devPlanColX(S, X){
   S.item({key:'dvMidL', label:'中段下料長（最長）', f:'IF({dvNUp}+{dvNDn}>0,{dvStep}+{dvLapE},0)', unit:'cm', fmt:'0.0', ref:'—'});
   S.item({key:'dvMaxL', label:'主筋最長下料長', f:'MAX({dvTopL},{dvBotL},{dvMidL})', unit:'cm', fmt:'0.0', crit:'≦ 定尺長度', ref:'—'});
   S.item({key:'dvStkOK', label:'定尺長度符合', f:'IF({dvStkOn}=0,1,--AND({dvStpOK}=1,{dvMaxL}<={dvStock}+1E-9))', crit:'1＝各段下料長皆 ≦ 定尺', ref:'施工（鋼筋定尺）'});
+  // 箍筋延伸入接頭／基礎（間距同加密區 s；網頁 colDevPlan 同）
+  S.item({key:'jxFtg', label:'建築柱邊距基腳邊緣 < 1/2 基腳深', v:X.ftgEdge?'是':'否', kind:'list', list:['否','是'], ref:R401('18.10.2.3')});
+  S.item({key:'jxLd', label:'柱主筋受拉伸展長度（進位）', sym:'ld', f:UPX('{dvld}'), unit:'cm', fmt:'0', ref:R401('25.4.2')});
+  S.item({key:'jxOnB', label:'　旗標：柱底箍筋延伸', f:'--AND({isPH}=1,{isPile}=0,OR({isBldg}=0,AND({dvAncB}<>"貫穿續接",{jxFtg}="是")))', expr:'橋梁塑鉸區；建築柱錨入基腳且柱邊距基腳邊緣 < 1/2 基腳深', ref:'—'});
+  S.item({key:'jxNeedB', label:'柱底箍筋延伸入基礎長度', f:'IF({jxOnB}=1,{jxLd},0)', unit:'cm', fmt:'0', expr:'≧ 柱主筋受拉伸展長度 ld',
+    ref:R401('18.10.2.3')+'；公路橋梁耐震設計規範 §5.3.5'});
+  S.item({key:'jxNB', label:'柱底延伸段箍筋數量（另計）', f:'IF({jxOnB}=1,ROUNDUP({jxNeedB}/{sUse}-1E-9,0),0)', unit:'組', expr:'延伸長度 ÷ 加密區間距 s', ref:'—'});
+  S.item({key:'jxOnT', label:'　旗標：柱頂箍筋延伸', f:'--AND({isPH}=1,{isPile}=0,OR({isBldg}=1,{nEnds}=2))', expr:'建築：柱頂梁柱接頭；橋梁：兩端塑鉸', ref:'—'});
+  S.item({key:'jxNeedT', label:'柱頂箍筋延伸入接頭長度', f:'IF({jxOnT}=1,IF({isBldg}=1,{dvHT},{jxLd}),0)', unit:'cm', fmt:'0',
+    expr:'建築：最深構入梁深 h（頂端構材深度）；橋梁：≧ ld', ref:R401('18.5.3.1')+'；公路橋梁耐震設計規範 §5.3.5'});
+  S.item({key:'jxAvT', label:'柱頂接頭可用深度', f:'IF({isBldg}=1,{dvHT},{dvAvT})', unit:'cm', fmt:'0.0', ref:'—'});
+  S.item({key:'jxNT', label:'柱頂延伸段箍筋數量（另計）', f:'IF({jxOnT}=1,ROUNDUP({jxNeedT}/{sUse}-1E-9,0),0)', unit:'組', ref:'—'});
   S.item({key:'dvPit', label:'主筋中心距（最小）', f:'IF({isCirc}=1,2*PI()*{rb}/{nC},MIN({pB},{pH}))', unit:'cm', fmt:'0.00', ref:'—'});
   S.item({key:'dvClrL', label:'搭接處淨距', f:'{dvPit}-IF({dvGap}>0,{dvGap},{db})-{db}', unit:'cm', fmt:'0.00', expr:'中心距 − 心距（接觸取 db）− db', crit:'≧ 柱主筋淨距下限', ref:R401('25.5.1.2、25.2.3')});
   S.item({key:'dvSLr', label:'搭接段橫向筋間距上限', f:'{sPH}', unit:'cm', fmt:FMT_SINF, expr:'同 §18.4.5.3 加密區間距上限', ref:R401('18.4.4.3、18.4.5.3')});

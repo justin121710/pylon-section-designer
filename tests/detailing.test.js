@@ -93,3 +93,47 @@ test('定尺：Excel 續接處數與最長下料長同網頁（LibreOffice 重�
   }
   await page.evaluate(() => applyPreset('bldg60'));
 });
+
+/* ---------------- 箍筋延伸入接頭／基礎 ---------------- */
+const colJ = (key, set) => page.evaluate(([key, set]) => { document.getElementById('tabPylon').click(); applyPreset(key);
+  for(const [id, v] of Object.entries(set || {})) document.getElementById(id).value = v;
+  const M = render(), P = M.devPlan;
+  return {j: P.jext, ld: Math.ceil(P.D.ld - 1e-9), s1: M.fin.sUse, hTop: P.X.hTop, hBot: P.X.hBot, cov: P.X.cov, nEnds: M.lay.nEnds,
+    chk: P.checks.filter(c => /箍筋延伸/.test(c.item)).map(c => c.lv), svg: svgColElev(M, true), info: elevInfoCol(M)}; }, [key, set]);
+
+test('箍筋延伸：橋梁塑鉸區延伸入基礎／帽梁 ≥ l_d（§5.3.5）、建築柱頂接頭 h（§18.5.3.1）、基腳邊緣條件（§18.10.2.3）', async () => {
+  const b = await colJ('pier100');
+  const bot = b.j.find(q => q.end==='bot');
+  assert.ok(bot && bot.need === b.ld, `橋梁柱底延伸 = l_d（${bot && bot.need}／${b.ld}）`);
+  assert.equal(bot.s, b.s1); assert.equal(bot.n, Math.ceil(b.ld/b.s1 - 1e-9));
+  assert.equal(!!b.j.find(q => q.end==='top'), b.nEnds === 2, '柱頂僅兩端塑鉸時延伸');
+  assert.match(b.svg, /延伸入基礎/); assert.match(b.info, /延伸入基礎/);
+  const sh = await colJ('pier100', {dHBot: 40});
+  assert.equal(sh.j.find(q => q.end==='bot').ok, false, '基礎過淺判不合格'); assert.ok(sh.chk.includes('bad'));
+  const n = await colJ('pier100', {ph: '0'});
+  assert.equal(n.j.length, 0, '非塑鉸區不延伸');
+  const c = await colJ('bldg60');
+  assert.deepEqual(c.j.map(q => [q.end, q.need]), [['top', c.hTop]], '建築：柱頂接頭深 h；柱底貫穿續接屬下層柱');
+  const f = await colJ('bldg60', {dAncBot: 'hook90', dFtgEdge: '1'});
+  assert.equal(f.j.find(q => q.end==='bot').need, f.ld, '建築柱錨入基腳且近邊緣：延伸 ≥ l_d');
+  const p = await colJ('pileC120');
+  assert.equal(p.j.length, 0, '基樁不適用');
+  await page.evaluate(() => applyPreset('bldg60'));
+});
+
+test('箍筋延伸：Excel 需求長度與數量同網頁（LibreOffice 重算）', {skip: !hasSoffice && '未安裝 LibreOffice（soffice）'}, async () => {
+  const cases = [['pier100', {}], ['pier100', {phEnds: '2'}], ['bldg60', {}], ['bldg60', {dAncBot: 'hook90', dFtgEdge: '1'}]];
+  const web = [];
+  for(let i=0;i<cases.length;i++){ web.push(await colJ(...cases[i])); await exportAs('jx' + i); }
+  const load = recalc(cases.map((_, i) => 'jx' + i), 'outjx');
+  for(let i=0;i<cases.length;i++){
+    const wb = await load('jx' + i), r = web[i], tag = cases[i][0] + JSON.stringify(cases[i][1]);
+    const num = v => v && typeof v === 'object' ? 0 : Number(v);
+    for(const [end, kN, kNum] of [['bot', '柱底箍筋延伸入基礎長度', '柱底延伸段箍筋數量（另計）'], ['top', '柱頂箍筋延伸入接頭長度', '柱頂延伸段箍筋數量（另計）']]){
+      const q = r.j.find(x => x.end === end);
+      assert.equal(num(row(wb, kN).v), q ? q.need : 0, `${tag} ${end}：長度`);
+      assert.equal(num(row(wb, kNum).v), q ? q.n : 0, `${tag} ${end}：數量`);
+    }
+  }
+  await page.evaluate(() => applyPreset('bldg60'));
+});
