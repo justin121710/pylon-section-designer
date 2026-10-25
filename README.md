@@ -473,6 +473,9 @@ P_u > 0.3A_g f'c 或 f'c > 700 之柱 h_x ≤ 20 cm（§18.4.5.2(f)）。
   Node 以 `require` 載入，由 `tests/core.test.js` 直接做單元測試（不開瀏覽器，數十毫秒）。
 - `index.html`：其餘計算（P-M、雙軸、剪力、伸展長度等）、介面與計算書；`calc-xlsx.js`：Excel 計算書。
   後續修改宜持續把純計算移入 `core/`，避免「網頁與 Excel 各寫一套」之錯誤。
+- `icons/`、`manifest.webmanifest`：主畫面圖示。iOS「加入主畫面」只採用 PNG（`icons/apple-touch-icon.png`，180×180），
+  不採用 SVG 或 data URI；Android／桌面 PWA 讀 manifest。原圖為 `icons/icon.svg`，修改後重新輸出 180／192／512 PNG。
+  只帶走 `index.html` 時缺這些檔不影響運作（僅無主畫面圖示）。
 
 ## 開發流程（U10）
 
