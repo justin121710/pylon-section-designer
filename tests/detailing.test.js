@@ -259,3 +259,38 @@ test('橋梁選項：Excel 錨定長度與錯開判定同網頁（LibreOffice �
   }
   await page.evaluate(() => applyPreset('bldg60'));
 });
+
+/* ---------------- 橋墩施工縫（§5.6） ---------------- */
+const cjRun = (key, set) => page.evaluate(([key, set]) => { document.getElementById('tabPylon').click(); applyPreset(key);
+  for(const [id, v] of Object.entries(set || {})) document.getElementById(id).value = v;
+  const M = render(), P = M.devPlan, ck = P.checks.filter(c => /施工縫/.test(c.item)).map(c => c.lv);
+  return {cj: P.cj, ck, Ast: M.Ast, fy: M.m.fy, fc: M.m.fc, Ag: M.Ag, phi: M.m.phivB, la: P.la}; }, [key, set]);
+
+test('施工縫：V_j = φμ(A_vf f_y + 0.75P_n) 對設計剪力；搭接處判不合格；建築與預設不檢核', async () => {
+  assert.equal((await cjRun('pier100')).cj, null, '預設無施工縫');
+  assert.equal((await cjRun('bldg60', {dCj: 'base'})).cj, null, '建築不適用');
+  const r = await cjRun('pier100', {dCj: 'base'});
+  const Vn = Math.min(1.0*(r.Ast*r.fy + 0.75*r.cj.Pmin), Math.min(0.2*r.fc, 56.2)*r.Ag);
+  assert.ok(Math.abs(r.cj.Vj - r.phi*Vn) < 1e-6, 'V_j 式');
+  assert.equal(r.ck[0], r.cj.Vj >= r.cj.Vreq - 1e-6 ? 'ok' : 'bad'); assert.equal(r.ck[1], 'ok');
+  const m6 = await cjRun('pier100', {dCj: 'base', dCjMu: '0.6'});
+  assert.ok(m6.cj.Vj < r.cj.Vj, 'μ = 0.6λ 較小');
+  const lap = await cjRun('pier100', {dCj: 'h', dCjH: Math.round(r.la + 20)});
+  assert.equal(lap.cj.inLap, true); assert.equal(lap.ck[1], 'bad');
+  await page.evaluate(() => applyPreset('bldg60'));
+});
+
+test('施工縫：Excel 同網頁（LibreOffice 重算）', {skip: !hasSoffice && '未安裝 LibreOffice（soffice）'}, async () => {
+  const r0 = await cjRun('pier100', {dCj: 'base'});
+  const cases = [{dCj: 'base'}, {dCj: 'base', dCjMu: '0.6'}, {dCj: 'h', dCjH: Math.round(r0.la + 20)}];
+  const web = [];
+  for(let i=0;i<cases.length;i++){ web.push(await cjRun('pier100', cases[i])); await exportAs('cj' + i); }
+  const load = recalc(cases.map((_, i) => 'cj' + i), 'outcj');
+  for(let i=0;i<cases.length;i++){
+    const wb = await load('cj' + i), r = web[i], tag = JSON.stringify(cases[i]);
+    assert.ok(Math.abs(Number(row(wb, '施工縫設計剪力強度 Vj').v) - r.cj.Vj/1000) < 0.05, `${tag}：Vj`);
+    assert.ok(Math.abs(Number(row(wb, '施工縫剪力需求').v) - r.cj.Vreq/1000) < 0.05, `${tag}：需求`);
+    assert.equal(row(wb, '施工縫不得設於主筋搭接處').judge, r.cj.inLap ? 'FAIL' : 'PASS', `${tag}：搭接處`);
+  }
+  await page.evaluate(() => applyPreset('bldg60'));
+});

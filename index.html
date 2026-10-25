@@ -1009,6 +1009,9 @@ img,video{max-width:100%;height:auto}
       <div class="fld"><span>主筋定尺長度 (cm，0＝不限)</span><input id="dStock" type="number" step="100" value="1200"></div>
       <div class="fld"><span>橋梁主筋續接錯開（§5.3.5 末段）</span><select id="dBrStag"><option value="0">不強制（由使用者決定）</option><option value="1">強制：未錯開判不合格</option></select></div>
       <div class="fld"><span>橋梁主筋錨定長度（C5.5 解說）</span><select id="dBrAnc"><option value="0">依條文：1.25 × 所選錨定長度（§5.5）</option><option value="1">依解說：max(1.25l<sub>d</sub>, 24d<sub>b</sub>)，不以彎鉤／擴頭抵減</option></select></div>
+      <div class="fld"><span>橋墩施工縫（§5.6）</span><select id="dCj"><option value="none">無</option><option value="base">柱底（基礎頂面）</option><option value="h">柱底以上指定高度</option></select></div>
+      <div class="fld"><span>施工縫高度 (cm，距柱底)</span><input id="dCjH" type="number" step="10" value="0"></div>
+      <div class="fld"><span>施工縫摩擦係數 μ</span><select id="dCjMu"><option value="1">1.0λ（刻意粗糙約 0.6 cm，§5.6 要求）</option><option value="0.6">0.6λ（未刻意粗糙）</option></select></div>
       <div class="fld"><span>建築柱邊距基腳邊緣 &lt; ½ 基腳深</span><select id="dFtgEdge"><option value="0">否</option><option value="1">是（箍筋延伸入基腳 ≥ l<sub>d</sub>，§18.10.2.3）</option></select></div>
       <div class="text-[11.5px] mt-1" style="color:var(--dim)">
         φ 過渡：\(\displaystyle \phi=\phi_c+(\phi_t-\phi_c)\frac{\varepsilon_t-\varepsilon_{ty}}{0.003}\)（表 21.2.2），ε<sub>ty</sub> = <b id="oEty" class="mono">—</b>
@@ -2202,7 +2205,7 @@ function applyPreset(key){
   { const bl = (P.code||'bridge')==='bldg';
     S('dAncBot', P.ancBot || (bl ? 'through' : 'hook90')); S('dAncTop', P.ancTop || (bl ? 'through' : 'hook90'));
     S('dHBot', P.hBot || (bl ? 70 : 200)); S('dHTop', P.hTop || (bl ? 70 : 180)); S('dAncCov', P.ancCov || (bl ? 4 : 7.5));
-    S('dSplice', P.splice || 'B'); S('dStagger', P.stagger ? '1' : '0'); S('dLapGap', P.lapGap || 0); S('dStock', P.stock ?? 1200); S('dFtgEdge', P.ftgEdge ? '1' : '0'); S('dBrStag', P.brStag ? '1' : '0'); S('dBrAnc', P.brAnc ? '1' : '0'); }
+    S('dSplice', P.splice || 'B'); S('dStagger', P.stagger ? '1' : '0'); S('dLapGap', P.lapGap || 0); S('dStock', P.stock ?? 1200); S('dFtgEdge', P.ftgEdge ? '1' : '0'); S('dBrStag', P.brStag ? '1' : '0'); S('dBrAnc', P.brAnc ? '1' : '0'); S('dCj', P.cj || 'none'); S('dCjH', P.cjH || 0); S('dCjMu', '1'); }
   if(P.type==='circle'){ S('Dia',P.D); S('nCir',P.nCir); S('spiral',P.spiral||'spiral'); }
   LOADS = P.loads.map(l=>({...l}));
   drawLoads(); render();
@@ -3213,7 +3216,8 @@ function devXCol(){
   return {ancBot:_v('dAncBot')||'hook90', hBot:Math.max(1, num('dHBot',200)), ancTop:_v('dAncTop')||'hook90', hTop:Math.max(1, num('dHTop',180)),
           cov:Math.max(0, num('dAncCov',7.5)), splice:_v('dSplice')||'B', stagger:_v('dStagger')==='1', gap:Math.max(0, num('dLapGap',0)),
           stock:Math.max(0, num('dStock',1200)), ftgEdge:_v('dFtgEdge')==='1',
-          brStag:_v('dBrStag')==='1', brAnc:_v('dBrAnc')==='1'};
+          brStag:_v('dBrStag')==='1', brAnc:_v('dBrAnc')==='1',
+          cj:_v('dCj')||'none', cjH:Math.max(0, num('dCjH',0)), cjMu:+(_v('dCjMu')||1)};
 }
 function devXBeam(){
   return {anc:_v('bdAnc')||'hook90', hc:Math.max(1, num('bdHc',60)), cov:Math.max(0, num('bdAncCov',4)),
@@ -3432,8 +3436,23 @@ function colDevPlan(M){
       if(nEnds === 2) add('top', ldJ, X.hTop - X.cov, '公路橋梁耐震設計規範 §5.3.5', '帽梁');
     }
   }
+  /* 橋墩施工縫（公路橋梁耐震設計規範 §5.6）：剪力摩擦 V_j = φμ(A_vf f_y + 0.75P_n) ≥ 施工縫之總剪力需求（取各組合、兩向之設計剪力 V_des 最大值）；
+     A_vf 取穿過施工縫之全部主筋，P_n 取最小設計軸力（各組合 P_u 之最小值，軸拉為負），μ 依《公路橋梁設計規範》剪力摩擦（粗糙 1.0λ、未粗糙 0.6λ），
+     φ 取橋梁剪力 φ（0.85）；另依同規範 V_n ≤ min(0.2f'c, 56.2)·A_cv（A_cv = A_g）。施工縫不得設置於主筋搭接處。 */
+  let cj = null;
+  if(!bldg && !pl && X.cj !== 'none'){
+    const z = X.cj==='base' ? 0 : Math.min(L, X.cjH), m = M.m, lamC = m.lam || 1, mu = X.cjMu*lamC;
+    const Pmin = Math.min(...M.shX.all.map(c => c.Nu)), Vreq = Math.max(...M.shX.all.map(c => c.Vdes), ...M.shY.all.map(c => c.Vdes));
+    const Vn0 = mu*(M.Ast*m.fy + 0.75*Pmin), Vcap = Math.min(0.2*m.fc, 56.2)*M.Ag, Vn = Math.max(0, Math.min(Vn0, Vcap)), Vj = m.phivB*Vn;
+    const inLap = !mech && splices.some(q => z > q.a + 1e-6 && z < (stag ? q.b2 : q.b) - 1e-6);
+    cj = {z, mu, Pmin, Vreq, Vn0, Vcap, Vn, Vj, phi: m.phivB, Avf: M.Ast, ok: Vj >= Vreq - 1e-6, inLap};
+    checks.push({lv: cj.ok ? 'ok' : 'bad', item:'橋墩施工縫剪力摩擦', need: Vreq/TF, cap: Vj/TF, unit:'tf', ref:'公路橋梁耐震設計規範 §5.6；公路橋梁設計規範剪力摩擦',
+      msg: `距柱底 ${f(z,0)} cm：V_j = φμ(A_vf f_y + 0.75P_n) = ${f(m.phivB,2)} × ${f(mu,2)} × (${f(M.Ast,1)} × ${f(m.fy,0)} + 0.75 × ${f(Pmin/TF,0)} tf)${Vn0 > Vcap ? `，V_n 取上限 ${f(Vcap/TF,0)} tf` : ''} = ${f(Vj/TF,0)} tf ${cj.ok?'≥':'＜'} V_des = ${f(Vreq/TF,0)} tf${cj.ok?'':'：增加穿越施工縫之鋼筋（插筋）或移開施工縫'}`});
+    checks.push({lv: inLap ? 'bad' : 'ok', item:'施工縫不得設於主筋搭接處', need: 0, cap: inLap ? 1 : 0, unit:'', ref:'公路橋梁耐震設計規範 §5.6',
+      msg: inLap ? `施工縫（距柱底 ${f(z,0)} cm）位於主筋搭接段內：移動施工縫或續接位置` : `施工縫（距柱底 ${f(z,0)} cm）不在搭接段內`});
+  }
   return {mod:'col', L, lap, D, X, bot, top, sp, mech, stag, zone, la, lb, la2, lb2, A0, A1, fits, why, bldg, ph, pile:!!pl,
-          splices, pieces, stock: Ls, stockOK, step, maxPiece, jext,
+          splices, pieces, stock: Ls, stockOK, step, maxPiece, jext, cj,
           pitch, g, clrLap, sLapReq, lay: layOut, checks};
 }
 
@@ -4687,6 +4706,7 @@ function devCheckIds(P, c){
     if(/D36/.test(it)) return ['barSize','dSplice'];
     if(/位置/.test(it)) return ['dSplice','dStagger','barSize','lu','ph','#devPlan'];
     if(/錯開/.test(it)) return ['dStagger','dBrStag','dSplice'];
+    if(/施工縫/.test(it)) return ['dCj','dCjH','dCjMu','barSize','nB','nH','nCir','#loadTbl'];
     if(/定尺/.test(it)) return ['dStock','dSplice','dStagger','barSize','lu','ph','#devPlan'];
     if(/箍筋延伸/.test(it)) return /柱底/.test(it) ? ['dHBot','dAncCov','dFtgEdge','barSize','tieSize','#elevInfo'] : ['dHTop','dAncCov','barSize','tieSize','#elevInfo'];
     if(/甲級/.test(it)) return ['dSplice','dExcess'];
@@ -5889,7 +5909,8 @@ function colUncovered(M){
     if(M.conf && M.conf.highAx && M.s.type==='box') out.push('箱型柱高軸力之橫向鋼筋量（表 18.4.5.4 (c) 式，A_ch 對箱型無明確定義）');
   }
   if(o.code==='bridge' && o.plastic){
-    out.push('接合部設計剪力與橋柱接頭部（§4.3、§5.5）'); out.push('橋墩施工縫（§5.6）');
+    out.push('接合部設計剪力與橋柱接頭部（§4.3、§5.5）');
+    if(!(M.devPlan && M.devPlan.cj)) out.push('橋墩施工縫（§5.6）：參數表「橋墩施工縫」設定位置後檢核');
   }
   return out;
 }

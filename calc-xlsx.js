@@ -731,6 +731,8 @@ function buildColumn(ExcelJS, inp){
   addSum({label:'續接區段 所需／可續接範圍（cm）', need:{f:'{dvZone}'}, cap:{f:'{dvA1}-{dvA0}'}, ratio:{f:'IF({dvA1}-{dvA0}>0,{dvZone}/({dvA1}-{dvA0}),0)'}, judge:J('{dvFit}=1'), ref:R401('18.4.4.3、18.2.7.2')});
   addSum({label:'主筋最長下料／定尺長度（cm）', need:{f:'{dvMaxL}'}, cap:{f:'{dvStock}'}, ratio:{f:'IF({dvStock}>0,{dvMaxL}/{dvStock},0)'}, judge:{f:'IF({dvStkOn}=0,"N/A",IF({dvStkOK}=1,"PASS","FAIL"))'}, fmt:'0', ref:'施工（鋼筋定尺）'});
   addSum({label:'橋梁主筋續接錯開', need:1, cap:{f:'{dvStag}'}, ratio:{f:'IF({dvStag}=1,1,9)'}, judge:{f:'IF(OR({isBldg}=1,{isPile}=1,{dvBrStg}="不強制"),"N/A",IF({dvMech}=1,"參考",IF({dvStag}=1,"PASS","FAIL")))'}, note:{f:'IF(AND({isBldg}=0,{dvBrStg}="強制",{dvMech}=1),"續接器亦應錯開（圖說）","")'}, fmt:'0', ref:'公路橋梁耐震設計規範 §5.3.5'});
+  addSum({label:'橋墩施工縫剪力 需求／Vj（tf）', need:{f:'{cjVreq}'}, cap:{f:'{cjVj}'}, ratio:{f:'IF({cjVj}>0,{cjVreq}/{cjVj},9)'}, judge:{f:'IF({cjOn}=0,"N/A",IF({cjVj}>={cjVreq}-1E-6,"PASS","FAIL"))'}, fmt:'#,##0', ref:'公路橋梁耐震設計規範 §5.6'});
+  addSum({label:'施工縫不得設於主筋搭接處', need:0, cap:{f:'{cjLap}'}, ratio:{f:'{cjLap}'}, judge:{f:'IF({cjOn}=0,"N/A",IF({cjLap}=0,"PASS","FAIL"))'}, fmt:'0', ref:'公路橋梁耐震設計規範 §5.6'});
   addSum({label:'柱底箍筋延伸入基礎 需求／可用（cm）', need:{f:'{jxNeedB}'}, cap:{f:'{dvAvB}'}, ratio:{f:'IF({dvAvB}>0,{jxNeedB}/{dvAvB},9)'}, judge:{f:'IF({jxOnB}=0,"N/A",IF({jxNeedB}<={dvAvB}+1E-9,"PASS","FAIL"))'}, fmt:'0', ref:R401('18.10.2.3')+'；公路橋梁耐震設計規範 §5.3.5'});
   addSum({label:'柱頂箍筋延伸入接頭 需求／可用（cm）', need:{f:'{jxNeedT}'}, cap:{f:'{jxAvT}'}, ratio:{f:'IF({jxAvT}>0,{jxNeedT}/{jxAvT},9)'}, judge:{f:'IF({jxOnT}=0,"N/A",IF({jxNeedT}<={jxAvT}+1E-9,"PASS","FAIL"))'}, fmt:'0', ref:R401('18.5.3.1')+'；公路橋梁耐震設計規範 §5.3.5'});
   addSum({label:'甲級搭接 As,使用／As,需求', need:2, cap:{f:'IF({dvExc}>0,1/{dvExc},1)'}, ratio:{f:'2*{dvExc}'}, judge:{f:'IF({dvSp}<>"甲級搭接","N/A",IF({dvExc}<=0.5+1E-9,"PASS","FAIL"))'}, ref:R401('表 25.5.2.1')});
@@ -1031,6 +1033,19 @@ function devPlanColX(S, X){
     expr:'建築：最深構入梁深 h（頂端構材深度）；橋梁：≧ ld', ref:R401('18.5.3.1')+'；公路橋梁耐震設計規範 §5.3.5'});
   S.item({key:'jxAvT', label:'柱頂接頭可用深度', f:'IF({isBldg}=1,{dvHT},{dvAvT})', unit:'cm', fmt:'0.0', ref:'—'});
   S.item({key:'jxNT', label:'柱頂延伸段箍筋數量（另計）', f:'IF({jxOnT}=1,ROUNDUP({jxNeedT}/{sUse}-1E-9,0),0)', unit:'組', ref:'—'});
+  // 橋墩施工縫（公路橋梁耐震設計規範 §5.6；網頁 colDevPlan 同）
+  S.item({key:'cjPos', label:'橋墩施工縫', v:({none:'無',base:'柱底（基礎頂面）',h:'柱底以上指定高度'})[X.cj||'none'], kind:'list', list:['無','柱底（基礎頂面）','柱底以上指定高度'], ref:'公路橋梁耐震設計規範 §5.6'});
+  S.item({key:'cjH', label:'施工縫高度（距柱底）', v:X.cjH||0, unit:'cm', kind:'in', fmt:'0', ref:'—'});
+  S.item({key:'cjMu0', label:'施工縫摩擦係數 μ／λ', v:X.cjMu===0.6?'0.6λ（未刻意粗糙）':'1.0λ（刻意粗糙）', kind:'list', list:['1.0λ（刻意粗糙）','0.6λ（未刻意粗糙）'], ref:'公路橋梁設計規範（剪力摩擦）'});
+  S.item({key:'cjOn', label:'　旗標：檢核施工縫', f:'--AND({isBldg}=0,{isPile}=0,{cjPos}<>"無")', ref:'—'});
+  S.item({key:'cjZ', label:'施工縫位置（距柱底）', f:'IF({cjPos}="柱底（基礎頂面）",0,MIN({Lel},{cjH}))', unit:'cm', fmt:'0', ref:'—'});
+  S.item({key:'cjMu', label:'摩擦係數 μ', sym:'μ', f:'IF(LEFT({cjMu0},3)="0.6",0.6,1)*{dvLam}', unit:'無因次', fmt:'0.00', ref:'公路橋梁設計規範（剪力摩擦）'});
+  S.item({key:'cjPmin', label:'最小設計軸力 Pn', sym:'Pn', f:"MIN('載重組合'!B4:B"+(3+NCB)+')', unit:'tf', fmt:'#,##0.0', expr:'各組合 Pu 之最小值（軸拉為負）', ref:'公路橋梁耐震設計規範 §5.6'});
+  S.item({key:'cjVreq', label:'施工縫剪力需求', f:"MAX('載重組合'!N4:N"+(3+NCB)+",'載重組合'!Q4:Q"+(3+NCB)+')', unit:'tf', fmt:'#,##0.0', expr:'各組合、兩向設計剪力 Vdes 之最大值', ref:'—'});
+  S.item({key:'cjVn0', label:'剪力摩擦強度 μ(Avf·fy + 0.75Pn)', f:'{cjMu}*({Ast}*{fy}/1000+0.75*{cjPmin})', unit:'tf', fmt:'#,##0.0', expr:'Avf 取穿越施工縫之全部主筋', ref:'公路橋梁耐震設計規範 式 (5-10)'});
+  S.item({key:'cjVcap', label:'剪力摩擦強度上限', f:'MIN(0.2*{fc},56.2)*{Ag}/1000', unit:'tf', fmt:'#,##0.0', expr:"min(0.2f'c, 56.2)·Acv，Acv = Ag", ref:'公路橋梁設計規範（剪力摩擦）'});
+  S.item({key:'cjVj', label:'施工縫設計剪力強度 Vj', sym:'Vj', f:'{phivB}*MAX(0,MIN({cjVn0},{cjVcap}))', unit:'tf', fmt:'#,##0.0', crit:'≧ 剪力需求', ref:'公路橋梁耐震設計規範 式 (5-10)'});
+  S.item({key:'cjLap', label:'　旗標：施工縫位於主筋搭接段', f:'--AND({dvMech}=0,{cjZ}>{dvLa}+1E-6,{cjZ}<{dvLe}-1E-6)', crit:'1＝位於搭接處（不得）', ref:'公路橋梁耐震設計規範 §5.6'});
   S.item({key:'dvPit', label:'主筋中心距（最小）', f:'IF({isCirc}=1,2*PI()*{rb}/{nC},MIN({pB},{pH}))', unit:'cm', fmt:'0.00', ref:'—'});
   S.item({key:'dvClrL', label:'搭接處淨距', f:'{dvPit}-IF({dvGap}>0,{dvGap},{db})-{db}', unit:'cm', fmt:'0.00', expr:'中心距 − 心距（接觸取 db）− db', crit:'≧ 柱主筋淨距下限', ref:R401('25.5.1.2、25.2.3')});
   S.item({key:'dvSLr', label:'搭接段橫向筋間距上限', f:'{sPH}', unit:'cm', fmt:FMT_SINF, expr:'同 §18.4.5.3 加密區間距上限', ref:R401('18.4.4.3、18.4.5.3')});
