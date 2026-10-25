@@ -729,6 +729,7 @@ function buildColumn(ExcelJS, inp){
   addSum({label:'頂端錨定長度（cm）', need:{f:'{dvLenT}'}, cap:{f:'{dvAvT}'}, ratio:{f:'IF({dvAvT}>0,{dvLenT}/{dvAvT},0)'}, judge:{f:'IF({dvAncT}="貫穿續接","N/A",IF(AND({dvAncT}="擴頭",{dvhd}<>"適用"),"FAIL",IF({dvLenT}<={dvAvT}+1E-9,"PASS","FAIL")))'}, ref:R401('25.4')});
   addSum({label:'頂端受壓直段 ldc（cm）', need:{f:'{dvldcU}'}, cap:{f:'{dvCvT}'}, ratio:{f:'IF({dvCvT}>0,{dvldcU}/{dvCvT},0)'}, judge:{f:'IF({dvAncT}="貫穿續接","N/A",IF({dvldcU}<={dvCvT}+1E-9,"PASS","FAIL"))'}, ref:R401('25.4.9、25.4.1.2')});
   addSum({label:'續接區段 所需／可續接範圍（cm）', need:{f:'{dvZone}'}, cap:{f:'{dvA1}-{dvA0}'}, ratio:{f:'IF({dvA1}-{dvA0}>0,{dvZone}/({dvA1}-{dvA0}),0)'}, judge:J('{dvFit}=1'), ref:R401('18.4.4.3、18.2.7.2')});
+  addSum({label:'主筋最長下料／定尺長度（cm）', need:{f:'{dvMaxL}'}, cap:{f:'{dvStock}'}, ratio:{f:'IF({dvStock}>0,{dvMaxL}/{dvStock},0)'}, judge:{f:'IF({dvStkOn}=0,"N/A",IF({dvStkOK}=1,"PASS","FAIL"))'}, fmt:'0', ref:'施工（鋼筋定尺）'});
   addSum({label:'甲級搭接 As,使用／As,需求', need:2, cap:{f:'IF({dvExc}>0,1/{dvExc},1)'}, ratio:{f:'2*{dvExc}'}, judge:{f:'IF({dvSp}<>"甲級搭接","N/A",IF({dvExc}<=0.5+1E-9,"PASS","FAIL"))'}, ref:R401('表 25.5.2.1')});
   addSum({label:'搭接處淨距（cm）', need:{f:'{need}'}, cap:{f:'{dvClrL}'}, ratio:{f:'IF({dvClrL}>0,{need}/{dvClrL},9)'}, judge:{f:'IF({dvMech}=1,"N/A",IF({dvClrL}>={need}-1E-9,"PASS","FAIL"))'}, ref:R401('25.5.1.2、25.2.3')});
   addSum({label:'大於 D36 之鋼筋不得搭接（主筋 db，cm）', need:{f:'{db}'}, cap:3.58, ratio:{f:'{db}/3.58'}, judge:{f:'IF({dvMech}=1,"N/A",IF({db}>3.59,"FAIL","PASS"))'}, fmt:'0.00', note:'改用機械式續接或改小號數（受壓搭接例外見 §25.5.5.3）', ref:R401('25.5.1.1')});
@@ -988,6 +989,29 @@ function devPlanColX(S, X){
   S.item({key:'dvLa', label:'續接起點（距柱底；基樁距樁尖）', f:'IF(OR({dvFit}=0,{dvLa0}+{dvZone}>{Lel}+1E-9),MAX(0,({Lel}-{dvZone})/2),{dvLa0})', unit:'cm', fmt:'0.0', ref:'—'});
   S.item({key:'dvLb', label:'第一組搭接終點', f:'IF({dvMech}=1,{dvLa},{dvLa}+{dvLap})', unit:'cm', fmt:'0.0', ref:'—'});
   S.item({key:'dvLe', label:'續接區段終點', f:'IF({dvStag}=1,{dvLb}+{dvLap},{dvLb})', unit:'cm', fmt:'0.0', ref:'—'});
+  // 主筋定尺長度（多段續接，與網頁 colDevPlan 相同）：頂段過長時自上述續接處向上、底段過長時向下，以步距增設續接；位置不超出可續接範圍
+  S.item({key:'dvStock', label:'主筋定尺長度（0＝不限）', v:X.stock ?? 1200, unit:'cm', kind:'in', fmt:'0', ref:'施工（鋼筋定尺）',
+    note:'下料長超過定尺時依步距增設續接；增設處之搭接段加密僅反映於網頁軸向配置'});
+  S.item({key:'dvStkOn', label:'　旗標：檢核定尺', f:'--AND({dvStock}>0,{dvFit}=1)', ref:'—'});
+  S.item({key:'dvLapE', label:'每處續接重疊長度', f:'IF({dvMech}=1,0,{dvLap})', unit:'cm', fmt:'0', expr:'機械式續接為 0', ref:'—'});
+  S.item({key:'dvNg', label:'續接組數', f:'IF({dvStag}=1,2,1)', unit:'組', expr:'錯開時兩組，第二組上移 lst', ref:'—'});
+  S.item({key:'dvTlB', label:'底端彎鉤延伸', f:'IF({isPile}=1,0,IF({dvAncB}="標準彎鉤 90°",12*{db},IF({dvAncB}="標準彎鉤 180°",MAX(4*{db},6.5),0)))', unit:'cm', fmt:'0.0', expr:'90°：12db；180°：max(4db, 6.5)', ref:R401('25.3.1')});
+  S.item({key:'dvTlT', label:'頂端彎鉤延伸', f:'IF({dvAncT}="標準彎鉤 90°",12*{db},IF({dvAncT}="標準彎鉤 180°",MAX(4*{db},6.5),0))', unit:'cm', fmt:'0.0', ref:R401('25.3.1')});
+  S.item({key:'dvHasB', label:'　旗標：有底段（非貫穿續接）', f:'--OR({isPile}=1,{dvAncB}<>"貫穿續接")', ref:'—'});
+  S.item({key:'dvEb', label:'底段於柱底以下長度', f:'IF({isPile}=1,-{covO},{dvLenB}+{dvTlB})', unit:'cm', fmt:'0.0', expr:'錨定長度＋彎鉤延伸；基樁自樁尖保護層起（負值）', ref:'—'});
+  S.item({key:'dvEt', label:'頂段於柱頂以上長度', f:'IF({dvAncT}="貫穿續接",{dvHT}+{dvLa}+{dvLapE},{dvLenT}+{dvTlT})', unit:'cm', fmt:'0.0', expr:'貫穿續接：延伸至上層同一續接處 hTop + la + lst', ref:'—'});
+  S.item({key:'dvStep', label:'增設續接步距', f:'IF({dvStock}>0,INT(({dvStock}-{dvLapE})/5)*5,0)', unit:'cm', fmt:'0', expr:'floor((定尺 − lst)/5)×5，中段下料長 ≦ 定尺', ref:'—'});
+  S.item({key:'dvStpOK', label:'　旗標：步距 ≧ 續接區段長', f:'--({dvStep}>=MAX({dvZone},5))', ref:'—'});
+  S.item({key:'dvNUp', label:'向上增設續接處數', f:'IF(OR({dvStkOn}=0,{dvStpOK}=0),0,MAX(0,ROUNDUP(({Lel}+{dvEt}-{dvLa}-{dvStock})/{dvStep}-1E-9,0)))', unit:'處', ref:'—'});
+  S.item({key:'dvATop', label:'最上續接處起點', f:'IF({dvNUp}=0,{dvLa},MIN({dvLa}+{dvNUp}*{dvStep},{dvA1}-{dvZone}))', unit:'cm', fmt:'0.0', expr:'不超出可續接範圍終點 − 區段長', ref:'—'});
+  S.item({key:'dvNDn', label:'向下增設續接處數', f:'IF(OR({dvStkOn}=0,{dvStpOK}=0,{dvHasB}=0),0,MAX(0,ROUNDUP(({dvEb}+{dvLa}+{dvNg}*{dvLapE}-{dvStock})/{dvStep}-1E-9,0)))', unit:'處', ref:'—'});
+  S.item({key:'dvABot', label:'最下續接處起點', f:'IF({dvNDn}=0,{dvLa},MAX({dvLa}-{dvNDn}*{dvStep},{dvA0}))', unit:'cm', fmt:'0.0', expr:'不低於可續接範圍起點', ref:'—'});
+  S.item({key:'dvNsp', label:'續接處數（含增設）', f:'1+{dvNUp}+{dvNDn}', unit:'處', ref:'—'});
+  S.item({key:'dvTopL', label:'頂段下料長', f:'{Lel}-{dvATop}+{dvEt}', unit:'cm', fmt:'0.0', ref:'—'});
+  S.item({key:'dvBotL', label:'底段下料長', f:'IF({dvHasB}=1,{dvEb}+{dvABot}+{dvNg}*{dvLapE},0)', unit:'cm', fmt:'0.0', expr:'錯開時第二組多 lst', ref:'—'});
+  S.item({key:'dvMidL', label:'中段下料長（最長）', f:'IF({dvNUp}+{dvNDn}>0,{dvStep}+{dvLapE},0)', unit:'cm', fmt:'0.0', ref:'—'});
+  S.item({key:'dvMaxL', label:'主筋最長下料長', f:'MAX({dvTopL},{dvBotL},{dvMidL})', unit:'cm', fmt:'0.0', crit:'≦ 定尺長度', ref:'—'});
+  S.item({key:'dvStkOK', label:'定尺長度符合', f:'IF({dvStkOn}=0,1,--AND({dvStpOK}=1,{dvMaxL}<={dvStock}+1E-9))', crit:'1＝各段下料長皆 ≦ 定尺', ref:'施工（鋼筋定尺）'});
   S.item({key:'dvPit', label:'主筋中心距（最小）', f:'IF({isCirc}=1,2*PI()*{rb}/{nC},MIN({pB},{pH}))', unit:'cm', fmt:'0.00', ref:'—'});
   S.item({key:'dvClrL', label:'搭接處淨距', f:'{dvPit}-IF({dvGap}>0,{dvGap},{db})-{db}', unit:'cm', fmt:'0.00', expr:'中心距 − 心距（接觸取 db）− db', crit:'≧ 柱主筋淨距下限', ref:R401('25.5.1.2、25.2.3')});
   S.item({key:'dvSLr', label:'搭接段橫向筋間距上限', f:'{sPH}', unit:'cm', fmt:FMT_SINF, expr:'同 §18.4.5.3 加密區間距上限', ref:R401('18.4.4.3、18.4.5.3')});

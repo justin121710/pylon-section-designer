@@ -1005,6 +1005,7 @@ img,video{max-width:100%;height:auto}
       <div class="fld"><span>主筋續接方式</span><select id="dSplice"><option value="B">乙級搭接</option><option value="A">甲級搭接（須錯開）</option><option value="m1">機械式續接 第一類</option><option value="m2">機械式續接 第二類</option><option value="m3">機械式續接 第三類</option></select></div>
       <div class="fld"><span>搭接錯開</span><select id="dStagger"><option value="0">不錯開</option><option value="1">錯開 50%（間隔 ≥ l<sub>st</sub>）</option></select></div>
       <div class="fld"><span>非接觸搭接心距 (cm)</span><input id="dLapGap" type="number" step="0.5" value="0"></div>
+      <div class="fld"><span>主筋定尺長度 (cm，0＝不限)</span><input id="dStock" type="number" step="100" value="1200"></div>
       <div class="text-[11.5px] mt-1" style="color:var(--dim)">
         φ 過渡：\(\displaystyle \phi=\phi_c+(\phi_t-\phi_c)\frac{\varepsilon_t-\varepsilon_{ty}}{0.003}\)（表 21.2.2），ε<sub>ty</sub> = <b id="oEty" class="mono">—</b>
       </div>
@@ -2194,7 +2195,7 @@ function applyPreset(key){
   { const bl = (P.code||'bridge')==='bldg';
     S('dAncBot', P.ancBot || (bl ? 'through' : 'hook90')); S('dAncTop', P.ancTop || (bl ? 'through' : 'hook90'));
     S('dHBot', P.hBot || (bl ? 70 : 200)); S('dHTop', P.hTop || (bl ? 70 : 180)); S('dAncCov', P.ancCov || (bl ? 4 : 7.5));
-    S('dSplice', P.splice || 'B'); S('dStagger', P.stagger ? '1' : '0'); S('dLapGap', P.lapGap || 0); }
+    S('dSplice', P.splice || 'B'); S('dStagger', P.stagger ? '1' : '0'); S('dLapGap', P.lapGap || 0); S('dStock', P.stock ?? 1200); }
   if(P.type==='circle'){ S('Dia',P.D); S('nCir',P.nCir); S('spiral',P.spiral||'spiral'); }
   LOADS = P.loads.map(l=>({...l}));
   drawLoads(); render();
@@ -3196,7 +3197,8 @@ const barKgm = size => BAR[size].A*0.785;            // kg/m（鋼比重 7.85）
 const _v = id => { const e = document.getElementById(id); return e ? e.value : ''; };
 function devXCol(){
   return {ancBot:_v('dAncBot')||'hook90', hBot:Math.max(1, num('dHBot',200)), ancTop:_v('dAncTop')||'hook90', hTop:Math.max(1, num('dHTop',180)),
-          cov:Math.max(0, num('dAncCov',7.5)), splice:_v('dSplice')||'B', stagger:_v('dStagger')==='1', gap:Math.max(0, num('dLapGap',0))};
+          cov:Math.max(0, num('dAncCov',7.5)), splice:_v('dSplice')||'B', stagger:_v('dStagger')==='1', gap:Math.max(0, num('dLapGap',0)),
+          stock:Math.max(0, num('dStock',1200))};
 }
 function devXBeam(){
   return {anc:_v('bdAnc')||'hook90', hc:Math.max(1, num('bdHc',60)), cov:Math.max(0, num('bdAncCov',4)),
@@ -3306,10 +3308,56 @@ function colDevPlan(M){
   else la = A0;
   if(!fits || la + zone > L + 1e-9) la = Math.max(0, (L - zone)/2);
   const lb = mech ? la : la + lap, la2 = stag ? lb : null, lb2 = stag ? lb + lap : null;
+  /* 主筋定尺長度（多段續接）：上述續接處為主要續接；頂段下料長超過定尺時自主要續接處向上、底段超過時向下，
+     以步距 floor((定尺 − l_st)/5)×5 cm 增設續接（中段下料長 ≤ 定尺），位置不得超出可續接範圍 [A0, A1 − 區段長]（超出者取邊界）；
+     無法再增設而仍超過定尺時判不合格。錯開時第二組各續接處上移 l_st，中段長度相同、底段多 l_st。
+     下料長＝直段＋彎鉤延伸（與鋼筋下料長度表相同）；貫穿續接之頂段延伸至上層構材之同一續接處（hTop + la + l_st）。 */
+  const Ls = X.stock > 0 ? X.stock : Infinity, lapE = mech ? 0 : lap, nG = stag ? 2 : 1;
+  const tailOf = q => q && q.type==='hook90' ? D.ext90 : q && q.type==='hook180' ? D.ext180 : 0;
+  const hasBot = !bot.through || !!bot.tip;
+  const botSt = (a, g) => bot.tip ? a + (g+1)*lapE - r.covO : (bot.q && bot.q.ok ? bot.q.len : 0) + a + (g+1)*lapE;
+  const topSt = (a, g) => top.through ? L - a - g*lapE + X.hTop + la + (g+1)*lapE : L - a - g*lapE + (top.q && top.q.ok ? top.q.len : 0);
+  const botLen = (a, g) => botSt(a, g) + (bot.tip || bot.through ? 0 : tailOf(bot.q));
+  const topLen = (a, g) => topSt(a, g) + (top.through ? 0 : tailOf(top.q));
+  const mxG = (fn, a) => Math.max(...Array.from({length:nG}, (_, g) => fn(a, g)));
+  const spl = [la];
+  let stockOK = true, stockWhy = '', step = 0;
+  if(fits && Number.isFinite(Ls)){
+    step = Math.floor((Ls - lapE)/5)*5;
+    if(step < Math.max(zone, 5)){ stockOK = false; stockWhy = `定尺 ${f(Ls,0)} cm 扣除搭接後之步距 ${f(Math.max(0,step),0)} cm 小於續接區段長 ${zone} cm`; }
+    else{
+      for(let k=0; k<60 && mxG(topLen, spl[spl.length-1]) > Ls + 1e-9; k++){
+        const last = spl[spl.length-1], nx = Math.min(last + step, A1 - zone);
+        if(nx <= last + 1e-6){ stockOK = false; stockWhy = `頂段下料長 ${f(mxG(topLen, last),0)} cm ＞ 定尺，可續接範圍內已無法再增設續接`; break; }
+        spl.push(nx);
+      }
+      for(let k=0; k<60 && hasBot && mxG(botLen, spl[0]) > Ls + 1e-9; k++){
+        const first = spl[0], pv = Math.max(first - step, A0);
+        if(pv >= first - 1e-6){ stockOK = false; stockWhy = `底段下料長 ${f(mxG(botLen, first),0)} cm ＞ 定尺，可續接範圍內已無法再增設續接`; break; }
+        spl.unshift(pv);
+      }
+    }
+  }
+  const splices = spl.map(a => ({a, b: a + lapE, a2: stag ? a + lapE : null, b2: stag ? a + 2*lapE : null, main: a === la}));
+  // 各組下料段：底段（插筋或樁身下段）、中段、頂段；st 為直段、tail 為彎鉤延伸
+  const pieces = Array.from({length:nG}, (_, g) => {
+    const out = [];
+    if(hasBot) out.push({kind:'bot', st: botSt(spl[0], g), tail: bot.tip || bot.through ? 0 : tailOf(bot.q)});
+    for(let i=1;i<spl.length;i++) out.push({kind:'mid', i, st: spl[i] - spl[i-1] + lapE, tail:0, a: spl[i-1] + g*lapE, b: spl[i] + (g+1)*lapE});
+    out.push({kind:'top', st: topSt(spl[spl.length-1], g), tail: top.through ? 0 : tailOf(top.q)});
+    return out;
+  });
+  const maxPiece = Math.max(...pieces.flat().map(q => devUp(q.st + q.tail)));
   checks.push({lv: fits ? 'ok' : 'bad', item: mech ? '續接器位置' : '搭接位置', need: zone, cap: Math.max(0, A1 - A0), unit:'cm',
     ref: pl ? '表 25.5.2.1（位置為建議）' : ph ? (bldg ? (mech ? '§18.2.7.2' : '§18.4.4.3') : '公路橋梁耐震設計規範 §5.3.6') : '表 25.5.2.1',
     msg: fits ? (mech ? `${SPLICE_TXT[sp]}設於距${pl?'樁尖':'柱底'} ${f(la,0)} cm（${why}）` : `搭接 ${f(la,0)}～${f(stag?lb2:lb,0)} cm（${why}${stag?'，錯開兩組':''}）`)
       : `可搭接範圍 ${f(Math.max(0,A1-A0),0)} cm ＜ 所需 ${zone} cm：改用機械式續接（第三類可設於任何位置）或調整鋼筋號數`});
+  if(fits && Number.isFinite(Ls)){
+    const nSp = splices.length, more = nSp > 1 ? `，依定尺增設 ${nSp-1} 處（${spl.filter(a => a !== la).map(a => f(a,0)).join('、')} cm）` : '';
+    checks.push({lv: stockOK ? 'ok' : 'bad', item:'主筋定尺長度', need: maxPiece, cap: Ls, unit:'cm', ref: '施工（鋼筋定尺）；續接位置同上',
+      msg: stockOK ? `${mech ? '續接器' : '續接'}共 ${nSp} 處${more}；最長下料 ${maxPiece} cm ≤ 定尺 ${f(Ls,0)} cm`
+        : `${stockWhy}：改用機械式續接（第三類可設於任何位置）、加長定尺（特訂長度）或調整錨定`});
+  }
   if(!mech && R.db > 3.59) checks.push({lv:'bad', item:'大於 D36 之鋼筋不得搭接', need: R.db, cap: 3.58, unit:'cm', ref:'§25.5.1.1',
     msg:`主筋 D${Math.round(R.db*10)} 大於 D36，除 §25.5.5.3 之受壓搭接例外外不得搭接 —— 改用機械式續接或改小號數`});
   if(sp==='A'){
@@ -3327,13 +3375,14 @@ function colDevPlan(M){
   let sLapReq = null, layOut = lay;
   if(ph && bldg && !mech && fits && !lay.full){
     sLapReq = Math.min(M.shX.s_ph, M.shY.s_ph);
-    layOut = lapTieLayout(lay, [{a:la, b: stag ? lb2 : lb}], sLapReq);
+    layOut = lapTieLayout(lay, splices.map(q => ({a:q.a, b: stag ? q.b2 : q.b})), sLapReq);
     const sAct = layOut.lapZones && layOut.lapZones.length ? layOut.sLap : (M.fin2 ? M.fin2.sUse : M.fin.sUse);
     checks.push({lv:'ok', item:'搭接段橫向筋', need: sLapReq, cap: sAct, unit:'cm', ref:'§18.4.4.3、§18.4.5.3',
       msg: layOut.lapZones && layOut.lapZones.length ? `搭接段加密為 @ ${f(layOut.sLap,1)} cm（需 ≤ min(b/4, ${seisKdb(M.m.fy)}d_b, s_o) = ${f(sLapReq,2)} cm），已反映於軸向配置`
         : `一般區間距 @ ${f(sAct,1)} cm 已 ≤ ${f(sLapReq,2)} cm，搭接段無須另行加密`});
   }
   return {mod:'col', L, lap, D, X, bot, top, sp, mech, stag, zone, la, lb, la2, lb2, A0, A1, fits, why, bldg, ph, pile:!!pl,
+          splices, pieces, stock: Ls, stockOK, step, maxPiece,
           pitch, g, clrLap, sLapReq, lay: layOut, checks};
 }
 
@@ -3464,17 +3513,16 @@ function devSchedule(P, M){
   const tailOf = (q, d) => q && q.type==='hook90' ? d.ext90 : q && q.type==='hook180' ? d.ext180 : 0;
   const embed = (q) => q ? q.len : 0;
   if(P.mod==='col'){
-    const {r} = M, d = P.D, n = M.R.bars.length, size = r.barSize, L = P.L;
-    const groups = P.stag ? [{la:P.la, lb:P.lb, n:Math.ceil(n/2), tag:'第一組'}, {la:P.la2, lb:P.lb2, n:Math.floor(n/2), tag:'第二組（錯開）'}] : [{la:P.la, lb:P.lb, n, tag:''}];
-    for(const g of groups){
-      if(P.bot.tip) rows.push({id:`P1${g.tag?'-'+(rows.length+1):''}`, where:`樁身下段（自樁尖）${g.tag}`, size, shape:'直', st: g.lb - M.r.covO, tail:0, n:g.n});
-      else if(!P.bot.through){
-        const st = embed(P.bot.q) + g.lb, tl = tailOf(P.bot.q, d);
-        rows.push({id:`C1${g.tag?'-'+(rows.length+1):''}`, where:`底部插筋 ${g.tag}`, size, shape:ANC_TXT[P.bot.type], st, tail:tl, n:g.n});
+    const n = M.R.bars.length, size = M.r.barSize, nMid = P.splices.length - 1;
+    const groups = P.stag ? [{g:0, n:Math.ceil(n/2), tag:'第一組'}, {g:1, n:Math.floor(n/2), tag:'第二組（錯開）'}] : [{g:0, n, tag:''}];
+    for(const G of groups){
+      const sfx = P.stag ? `-${G.g+1}` : '';
+      for(const q of P.pieces[G.g]){
+        if(q.kind==='bot') rows.push(P.bot.tip ? {id:`P1${sfx}`, where:`樁身下段（自樁尖）${G.tag}`, size, shape:'直', st:q.st, tail:0, n:G.n}
+          : {id:`C1${sfx}`, where:`底部插筋 ${G.tag}`, size, shape:ANC_TXT[P.bot.type], st:q.st, tail:q.tail, n:G.n});
+        else if(q.kind==='mid') rows.push({id:`C${2+q.i}${sfx}`, where:`${P.pile?'樁身':'柱主筋'}中段 ${nMid>1?q.i:''}（${f(q.a,0)}～${f(q.b,0)} cm）${G.tag}`, size, shape:'直', st:q.st, tail:0, n:G.n});
+        else rows.push({id:`C2${sfx}`, where:`${P.pile?'樁身上段（錨入樁帽）':nMid?'柱主筋上段':'柱主筋'} ${G.tag}${P.top.through?'（含上層搭接）':''}`, size, shape: P.top.through ? '直' : ANC_TXT[P.top.type], st:q.st, tail:q.tail, n:G.n});
       }
-      const topLen = P.top.through ? P.X.hTop + g.lb : embed(P.top.q);
-      const st = (L - g.la) + topLen, tl = P.top.through ? 0 : tailOf(P.top.q, d);
-      rows.push({id:`C2${g.tag?'-'+(rows.length+1):''}`, where:`${P.pile?'樁身上段（錨入樁帽）':'柱主筋'} ${g.tag}${P.top.through?'（含上層搭接）':''}`, size, shape: P.top.through ? '直' : ANC_TXT[P.top.type], st, tail:tl, n:g.n});
     }
   }else{
     const L = P.L;
@@ -3900,7 +3948,7 @@ function svgDevLap(view, M, P, setIdx, forPrint){
 function devLapRegions(P){
   if(P.mech || !P.lay) return [];
   const raw = P.mod==='col'
-    ? (P.fits ? [[P.la, P.stag ? P.lb2 : P.lb]] : [])
+    ? (P.fits ? P.splices.map(q => [q.a, P.stag ? q.b2 : q.b]) : [])
     : [P.top, P.bot].filter(b => b && b.lapOn && b.fits).map(b => [b.la, P.stag ? b.lb2 : b.lb]);
   const rs = raw.filter(r => Number.isFinite(r[0]) && Number.isFinite(r[1]) && r[1] > r[0]).sort((x,y)=>x[0]-y[0]), out = [];
   for(const r of rs){ const q = out[out.length-1]; if(q && r[0] <= q[1] + 1e-6) q[1] = Math.max(q[1], r[1]); else out.push([...r]); }
@@ -3972,18 +4020,22 @@ function svgColDev(M, forPrint, mechView){
     const Fp = {P:(u,v) => [x + v*dir, isTop ? Y(L) - u : Y(0) + u], u0: isTop ? (Y(L) - Y(zFrom)) : (Y(zFrom) - Y(0))};
     drawAnchor(o, Fp, qPx, dPx, 0, 1, (e.okT ? colr : C.bad), 2);
   };
-  const groups = P.stag ? [[xl+cvx, 1, P.la, P.lb], [xr-cvx, -1, P.la2, P.lb2]] : [[xl+cvx, 1, la, lb], [xr-cvx, -1, la, lb]];
-  for(const [x, dir, ga, gb] of groups){
-    const x2 = x + dir*off;
+  // 各續接處（多段續接時由下而上）：第一組 [a, b]、第二組（錯開）[a2, b2]；鋼筋段交替偏移 off 以示搭接
+  const SP = P.splices, nS = SP.length;
+  const groups = P.stag ? [[xl+cvx, 1, 'a', 'b'], [xr-cvx, -1, 'a2', 'b2']] : [[xl+cvx, 1, 'a', 'b'], [xr-cvx, -1, 'a', 'b']];
+  for(const [x, dir, ka, kb] of groups){
     if(showMech){
-      const zc = P.mech ? la : (ga + gb)/2;
-      anc(x, dir, zc, null, false, C.bar);
-      anc(x, dir, zc, null, true, C.bar2);
+      const zc = i => P.mech ? SP[i].a : (SP[i][ka] + SP[i][kb])/2;
+      anc(x, dir, zc(0), null, false, C.bar);
+      anc(x, dir, zc(nS-1), null, true, nS > 1 ? C.bar : C.bar2);
+      if(nS > 1) o.push(`<line x1="${x}" y1="${Y(zc(nS-1))}" x2="${x}" y2="${Y(zc(0))}" stroke="${C.bar}" stroke-width="2"/>`);
       const hpx = Math.max(9, 6*R.db*k);
-      o.push(`<rect x="${_p(x-4)}" y="${_p(Y(zc)-hpx/2)}" width="8" height="${_p(hpx)}" fill="${C.m}" rx="1.5"/>`);
+      for(let i=0;i<nS;i++) o.push(`<rect x="${_p(x-4)}" y="${_p(Y(zc(i))-hpx/2)}" width="8" height="${_p(hpx)}" fill="${C.m}" rx="1.5"/>`);
     }else{
-      anc(x, dir, gb, null, false, C.bar);
-      anc(x2, dir, ga, null, true, C.bar2);
+      const xj = j => x + (j%2)*dir*off, cj = j => j%2 ? C.bar2 : C.bar;
+      anc(xj(0), dir, SP[0][kb], null, false, cj(0));
+      for(let j=1;j<nS;j++) o.push(`<line x1="${xj(j)}" y1="${Y(SP[j][kb])}" x2="${xj(j)}" y2="${Y(SP[j-1][ka])}" stroke="${cj(j)}" stroke-width="2"/>`);
+      anc(xj(nS), dir, SP[nS-1][ka], null, true, cj(nS));
     }
   }
   // 臨界斷面
@@ -4000,15 +4052,25 @@ function svgColDev(M, forPrint, mechView){
     segs.push(isTop ? {a:L, b:L + (e.q.len||0), l1:lab, l2:sub, bad:!(e.okT&&e.okC), meas:true} : {a:-(e.q.len||0), b:0, l1:lab, l2:sub, bad:!(e.okT&&e.okC), meas:true, rev:true});
   };
   endSeg(P.bot, false);
+  const stkBad = !P.stockOK;
   if(showMech){
-    const zc = P.mech ? la : (la + lb)/2;
-    segs.push({a:0, b:zc, l1:`續接器距${tip?'樁尖':'柱底'} ${f(zc,0)} cm`, l2: P.mech ? SPLICE_TXT[P.sp] : '機械式續接（示意）', hot:true});
+    let prev = 0;
+    SP.forEach((q, i) => {
+      const zc = P.mech ? q.a : (q.a + (P.stag ? q.b2 : q.b))/2;
+      segs.push({a:prev, b:zc, l1: i ? `${f(zc-prev,0)} cm` : `續接器距${tip?'樁尖':'柱底'} ${f(zc,0)} cm`,
+        l2: i ? '定尺續接' : P.mech ? SPLICE_TXT[P.sp] : '機械式續接（示意）', hot:true, bad: i>0 && stkBad});
+      prev = zc;
+    });
   }else{
-    if(la > 0.5) segs.push({a:0, b:la, l1:`${f(la,0)} cm`, l2:''});
-    segs.push({a:la, b:lb, l1:`${P.sp==='A'?'甲級':'乙級'}搭接 ${lap} cm`, l2:`${P.sp==='A'?'1.0':'1.3'}ψ_g l_d${M.dev.sets[0].d.kSl>1?' × 1.3（泥水中灌注）':''}，${P.why}`, hot:true, bad:!P.fits, meas:true});
-    if(P.stag) segs.push({a:P.la2, b:P.lb2, l1:`第二組 ${lap} cm（錯開）`, l2:'', hot:true, bad:!P.fits, meas:true});
-    const zEnd = P.stag ? P.lb2 : lb;
-    if(L - zEnd > 0.5) segs.push({a:zEnd, b:L, l1:`${f(L-zEnd,0)} cm`, l2:''});
+    let prev = 0;
+    SP.forEach(q => {
+      if(q.a - prev > 0.5) segs.push({a:prev, b:q.a, l1:`${f(q.a-prev,0)} cm`, l2:''});
+      segs.push(q.main ? {a:q.a, b:q.b, l1:`${P.sp==='A'?'甲級':'乙級'}搭接 ${lap} cm`, l2:`${P.sp==='A'?'1.0':'1.3'}ψ_g l_d${M.dev.sets[0].d.kSl>1?' × 1.3（泥水中灌注）':''}，${P.why}`, hot:true, bad:!P.fits, meas:true}
+        : {a:q.a, b:q.b, l1:`搭接 ${lap} cm（定尺續接）`, l2:'', hot:true, bad:stkBad, meas:true});
+      if(P.stag) segs.push({a:q.a2, b:q.b2, l1:`第二組 ${lap} cm（錯開）`, l2:'', hot:true, bad:!P.fits || (!q.main && stkBad), meas:true});
+      prev = P.stag ? q.b2 : q.b;
+    });
+    if(L - prev > 0.5) segs.push({a:prev, b:L, l1:`${f(L-prev,0)} cm`, l2:''});
   }
   endSeg(P.top, true);
   for(const g of segs){
@@ -4024,7 +4086,8 @@ function svgColDev(M, forPrint, mechView){
     if(g.l2) T(o, tx, g.at+12, g.l2, 10.5, g.bad?C.bad:C.dim);
   }
   T(o, 16, 22, `${showMech&&!P.mech?'機械式續接配置':'主筋伸展與搭接配置'}：${r.barSize}（d_b = ${f(R.db,2)} cm）`, 13.5, C.txt, null, true);
-  T(o, 16, 40, `${tip?'樁尖不需錨定':`底端 ${ANC_TXT[P.bot.type]}`}、頂端 ${ANC_TXT[P.top.type]}；續接 ${SPLICE_TXT[P.sp]}${P.stag?'（錯開）':''}`, 11, C.dim);
+  T(o, 16, 40, `${tip?'樁尖不需錨定':`底端 ${ANC_TXT[P.bot.type]}`}、頂端 ${ANC_TXT[P.top.type]}；續接 ${SPLICE_TXT[P.sp]}${P.stag?'（錯開）':''}`
+    + (Number.isFinite(P.stock) ? `；定尺 ${f(P.stock,0)} cm，續接 ${nS} 處，最長下料 ${P.maxPiece} cm` : ''), 11, stkBad ? C.bad : C.dim);
   T(o, 16, 56, P.fits ? `縱向依實際比例${schematic?(tip?'、樁徑為示意':'、柱寬為示意'):''}${devLapNote(P, '橫向筋')}`
     : `可續接範圍僅 ${f(Math.max(0,P.A1-P.A0),0)} cm ＜ 所需 ${P.zone} cm：改用機械式續接（第三類）或調整鋼筋`, 11, P.fits?C.dim:C.bad);
   o.push(`</svg>`);
@@ -4570,6 +4633,7 @@ function devCheckIds(P, c){
     if(/^頂端/.test(it)) return ['dAncTop','dHTop','dAncCov','barSize'];
     if(/D36/.test(it)) return ['barSize','dSplice'];
     if(/位置/.test(it)) return ['dSplice','dStagger','barSize','lu','ph','#devPlan'];
+    if(/定尺/.test(it)) return ['dStock','dSplice','dStagger','barSize','lu','ph','#devPlan'];
     if(/甲級/.test(it)) return ['dSplice','dExcess'];
     if(/淨距/.test(it)) return ['dLapGap','nB','nH','nCir','barSize'];
     if(/橫向筋/.test(it)) return ['tieSize','#elevInfo'];
@@ -5243,7 +5307,7 @@ const CASE_KEY = 'rcsd.case.v1', CASE_APP = 'rc-section-designer';
 /* ---------- 可追溯性（U4）：程式版本、程式碼雜湊、輸入雜湊 ----------
    APP_VERSION 隨功能修訂手動遞增；CODE_HASH 為本頁內嵌程式碼之 SHA-256（前 12 碼），可唯一對應計算核心；
    INPUT_HASH 為案件輸入（不含存檔時間）之 SHA-256。計算書、Excel 封面與案件檔皆記錄。 */
-const APP_VERSION = '2026.10-r4';
+const APP_VERSION = '2026.10-r5';
 // 程式碼雜湊含內嵌程式與 core/rc-core.js（file:// 無法讀檔時以其版本字串代替）
 let _codeHash = null, _coreText = null;
 try{ fetch('core/rc-core.js', {cache:'no-cache'}).then(r => r.ok ? r.text() : null).then(t => { _coreText = t; _codeHash = null; }).catch(()=>{}); }catch(e){}
