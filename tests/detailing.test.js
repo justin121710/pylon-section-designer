@@ -329,3 +329,42 @@ test('耐震梁：Excel 支數與柱寬判定同網頁（LibreOffice 重算）',
   }
   await page.evaluate(() => { applyBPreset('bldgBeam'); document.getElementById('tabPylon').click(); });
 });
+
+/* ---------------- 基樁最小配置鋼筋樁長（表 18.10.5.7.1） ---------------- */
+const pileRun = set => page.evaluate(set => { document.getElementById('tabPylon').click(); applyPreset('pileC120');
+  for(const [id, v] of Object.entries(set || {})) document.getElementById(id).value = v;
+  const M = render(), P = M.devPlan, PL = M.pileLen, c = P.checks.find(q => /基樁最小配置/.test(q.item));
+  return {PL, lv: c ? c.lv : null, total: M.lay.total, pos0: Math.min(...M.lay.pos), L: M.opt.pile.L, D: M.s.D,
+    ld: Math.ceil(P.D.ld - 1e-9), spl: P.splices.map(q => q.a), A0: P.A0, sched: devSchedule(P, M).map(r => r.id + ':' + r.st)}; }, set);
+
+test('基樁：最小配置鋼筋樁長（第一、二類 max(L/2, 305, 3D, 撓曲長度 + l_d)；第三類全長，註[1]）與依最小長度終止', async () => {
+  const a = await pileRun({});
+  assert.equal(a.PL.Lmin, Math.max(a.L/2, 305, 3*a.D), '撓曲長度未輸入');
+  assert.equal(a.lv, 'warn', '撓曲長度未輸入列注意'); assert.equal(a.PL.cut, false);
+  const b = await pileRun({pileLf: 2000});
+  assert.equal(b.PL.Lmin, Math.min(b.L, Math.ceil(Math.max(b.L/2, 305, 3*b.D, 2000 + b.ld) - 1e-9))); assert.equal(b.lv, 'ok');
+  const c = await pileRun({pileLf: 1000, pileCut: '1'});
+  assert.ok(c.PL.cut && Math.abs(c.PL.zb - (c.L - c.PL.Lmin)) < 1e-9, '終止段');
+  assert.ok(c.pos0 >= c.PL.zb - 1e-6, '箍筋只配置於配筋段');
+  assert.ok(c.total < a.total, `箍筋數減少（${a.total} → ${c.total}）`);
+  assert.ok(c.A0 >= c.PL.zb - 1e-9 && c.spl.every(z => z >= c.PL.zb - 1e-9), '續接位於配筋段內');
+  const s3 = await pileRun({pileSite: '3', pileRock: 600, pileCut: '1'});
+  assert.equal(s3.PL.Lmin, Math.ceil(s3.L - Math.min(0.05*s3.L, 0.33*600) - 1e-9), '第三類註[1]');
+  const s30 = await pileRun({pileSite: '3'});
+  assert.equal(s30.PL.Lmin, s30.L, '第三類全長');
+  await page.evaluate(() => applyPreset('bldg60'));
+});
+
+test('基樁：Excel 最小配置鋼筋樁長、箍筋與續接同網頁（LibreOffice 重算）', {skip: !hasSoffice && '未安裝 LibreOffice（soffice）'}, async () => {
+  const cases = [{}, {pileLf: 1000, pileCut: '1'}, {pileSite: '3', pileRock: 600, pileCut: '1'}];
+  const web = [];
+  for(let i=0;i<cases.length;i++){ web.push(await pileRun(cases[i])); await exportAs('pl' + i); }
+  const load = recalc(cases.map((_, i) => 'pl' + i), 'outpl');
+  for(let i=0;i<cases.length;i++){
+    const wb = await load('pl' + i), r = web[i], tag = JSON.stringify(cases[i]);
+    assert.equal(Number(row(wb, '最小配置鋼筋樁長').v), r.PL.Lmin, `${tag}：Lmin`);
+    assert.equal(Number(row(wb, '全長合計數量').v), r.total, `${tag}：箍筋數`);
+    assert.equal(Number(row(wb, '續接處數（含增設）').v), r.spl.length, `${tag}：續接處數`);
+  }
+  await page.evaluate(() => applyPreset('bldg60'));
+});

@@ -385,6 +385,14 @@ function buildColumn(ExcelJS, inp){
     crit:'應力分析應考慮偏心彎矩；樁身偏心距不宜超過 L/75；解說：樁頭偏差約 5～10 cm', ref:'建築物基礎構造設計規範 §5.6.3 第 4 款、§5.2.3 第 3 款'});
   S.item({key:'pileE', label:'樁頭偏差 e（基樁）', sym:'e', v:P0.mode==='user' ? P0.e : 10, unit:'cm', kind:'in', fmt:'0.0', crit:'「樁頭偏差 e」時使用', ref:'建築物基礎構造設計規範 §5.2.3 解說'});
   S.item({key:'pileInfl', label:'彎矩反曲點深度（基樁，0＝未評估）', v:P0.infl ?? 0, unit:'cm', kind:'in', fmt:'#,##0', ref:'建築物基礎構造設計規範 §5.6.3 解說 2'});
+  // 最小配置鋼筋樁長（表 18.10.5.7.1、§18.10.5.7.3；網頁 pileMinLen 同）
+  S.item({key:'pileLf', label:'樁撓曲長度（0.4Mcr > Mu 處距樁帽底，0＝未輸入）', v:P0.Lf ?? 0, unit:'cm', kind:'in', fmt:'#,##0', ref:ref401('表 18.10.5.7.1')});
+  S.item({key:'pileRock', label:'埋入岩層／堅實土壤長度（第三類地盤註[1]）', v:P0.rock ?? 0, unit:'cm', kind:'in', fmt:'#,##0', ref:ref401('表 18.10.5.7.1')});
+  S.item({key:'pileCut', label:'樁主筋配置長度', v:P0.cut?'依最小配置鋼筋樁長終止':'全長配筋', kind:'list', list:['全長配筋','依最小配置鋼筋樁長終止'], ref:ref401('表 18.10.5.7.1')});
+  S.item({key:'pileLmin', label:'最小配置鋼筋樁長', sym:'Lmin', unit:'cm', fmt:'#,##0',
+    f:`IF({pileSeis}=0,{pileL},MIN({pileL},ROUNDUP(IF({pileSite}="第三類",{pileL}-MIN(0.05*{pileL},0.33*{pileRock}),MAX({pileL}/2,305,3*{Din},IF({pileLf}>0,{pileLf}+${UPX('{dvld}')},0)))-1E-9,0)))`,
+    expr:'第一、二類：max(L/2, 305, 3D, 撓曲長度 + ld)；第三類：全長，註[1] 得減 min(5%L, 33% 埋入長度)', ref:ref401('表 18.10.5.7.1、18.10.5.7.3')});
+  S.item({key:'pileZb', label:'樁尖以上無配筋段', f:'IF(AND({pileSeis}=1,{pileCut}="依最小配置鋼筋樁長終止",{pileLmin}<{pileL}-1E-6),{pileL}-{pileLmin},0)', unit:'cm', fmt:'#,##0', ref:'—'});
   S.item({key:'eP', label:'施工偏心距採用值', sym:'e', unit:'cm', fmt:'0.0',
     f:'IF({isPile}=1,IF({pileEccMode}="L/75",{pileL}/75,IF({pileEccMode}="不計",0,MAX(0,{pileE}))),0)', expr:'圓形斷面合彎矩加 |Pu|·e（載重組合 AO 欄）', ref:'建築物基礎構造設計規範 §5.6.3 第 4 款'});
   S.item({key:'pileLo', label:'樁頂加密區長度', sym:'lo', unit:'cm', fmt:'0.0',
@@ -629,9 +637,10 @@ function buildColumn(ExcelJS, inp){
   S.item({key:'phEnds', label:'塑鉸區位置', v:inp.phEnds===1?'僅底端':'兩端', kind:'list', list:['兩端','僅底端'],
     crit:'建築柱兩端；懸臂墩柱、橋塔通常僅底端', ref:ref401('18.4.5.1')+'；公路橋梁耐震設計規範', note:'決定沿柱軸向配置時哪幾端設加密區（塑鉸區）。'});
   S.item({key:'nEnds', label:'加密區端數', f:'IF({isPile}=1,1,IF({isPH}=1,IF({phEnds}="僅底端",1,2),0))', unit:'端', expr:'非加密區斷面＝0（全長同一間距）', ref:'—'});
-  S.item({key:'Lel', label:'沿軸向配置長度（柱淨高；基樁為樁長）', sym:'L', f:'IF({isPile}=1,{pileL},{lu})', unit:'cm', fmt:'#,##0', ref:ref401('18.4.5.1')});
+  S.item({key:'Lmem', label:'構材長（柱淨高；基樁為樁長）', sym:'L', f:'IF({isPile}=1,{pileL},{lu})', unit:'cm', fmt:'#,##0', ref:ref401('18.4.5.1')});
+  S.item({key:'Lel', label:'沿軸向箍筋配置長度', sym:'L', f:'{Lmem}-IF({isPile}=1,{pileZb},0)', unit:'cm', fmt:'#,##0', expr:'基樁依最小配置鋼筋樁長終止時為 Lmin', ref:ref401('18.4.5.1')});
   S.item({key:'hMax', label:'斷面最大尺寸', sym:'h', f:'IF({isCirc}=1,{Din},MAX({Be},{He}))', unit:'cm', fmt:'0.0', ref:'—'});
-  S.item({key:'lo', label:'加密區長度', sym:'lo', f:'IF({isPile}=1,{pileLo},MAX({hMax},{lu}/6,45))', unit:'cm', fmt:'0.0', expr:'max(h, lu/6, 45 cm)；基樁取樁頂加密區長度',
+  S.item({key:'lo', label:'加密區長度', sym:'lo', f:'IF({isPile}=1,MIN({pileLo},{Lel}),MAX({hMax},{lu}/6,45))', unit:'cm', fmt:'0.0', expr:'max(h, lu/6, 45 cm)；基樁取樁頂加密區長度',
     ref:ref401('18.4.5.1')+'；公路橋梁耐震設計規範塑鉸區範圍同式'});
   S.item({key:'sStr2x', label:'加密區外 X 向強度需求間距', sym:'s', f:`MIN('載重組合'!AK4:AK${3+NCB})`, unit:'cm', fmt:FMT_SINF, expr:'Vc 不折減，設計剪力仍含 Ve', ref:ref401('18.4.6.2.1、22.5.8.5.3')});
   S.item({key:'sStr2y', label:'加密區外 Y 向強度需求間距', sym:'s', f:`MIN('載重組合'!AL4:AL${3+NCB})`, unit:'cm', fmt:FMT_SINF, ref:ref401('22.5.8.5.3')});
@@ -733,6 +742,7 @@ function buildColumn(ExcelJS, inp){
   addSum({label:'橋梁主筋續接錯開', need:1, cap:{f:'{dvStag}'}, ratio:{f:'IF({dvStag}=1,1,9)'}, judge:{f:'IF(OR({isBldg}=1,{isPile}=1,{dvBrStg}="不強制"),"N/A",IF({dvMech}=1,"參考",IF({dvStag}=1,"PASS","FAIL")))'}, note:{f:'IF(AND({isBldg}=0,{dvBrStg}="強制",{dvMech}=1),"續接器亦應錯開（圖說）","")'}, fmt:'0', ref:'公路橋梁耐震設計規範 §5.3.5'});
   addSum({label:'橋墩施工縫剪力 需求／Vj（tf）', need:{f:'{cjVreq}'}, cap:{f:'{cjVj}'}, ratio:{f:'IF({cjVj}>0,{cjVreq}/{cjVj},9)'}, judge:{f:'IF({cjOn}=0,"N/A",IF({cjVj}>={cjVreq}-1E-6,"PASS","FAIL"))'}, fmt:'#,##0', ref:'公路橋梁耐震設計規範 §5.6'});
   addSum({label:'施工縫不得設於主筋搭接處', need:0, cap:{f:'{cjLap}'}, ratio:{f:'{cjLap}'}, judge:{f:'IF({cjOn}=0,"N/A",IF({cjLap}=0,"PASS","FAIL"))'}, fmt:'0', ref:'公路橋梁耐震設計規範 §5.6'});
+  addSum({label:'基樁最小配置鋼筋樁長（cm）', need:{f:'{pileLmin}'}, cap:{f:'{pileL}-{pileZb}'}, ratio:{f:'{pileLmin}/MAX(1,{pileL}-{pileZb})'}, judge:{f:'IF(OR({isPile}=0,{pileSeis}=0),"N/A",IF(AND({pileSite}<>"第三類",{pileLf}<=0),"參考",IF({pileL}-{pileZb}>={pileLmin}-1E-6,"PASS","FAIL")))'}, note:{f:'IF(AND({isPile}=1,{pileSeis}=1,{pileSite}<>"第三類",{pileLf}<=0),"撓曲長度未輸入","")'}, fmt:'#,##0', ref:ref401('表 18.10.5.7.1')});
   addSum({label:'柱底箍筋延伸入基礎 需求／可用（cm）', need:{f:'{jxNeedB}'}, cap:{f:'{dvAvB}'}, ratio:{f:'IF({dvAvB}>0,{jxNeedB}/{dvAvB},9)'}, judge:{f:'IF({jxOnB}=0,"N/A",IF({jxNeedB}<={dvAvB}+1E-9,"PASS","FAIL"))'}, fmt:'0', ref:R401('18.10.2.3')+'；公路橋梁耐震設計規範 §5.3.5'});
   addSum({label:'柱頂箍筋延伸入接頭 需求／可用（cm）', need:{f:'{jxNeedT}'}, cap:{f:'{jxAvT}'}, ratio:{f:'IF({jxAvT}>0,{jxNeedT}/{jxAvT},9)'}, judge:{f:'IF({jxOnT}=0,"N/A",IF({jxNeedT}<={jxAvT}+1E-9,"PASS","FAIL"))'}, fmt:'0', ref:R401('18.5.3.1')+'；公路橋梁耐震設計規範 §5.3.5'});
   addSum({label:'甲級搭接 As,使用／As,需求', need:2, cap:{f:'IF({dvExc}>0,1/{dvExc},1)'}, ratio:{f:'2*{dvExc}'}, judge:{f:'IF({dvSp}<>"甲級搭接","N/A",IF({dvExc}<=0.5+1E-9,"PASS","FAIL"))'}, ref:R401('表 25.5.2.1')});
@@ -849,7 +859,7 @@ function buildElevSheet(ws, R, vertical, NH){
     put(ws,'A'+n, i);
     const posG = k => `({gA}+(${k})*{gS}+IF({gPair}=1,IF((${k})>{gP},{gI1}-{gS},0)+IF((${k})>{gP}+1,{gI2}-{gS},0),IF((${k})>{gM},{gR}-{gS},0)))`;
     const E = `IF({full}=1,IF(A${n}=1,{eF},${posG(`A${n}-1`)}),IF(A${n}<={n1},{eF}+(A${n}-1)*{sUse},IF(A${n}<={n1}+{nMid},${posG(`A${n}-{n1}`)},{Lel}-{eF}-({total}-A${n})*{sUse})))`;   // 基樁（僅柱表有 isPile）：自樁尖起算，加密區在上端
-    put(ws,'B'+n, r(`IF(OR(A${n}>{total},{total}<1),${NA},${vertical ? `IF({isPile}=1,{Lel}-(${E}),${E})` : E})`),{fmt:'0.0'});
+    put(ws,'B'+n, r(`IF(OR(A${n}>{total},{total}<1),${NA},${vertical ? `IF({isPile}=1,{Lmem}-(${E}),${E})` : E})`),{fmt:'0.0'});
     put(ws,'C'+n, r(`--AND(A${n}<={total},{nEnds}>0,OR({full}=1,A${n}<={n1},A${n}>{n1}+{nMid}))`));
   }
 }
@@ -989,13 +999,13 @@ function devPlanColX(S, X){
     note:'§5.3.5 末段：鋼筋之續接應予錯開，且雙層鋼筋之續接點不得在同一處'});
   S.item({key:'dvLap', label:'搭接長度 lst', sym:'lst', f:`IF({dvSp}="甲級搭接",${UPX('{dvlapA}')},${UPX('{dvlapB}')})`, unit:'cm', fmt:'0', ref:R401('25.5.2.1')});
   S.item({key:'dvZone', label:'所需續接區段長', f:'IF({dvMech}=1,0,IF({dvStag}=1,2,1)*{dvLap})', unit:'cm', fmt:'0', expr:'錯開時兩組 = 2lst', ref:'—'});
-  S.item({key:'dvA0', label:'可續接範圍起點', f:'IF(AND({isPH}=1,OR({isBldg}=0,{dvM3}=0)),IF({isBldg}=1,{Lel}/4,IF({full}=1,{Lel},{lo})),0)', unit:'cm', fmt:'0',
+  S.item({key:'dvA0', label:'可續接範圍起點', f:'IF({isPile}=1,{pileZb},IF(AND({isPH}=1,OR({isBldg}=0,{dvM3}=0)),IF({isBldg}=1,{Lmem}/4,IF({full}=1,{Lmem},{lo})),0))', unit:'cm', fmt:'0',
     expr:'建築耐震柱：中央 1/2 淨高（第三類續接器不限）；橋梁：各類續接皆設於塑鉸區外；基樁：自樁尖起', ref:R401('18.4.4.3、18.2.7.2')+'；公路橋梁耐震設計規範 §5.3.6'});
-  S.item({key:'dvA1', label:'可續接範圍終點', f:'IF({isPile}=1,IF({full}=1,{Lel},{Lel}-{lo}),IF(AND({isPH}=1,OR({isBldg}=0,{dvM3}=0)),IF({isBldg}=1,3*{Lel}/4,IF({nEnds}=2,{Lel}-{lo},{Lel})),{Lel}))', unit:'cm', fmt:'0',
+  S.item({key:'dvA1', label:'可續接範圍終點', f:'IF({isPile}=1,IF({full}=1,{Lmem},{Lmem}-MIN({lo},{Lel})),IF(AND({isPH}=1,OR({isBldg}=0,{dvM3}=0)),IF({isBldg}=1,3*{Lmem}/4,IF({nEnds}=2,{Lmem}-{lo},{Lmem})),{Lmem}))', unit:'cm', fmt:'0',
     expr:'基樁：樁頂加密區外（建議）', ref:R401('18.4.4.3')});
   S.item({key:'dvFit', label:'續接區段放得下', f:'--({dvA1}-{dvA0}>={dvZone}-1E-9)', ref:'—'});
   S.item({key:'dvLa0', label:'續接起點（未修正）', f:'IF({dvMech}=1,({dvA0}+{dvA1})/2,IF({isPile}=1,MAX({dvA0},{dvA1}-{dvZone}),IF(AND({isPH}=1,OR({isBldg}=1,{nEnds}=2)),({dvA0}+{dvA1}-{dvZone})/2,{dvA0})))', unit:'cm', fmt:'0.0', ref:'—'});
-  S.item({key:'dvLa', label:'續接起點（距柱底；基樁距樁尖）', f:'IF(OR({dvFit}=0,{dvLa0}+{dvZone}>{Lel}+1E-9),MAX(0,({Lel}-{dvZone})/2),{dvLa0})', unit:'cm', fmt:'0.0', ref:'—'});
+  S.item({key:'dvLa', label:'續接起點（距柱底；基樁距樁尖）', f:'IF(OR({dvFit}=0,{dvLa0}+{dvZone}>{Lmem}+1E-9),MAX(0,({Lmem}-{dvZone})/2),{dvLa0})', unit:'cm', fmt:'0.0', ref:'—'});
   S.item({key:'dvLb', label:'第一組搭接終點', f:'IF({dvMech}=1,{dvLa},{dvLa}+{dvLap})', unit:'cm', fmt:'0.0', ref:'—'});
   S.item({key:'dvLe', label:'續接區段終點', f:'IF({dvStag}=1,{dvLb}+{dvLap},{dvLb})', unit:'cm', fmt:'0.0', ref:'—'});
   // 主筋定尺長度（多段續接，與網頁 colDevPlan 相同）：頂段過長時自上述續接處向上、底段過長時向下，以步距增設續接；位置不超出可續接範圍
@@ -1007,16 +1017,16 @@ function devPlanColX(S, X){
   S.item({key:'dvTlB', label:'底端彎鉤延伸', f:'IF({isPile}=1,0,IF({dvAncB}="標準彎鉤 90°",12*{db},IF({dvAncB}="標準彎鉤 180°",MAX(4*{db},6.5),0)))', unit:'cm', fmt:'0.0', expr:'90°：12db；180°：max(4db, 6.5)', ref:R401('25.3.1')});
   S.item({key:'dvTlT', label:'頂端彎鉤延伸', f:'IF({dvAncT}="標準彎鉤 90°",12*{db},IF({dvAncT}="標準彎鉤 180°",MAX(4*{db},6.5),0))', unit:'cm', fmt:'0.0', ref:R401('25.3.1')});
   S.item({key:'dvHasB', label:'　旗標：有底段（非貫穿續接）', f:'--OR({isPile}=1,{dvAncB}<>"貫穿續接")', ref:'—'});
-  S.item({key:'dvEb', label:'底段於柱底以下長度', f:'IF({isPile}=1,-{covO},{dvLenB}+{dvTlB})', unit:'cm', fmt:'0.0', expr:'錨定長度＋彎鉤延伸；基樁自樁尖保護層起（負值）', ref:'—'});
+  S.item({key:'dvEb', label:'底段於柱底以下長度', f:'IF({isPile}=1,-IF({pileZb}>0,{pileZb},{covO}),{dvLenB}+{dvTlB})', unit:'cm', fmt:'0.0', expr:'錨定長度＋彎鉤延伸；基樁自樁尖保護層起（負值）', ref:'—'});
   S.item({key:'dvEt', label:'頂段於柱頂以上長度', f:'IF({dvAncT}="貫穿續接",{dvHT}+{dvLa}+{dvLapE},{dvLenT}+{dvTlT})', unit:'cm', fmt:'0.0', expr:'貫穿續接：延伸至上層同一續接處 hTop + la + lst', ref:'—'});
   S.item({key:'dvStep', label:'增設續接步距', f:'IF({dvStock}>0,INT(({dvStock}-{dvLapE})/5)*5,0)', unit:'cm', fmt:'0', expr:'floor((定尺 − lst)/5)×5，中段下料長 ≦ 定尺', ref:'—'});
   S.item({key:'dvStpOK', label:'　旗標：步距 ≧ 續接區段長', f:'--({dvStep}>=MAX({dvZone},5))', ref:'—'});
-  S.item({key:'dvNUp', label:'向上增設續接處數', f:'IF(OR({dvStkOn}=0,{dvStpOK}=0),0,MAX(0,ROUNDUP(({Lel}+{dvEt}-{dvLa}-{dvStock})/{dvStep}-1E-9,0)))', unit:'處', ref:'—'});
+  S.item({key:'dvNUp', label:'向上增設續接處數', f:'IF(OR({dvStkOn}=0,{dvStpOK}=0),0,MAX(0,ROUNDUP(({Lmem}+{dvEt}-{dvLa}-{dvStock})/{dvStep}-1E-9,0)))', unit:'處', ref:'—'});
   S.item({key:'dvATop', label:'最上續接處起點', f:'IF({dvNUp}=0,{dvLa},MIN({dvLa}+{dvNUp}*{dvStep},{dvA1}-{dvZone}))', unit:'cm', fmt:'0.0', expr:'不超出可續接範圍終點 − 區段長', ref:'—'});
   S.item({key:'dvNDn', label:'向下增設續接處數', f:'IF(OR({dvStkOn}=0,{dvStpOK}=0,{dvHasB}=0),0,MAX(0,ROUNDUP(({dvEb}+{dvLa}+{dvNg}*{dvLapE}-{dvStock})/{dvStep}-1E-9,0)))', unit:'處', ref:'—'});
   S.item({key:'dvABot', label:'最下續接處起點', f:'IF({dvNDn}=0,{dvLa},MAX({dvLa}-{dvNDn}*{dvStep},{dvA0}))', unit:'cm', fmt:'0.0', expr:'不低於可續接範圍起點', ref:'—'});
   S.item({key:'dvNsp', label:'續接處數（含增設）', f:'1+{dvNUp}+{dvNDn}', unit:'處', ref:'—'});
-  S.item({key:'dvTopL', label:'頂段下料長', f:'{Lel}-{dvATop}+{dvEt}', unit:'cm', fmt:'0.0', ref:'—'});
+  S.item({key:'dvTopL', label:'頂段下料長', f:'{Lmem}-{dvATop}+{dvEt}', unit:'cm', fmt:'0.0', ref:'—'});
   S.item({key:'dvBotL', label:'底段下料長', f:'IF({dvHasB}=1,{dvEb}+{dvABot}+{dvNg}*{dvLapE},0)', unit:'cm', fmt:'0.0', expr:'錯開時第二組多 lst', ref:'—'});
   S.item({key:'dvMidL', label:'中段下料長（最長）', f:'IF({dvNUp}+{dvNDn}>0,{dvStep}+{dvLapE},0)', unit:'cm', fmt:'0.0', ref:'—'});
   S.item({key:'dvMaxL', label:'主筋最長下料長', f:'MAX({dvTopL},{dvBotL},{dvMidL})', unit:'cm', fmt:'0.0', crit:'≦ 定尺長度', ref:'—'});
@@ -1038,7 +1048,7 @@ function devPlanColX(S, X){
   S.item({key:'cjH', label:'施工縫高度（距柱底）', v:X.cjH||0, unit:'cm', kind:'in', fmt:'0', ref:'—'});
   S.item({key:'cjMu0', label:'施工縫摩擦係數 μ／λ', v:X.cjMu===0.6?'0.6λ（未刻意粗糙）':'1.0λ（刻意粗糙）', kind:'list', list:['1.0λ（刻意粗糙）','0.6λ（未刻意粗糙）'], ref:'公路橋梁設計規範（剪力摩擦）'});
   S.item({key:'cjOn', label:'　旗標：檢核施工縫', f:'--AND({isBldg}=0,{isPile}=0,{cjPos}<>"無")', ref:'—'});
-  S.item({key:'cjZ', label:'施工縫位置（距柱底）', f:'IF({cjPos}="柱底（基礎頂面）",0,MIN({Lel},{cjH}))', unit:'cm', fmt:'0', ref:'—'});
+  S.item({key:'cjZ', label:'施工縫位置（距柱底）', f:'IF({cjPos}="柱底（基礎頂面）",0,MIN({Lmem},{cjH}))', unit:'cm', fmt:'0', ref:'—'});
   S.item({key:'cjMu', label:'摩擦係數 μ', sym:'μ', f:'IF(LEFT({cjMu0},3)="0.6",0.6,1)*{dvLam}', unit:'無因次', fmt:'0.00', ref:'公路橋梁設計規範（剪力摩擦）'});
   S.item({key:'cjPmin', label:'最小設計軸力 Pn', sym:'Pn', f:"MIN('載重組合'!B4:B"+(3+NCB)+')', unit:'tf', fmt:'#,##0.0', expr:'各組合 Pu 之最小值（軸拉為負）', ref:'公路橋梁耐震設計規範 §5.6'});
   S.item({key:'cjVreq', label:'施工縫剪力需求', f:"MAX('載重組合'!N4:N"+(3+NCB)+",'載重組合'!Q4:Q"+(3+NCB)+')', unit:'tf', fmt:'#,##0.0', expr:'各組合、兩向設計剪力 Vdes 之最大值', ref:'—'});

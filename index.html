@@ -936,6 +936,9 @@ img,video{max-width:100%;height:auto}
         <select id="pileEccMode"><option value="user">樁頭偏差 e（輸入）</option><option value="L75">e = L/75（垂直度上限）</option><option value="none">不計</option></select></div>
       <div class="fld"><span>樁頭偏差 e (cm)</span><input id="pileE" type="number" step="2.5" value="10"></div>
       <div class="fld"><span>彎矩反曲點深度 (cm)</span><input id="pileInfl" type="number" step="50" value="0"></div>
+      <div class="fld"><span>樁撓曲長度 (cm，0.4M<sub>cr</sub> &gt; M<sub>u</sub> 處距樁帽底，0＝未輸入)</span><input id="pileLf" type="number" step="50" value="0"></div>
+      <div class="fld"><span>埋入岩層／堅實土壤長度 (cm，第三類地盤註[1])</span><input id="pileRock" type="number" step="50" value="0"></div>
+      <div class="fld"><span>樁主筋配置長度</span><select id="pileCut"><option value="0">全長配筋</option><option value="1">依最小配置鋼筋樁長終止（表 18.10.5.7.1）</option></select></div>
       <div class="fld"><span>此斷面為塑鉸區</span>
         <select id="ph"><option value="1">是（塑鉸區／柱端加密區）</option><option value="0">否（一般斷面）</option></select></div>
       <div class="fld"><span>塑鉸區位置</span>
@@ -2203,7 +2206,7 @@ function applyPreset(key){
   S('scwbNc', P.scwbNc || 2); S('scwbMbX', P.scwbMb || 0); S('scwbMbY', P.scwbMb || 0);
   S('tieLayout', P.tieAll ? 'all' : 'code'); S('cTies', ''); CTIE_TOOL = false; CTIE_ADV = false;
   S('memType', P.member || 'col'); S('dSlurry', P.slurry ? '1' : '0');
-  if(P.pile){ S('pileL', P.pile.L); S('pileSite', P.pile.site || '12'); S('pileEccMode', P.pile.ecc || 'user'); S('pileE', P.pile.e ?? 10); S('pileInfl', P.pile.infl || 0); }
+  if(P.pile){ S('pileL', P.pile.L); S('pileSite', P.pile.site || '12'); S('pileEccMode', P.pile.ecc || 'user'); S('pileE', P.pile.e ?? 10); S('pileInfl', P.pile.infl || 0); S('pileLf', P.pile.Lf || 0); S('pileRock', P.pile.rock || 0); S('pileCut', P.pile.cut ? '1' : '0'); }
   { const bl = (P.code||'bridge')==='bldg';
     S('dAncBot', P.ancBot || (bl ? 'through' : 'hook90')); S('dAncTop', P.ancTop || (bl ? 'through' : 'hook90'));
     S('dHBot', P.hBot || (bl ? 70 : 200)); S('dHTop', P.hTop || (bl ? 70 : 180)); S('dAncCov', P.ancCov || (bl ? 4 : 7.5));
@@ -2229,7 +2232,8 @@ function pileOpt(){
   if(document.getElementById('memType').value!=='pile') return null;
   const L = pos('pileL', 3000), mode = document.getElementById('pileEccMode').value;
   const e = mode==='L75' ? L/75 : mode==='user' ? Math.max(0, num('pileE', 10)) : 0;
-  return {L, mode, e, site3: document.getElementById('pileSite').value==='3', infl: Math.max(0, num('pileInfl', 0))};
+  return {L, mode, e, site3: document.getElementById('pileSite').value==='3', infl: Math.max(0, num('pileInfl', 0)),
+          Lf: Math.max(0, num('pileLf', 0)), rock: Math.max(0, num('pileRock', 0)), cut: document.getElementById('pileCut').value==='1'};
 }
 /* 施工偏心：合彎矩加 |P_u|·e，方向沿原合彎矩（無彎矩時加於 X 軸） */
 function pileEcc(Lk, e){
@@ -2891,13 +2895,35 @@ function mirrorLay(lay, L){
 }
 
 /* 柱加密區長度 l_o = max(h, l_u/6, 45 cm)（土木401 §18.4.5.1；公路橋梁耐震設計規範塑鉸區範圍同式） */
+/* 基樁最小配置鋼筋樁長（土木401-112 表 18.10.5.7.1、§18.10.5.7.2～3；支承耐震結構之基樁）：
+   第一、二類地盤 max(L/2, 305 cm, 3D, 撓曲長度 + l_d)（§18.10.5.7.3 縱筋延伸過撓曲長度至少 l_d；撓曲長度未輸入時不計）；
+   第三類地盤全長，惟充分埋入堅實土壤或岩石者得於樁尖以上 min(5%L, 33% 埋入長度) 處終止（註[1]）。
+   「依最小配置鋼筋樁長終止」時主筋與橫向筋只配置於樁帽底以下 L_min 範圍（自樁尖起算 z_b = L − L_min 起）。 */
+function pileMinLen(M){
+  const P = M.opt.pile, L = P.L, D = M.s.type==='circle' ? M.s.D : Math.min(M.s.B, M.s.H);
+  if(!P.seis) return {req:false, L, Lmin:L, cut:false, zb:0};
+  const ld = M.dev ? devUp(M.dev.sets[0].d.ld) : 0;
+  let Lmin, cands = null, red = 0;
+  if(P.site3){ red = Math.min(0.05*L, 0.33*P.rock); Lmin = L - red; }
+  else{ cands = [L/2, 305, 3*D, P.Lf > 0 ? P.Lf + ld : 0]; Lmin = Math.min(L, Math.max(...cands)); }
+  Lmin = Math.min(L, Math.ceil(Lmin - 1e-9));
+  const cut = !!P.cut && Lmin < L - 1e-6;
+  return {req:true, L, D, ld, Lmin, cands, red, site3:P.site3, lfMissing: !P.site3 && !(P.Lf > 0), cut, zb: cut ? L - Lmin : 0};
+}
 function colLayout(M){
   const {s,opt} = M;
   if(opt.pile){
-    const P = M.pileR, lay = layoutAlong(opt.lu, P.lo, 1, M.fin.sUse, M.fin2.sUse);
-    for(const z of lay.zones) if(z.hot) z.tag = '樁頂加密區';
+    const P = M.pileR, PL = M.pileLen = pileMinLen(M), Lr = PL.cut ? PL.Lmin : opt.lu;
+    const lay0 = layoutAlong(Lr, Math.min(P.lo, Lr), 1, M.fin.sUse, M.fin2.sUse);
+    for(const z of lay0.zones) if(z.hot) z.tag = '樁頂加密區';
+    const lay = mirrorLay(lay0, Lr);
+    if(PL.cut){   // 自樁尖起算：配筋段 [z_b, L]
+      const zb = PL.zb;
+      lay.pos = lay.pos.map(p => p + zb);
+      lay.zones = lay.zones.map(z => Object.assign({}, z, {a:z.a + zb, b:z.b + zb})); lay.cutZ = zb;
+    }
     lay.hMax = P.D;
-    return mirrorLay(lay, opt.lu);
+    return lay;
   }
   const hMax = s.type==='circle' ? s.D : Math.max(s.B, s.H);
   const lo = Math.max(hMax, opt.lu/6, 45);
@@ -2950,7 +2976,7 @@ function svgColElev(M, forPrint){
   // 主筋（立面僅示外側兩根與中間一根）
   const cvx = Math.max(5, (r.covO + R.dt + R.db/2)*kx);
   for(const x of [xl+cvx, cx, xr-cvx])
-    o.push(`<line x1="${x}" y1="${Y(L)-12}" x2="${x}" y2="${pl ? Y(0)-3 : Y(0)+12}" stroke="${C.bar}" stroke-width="${forPrint?1.4:1.6}" opacity="0.75"/>`);
+    o.push(`<line x1="${x}" y1="${Y(L)-12}" x2="${x}" y2="${pl ? Y(lay.cutZ||0)-3 : Y(0)+12}" stroke="${C.bar}" stroke-width="${forPrint?1.4:1.6}" opacity="0.75"/>`);
   // 箍筋
   const hx0 = xl + Math.max(3, r.covO*kx), hx1 = xr - Math.max(3, r.covO*kx);
   const pxMin = Math.min(...lay.zones.map(z=>z.act)) * k;
@@ -2983,6 +3009,11 @@ function svgColElev(M, forPrint){
     const y0 = j.end==='top' ? Y(L)-24 : Y(0), cl = j.ok ? C.tie : '#B03A2E';
     for(const t of [0.25, 0.5, 0.75]) o.push(`<line x1="${hx0.toFixed(1)}" y1="${(y0+24*t).toFixed(1)}" x2="${hx1.toFixed(1)}" y2="${(y0+24*t).toFixed(1)}" stroke="${cl}" stroke-width="1.3"/>`);
     o.push(`<text x="${dx+14}" y="${(y0+16).toFixed(1)}" font-size="11" fill="${j.ok?C.txt:'#B03A2E'}">${svgTxt(`延伸入${j.what} ${f(j.need,0)} cm：${r.tieSize} @ ${f(j.s,1)}，${j.n} ${unit}（另計）${j.ok?'':'　NG：深度不足'}`,11)}</text>`);
+  }
+  // 基樁依最小配置鋼筋樁長終止：樁尖以上無配筋段
+  if(lay.cutZ > 0){
+    o.push(`<rect x="${xl}" y="${Y(lay.cutZ)}" width="${wpx}" height="${lay.cutZ*k}" fill="#fff" opacity="0.55"/>`);
+    o.push(`<text x="${dx+14}" y="${((Y(0)+Y(lay.cutZ))/2+4).toFixed(1)}" font-size="11" fill="${C.dim}">${svgTxt(`無配筋段 ${f(lay.cutZ,0)} cm（表 18.10.5.7.1，依最小配置鋼筋樁長終止）`,11)}</text>`);
   }
   // 左側：總長
   elevDim(o, C, Y(0), Y(L), xl-20, true);
@@ -3323,7 +3354,8 @@ function colDevPlan(M){
   const stag = !mech && (X.stagger || sp==='A');
   const zone = mech ? 0 : (stag ? 2*lap : lap);
   let A0 = 0, A1 = L, why;
-  if(pl){ A0 = 0; A1 = lay.full ? L : L - M.pileR.lo; why = '樁頂加密區外（建議）'; }
+  const zb = pl && M.pileLen ? M.pileLen.zb : 0;
+  if(pl){ A0 = zb; A1 = lay.full ? L : L - Math.min(M.pileR.lo, L - zb); why = '樁頂加密區外（建議）'; }
   // 橋梁：塑鉸圍束區內主筋以不續接為原則（公路橋梁耐震設計規範 §5.3.6），各類續接器皆設於塑鉸區外；建築第三類續接器位置不限（§18.2.7.2）
   else if(ph && (!bldg || !(mech && sp==='m3'))){
     if(bldg){ A0 = L/4; A1 = 3*L/4; why = mech ? '柱中央 1/2 淨高內（§18.2.7.2）' : '柱中央半高內（§18.4.4.3）'; }
@@ -3344,7 +3376,7 @@ function colDevPlan(M){
   const Ls = X.stock > 0 ? X.stock : Infinity, lapE = mech ? 0 : lap, nG = stag ? 2 : 1;
   const tailOf = q => q && q.type==='hook90' ? D.ext90 : q && q.type==='hook180' ? D.ext180 : 0;
   const hasBot = !bot.through || !!bot.tip;
-  const botSt = (a, g) => bot.tip ? a + (g+1)*lapE - r.covO : (bot.q && bot.q.ok ? bot.q.len : 0) + a + (g+1)*lapE;
+  const botSt = (a, g) => bot.tip ? a + (g+1)*lapE - (zb > 0 ? zb : r.covO) : (bot.q && bot.q.ok ? bot.q.len : 0) + a + (g+1)*lapE;
   const topSt = (a, g) => top.through ? L - a - g*lapE + X.hTop + la + (g+1)*lapE : L - a - g*lapE + (top.q && top.q.ok ? top.q.len : 0);
   const botLen = (a, g) => botSt(a, g) + (bot.tip || bot.through ? 0 : tailOf(bot.q));
   const topLen = (a, g) => topSt(a, g) + (top.through ? 0 : tailOf(top.q));
@@ -3418,6 +3450,15 @@ function colDevPlan(M){
       msg: layOut.lapZones && layOut.lapZones.length ? `搭接段加密為 @ ${f(layOut.sLap,1)} cm（需 ≤ min(b/4, ${seisKdb(M.m.fy)}d_b, s_o) = ${f(sLapReq,2)} cm），已反映於軸向配置`
         : `一般區間距 @ ${f(sAct,1)} cm 已 ≤ ${f(sLapReq,2)} cm，搭接段無須另行加密`});
   }
+  // 基樁最小配置鋼筋樁長（表 18.10.5.7.1）
+  if(pl && M.pileLen && M.pileLen.req){
+    const PL = M.pileLen, act = L - zb;
+    checks.push({lv: PL.lfMissing ? 'warn' : 'ok', item:'基樁最小配置鋼筋樁長', need: PL.Lmin, cap: act, unit:'cm', ref:'土木401-112 表 18.10.5.7.1、§18.10.5.7.3',
+      msg: (PL.site3 ? `第三類地盤：全長${PL.red > 0 ? `，依註[1] 得於樁尖以上 min(5%L, 33% 埋入長度) = ${f(PL.red,0)} cm 終止` : ''}，L_min = ${f(PL.Lmin,0)} cm`
+        : `第一、二類地盤：L_min = max(L/2 = ${f(PL.cands[0],0)}, 305, 3D = ${f(PL.cands[2],0)}, 撓曲長度 + l_d = ${PL.lfMissing ? '未輸入' : f(PL.cands[3],0)}) = ${f(PL.Lmin,0)} cm`)
+        + `；配筋長度 ${f(act,0)} cm（${PL.cut ? '依最小長度終止，樁尖以上 '+f(zb,0)+' cm 無配筋' : '全長'}）`
+        + (PL.lfMissing ? '。<b>撓曲長度未輸入</b>（樁帽底至 0.4M_cr ＞ M_u 處，§18.10.5.7.3 另須延伸 l_d），請由樁身分析取得後輸入' : '')});
+  }
   /* 箍筋延伸入接頭／基礎（塑鉸區／柱端加密區之橫向筋，間距同加密區 s₁）：
      橋梁 §5.3.5(1)：塑鉸在柱頂或柱底時，圍束筋應延伸配置進入接頭（基礎、帽梁），長度 ≥ 柱主筋受拉伸展長度 l_d；
      建築 §18.5.3.1：梁柱接頭在最深構入梁深 h 範圍內之橫向鋼筋同 §18.4.5.2(a)～(e)、§18.4.5.3、表 18.4.5.4（§18.5.3.2 之減半未採用，偏保守）；
@@ -3457,7 +3498,7 @@ function colDevPlan(M){
       msg: inLap ? `施工縫（距柱底 ${f(z,0)} cm）位於主筋搭接段內：移動施工縫或續接位置` : `施工縫（距柱底 ${f(z,0)} cm）不在搭接段內`});
   }
   return {mod:'col', L, lap, D, X, bot, top, sp, mech, stag, zone, la, lb, la2, lb2, A0, A1, fits, why, bldg, ph, pile:!!pl,
-          splices, pieces, stock: Ls, stockOK, step, maxPiece, jext, cj,
+          splices, pieces, stock: Ls, stockOK, step, maxPiece, jext, cj, cutZ: zb,
           pitch, g, clrLap, sLapReq, lay: layOut, checks};
 }
 
@@ -4087,7 +4128,7 @@ function svgColDev(M, forPrint, mechView){
   const anc = (x, dir, zFrom, end, isTop, colr) => {
     const e = isTop ? P.top : P.bot;
     if(e.through){
-      const yEnd = e.tip ? Y(0) - 3 : isTop ? Y(L + Ht + ext) : Y(-Hb - ext);
+      const yEnd = e.tip ? Y(P.cutZ || 0) - 3 : isTop ? Y(L + Ht + ext) : Y(-Hb - ext);
       o.push(`<path d="M${x},${Y(zFrom)} L${x},${yEnd}" fill="none" stroke="${colr}" stroke-width="2"/>`);
       return;
     }
@@ -4711,6 +4752,7 @@ function devCheckIds(P, c){
     if(/D36/.test(it)) return ['barSize','dSplice'];
     if(/位置/.test(it)) return ['dSplice','dStagger','barSize','lu','ph','#devPlan'];
     if(/錯開/.test(it)) return ['dStagger','dBrStag','dSplice'];
+    if(/基樁最小配置/.test(it)) return ['pileLf','pileRock','pileCut','pileSite','pileL','barSize'];
     if(/施工縫/.test(it)) return ['dCj','dCjH','dCjMu','barSize','nB','nH','nCir','#loadTbl'];
     if(/定尺/.test(it)) return ['dStock','dSplice','dStagger','barSize','lu','ph','#devPlan'];
     if(/箍筋延伸/.test(it)) return /柱底/.test(it) ? ['dHBot','dAncCov','dFtgEdge','barSize','tieSize','#elevInfo'] : ['dHTop','dAncCov','barSize','tieSize','#elevInfo'];
@@ -5907,7 +5949,7 @@ window.addEventListener('scroll', vdPopClose, true);
 /* 本工具未涵蓋、須另行檢核之項目（判定列「未涵蓋」膠囊與警示、計算書附註共用） */
 function colUncovered(M){
   const o = M.opt, out = [];
-  if(o.pile){ out.push('樁長方向之配筋終止點與最小配筋長度（土木401-112 表 18.10.5.7.1）'); out.push('樁帽、基樁群與地盤承載（建築物基礎構造設計規範）'); return out; }
+  if(o.pile){ if(M.pileLen && M.pileLen.req && M.pileLen.lfMissing) out.push('基樁撓曲長度（0.4M_cr ＞ M_u 之深度，表 18.10.5.7.1(d)）：未輸入，最小配置鋼筋樁長未計入'); out.push('樁帽、基樁群與地盤承載（建築物基礎構造設計規範）'); return out; }
   if(o.code==='bldg' && o.plastic){
     out.push('梁柱接頭剪力強度（土木401-112 §18.5.4）'); out.push('柱核心外梁縱向鋼筋之圍束（§18.5.3.3）');
     if(M.scwb && !M.scwb.exempt && !(M.scwb.X.given && M.scwb.Y.given)) out.push('強柱弱梁 ΣM_nc ≥ 1.2ΣM_nb（§18.4.3.2，未輸入接頭梁 ΣM_nb）');
@@ -5977,8 +6019,9 @@ function colPipeline(){
   const M=compute();
   M.fin=finalSpacing(M);
   M.fin2=finalSpacing2(M);
+  M.dev=colDev(M);                     // 不依軸向配置；基樁最小配置鋼筋樁長需 l_d，故先算
   M.lay=colLayout(M);
-  M.dev=colDev(M); M.devX=devXCol(); M.devPlan=colDevPlan(M); M.lay=M.devPlan.lay;
+  M.devX=devXCol(); M.devPlan=colDevPlan(M); M.lay=M.devPlan.lay;
   const cf=M.conf.finalize(M.fin.sUse);
   M.cf=cf; M.MD=cf.MD;
   return M;
