@@ -294,3 +294,38 @@ test('施工縫：Excel 同網頁（LibreOffice 重算）', {skip: !hasSoffice &
   }
   await page.evaluate(() => applyPreset('bldg60'));
 });
+
+/* ---------------- 耐震梁：梁寬超出柱寬（§18.3.2.1(c)）、跨內降伏斷面 2h 加密（§18.3.4.1(b)） ---------------- */
+const bSeis = set => page.evaluate(set => { document.getElementById('tabBeam').click(); applyBPreset('bldgBeam');
+  for(const [id, v] of Object.entries(set || {})) document.getElementById(id).value = v;
+  const B = renderBeam(), W = beamWidthOver(B.S);
+  return {W, total: B.lay.total, zones: B.lay.zones.map(z => ({tag:z.tag, a:z.a, b:z.b, s:z.s, n:z.n})), h: B.S.h, s1: B.fin.sUse,
+    unc: beamUncovered(B), hingeZ: B.hingeZ}; }, set);
+
+test('耐震梁：梁寬超出柱寬每側 ≤ min(c₂, 0.75c₁)；跨內降伏斷面兩側 2h 以 s₁ 加密', async () => {
+  const n = await bSeis({});
+  assert.equal(n.W, null, 'c₂ 未輸入不檢核'); assert.ok(n.unc.some(t => /18\.3\.2\.1\(c\)/.test(t)));
+  const ok = await bSeis({bC2: 40, bw: 60, bdHc: 60}), bad = await bSeis({bC2: 20, bw: 80, bdHc: 20});
+  assert.equal(ok.W.ok, true); assert.ok(Math.abs(ok.W.ex - 10) < 1e-9);
+  assert.equal(bad.W.ok, false, `每側 ${bad.W.ex} ＞ ${bad.W.lim}`);
+  assert.ok(!ok.unc.some(t => /18\.3\.2\.1\(c\)/.test(t)), '已輸入 c₂ 不列未涵蓋');
+  const h = await bSeis({bHingeX: 370});
+  const z = h.zones.find(q => q.tag === '跨內加密區');
+  assert.ok(z, '軸向配置有跨內加密區'); assert.equal(z.s, h.s1);
+  assert.ok(z.a <= 370 - 2*h.h + 1e-6 && z.b >= 370 + 2*h.h - 1e-6, '涵蓋 x ± 2h');
+  assert.ok(h.total > n.total, `支數增加（${n.total} → ${h.total}）`);
+  await page.evaluate(() => { applyBPreset('bldgBeam'); document.getElementById('tabPylon').click(); });
+});
+
+test('耐震梁：Excel 支數與柱寬判定同網頁（LibreOffice 重算）', {skip: !hasSoffice && '未安裝 LibreOffice（soffice）'}, async () => {
+  const cases = [{bHingeX: 370}, {bC2: 20, bw: 80, bdHc: 20}, {bC2: 40}];
+  const web = [];
+  for(let i=0;i<cases.length;i++){ web.push(await bSeis(cases[i])); await exportAs('bs' + i); }
+  const load = recalc(cases.map((_, i) => 'bs' + i), 'outbs');
+  for(let i=0;i<cases.length;i++){
+    const wb = await load('bs' + i), r = web[i], tag = JSON.stringify(cases[i]);
+    assert.equal(Number(row(wb, '全長合計數量（含搭接段加密）').v), r.total, `${tag}：支數`);
+    assert.equal(row(wb, '耐震：梁寬超出柱寬每側（cm）').judge, r.W ? (r.W.ok ? 'PASS' : 'FAIL') : 'N/A', `${tag}：柱寬`);
+  }
+  await page.evaluate(() => { applyBPreset('bldgBeam'); document.getElementById('tabPylon').click(); });
+});

@@ -1116,8 +1116,14 @@ function devPlanBeamX(S, X){
   S.item({key:'lzB2', label:'　加密區段 2 終點', f:'{lzB2r}', unit:'cm', fmt:'0.0', ref:'—'});
   S.item({key:'lzN2', label:'搭接段 2 格數', f:'IF({lzOn2}=1,MAX(1,ROUNDUP(({lzB2}-{lzA2})/{bvSL}-1E-9,0)),0)', unit:'—', ref:'—'});
   S.item({key:'lzS2', label:'搭接段 2 間距', f:'IF({lzN2}>0,{bvSL},0)', unit:'cm', fmt:'0.0', ref:'—'});
+  // §18.3.4.1(b) 跨內可能降伏斷面兩側 2h 加密（網頁 lapTieLayout 'hinge' 同）：所在區段間距大於 s₁ 時，以既有箍筋為界改以 s₁ 排列
+  S.item({key:'hzOn', label:'　旗標：跨內加密', f:'--AND({isS}=1,{hzX}>0,{hzX}<{ln},{full}=0,{hzX}>{lo},{hzX}<{ln}-{lo},{sUse2}>{sUse}+1E-9)', expr:'位於加密區外且一般區間距大於 s₁', ref:R401('18.3.4.1')});
+  S.item({key:'hzA', label:'　跨內加密段起點（對齊既有箍筋）', f:`IF({hzOn}=1,${SNAPLO('MAX(0,{hzX}-2*{h})')},0)`, unit:'cm', fmt:'0.0', ref:'—'});
+  S.item({key:'hzB', label:'　跨內加密段終點（對齊既有箍筋）', f:`IF({hzOn}=1,${SNAPHI('MIN({ln},{hzX}+2*{h})')},0)`, unit:'cm', fmt:'0.0', ref:'—'});
+  S.item({key:'hzN', label:'跨內加密段格數', f:'IF({hzOn}=1,MAX(1,ROUNDUP(({hzB}-{hzA})/{sUse}-1E-9,0)),0)', unit:'—', expr:'以 s₁ 排列，兩端為既有箍筋', ref:R401('18.3.4.4')});
+  S.item({key:'hzRem', label:'跨內加密段內移除之原配置', f:`IF({hzOn}=1,${remCnt('{hzA}','{hzB}')},0)`, unit:'支', ref:'—'});
   S.item({key:'lzRem', label:'搭接段內移除之原配置', f:`IF({lzOn1}=1,${remCnt('{lzA1}','{lzB1}')},0)+IF({lzOn2}=1,${remCnt('{lzA2}','{lzB2}')},0)`, unit:'支', ref:'—'});
-  S.item({key:'totalL', label:'全長合計數量（含搭接段加密）', sym:'n', f:'{total}-{lzRem}+IF({lzOn1}=1,{lzN1}-1,0)+IF({lzOn2}=1,{lzN2}-1,0)', unit:'支', expr:'原數量 − 段內原有 + 段內新增（格數 − 1）', ref:R401('18.3.3.3')});
+  S.item({key:'totalL', label:'全長合計數量（含搭接段加密）', sym:'n', f:'{total}-{lzRem}+IF({lzOn1}=1,{lzN1}-1,0)+IF({lzOn2}=1,{lzN2}-1,0)-{hzRem}+IF({hzOn}=1,{hzN}-1,0)', unit:'支', expr:'原數量 − 段內原有 + 段內新增（格數 − 1）', ref:R401('18.3.3.3')});
   // 截斷點
   S.item({key:'bvCut', label:'頂筋截斷點分析', v:X.cut?'分析':'不分析', kind:'list', list:['不分析','分析'], ref:R401('9.7.3'), note:'以端部 Mu⁻、跨中 Mu⁺ 推均布載重彎矩圖；耐震梁地震反復作用下不適用。'});
   S.item({key:'bvNc', label:'頂筋通長根數', v:X.nCont ?? 2, unit:'根', kind:'in', fmt:'0', ref:R401('9.7.3.8.4')});
@@ -1839,6 +1845,10 @@ function buildBeam(ExcelJS, inp){
   S.item({key:'shZ', label:'剪力筋沿梁軸向', v:inp.shearZ?'依剪力圖分區':'不分區', kind:'list', list:['不分區','依剪力圖分區'], ref:'—',
     note:'依剪力圖分區：設計剪力自柱面線性降至跨中（均布載重）；一般梁中央 ln/2 以 ln/4 處剪力、耐震梁 2h 外以 2h 處剪力設計；懸臂不適用'});
   S.item({key:'Vmid', label:'跨中剪力 Vu,中', sym:'Vu,中', v:inp.Vmid||0, unit:'tf', kind:'in', fmt:'0.0', ref:'—', note:'活載重排列之跨中剪力；耐震梁另取 Ve − Vg 之大者'});
+  S.item({key:'bC2', label:'支承柱寬 c₂（垂直梁軸，0＝未輸入）', sym:'c₂', v:inp.c2||0, unit:'cm', kind:'in', fmt:'0', ref:ref401('18.3.2.1')});
+  S.item({key:'bExW', label:'梁寬超出柱寬（每側，梁置中）', f:'MAX(0,({bw}-{bC2})/2)', unit:'cm', fmt:'0.0', ref:ref401('18.3.2.1')});
+  S.item({key:'bExL', label:'梁寬超出之上限', f:'MIN({bC2},0.75*{bvHc})', unit:'cm', fmt:'0.0', expr:'min(c₂, 0.75c₁)，c₁ = 支承柱寬（平行梁軸）', ref:ref401('18.3.2.1')});
+  S.item({key:'hzX', label:'跨內可能降伏斷面位置（距左柱面，0＝無）', v:inp.hingeX||0, unit:'cm', kind:'in', fmt:'0', ref:ref401('18.3.4.1')});
   S.item({key:'zOn', label:'　旗標：依剪力圖分區', f:'--AND({isSlab}=0,{shZ}="依剪力圖分區",{defl}<>"懸臂・均佈",{ln}>0)', ref:'—'});
   S.item({key:'xZ', label:'分區設計剪力位置（距柱面）', f:'IF({zOn}=1,IF({isS}=1,2*{h},{ln}/4),0)', unit:'cm', fmt:'0.0', expr:'耐震梁 2h；一般梁 ln/4', ref:'—'});
   S.item({key:'VmZ', label:'跨中剪力（分區用）', f:'IF({isS}=1,MAX({Ve}-{Vg},{Vmid}),{Vmid})', unit:'tf', fmt:'0.00', expr:'一般梁 Vu,中；耐震梁 max(Ve − Vg, Vu,中)', ref:'—'});
@@ -2040,6 +2050,7 @@ function buildBeam(ExcelJS, inp){
   addSum({label:'即時活載撓度（cm）', need:{f:'{dL}'}, cap:{f:'{L}/{limL}'}, ratio:{f:'{dL}/({L}/{limL})'}, judge:{f:'IF({isPos}<>{dfPos},"N/A",IF({dL}<={L}/{limL},"PASS","FAIL"))'}, fmt:'0.000', note:'撓度以控制斷面檢核（一般為跨中正彎矩；懸臂為支承）', ref:ref401('24.2.2')});
   addSum({label:'長期總撓度（cm）', need:{f:'{dLT}'}, cap:{f:'{L}/{limT}'}, ratio:{f:'{dLT}/({L}/{limT})'}, judge:{f:'IF({isPos}<>{dfPos},"N/A",IF({dLT}<={L}/{limT},"PASS","FAIL"))'}, fmt:'0.000', note:'同上', ref:ref401('24.2.2')});
   addSum({label:'耐震：bw ≧ max(0.3h, 25)（cm）', need:{f:'MAX(0.3*{h},25)'}, cap:{f:'{bw}'}, ratio:{f:'MAX(0.3*{h},25)/{bw}'}, judge:{f:'IF({isS}=0,"N/A",IF({bw}>=MAX(0.3*{h},25),"PASS","FAIL"))'}, ref:ref401('18.3.2.1')});
+  addSum({label:'耐震：梁寬超出柱寬每側（cm）', need:{f:'{bExW}'}, cap:{f:'{bExL}'}, ratio:{f:'IF({bExL}>0,{bExW}/{bExL},0)'}, judge:{f:'IF(OR({isS}=0,{bC2}<=0),"N/A",IF({bExW}<={bExL}+1E-9,"PASS","FAIL"))'}, ref:ref401('18.3.2.1')});
   addSum({label:'耐震：ln ≧ 4d（cm）', need:{f:'4*{d}'}, cap:{f:'{ln}'}, ratio:{f:'4*{d}/{ln}'}, judge:{f:'IF({isS}=0,"N/A",IF({ln}>=4*{d},"PASS","FAIL"))'}, ref:ref401('18.3.2.1')});
   addSum({label:'單獨 T 梁翼板厚 hf ≧ 0.5bw（cm）', need:{f:'0.5*{bw}'}, cap:{f:'{hf}'}, ratio:{f:'IF({hf}>0,0.5*{bw}/{hf},9)'}, judge:{f:'IF(AND({isT}=1,{edge}="單獨 T 梁"),IF({hf}>=0.5*{bw}-1E-9,"PASS","FAIL"),"N/A")'}, fmt:'0.0', note:'不符時翼板不得計入受壓（§6.3.2.2）', ref:ref401('6.3.2.2')});
   addSum({label:'耐震：上下兩面各至少兩支連續鋼筋（根）', need:2, cap:{f:'MIN({nBot},{nTop})'}, ratio:{f:'IF(MIN({nBot},{nTop})>0,2/MIN({nBot},{nTop}),9)'}, judge:{f:'IF({isS}=0,"N/A",IF(MIN({nBot},{nTop})>=2,"PASS","FAIL"))'}, fmt:'0', ref:ref401('18.3.3.1')});
