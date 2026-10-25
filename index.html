@@ -721,6 +721,7 @@ img,video{max-width:100%;height:auto}
 <svg style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true"><defs>
   <symbol id="icImport" viewBox="0 0 24 24"><path d="M4 7V5a1 1 0 0 1 1-1h2M17 4h2a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2"/><path d="M8 12h8M12 8v8"/></symbol>
   <symbol id="icOpen" viewBox="0 0 24 24"><path d="M4 19V6a1 1 0 0 1 1-1h4l2 2h7a1 1 0 0 1 1 1v2"/><path d="M4 19l2.6-7.2a1 1 0 0 1 .9-.8H20a.8.8 0 0 1 .8 1L18.5 19H4z"/></symbol>
+  <symbol id="icList" viewBox="0 0 24 24"><rect x="4" y="4" width="4" height="4" rx="0.8"/><rect x="4" y="10" width="4" height="4" rx="0.8"/><rect x="4" y="16" width="4" height="4" rx="0.8"/><path d="M11 6h9M11 12h9M11 18h9"/></symbol>
   <symbol id="icSave" viewBox="0 0 24 24"><path d="M5 4h11l3 3v12a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4z"/><path d="M8 4v5h7V4M8 20v-6h8v6"/></symbol>
   <symbol id="icSheet" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="1.5"/><path d="M4 10h16M4 15h16M10 4v16"/></symbol>
   <symbol id="icDoc" viewBox="0 0 24 24"><path d="M6 3h8l4 4v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v4h4M8.5 12h7M8.5 16h5"/></symbol>
@@ -809,7 +810,7 @@ img,video{max-width:100%;height:auto}
     <button id="btnCaseOpen" type="button" class="btn-quiet" title="開啟先前儲存的案件檔（.json）"><svg class="ic"><use href="#icOpen"/></svg><span class="lbl">開啟案件</span></button>
     <button id="btnCaseSave" type="button" class="btn-quiet" title="把目前所有輸入與載重下載成 .json；本機也會自動保存"><svg class="ic"><use href="#icSave"/></svg><span class="lbl">儲存案件</span></button>
     <input id="caseFile" type="file" accept=".json,application/json" style="display:none">
-    <button id="btnMembers" type="button" class="btn-quiet" title="案件內多構件：加入目前構件、切換、批次計算總表與批次匯出"><svg class="ic"><use href="#icOpen"/></svg><span class="lbl">構件清單</span></button>
+    <button id="btnMembers" type="button" class="btn-quiet" title="案件內多構件：加入目前構件、切換、批次計算總表與批次匯出"><svg class="ic"><use href="#icList"/></svg><span class="lbl">構件清單</span></button>
     <span class="tb-div" aria-hidden="true"></span>
     <button id="btnXlsx" type="button" class="btn-quiet" title="匯出附公式的 Excel 計算書（檢核表＋A4 結構計算書），數值皆為公式、可在 Excel 內修改重算"><svg class="ic"><use href="#icSheet"/></svg><span class="lbl">匯出 Excel</span></button>
     <button id="btnPreview" type="button" class="btn-quiet" aria-pressed="false" title="在畫面上預覽 A4 計算書"><svg class="ic"><use href="#icDoc"/></svg><span class="lbl">預覽報告</span></button>
