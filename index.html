@@ -1006,6 +1006,8 @@ img,video{max-width:100%;height:auto}
       <div class="fld"><span>搭接錯開</span><select id="dStagger"><option value="0">不錯開</option><option value="1">錯開 50%（間隔 ≥ l<sub>st</sub>）</option></select></div>
       <div class="fld"><span>非接觸搭接心距 (cm)</span><input id="dLapGap" type="number" step="0.5" value="0"></div>
       <div class="fld"><span>主筋定尺長度 (cm，0＝不限)</span><input id="dStock" type="number" step="100" value="1200"></div>
+      <div class="fld"><span>橋梁主筋續接錯開（§5.3.5 末段）</span><select id="dBrStag"><option value="0">不強制（由使用者決定）</option><option value="1">強制：未錯開判不合格</option></select></div>
+      <div class="fld"><span>橋梁主筋錨定長度（C5.5 解說）</span><select id="dBrAnc"><option value="0">依條文：1.25 × 所選錨定長度（§5.5）</option><option value="1">依解說：max(1.25l<sub>d</sub>, 24d<sub>b</sub>)，不以彎鉤／擴頭抵減</option></select></div>
       <div class="fld"><span>建築柱邊距基腳邊緣 &lt; ½ 基腳深</span><select id="dFtgEdge"><option value="0">否</option><option value="1">是（箍筋延伸入基腳 ≥ l<sub>d</sub>，§18.10.2.3）</option></select></div>
       <div class="text-[11.5px] mt-1" style="color:var(--dim)">
         φ 過渡：\(\displaystyle \phi=\phi_c+(\phi_t-\phi_c)\frac{\varepsilon_t-\varepsilon_{ty}}{0.003}\)（表 21.2.2），ε<sub>ty</sub> = <b id="oEty" class="mono">—</b>
@@ -2199,7 +2201,7 @@ function applyPreset(key){
   { const bl = (P.code||'bridge')==='bldg';
     S('dAncBot', P.ancBot || (bl ? 'through' : 'hook90')); S('dAncTop', P.ancTop || (bl ? 'through' : 'hook90'));
     S('dHBot', P.hBot || (bl ? 70 : 200)); S('dHTop', P.hTop || (bl ? 70 : 180)); S('dAncCov', P.ancCov || (bl ? 4 : 7.5));
-    S('dSplice', P.splice || 'B'); S('dStagger', P.stagger ? '1' : '0'); S('dLapGap', P.lapGap || 0); S('dStock', P.stock ?? 1200); S('dFtgEdge', P.ftgEdge ? '1' : '0'); }
+    S('dSplice', P.splice || 'B'); S('dStagger', P.stagger ? '1' : '0'); S('dLapGap', P.lapGap || 0); S('dStock', P.stock ?? 1200); S('dFtgEdge', P.ftgEdge ? '1' : '0'); S('dBrStag', P.brStag ? '1' : '0'); S('dBrAnc', P.brAnc ? '1' : '0'); }
   if(P.type==='circle'){ S('Dia',P.D); S('nCir',P.nCir); S('spiral',P.spiral||'spiral'); }
   LOADS = P.loads.map(l=>({...l}));
   drawLoads(); render();
@@ -3209,7 +3211,8 @@ const _v = id => { const e = document.getElementById(id); return e ? e.value : '
 function devXCol(){
   return {ancBot:_v('dAncBot')||'hook90', hBot:Math.max(1, num('dHBot',200)), ancTop:_v('dAncTop')||'hook90', hTop:Math.max(1, num('dHTop',180)),
           cov:Math.max(0, num('dAncCov',7.5)), splice:_v('dSplice')||'B', stagger:_v('dStagger')==='1', gap:Math.max(0, num('dLapGap',0)),
-          stock:Math.max(0, num('dStock',1200)), ftgEdge:_v('dFtgEdge')==='1'};
+          stock:Math.max(0, num('dStock',1200)), ftgEdge:_v('dFtgEdge')==='1',
+          brStag:_v('dBrStag')==='1', brAnc:_v('dBrAnc')==='1'};
 }
 function devXBeam(){
   return {anc:_v('bdAnc')||'hook90', hc:Math.max(1, num('bdHc',60)), cov:Math.max(0, num('bdAncCov',4)),
@@ -3287,7 +3290,12 @@ function colDevPlan(M){
     if(type==='through') return {type, h, through:true, nm, face};
     // 橋梁：柱（樁）主筋錨入帽梁、基礎、樁帽須發展 1.25f_y（公路橋梁耐震設計規範 §5.5、§5.7）→ 錨定長度 × 1.25
     const q0 = ancReq(D, type, false), k125 = bldg ? 1 : 1.25;
-    const q = k125 > 1 && q0.ok ? {...q0, len: devUp(q0.len*k125), sym: `1.25 × ${q0.sym}`, ref: `${q0.ref}；公路橋梁耐震設計規範 ${pl ? '§5.7' : '§5.5'}（發展 1.25f_y）`} : q0;
+    /* 選項「依解說」（公路橋梁耐震設計規範 C5.5）：錨定延伸長度以 1.25f_y 之直線伸展計且 ≥ 24d_b，不以彎鉤或機械錨定（擴頭）抵減；
+       彎鉤、擴頭仍照所選型式配置（圖面與下料表保留彎鉤延伸） */
+    const c55 = !bldg && X.brAnc;
+    const q = c55 ? {...q0, ok: type==='head' ? q0.ok : true, len: devUp(Math.max(1.25*D.ld, 24*D.db)), sym: 'max(1.25l_d, 24d_b)',
+                     ref: `公路橋梁耐震設計規範 ${pl ? '§5.7' : '§5.5'}、C5.5（不以彎鉤或機械錨定抵減）`}
+      : k125 > 1 && q0.ok ? {...q0, len: devUp(q0.len*k125), sym: `1.25 × ${q0.sym}`, ref: `${q0.ref}；公路橋梁耐震設計規範 ${pl ? '§5.7' : '§5.5'}（發展 1.25f_y）`} : q0;
     const avail = h - X.cov, ldc = devUp(D.ldc);
     const okT = q.ok && q.len <= avail + 1e-9, cAvail = avail - q.bendLoss, okC = ldc <= cAvail + 1e-9;
     checks.push({lv: okT ? 'ok' : 'bad', item:`${nm}錨定（${ANC_TXT[type]}）`, need: q.ok ? q.len : NaN, cap: avail, unit:'cm',
@@ -3363,6 +3371,14 @@ function colDevPlan(M){
     ref: pl ? '表 25.5.2.1（位置為建議）' : ph ? (bldg ? (mech ? '§18.2.7.2' : '§18.4.4.3') : '公路橋梁耐震設計規範 §5.3.6') : '表 25.5.2.1',
     msg: fits ? (mech ? `${SPLICE_TXT[sp]}設於距${pl?'樁尖':'柱底'} ${f(la,0)} cm（${why}）` : `搭接 ${f(la,0)}～${f(stag?lb2:lb,0)} cm（${why}${stag?'，錯開兩組':''}）`)
       : `可搭接範圍 ${f(Math.max(0,A1-A0),0)} cm ＜ 所需 ${zone} cm：改用機械式續接（第三類可設於任何位置）或調整鋼筋號數`});
+  // 選項：橋梁主筋續接應予錯開（公路橋梁耐震設計規範 §5.3.5 末段「鋼筋之續接應予錯開，且雙層鋼筋之續接點不得在同一處」）
+  if(!bldg && !pl && X.brStag){
+    const okS = mech ? null : stag;
+    checks.push({lv: mech ? 'warn' : okS ? 'ok' : 'bad', item:'橋梁主筋續接錯開', need: 1, cap: okS ? 1 : 0, unit:'', ref:'公路橋梁耐震設計規範 §5.3.5',
+      msg: mech ? '機械式續接亦應錯開，本工具未模擬續接器錯開配置：請於圖說錯開相鄰續接器位置（雙層鋼筋之續接點不得在同一處）'
+        : okS ? `搭接已錯開兩組（間隔 l_st = ${lap} cm）${R.inner ? '；雙層鋼筋（內外層）之續接點亦應錯開' : ''}`
+        : '搭接未錯開：「搭接錯開」改為「錯開 50%」（雙層鋼筋之續接點不得在同一處）'});
+  }
   if(fits && Number.isFinite(Ls)){
     const nSp = splices.length, more = nSp > 1 ? `，依定尺增設 ${nSp-1} 處（${spl.filter(a => a !== la).map(a => f(a,0)).join('、')} cm）` : '';
     checks.push({lv: stockOK ? 'ok' : 'bad', item:'主筋定尺長度', need: maxPiece, cap: Ls, unit:'cm', ref: '施工（鋼筋定尺）；續接位置同上',
@@ -4665,10 +4681,11 @@ document.addEventListener('click', e=>{
 function devCheckIds(P, c){
   const it = c.item;
   if(P.mod==='col'){
-    if(/^底端/.test(it)) return ['dAncBot','dHBot','dAncCov','barSize'];
-    if(/^頂端/.test(it)) return ['dAncTop','dHTop','dAncCov','barSize'];
+    if(/^底端/.test(it)) return ['dAncBot','dHBot','dAncCov','dBrAnc','barSize'];
+    if(/^頂端/.test(it)) return ['dAncTop','dHTop','dAncCov','dBrAnc','barSize'];
     if(/D36/.test(it)) return ['barSize','dSplice'];
     if(/位置/.test(it)) return ['dSplice','dStagger','barSize','lu','ph','#devPlan'];
+    if(/錯開/.test(it)) return ['dStagger','dBrStag','dSplice'];
     if(/定尺/.test(it)) return ['dStock','dSplice','dStagger','barSize','lu','ph','#devPlan'];
     if(/箍筋延伸/.test(it)) return /柱底/.test(it) ? ['dHBot','dAncCov','dFtgEdge','barSize','tieSize','#elevInfo'] : ['dHTop','dAncCov','barSize','tieSize','#elevInfo'];
     if(/甲級/.test(it)) return ['dSplice','dExcess'];

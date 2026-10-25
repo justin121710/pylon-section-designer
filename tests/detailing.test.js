@@ -225,3 +225,37 @@ test('表層鋼筋：Excel 每側支數與間距同網頁（LibreOffice 重算�
   }
   await page.evaluate(() => { applyBPreset('bldgBeam'); document.getElementById('tabPylon').click(); });
 });
+
+/* ---------------- 橋梁選項：續接錯開（§5.3.5）、錨定依解說（C5.5） ---------------- */
+const brOpt = (key, set) => page.evaluate(([key, set]) => { document.getElementById('tabPylon').click(); applyPreset(key);
+  for(const [id, v] of Object.entries(set || {})) document.getElementById(id).value = v;
+  const M = render(), P = M.devPlan;
+  return {stg: (P.checks.find(c => /續接錯開/.test(c.item)) || {}).lv || null, bot: P.bot.q && P.bot.q.len, top: P.top.q && P.top.q.len,
+    ld: P.D.ld, db: P.D.db, bldg: P.bldg}; }, [key, set]);
+
+test('橋梁選項：續接錯開預設不強制；強制時未錯開判不合格、機械式為注意；錨定依解說取 max(1.25l_d, 24d_b)', async () => {
+  assert.equal((await brOpt('pier100')).stg, null, '預設不檢核');
+  assert.equal((await brOpt('pier100', {dBrStag: '1'})).stg, 'bad');
+  assert.equal((await brOpt('pier100', {dBrStag: '1', dStagger: '1'})).stg, 'ok');
+  assert.equal((await brOpt('pier100', {dBrStag: '1', dSplice: 'm3'})).stg, 'warn');
+  assert.equal((await brOpt('bldg60', {dBrStag: '1'})).stg, null, '建築不適用');
+  const a = await brOpt('pier100'), c = await brOpt('pier100', {dBrAnc: '1'});
+  const need = Math.ceil(Math.max(1.25*c.ld, 24*c.db) - 1e-9);
+  assert.equal(c.bot, need); assert.equal(c.top, need);
+  assert.ok(c.bot > a.bot, `依解說較長（${a.bot} → ${c.bot}）`);
+  await page.evaluate(() => applyPreset('bldg60'));
+});
+
+test('橋梁選項：Excel 錨定長度與錯開判定同網頁（LibreOffice 重算）', {skip: !hasSoffice && '未安裝 LibreOffice（soffice）'}, async () => {
+  const cases = [{}, {dBrAnc: '1'}, {dBrStag: '1'}, {dBrStag: '1', dStagger: '1'}];
+  const web = [];
+  for(let i=0;i<cases.length;i++){ web.push(await brOpt('pier100', cases[i])); await exportAs('br' + i); }
+  const load = recalc(cases.map((_, i) => 'br' + i), 'outbr');
+  const J = {bad:'FAIL', ok:'PASS'};
+  for(let i=0;i<cases.length;i++){
+    const wb = await load('br' + i), r = web[i], tag = JSON.stringify(cases[i]);
+    assert.equal(Number(row(wb, '底端錨定長度').v), r.bot, `${tag}：底端錨定`);
+    assert.equal(row(wb, '橋梁主筋續接錯開').judge, r.stg ? J[r.stg] : 'N/A', `${tag}：錯開判定`);
+  }
+  await page.evaluate(() => applyPreset('bldg60'));
+});

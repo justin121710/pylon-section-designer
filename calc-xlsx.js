@@ -730,6 +730,7 @@ function buildColumn(ExcelJS, inp){
   addSum({label:'頂端受壓直段 ldc（cm）', need:{f:'{dvldcU}'}, cap:{f:'{dvCvT}'}, ratio:{f:'IF({dvCvT}>0,{dvldcU}/{dvCvT},0)'}, judge:{f:'IF({dvAncT}="貫穿續接","N/A",IF({dvldcU}<={dvCvT}+1E-9,"PASS","FAIL"))'}, ref:R401('25.4.9、25.4.1.2')});
   addSum({label:'續接區段 所需／可續接範圍（cm）', need:{f:'{dvZone}'}, cap:{f:'{dvA1}-{dvA0}'}, ratio:{f:'IF({dvA1}-{dvA0}>0,{dvZone}/({dvA1}-{dvA0}),0)'}, judge:J('{dvFit}=1'), ref:R401('18.4.4.3、18.2.7.2')});
   addSum({label:'主筋最長下料／定尺長度（cm）', need:{f:'{dvMaxL}'}, cap:{f:'{dvStock}'}, ratio:{f:'IF({dvStock}>0,{dvMaxL}/{dvStock},0)'}, judge:{f:'IF({dvStkOn}=0,"N/A",IF({dvStkOK}=1,"PASS","FAIL"))'}, fmt:'0', ref:'施工（鋼筋定尺）'});
+  addSum({label:'橋梁主筋續接錯開', need:1, cap:{f:'{dvStag}'}, ratio:{f:'IF({dvStag}=1,1,9)'}, judge:{f:'IF(OR({isBldg}=1,{isPile}=1,{dvBrStg}="不強制"),"N/A",IF({dvMech}=1,"參考",IF({dvStag}=1,"PASS","FAIL")))'}, note:{f:'IF(AND({isBldg}=0,{dvBrStg}="強制",{dvMech}=1),"續接器亦應錯開（圖說）","")'}, fmt:'0', ref:'公路橋梁耐震設計規範 §5.3.5'});
   addSum({label:'柱底箍筋延伸入基礎 需求／可用（cm）', need:{f:'{jxNeedB}'}, cap:{f:'{dvAvB}'}, ratio:{f:'IF({dvAvB}>0,{jxNeedB}/{dvAvB},9)'}, judge:{f:'IF({jxOnB}=0,"N/A",IF({jxNeedB}<={dvAvB}+1E-9,"PASS","FAIL"))'}, fmt:'0', ref:R401('18.10.2.3')+'；公路橋梁耐震設計規範 §5.3.5'});
   addSum({label:'柱頂箍筋延伸入接頭 需求／可用（cm）', need:{f:'{jxNeedT}'}, cap:{f:'{jxAvT}'}, ratio:{f:'IF({jxAvT}>0,{jxNeedT}/{jxAvT},9)'}, judge:{f:'IF({jxOnT}=0,"N/A",IF({jxNeedT}<={jxAvT}+1E-9,"PASS","FAIL"))'}, fmt:'0', ref:R401('18.5.3.1')+'；公路橋梁耐震設計規範 §5.3.5'});
   addSum({label:'甲級搭接 As,使用／As,需求', need:2, cap:{f:'IF({dvExc}>0,1/{dvExc},1)'}, ratio:{f:'2*{dvExc}'}, judge:{f:'IF({dvSp}<>"甲級搭接","N/A",IF({dvExc}<=0.5+1E-9,"PASS","FAIL"))'}, ref:R401('表 25.5.2.1')});
@@ -968,18 +969,22 @@ function devPlanColX(S, X){
   S.item({key:'dvBend', label:'標準彎鉤彎曲內徑', f:'IF({db}<=2.54+1E-6,6,IF({db}<=3.59,8,10))*{db}', unit:'cm', fmt:'0.0', expr:'D25 以下 6db、D29～D36 8db、以上 10db', ref:R401('25.3.1')});
   S.item({key:'dvldcU', label:'受壓伸展長度（進位）', sym:'ldc', f:UPX('{dvldc}'), unit:'cm', fmt:'0', ref:R401('25.4.9')});
   S.item({key:'dvCovA', label:'錨定端保護層', v:X.cov ?? 7.5, unit:'cm', kind:'in', fmt:'0.0', ref:R401('20.5.1.3')});
+  S.item({key:'dvBrAnc', label:'橋梁主筋錨定長度依據', v:X.brAnc?'依解說 C5.5':'依條文 §5.5', kind:'list', list:['依條文 §5.5','依解說 C5.5'], ref:'公路橋梁耐震設計規範 §5.5、C5.5',
+    note:'條文：1.25 × 所選錨定長度；解說：max(1.25ld, 24db)，不以彎鉤或機械錨定抵減'});
   for(const [E, lab, anc, h] of [['B','底端',X.ancBot,X.hBot],['T','頂端',X.ancTop,X.hTop]]){
     S.item({key:'dvAnc'+E, label:`${lab}錨定方式`, v:ANC_X[anc]||'標準彎鉤 90°', kind:'list', list:Object.values(ANC_X), ref:R401('25.4'),
       note:'貫穿續接＝主筋延續至相鄰樓層，不在此錨定。'});
     S.item({key:'dvH'+E, label:`${lab}構材深度`, sym:'h', v:h ?? 200, unit:'cm', kind:'in', fmt:'0', ref:'—'});
     S.item({key:'dvLen'+E, label:`${lab}錨定長度`, unit:'cm', fmt:'0',
-      f:`ROUNDUP(IF({isBldg}=1,1,1.25)*IF({dvAnc${E}}="直線",${UPX('{dvld}')},IF({dvAnc${E}}="擴頭",IF({dvhd}="適用",${UPX('{dvldt}')},0),IF({dvAnc${E}}="貫穿續接",0,${UPX('{dvldh}')})))-1E-9,0)`,
+      f:`IF(AND({isBldg}=0,{dvBrAnc}="依解說 C5.5",{dvAnc${E}}<>"貫穿續接"),ROUNDUP(MAX(1.25*{dvld},24*{db})-1E-9,0),ROUNDUP(IF({isBldg}=1,1,1.25)*IF({dvAnc${E}}="直線",${UPX('{dvld}')},IF({dvAnc${E}}="擴頭",IF({dvhd}="適用",${UPX('{dvldt}')},0),IF({dvAnc${E}}="貫穿續接",0,${UPX('{dvldh}')})))-1E-9,0))`,
       expr:'彎鉤 ldh／擴頭 ldt／直線 ld（無條件進位至 cm）；橋梁柱（樁）錨入帽梁、基礎、樁帽須發展 1.25fy → × 1.25', ref:R401('25.4')+'；公路橋梁耐震設計規範 §5.5、§5.7'});
     S.item({key:'dvAv'+E, label:`${lab}可用錨定長度`, f:`{dvH${E}}-{dvCovA}`, unit:'cm', fmt:'0.0', expr:'h − 保護層', ref:'—'});
     S.item({key:'dvCv'+E, label:`${lab}受壓可用直段`, f:`{dvAv${E}}-IF(LEFT({dvAnc${E}},4)="標準彎鉤",{dvBend}/2+{db},0)`, unit:'cm', fmt:'0.0',
       expr:'彎鉤扣除彎轉段（內徑/2 + db）', crit:'彎鉤與擴頭不計入受壓伸展', ref:R401('25.4.1.2')});
   }
   spliceItems(S, 'dv', X);
+  S.item({key:'dvBrStg', label:'橋梁主筋續接錯開（選項）', v:X.brStag?'強制':'不強制', kind:'list', list:['不強制','強制'], ref:'公路橋梁耐震設計規範 §5.3.5',
+    note:'§5.3.5 末段：鋼筋之續接應予錯開，且雙層鋼筋之續接點不得在同一處'});
   S.item({key:'dvLap', label:'搭接長度 lst', sym:'lst', f:`IF({dvSp}="甲級搭接",${UPX('{dvlapA}')},${UPX('{dvlapB}')})`, unit:'cm', fmt:'0', ref:R401('25.5.2.1')});
   S.item({key:'dvZone', label:'所需續接區段長', f:'IF({dvMech}=1,0,IF({dvStag}=1,2,1)*{dvLap})', unit:'cm', fmt:'0', expr:'錯開時兩組 = 2lst', ref:'—'});
   S.item({key:'dvA0', label:'可續接範圍起點', f:'IF(AND({isPH}=1,OR({isBldg}=0,{dvM3}=0)),IF({isBldg}=1,{Lel}/4,IF({full}=1,{Lel},{lo})),0)', unit:'cm', fmt:'0',
