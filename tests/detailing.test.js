@@ -183,3 +183,45 @@ test('剪力分區：Excel 間距與支數同網頁（LibreOffice 重算）', {s
   }
   await page.evaluate(() => { applyBPreset('bldgBeam'); document.getElementById('tabPylon').click(); });
 });
+
+/* ---------------- 梁表層鋼筋（§9.7.2.3） ---------------- */
+const beamSk = (key, set, loads) => page.evaluate(([key, set, loads]) => { document.getElementById('tabBeam').click(); applyBPreset(key);
+  if(loads) BLOADS = loads.map(l => ({...l}));
+  drawBLoads();
+  for(const [id, v] of Object.entries(set || {})) document.getElementById(id).value = v;
+  const B = renderBeam(), K = B.skin;
+  return {h: B.S.h, skin: K ? {nSide: K.nSide, sLim: K.sLim, sAct: K.sAct, pos: K.pos, neg: K.neg, ys: K.ys, total: K.total, size: K.size} : null,
+    sched: devSchedule(B.devPlan, B).filter(r => r.id === 'S1').map(r => r.n), svg: svgBeam(B, true), y1: B.R.layers[0].y, yT: B.R.layers[B.R.layers.length-1].y}; }, [key, set, loads]);
+
+test('表層鋼筋：h > 90 cm 兩側面配置、間距 ≤ 表 24.3.2 之 s、受拉面依彎矩方向；h ≤ 90 與版不適用', async () => {
+  const both = [{name:'U', Mpos:60, Mneg:120, Vu:40, Tu:0}], posOnly = [{name:'U', Mpos:60, Mneg:0, Vu:40, Tu:0}];
+  const a = await beamSk('gradeBeam', {bh: 150}, both);
+  assert.ok(a.skin, 'h = 150 須配置'); assert.ok(a.skin.pos && a.skin.neg);
+  assert.ok(a.skin.sAct <= a.skin.sLim + 1e-9, `間距 ${a.skin.sAct} ≤ ${a.skin.sLim}`);
+  assert.equal(a.skin.nSide, Math.ceil((a.yT - a.y1)/a.skin.sLim - 1e-9) - 1, '全深：⌈範圍/s⌉ − 1');
+  assert.deepEqual(a.sched, [a.skin.total], '下料表列入');
+  const p = await beamSk('gradeBeam', {bh: 150}, posOnly);
+  assert.ok(p.skin.pos && !p.skin.neg);
+  assert.ok(Math.max(...p.skin.ys) <= p.h/2 + 1e-9, '正彎矩：僅距底面 h/2 內');
+  assert.equal(p.skin.nSide, Math.ceil((p.h/2 - p.y1)/p.skin.sLim - 1e-9));
+  const n = await beamSk('gradeBeam', {bh: 90}, both);
+  assert.equal(n.skin, null, 'h = 90 不需配置');
+  const sl = await beamSk('pondTop');
+  assert.equal(sl.skin, null, '版不適用');
+  await page.evaluate(() => { applyBPreset('bldgBeam'); document.getElementById('tabPylon').click(); });
+});
+
+test('表層鋼筋：Excel 每側支數與間距同網頁（LibreOffice 重算）', {skip: !hasSoffice && '未安裝 LibreOffice（soffice）'}, async () => {
+  const both = [{name:'U', Mpos:60, Mneg:120, Vu:40, Tu:0}], posOnly = [{name:'U', Mpos:60, Mneg:0, Vu:40, Tu:0}], negOnly = [{name:'U', Mpos:0, Mneg:120, Vu:40, Tu:0}];
+  const cases = [[{bh: 150}, both], [{bh: 150}, posOnly], [{bh: 180, bSkinSize: '#5'}, negOnly], [{bh: 90}, both]];
+  const web = [];
+  for(let i=0;i<cases.length;i++){ web.push(await beamSk('gradeBeam', ...cases[i])); await exportAs('sk' + i); }
+  const load = recalc(cases.map((_, i) => 'sk' + i), 'outsk');
+  for(let i=0;i<cases.length;i++){
+    const wb = await load('sk' + i), r = web[i], tag = JSON.stringify(cases[i][0]) + JSON.stringify(cases[i][1][0]);
+    const num = v => v && typeof v === 'object' ? 0 : Number(v);   // 公式結果為 0 時 ExcelJS 無 result
+    assert.equal(num(row(wb, '表層鋼筋每側支數').v), r.skin ? r.skin.nSide : 0, `${tag}：支數`);
+    if(r.skin) assert.ok(Math.abs(Number(row(wb, '表層鋼筋實際間距').v) - r.skin.sAct) < 0.01, `${tag}：間距`);
+  }
+  await page.evaluate(() => { applyBPreset('bldgBeam'); document.getElementById('tabPylon').click(); });
+});

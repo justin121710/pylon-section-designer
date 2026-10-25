@@ -1918,6 +1918,16 @@ function buildBeam(ExcelJS, inp){
   S.item({key:'fs23', label:'裂縫控制 fs = ⅔fy', sym:'fs', f:'2/3*{fy}', unit:'kgf/cm²', fmt:'#,##0', ref:ref401('24.3.2.1')});
   S.item({key:'ccCr', label:'拉力主筋淨保護層 cc', sym:'cc', f:'{cover}+{dt}', unit:'cm', fmt:'0.00', expr:'保護層（量至箍筋）＋ dt；版 dt = 0', ref:ref401('24.3.2')});
   S.item({key:'sLim', label:'鋼筋中心距上限', sym:'s', f:'MIN(38*(2800/{fs23})-2.5*{ccCr},30*(2800/{fs23}))', unit:'cm', fmt:'0.0', expr:'min(38(2800/fs) − 2.5cc, 30(2800/fs))', ref:ref401('24.3.2')});
+  // 表層鋼筋（§9.7.2.3，網頁 beamSkin 同）：h > 90 cm；受拉面依載重組合 Mu⁺／Mu⁻ 有無；自受拉主筋起均分
+  S.item({key:'skSz', label:'表層鋼筋號數', v:inp.skinSize||'#4', kind:'list', list:['#3','#4','#5'], ref:ref401('9.7.2.3'), note:'解說：D10～D16'});
+  S.item({key:'skOn', label:'　旗標：須配置表層鋼筋（h > 90 cm）', f:'--AND({isSlab}=0,{h}>90+1E-9)', ref:ref401('9.7.2.3')});
+  S.item({key:'skCc', label:'表層鋼筋至側面淨保護層 cc', sym:'cc', f:'{cover}+{dt}', unit:'cm', fmt:'0.00', expr:'保護層 + 箍筋直徑', ref:ref401('9.7.2.3')});
+  S.item({key:'skS', label:'表層鋼筋間距上限', sym:'s', f:'MIN(38*(2800/{fs23})-2.5*{skCc},30*(2800/{fs23}))', unit:'cm', fmt:'0.0', expr:'表 24.3.2，fs = ⅔fy', ref:ref401('9.7.2.3、24.3.2')});
+  S.item({key:'skNeg', label:'　旗標：頂面受拉（任一組合 Mu⁻ > 0）', f:"--(COUNTIF('載重組合'!C4:C"+(3+NCB)+',">0")>0)', ref:'—'});
+  S.item({key:'skPos', label:'　旗標：底面受拉（任一組合 Mu⁺ > 0）', f:"--OR(COUNTIF('載重組合'!B4:B"+(3+NCB)+',">0")>0,{skNeg}=0)', ref:'—'});
+  S.item({key:'skSpan', label:'表層鋼筋配置範圍', f:'IF(AND({skPos}=1,{skNeg}=1),{yT}-{y1},IF({skPos}=1,{h}/2-{y1},{yT}-{h}/2))', unit:'cm', fmt:'0.0', expr:'距受拉面 h/2（自受拉主筋起）；正負彎矩皆有時全深', ref:ref401('9.7.2.3')});
+  S.item({key:'skN', label:'表層鋼筋每側支數', f:'IF({skOn}=0,0,IF(AND({skPos}=1,{skNeg}=1),MAX(0,ROUNDUP({skSpan}/{skS}-1E-9,0)-1),MAX(1,ROUNDUP({skSpan}/{skS}-1E-9,0))))', unit:'支', expr:'全深：⌈範圍/s⌉ − 1；單側受拉：⌈範圍/s⌉', ref:ref401('9.7.2.3')});
+  S.item({key:'skSa', label:'表層鋼筋實際間距', f:'IF({skN}>0,{skSpan}/IF(AND({skPos}=1,{skNeg}=1),{skN}+1,{skN}),0)', unit:'cm', fmt:'0.0', crit:'≦ 間距上限', ref:ref401('9.7.2.3')});
   S.item({key:'sAct', label:'受拉側鋼筋中心距', sym:'s', unit:'cm', fmt:'0.0', ref:'—', expr:'正彎矩取底筋第 1 排、負彎矩取頂筋',
     f:'IF({isSlab}=1,IF({isPos}=1,{spB},IF({spT}>0,{spT},{spB})),IF({isPos}=1,IF({r1}>1,({bw}-2*({cover}+{dt})-{r1}*{dbB})/({r1}-1)+{dbB},{bw}),IF(ROUND({nTop},0)>1,({bw}-2*({cover}+{dt})-ROUND({nTop},0)*{dbT})/(ROUND({nTop},0)-1)+{dbT},{bw})))'});
   S.item({key:'MD', label:'使用靜載彎矩 MD', sym:'MD', v:inp.MD, unit:'tf·m', kind:'in', fmt:'0.00', ref:ref401('24.2')});
@@ -2004,6 +2014,7 @@ function buildBeam(ExcelJS, inp){
   addSum({label:'底筋淨距（cm）', need:{f:'{needB}'}, cap:{f:'{clrB}'}, ratio:{f:'{needB}/{clrB}'}, judge:{f:`IF({clrB}>=${BIG},"N/A",IF({clrB}>={needB},"PASS","FAIL"))`}, ref:ref401('25.2.1')});
   addSum({label:'頂筋淨距（cm）', need:{f:'{needT}'}, cap:{f:'{clrT}'}, ratio:{f:'{needT}/{clrT}'}, judge:{f:`IF({clrT}>=${BIG},"N/A",IF({clrT}>={needT},"PASS","FAIL"))`}, ref:ref401('25.2.1')});
   addSum({label:'裂縫控制 鋼筋中心距（cm）', need:{f:'{sAct}'}, cap:{f:'{sLim}'}, ratio:{f:'{sAct}/{sLim}'}, judge:J('{sAct}<={sLim}'), ref:ref401('24.3.2')});
+  addSum({label:'表層鋼筋 每側支數／間距（cm）', need:{f:'{skSa}'}, cap:{f:'{skS}'}, ratio:{f:'IF({skS}>0,{skSa}/{skS},0)'}, judge:{f:'IF({skOn}=0,"N/A",IF({skSa}<={skS}+1E-9,"PASS","FAIL"))'}, note:{f:'IF({skOn}=0,"","每側 "&{skN}&" 支 "&{skSz})'}, ref:ref401('9.7.2.3')});
   addSum({label:'水工裂縫寬度（mm）', need:{f:'{w}'}, cap:{f:'{wLim}'}, ratio:{f:'{w}/{wLim}'}, judge:{f:'IF({isW}=0,"N/A",IF({w}<={wLim},"PASS","FAIL"))'}, fmt:'[>=1E+9]"∞";0.000', ref:'ACI 224R（參考）'});
   addSum({label:'水工保護層（cm）', need:5, cap:{f:'{cover}'}, ratio:{f:'5/{cover}'}, judge:{f:'IF({isW}=0,"N/A",IF({cover}>=5,"PASS","FAIL"))'}, ref:'ACI 350（參考）'});
   addSum({label:'即時活載撓度（cm）', need:{f:'{dL}'}, cap:{f:'{L}/{limL}'}, ratio:{f:'{dL}/({L}/{limL})'}, judge:{f:'IF({isPos}<>{dfPos},"N/A",IF({dL}<={L}/{limL},"PASS","FAIL"))'}, fmt:'0.000', note:'撓度以控制斷面檢核（一般為跨中正彎矩；懸臂為支承）', ref:ref401('24.2.2')});

@@ -1179,6 +1179,7 @@ img,video{max-width:100%;height:auto}
       <div class="fld"><span>最小鋼筋比 ρ_min（版）</span><input id="bRhoTs" type="number" step="0.0002" value="0.0018"></div>
       <div class="fld"><span>箍筋號數</span><select id="bTieSize"></select></div>
       <div class="fld"><span>箍筋肢數 n<sub>legs</sub></span><input id="bNlegs" type="number" step="1" value="2"></div>
+      <div class="fld"><span>表層鋼筋號數（h &gt; 90 cm，§9.7.2.3）</span><select id="bSkinSize"><option value="#3">#3 (D10)</option><option value="#4" selected>#4 (D13)</option><option value="#5">#5 (D16)</option></select></div>
       <div class="fld"><span>外箍型式</span><select id="bHoop"><option value="closed">一體式閉合箍</option><option value="cap">兩件式（U 形＋封口繫筋）</option></select></div>
       <div class="text-[11.5px] mt-1" style="color:var(--dim)">
         d = <b id="bOutD" class="mono">—</b> cm ｜ A<sub>s</sub> = <b id="bOutAs" class="mono">—</b> cm²
@@ -3567,6 +3568,8 @@ function devSchedule(P, M){
         : [{st: e + b.lb, tl, n, w:'左段'}, {st: (L - b.la) + e, tl, n, w:'右段'}];
       pieces.forEach((p,i) => rows.push({id:`${b.isTop?'T':'B'}${i+1}`, where:`${b.name.split(' ')[0]} ${p.w}`, size:b.size, shape:ANC_TXT[P.X.anc], st:p.st, tail:p.tl, n:p.n}));
     }
+    // 表層鋼筋（§9.7.2.3，裂縫控制用、不需錨定）：取淨跨長
+    if(M.skin) rows.push({id:'S1', where:'表層鋼筋（兩側面，淨跨長）', size:M.skin.size, shape:'直', st:L, tail:0, n:M.skin.total});
   }
   for(const q of rows){ q.len = devUp(q.st + q.tail); q.kg = q.len/100*barKgm(q.size)*q.n; }
   return rows;
@@ -5677,7 +5680,7 @@ function beamXlsxInput(){
     botSize:g('bBotSize'), topSize:g('bTopSize'), tieSize:g('bTieSize'), nBot:num('bNbot',4), nTop:num('bNtop',2),
     spBot:num('bSpBot',15), spTop:num('bSpTop',15), nLegs:num('bNlegs',2), rhoTs:num('bRhoTs',0.0018),
     seismic:g('bSeismic')==='1', ln:num('bLn',1750), Vg:num('bVg',0), theta:num('bTheta',45),
-    shearZ:g('bShearZ')==='1', Vmid:Math.max(0, num('bVmid',0)),
+    shearZ:g('bShearZ')==='1', Vmid:Math.max(0, num('bVmid',0)), skinSize:g('bSkinSize')||'#4',
     MD:num('bMD',0), ML:num('bML',0), MDn:num('bMDn',0), MLn:num('bMLn',0), sustain:num('bSustain',0.2), xi:num('bXi',2), limLive:num('bLimLive',360), limTotal:num('bLimTotal',240),
     deflCase:g('bDeflCase'), wLim:g('bWlim'),
     layTotal: BMODEL && BMODEL.lay ? BMODEL.lay.total : 60,
@@ -8271,7 +8274,7 @@ function applyBPreset(k){
   s('bSpacing',P.sSpacing); s('bSclear',P.sClear); s('bEdge',P.iso?'2':P.edge?'1':'0'); s('bBf',P.bf||120);
   s('bfc',P.fc); s('bBotSize',P.botSize); s('bNbot',P.nBot);
   s('bTopSize',P.topSize); s('bNtop',P.nTop); s('bTieSize',P.tieSize); s('bNlegs',P.nLegs);
-  s('bCover',P.cover); s('bSeismic',P.seismic?'1':'0'); s('bLn',P.ln); s('bVg',P.Vg); s('bShearZ',P.shearZ?'1':'0'); s('bVmid',P.Vmid||0);
+  s('bCover',P.cover); s('bSeismic',P.seismic?'1':'0'); s('bLn',P.ln); s('bVg',P.Vg); s('bShearZ',P.shearZ?'1':'0'); s('bVmid',P.Vmid||0); s('bSkinSize',P.skinSize||'#4');
   s('bMD',P.MD); s('bML',P.ML); s('bMDn',P.MDn||0); s('bMLn',P.MLn||0);
   if(P.spBot) s('bSpBot',P.spBot); if(P.spTop!==undefined) s('bSpTop',P.spTop);
   s('bRhoTs', P.rhoTs || 0.0018); if(P.wLim) s('bWlim',P.wLim);
@@ -8373,6 +8376,7 @@ function computeBeam(){
     seismic: document.getElementById('bSeismic').value==='1',
     ln: pos('bLn',1750), Vg: Math.max(0,num('bVg',0)),
     shearZ: document.getElementById('bShearZ').value==='1', Vmid: Math.max(0, num('bVmid',0)),
+    skinSize: document.getElementById('bSkinSize').value || '#4',
     theta: (t => { if(!slab && (t < 30 || t > 60)) badIn('bTheta','扭矩桁架角 θ 須介於 30° 與 60° 之間（土木401-112 §22.7.6.1）'); return t; })(pos('bTheta',45)),
     al545: document.getElementById('bAl545').value==='1',
     MD: Math.max(0,num('bMD',0)), ML: Math.max(0,num('bML',0)),
@@ -8516,10 +8520,11 @@ function computeBeam(){
   const lay  = S.slab ? null : layoutAlong(S.ln, zMid ? S.ln/4 : 2*S.h, (S.seismic || zMid) ? 2 : 0, sUse, fin2?fin2.sUse:null,
                                            zMid ? {end:'端部區', mid:'中央區', hot:false, full:'全長'} : null);
   const leg  = S.slab ? null : beamLeg(S,sh,R);
+  const skin = beamSkin(S, R, m, BLOADS);
 
   BMODEL = {S,m,R,EF,gross,icr,ctxPos,ctxNeg,ctx,solPos,solNeg,sol,phi,phiMn,phiPos,phiNeg,
             d,AsTen,AsCom,AsMin,AsMinB:{det:detT, bw:bwMin, fy:fyMin},rho,seisFace,res,ctrl,sh,torsL,defl,crack,cw,clr,sug,noTen,noLoads,
-            fin:{cands,gov,sUse,tooTight}, fin2, zMid, zoneOn, lay, leg};
+            fin:{cands,gov,sUse,tooTight}, fin2, zMid, zoneOn, lay, leg, skin};
   BMODEL.devX = devXBeam(); BMODEL.dev = beamDev(BMODEL); BMODEL.devPlan = beamDevPlan(BMODEL);
   if(BMODEL.lay) BMODEL.lay = BMODEL.devPlan.lay;
   // 另一檢核斷面（正↔負彎矩）同時檢核：判定列、警示、計算書、Excel 皆取兩者最不利（畫面停在哪一向只決定顯示哪一個斷面的圖與明細）
@@ -8564,6 +8569,24 @@ function beamShearAt(S, sh, c, x){
   if(x == null || !(S.ln > 0)) return c.Vdes;
   const Vm = Math.min(c.Vdes, S.seismic ? Math.max(sh.Ve - S.Vg*TF, S.Vmid*TF) : S.Vmid*TF);
   return c.Vdes - (c.Vdes - Vm)*Math.min(1, x/(S.ln/2));
+}
+/* 表層鋼筋（土木401-112 §9.7.2.3）：h > 90 cm 之梁，距受拉面 h/2 範圍內兩側面均勻配置縱向表層鋼筋，間距 ≤ 表 24.3.2 之 s
+   = min(38(2800/f_s) − 2.5c_c, 30(2800/f_s))，f_s = (2/3)f_y（§24.3.2.1 允許），c_c = 表層鋼筋至側面之淨保護層 = 保護層 + 箍筋直徑。
+   受拉面：任一組合 M_u⁺ > 0 → 底面，M_u⁻ > 0 → 頂面（兩者皆有時全深配置）；自受拉主筋起均分，每側支數 = ⌈範圍/s⌉（全深時扣除另一側主筋）。
+   號數依解說取 D10～D16；不計入強度（§9.7.2.3 得併入，本工具未採用，偏保守）。版不適用。 */
+function beamSkin(S, R, m, loads){
+  if(S.slab || !(S.h > 90 + 1e-9)) return null;
+  const size = BAR[S.skinSize] ? S.skinSize : '#4', db = BAR[size].d, dt = R.dt;
+  const fs = 2/3*m.fy, cc = S.cover + dt;
+  const sLim = Math.min(38*(2800/fs) - 2.5*cc, 30*(2800/fs));
+  const L = loads || [], pos = L.some(q => +q.Mpos > 0) || !L.some(q => +q.Mneg > 0), neg = L.some(q => +q.Mneg > 0);
+  const yB = R.layers[0].y, yT = R.layers[R.layers.length-1].y, ys = [];
+  let span, n;
+  if(pos && neg){ span = yT - yB; n = Math.max(0, Math.ceil(span/sLim - 1e-9) - 1); for(let k=1;k<=n;k++) ys.push(yB + k*span/(n+1)); }
+  else if(pos){ span = S.h/2 - yB; n = Math.max(1, Math.ceil(span/sLim - 1e-9)); for(let k=1;k<=n;k++) ys.push(yB + k*span/n); }
+  else{ span = yT - S.h/2; n = Math.max(1, Math.ceil(span/sLim - 1e-9)); for(let k=1;k<=n;k++) ys.push(yT - k*span/n); }
+  const x = S.bw/2 - S.cover - dt - db/2, sAct = ys.length ? span/(pos && neg ? n + 1 : n) : 0;
+  return {size, db, A:BAR[size].A, fs, cc, sLim, pos, neg, span, ys, x, nSide: ys.length, total: 2*ys.length, sAct};
 }
 function beamZone2(S, m, sh, x){
   const Vc = 0.53*(m.lam||1)*Math.sqrt(m.fc)*sh.bw*sh.d*vcSlurry(m);     // 表 22.5.5.1 (a)
@@ -8910,6 +8933,12 @@ function svgBeam(B, forPrint){
     }
   };
   R.layers.forEach((L,i)=> drawRow(L.n, L.y, L.db, i===0 ? S.spBot : S.spTop));
+  // 表層鋼筋（§9.7.2.3）：兩側面，空心圓以示不計入強度
+  if(B.skin) for(const y of B.skin.ys) for(const sx of [-1, 1]){
+    const rr = Math.max(2, B.skin.db/2*k), cxs = X(sx*B.skin.x);
+    o.push(`<circle cx="${cxs}" cy="${Y(y)}" r="${rr}" fill="${forPrint?'#fff':'#FFFFFF'}" stroke="${C.bar}" stroke-width="1.4"/>`);
+    OBB.push({x1:cxs-rr, x2:cxs+rr, y1:Y(y)-rr, y2:Y(y)+rr});
+  }
   // CAD 標註
   const cad=(p1,p2,dp,cfg)=>{
     const {dir='h',color=C.ann,label='',gap=5,ext=7,fs=11.5,lw=1.15,arw=7,bold=false,landMin=0}=cfg||{};
@@ -9004,11 +9033,13 @@ function svgBeam(B, forPrint){
        ['solid',`箍筋 ${S.tieSize} 共 ${S.nLegs} 肢：外箍 2 肢${S.hoop==='cap'?'（兩件式：U 形肋筋＋頂部繫筋封口）':'（閉合，兩端 135° 角隅搭接）'}`,C.tie],
        ...(tieInfo.nH ? [['solid',`肋筋 ×${tieInfo.nH}：ㄇ 形開口箍，頂部包 2 根、底端 135° 勾 2 根（${2*tieInfo.nH} 肢）`,C.tin]] : []),
        ...(tieInfo.nC ? [['solid',`繫筋 ×${tieInfo.nC}：勾上下 2 根，底 135°、頂 90°（沿梁長交替）`,C.ct]] : []),
+       ...(B.skin ? [['ring',`表層鋼筋 ${B.skin.size} 每側 ${B.skin.nSide} 支 @ ${f(B.skin.sAct,1)} cm（§9.7.2.3，不計入強度）`,C.bar]] : []),
        ['fill',aTxt,C.comp]];
   const perCol = lg.length > 3 ? Math.ceil(lg.length/2) : 3;
   lg.forEach((Lg,i)=>{
     const col = Math.floor(i/perCol), xx = col ? W/2 - 10 : 0, yy = 15 + (i%perCol)*15;
     if(Lg[0]==='dot') o.push(`<circle cx="${xx+15}" cy="${yy}" r="4.2" fill="${Lg[2]}"/>`);
+    else if(Lg[0]==='ring') o.push(`<circle cx="${xx+15}" cy="${yy}" r="3.8" fill="#fff" stroke="${Lg[2]}" stroke-width="1.4"/>`);
     else if(Lg[0]==='fill') o.push(`<rect x="${xx+7}" y="${yy-5}" width="17" height="10" fill="${Lg[2]}" opacity="${forPrint?0.35:0.5}" stroke="${C.ann}" stroke-width="0.6"/>`);
     else o.push(`<line x1="${xx+7}" y1="${yy}" x2="${xx+24}" y2="${yy}" stroke="${Lg[2]}" stroke-width="2"/>`);
     const room = (col || perCol >= lg.length ? W : W/2 - 10) - (xx+30) - 6, lfs = Math.min(11, 11*room/Math.max(1, txtW(Lg[1],11)));
@@ -9259,6 +9290,8 @@ function beamAlertItems(B){
     add('info',`「任一斷面 M_n ≥ 25% 端部最大值」需整根梁的彎矩包絡線，<b>本工具無法由單一斷面判斷</b>，請另行檢核。`);
   }
   add(B.crack.ok?'ok':'bad',`裂縫控制（土木401-112 表 24.3.2）：${S.sign==='neg'?'頂筋':'底排鋼筋'}中心距 ${f(B.crack.sAct,1)} cm ${B.crack.ok?'≤':'＞'} 上限 \\(\\displaystyle \\min\\left(38\\cdot\\frac{2800}{f_s}-2.5c_c,\\ 30\\cdot\\frac{2800}{f_s}\\right)\\) = ${f(B.crack.sLim,1)} cm　（\\(\\displaystyle f_s=\\frac{2}{3}f_y\\) = ${f(B.crack.fs,0)} kgf/cm²）`, S.sign==='neg' ? (S.slab ? ['bSpTop','bTopSize','bCover'] : ['bNtop','bTopSize','bCover']) : (S.slab ? ['bSpBot','bBotSize','bCover'] : ['bNbot','bBotSize','bCover']), 'crack');
+  if(B.skin){ const K = B.skin;
+    add('ok',`表層鋼筋（h = ${f(S.h,0)} cm ＞ 90 cm，土木401-112 §9.7.2.3）：${K.size} 兩側面各 ${K.nSide} 支，間距 ${f(K.sAct,1)} cm ≤ s = ${f(K.sLim,1)} cm（表 24.3.2，c_c = ${f(K.cc,2)} cm）；配置範圍${K.pos&&K.neg?'全深（正、負彎矩皆有）':K.pos?'距底面 h/2':'距頂面 h/2'}。不計入強度。`, ['bSkinSize','bh']); }
   const DF = beamDefl(B), dTag = DF===B.defl ? '' : `【${beamSignName(DF.sign, S.slab)}】`;
   if(DF.na) add('info',`撓度以${beamSignName(DF.sign, S.slab)}檢核${S.deflCase==='cantUDL'?'（懸臂）':''}；目前檢核另一斷面，不判定撓度。`);
   else add(DF.okL&&DF.okT?'ok':'warn',
@@ -9611,6 +9644,13 @@ function buildBeamReport(B){
   o.push(eq(`s_{\\text{實際}}=${d(crack.sAct,2)}\\ \\text{cm}\\ ${crack.ok?'\\le':'\\gt'}\\ ${d(crack.sLim,2)}\\ \\text{cm}
     \\quad${crack.ok?'\\text{OK}':'\\textbf{NG}'}`));
 
+  if(B.skin){ const K = B.skin;
+    o.push(`<div class="rp-h3">6.1b 表層鋼筋（h = ${d(S.h,0)} cm ＞ 90 cm，土木401-112 §9.7.2.3）</div>`);
+    o.push(eq(`s\\le\\min\\left[38\\left(\\frac{2800}{f_s}\\right)-2.5c_c,\\ 30\\left(\\frac{2800}{f_s}\\right)\\right]=\\min\\left[38\\times${d(2800/K.fs,3)}-2.5\\times${d(K.cc,2)},\\ ${d(30*2800/K.fs,2)}\\right]=${d(K.sLim,2)}\\ \\text{cm}`)
+      + note(`c_c 為表層鋼筋至側面之淨保護層 = 保護層 + 箍筋直徑 = ${d(K.cc,2)} cm。配置範圍：${K.pos&&K.neg?'正、負彎矩皆有 → 全深（底筋至頂筋之間）':K.pos?'距受拉面（底面）h/2':'距受拉面（頂面）h/2'}，長 ${d(K.span,1)} cm。`));
+    o.push(eq(`n=${K.pos&&K.neg?`\\left\\lceil\\frac{${d(K.span,1)}}{${d(K.sLim,2)}}\\right\\rceil-1`:`\\left\\lceil\\frac{${d(K.span,1)}}{${d(K.sLim,2)}}\\right\\rceil`}=${K.nSide}\\ \\text{支／側},\\quad s=${d(K.sAct,2)}\\ \\text{cm}\\ \\le\\ ${d(K.sLim,2)}\\ \\text{cm}\\quad\\text{OK}`)
+      + note(`採用 ${K.size}（解說：D10～D16），兩側共 ${K.total} 支；表層鋼筋不計入撓曲強度（§9.7.2.3 允許以應變一致性併入，本工具未採用，偏保守）。`));
+  }
   if(S.env==='water'){
     const c=B.cw;
     o.push(`<div class="rp-h3">6.1a 水工裂縫寬度（Gergely-Lutz，ACI 224R）</div>`);
