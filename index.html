@@ -1082,6 +1082,7 @@ img,video{max-width:100%;height:auto}
         <div class="text-[11.5px]" style="color:var(--dim)">加密區／一般區之間距與數量</div>
       </div>
       <div id="elevWrap" class="pm-box"></div>
+      <div id="envWrap" class="pm-box" style="margin-top:8px"></div>
       <div id="elevInfo" class="text-[12.5px] mt-2" style="overflow-x:auto"></div>
     </div>
     <div class="card" data-pane="dev">
@@ -1296,6 +1297,7 @@ img,video{max-width:100%;height:auto}
         <div class="text-[11.5px]" style="color:var(--dim)">加密區／一般區之間距與數量</div>
       </div>
       <div id="bElevWrap" class="pm-box"></div>
+      <div id="bEnvWrap" class="pm-box" style="margin-top:8px"></div>
       <div id="bElevInfo" class="text-[12.5px] mt-2" style="overflow-x:auto"></div>
     </div>
     <div class="card" data-pane="dev">
@@ -2954,6 +2956,129 @@ function elevDim(o, C, a, b, at, vertical, label, side){
   }else{
     q(a, at, b, at); q(a-5, at+5, a+5, at-5); q(b-5, at+5, b+5, at-5);
   }
+}
+
+/* =========================================================================
+   需求包絡與設計強度（沿構材軸向，與立面圖同比例對齊）
+   梁：V_u(x) 依剪力設計之假設（柱面 V_des 線性降至跨中，beamShearAt）；φV_n(x) = φ(V_c + V_s)，V_s = A_v f_yt d/s(x) ≤ 2.12√f'c·b_w·d，
+       耐震梁加密區（含跨內加密區）V_c 依控制組合歸零；M_u(x) 依截斷點分析之均布載重彎矩圖（端部 M_u⁻、跨中 M_u⁺）；
+       φM_n⁺ 為底筋、−φM_n⁻ 為頂筋（截斷點分析開啟時，截斷點間僅計通長頂筋）。扭矩未計入（另見剪扭檢核）。
+   柱：設計剪力沿柱高為定值（各組合最大 V_des），φV_n 依各區段間距，加密區 V_c 取各組合最小值（歸零者為 0）；
+       M_u 以控制組合兩端彎矩線性分布（M_底 = M_2、M_頂 = −(M_1/M_2)·M_2，單曲率同號），長細效應放大後之設計彎矩以虛線表示；
+       ±φM_n 取控制組合軸力下之單軸設計彎矩強度（雙軸互制另見 D/C）。 */
+function envAxis(o, C, x0, x1, y0, y1, vmax, unit, horiz){
+  const nice = v => { const p = Math.pow(10, Math.floor(Math.log10(v||1))), m = v/p; return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10)*p; };
+  return nice(vmax/4);
+}
+function svgBeamEnv(B, forPrint){
+  const {S, m, sh, lay} = B, L = S.ln, W = 760, x0 = 90, x1 = W - 90, k = (x1 - x0)/L, X = z => x0 + z*k;
+  const C = {txt:'#151C24', dim:'#5E6B7A', grid:'#E3E8ED', dem:'#B03A2E', cap:'#0F5F6B', capN:'#6B4FA8', fill:'#E8B04B'};
+  const N = 160, xs = Array.from({length:N+1}, (_, i) => L*i/N);
+  const panels = [];
+  // 剪力
+  if(lay && !S.slab){
+    const all = sh.all || [sh], zeroV = S.seismic && all.some(c => c.VcZero);
+    const Vu = xs.map(x => Math.max(...all.map(c => beamShearAt(S, sh, c, Math.min(x, L - x)))));
+    const zoneAt = x => lay.zones.find(z => x >= z.a - 1e-6 && x <= z.b + 1e-6) || lay.zones[0];
+    const Vn = xs.map(x => { const z = zoneAt(x), sA = z.act || z.s; const Vs = Math.min(sh.Av*m.fyt*sh.d/sA, sh.VsMax);
+      const Vc = (zeroV && z.hot) ? 0 : sh.VcA; return m.phiv*(Vc + Vs); });
+    panels.push({tag:'V', title:`剪力：V_u 包絡（${S.seismic?'含容量設計 V_e，':''}柱面線性降至跨中 V_u,中 = ${f(S.Vmid,1)} tf）vs φV_n（依各區段箍筋間距${zeroV?'，加密區 V_c = 0':''}）`,
+      dem:[Vu], cap:[Vn], unit:TF, u:'tf', sym:true});
+  }
+  // 彎矩
+  { const Mn = Math.max(0, ...BLOADS.map(l => +(l.Mneg||0)))*TFM, Mp = Math.max(0, ...BLOADS.map(l => +(l.Mpos??l.Mu??0)||0))*TFM;
+    const w = (Mn + Mp) > 0 ? 8*(Mn + Mp)/(L*L) : 0, Mu = xs.map(x => -Mn + w*x*(L - x)/2);
+    const cut = B.devPlan && B.devPlan.cut && Number.isFinite(B.devPlan.cut.xCut) ? B.devPlan.cut : null;
+    const capP = xs.map(() => B.phiPos), capN = xs.map(x => -(cut && x > cut.xCut && x < L - cut.xCut ? cut.phiMc : B.phiNeg));
+    panels.push({tag:'M', title:`彎矩：M_u（均布載重近似，端部 M_u⁻ = ${f(Mn/TFM,1)}、跨中 M_u⁺ = ${f(Mp/TFM,1)} tf·m）vs φM_n⁺（底筋）／−φM_n⁻（頂筋${cut?'，截斷點間僅通長筋':''}）`,
+      dem:[Mu], cap:[capP, capN], unit:TFM, u:'tf·m', sym:false});
+  }
+  const ph = 168, gap = 52, top = 46, Hh = top + panels.length*(ph + gap) + 10;
+  const o = [`<svg viewBox="0 0 ${W} ${Hh}" xmlns="http://www.w3.org/2000/svg" font-family="ui-sans-serif,system-ui,sans-serif">`];
+  o.push(`<rect width="${W}" height="${Hh}" fill="${forPrint?'#fff':'transparent'}"/>`);
+  o.push(`<text x="16" y="22" font-size="13.5" font-weight="700" fill="${C.txt}">需求包絡與設計強度（沿梁軸向，與上圖同比例）</text>`);
+  panels.forEach((P, i) => {
+    const yT = top + 18 + i*(ph + gap), yB = yT + ph - 18;
+    const vals = [...P.dem.flat(), ...P.cap.flat()].map(Math.abs), vmax = Math.max(1e-9, ...vals)*1.08;
+    const lo = P.sym ? 0 : -vmax, Y = v => yB - (v - lo)/(vmax - lo)*(yB - yT);
+    o.push(`<text x="16" y="${yT-16}" font-size="11.5" fill="${C.txt}">${svgTxt(P.title, 11.5)}</text>`);
+    const step = envAxis(o, C, x0, x1, yT, yB, vmax/P.unit);
+    for(let v = Math.ceil(lo/P.unit/step)*step; v <= vmax/P.unit + 1e-9; v += step){
+      o.push(`<line x1="${x0}" y1="${Y(v*P.unit).toFixed(1)}" x2="${x1}" y2="${Y(v*P.unit).toFixed(1)}" stroke="${Math.abs(v)<1e-9?C.dim:C.grid}" stroke-width="${Math.abs(v)<1e-9?1:0.7}"/>`);
+      o.push(`<text x="${x0-6}" y="${(Y(v*P.unit)+3.5).toFixed(1)}" font-size="9.5" fill="${C.dim}" text-anchor="end">${f(v, step < 1 ? 1 : 0)}</text>`);
+    }
+    o.push(`<text x="${x0-6}" y="${yT-3}" font-size="9.5" fill="${C.dim}" text-anchor="end">${P.u}</text>`);
+    const path = arr => arr.map((v, j) => `${j?'L':'M'}${X(xs[j]).toFixed(1)},${Y(v).toFixed(1)}`).join(' ');
+    P.cap.forEach((a, j) => o.push(`<path d="${path(a)}" fill="none" stroke="${j?C.capN:C.cap}" stroke-width="1.8"/>`));
+    P.dem.forEach(a => o.push(`<path d="${path(a)}" fill="none" stroke="${C.dem}" stroke-width="1.8"/>`));
+    // 最小餘裕處（需求／強度最大比值）
+    let worst = {r:-1, j:0};
+    xs.forEach((x, j) => { const d = P.dem[0][j], c = d >= 0 ? P.cap[0][j] : P.cap[1] ? -P.cap[1][j] : P.cap[0][j];
+      const r = c > 0 ? Math.abs(d)/c : 0; if(r > worst.r) worst = {r, j}; });
+    if(worst.r > 0){ const xx = X(xs[worst.j]), yy = Y(P.dem[0][worst.j]);
+      o.push(`<circle cx="${xx.toFixed(1)}" cy="${yy.toFixed(1)}" r="3.5" fill="${worst.r>1?C.dem:'#fff'}" stroke="${C.dem}" stroke-width="1.4"/>`);
+      o.push(`<text x="${Math.min(x1-4, xx+6).toFixed(1)}" y="${(yy-6).toFixed(1)}" font-size="10" fill="${worst.r>1?C.dem:C.dim}" text-anchor="${xx > x1-120 ? 'end' : 'start'}">${svgTxt(`需求／強度 = ${f(worst.r,2)}（x = ${f(xs[worst.j],0)} cm）`,10)}</text>`); }
+    o.push(`<line x1="${x0}" y1="${yB}" x2="${x0}" y2="${yT}" stroke="${C.dim}" stroke-width="0.8"/><line x1="${x1}" y1="${yB}" x2="${x1}" y2="${yT}" stroke="${C.dim}" stroke-width="0.8"/>`);
+    // 圖例
+    const lg = [[C.dem, P.tag==='V' ? 'V_u 包絡' : 'M_u'], [C.cap, P.tag==='V' ? 'φV_n' : 'φM_n⁺'], ...(P.tag==='M' ? [[C.capN, '−φM_n⁻']] : [])];
+    lg.forEach(([c, t], q) => { const lx = x1 - 250 + q*84; o.push(`<line x1="${lx}" y1="${yB+14}" x2="${lx+18}" y2="${yB+14}" stroke="${c}" stroke-width="2"/>`);
+      o.push(`<text x="${lx+22}" y="${yB+18}" font-size="10" fill="${C.txt}">${svgTxt(t,10)}</text>`); });
+    o.push(`<text x="${x0}" y="${yB+18}" font-size="10" fill="${C.dim}">${svgTxt('左柱面',10)}</text><text x="${x1}" y="${yB+18}" font-size="10" fill="${C.dim}" text-anchor="end">${svgTxt('右柱面',10)}</text>`);
+  });
+  o.push(`</svg>`);
+  return o.join('');
+}
+function svgColEnv(M, forPrint){
+  const {lay, m, opt} = M, L = opt.lu, W = 760, Hh = 640, top = 86, bot = 58, k = (Hh - top - bot)/L, Y = z => Hh - bot - z*k;
+  const C = {txt:'#151C24', dim:'#5E6B7A', grid:'#E3E8ED', dem:'#B03A2E', demY:'#E07B39', cap:'#0F5F6B', capY:'#6E9AA0'};
+  const o = [`<svg viewBox="0 0 ${W} ${Hh}" xmlns="http://www.w3.org/2000/svg" font-family="ui-sans-serif,system-ui,sans-serif">`];
+  o.push(`<rect width="${W}" height="${Hh}" fill="${forPrint?'#fff':'transparent'}"/>`);
+  o.push(`<text x="16" y="22" font-size="13.5" font-weight="700" fill="${C.txt}">需求包絡與設計強度（沿${opt.pile?'樁':'柱'}高，與立面圖同比例）</text>`);
+  o.push(`<text x="16" y="40" font-size="11" fill="${C.dim}">${svgTxt('左：剪力 V_u 與 φV_n（依各區段箍筋間距）；右：彎矩 M_u（控制組合，兩端線性；虛線為長細效應放大後之設計彎矩）與 ±φM_n(P_u)',11)}</text>`);
+  const zs = lay.zones;
+  // 剪力：兩向
+  const shear = [M.shX, M.shY].map((sh, i) => {
+    const sh2 = (i ? M.shY2 : M.shX2) || sh, minVc = S => Math.min(...(S.all || [S]).map(c => c.V ? c.V.vc : 0));
+    const dem = Math.max(...sh.all.map(c => c.Vdes)), vcH = minVc(sh), vcG = minVc(sh2);
+    const cap = zs.map(z => ({a:z.a, b:z.b, v: sh.phiS*((z.hot ? vcH : vcG) + Math.min(sh.Av*m.fyt*(sh.dV || sh.d)/(z.act || z.s), sh.VsMax))}));
+    return {d: sh.dir.toUpperCase(), dem, cap};
+  });
+  const pv0 = 70, pv1 = 360, vmaxV = Math.max(1e-9, ...shear.flatMap(q => [q.dem, ...q.cap.map(c => c.v)]))*1.08, XV = v => pv0 + v/vmaxV*(pv1 - pv0);
+  // 彎矩：控制組合
+  const q = M.ctrlFlex, Lk = q.Lk, iC = M.res.indexOf(q), rows = opt.slPairs && opt.slPairs.rows ? opt.slPairs.rows[iC] : null;
+  const mom = [['x', M.cvX, Lk.Mux1 ?? Lk.Mux, Lk.Mux, rows ? rows.m12x : opt.slM12], ['y', M.cvY, Lk.Muy1 ?? Lk.Muy, Lk.Muy, rows ? rows.m12y : opt.slM12]].map(([d, cv, M1st, Mdes, m12]) => {
+    const cap = phiMnAtP(cv, m, Lk.Pu), m12u = opt.pile ? -1 : (Number.isFinite(m12) ? m12 : -1);
+    return {d: d.toUpperCase(), Mb: M1st, Mt: -m12u*M1st, Mdes, cap};
+  });
+  const pm0 = 420, pm1 = 740, pmc = (pm0 + pm1)/2, vmaxM = Math.max(1e-9, ...mom.flatMap(r => [Math.abs(r.Mb), Math.abs(r.Mt), r.Mdes, r.cap]))*1.08, XM = v => pmc + v/vmaxM*(pm1 - pmc - 6);
+  // 構材外框與網格
+  for(const [a, b] of [[pv0, pv1], [pm0, pm1]]){
+    o.push(`<rect x="${a}" y="${Y(L)}" width="${b-a}" height="${L*k}" fill="none" stroke="${C.grid}"/>`);
+  }
+  for(const z of zs) o.push(`<line x1="${pv0}" y1="${Y(z.b).toFixed(1)}" x2="${pv1}" y2="${Y(z.b).toFixed(1)}" stroke="${C.grid}" stroke-dasharray="3 3"/>`);
+  o.push(`<line x1="${pmc}" y1="${Y(0)}" x2="${pmc}" y2="${Y(L)}" stroke="${C.dim}" stroke-width="0.8"/>`);
+  shear.forEach((r, i) => {
+    const cD = i ? C.demY : C.dem, cC = i ? C.capY : C.cap;
+    o.push(`<line x1="${XV(r.dem).toFixed(1)}" y1="${Y(0)}" x2="${XV(r.dem).toFixed(1)}" y2="${Y(L)}" stroke="${cD}" stroke-width="1.8"/>`);
+    o.push(`<path d="${r.cap.map((c, j) => `${j?'L':'M'}${XV(c.v).toFixed(1)},${Y(c.a).toFixed(1)} L${XV(c.v).toFixed(1)},${Y(c.b).toFixed(1)}`).join(' ')}" fill="none" stroke="${cC}" stroke-width="1.8"/>`);
+    const rr = r.dem/Math.min(...r.cap.map(c => c.v));
+    o.push(`<text x="${pv0}" y="${Y(0)+18+i*14}" font-size="10" fill="${rr>1?C.dem:C.txt}">${svgTxt(`${r.d} 向：V_u = ${f(r.dem/TF,1)} tf，φV_n 最小 ${f(Math.min(...r.cap.map(c => c.v))/TF,1)} tf（比 ${f(rr,2)}）`,10)}</text>`);
+  });
+  mom.forEach((r, i) => {
+    const cD = i ? C.demY : C.dem, cC = i ? C.capY : C.cap;
+    o.push(`<line x1="${XM(r.Mb).toFixed(1)}" y1="${Y(0)}" x2="${XM(r.Mt).toFixed(1)}" y2="${Y(L)}" stroke="${cD}" stroke-width="1.8"/>`);
+    if(r.Mdes > Math.max(Math.abs(r.Mb), Math.abs(r.Mt)) + 1e-6) for(const sg of [1]) o.push(`<line x1="${XM(sg*r.Mdes).toFixed(1)}" y1="${Y(0)}" x2="${XM(sg*r.Mdes).toFixed(1)}" y2="${Y(L)}" stroke="${cD}" stroke-width="1.2" stroke-dasharray="6 4"/>`);
+    for(const sg of [1, -1]) o.push(`<line x1="${XM(sg*r.cap).toFixed(1)}" y1="${Y(0)}" x2="${XM(sg*r.cap).toFixed(1)}" y2="${Y(L)}" stroke="${cC}" stroke-width="1.6"/>`);
+    const rr = r.cap > 0 ? Math.max(Math.abs(r.Mb), Math.abs(r.Mt), r.Mdes)/r.cap : Infinity;
+    o.push(`<text x="${pm0}" y="${Y(0)+18+i*14}" font-size="10" fill="${rr>1?C.dem:C.txt}">${svgTxt(`繞 ${r.d} 軸：M_u,max = ${f(Math.max(Math.abs(r.Mb), Math.abs(r.Mt), r.Mdes)/TFM,1)}，φM_n(P_u) = ${f(r.cap/TFM,1)} tf·m（比 ${f(rr,2)}）`,10)}</text>`);
+  });
+  o.push(`<text x="${pv0}" y="${Y(L)-8}" font-size="10.5" fill="${C.dim}">${svgTxt(`剪力（tf，最大 ${f(vmaxV/1.08/TF,0)}）`,10.5)}</text>`);
+  o.push(`<text x="${pm0}" y="${Y(L)-8}" font-size="10.5" fill="${C.dim}">${svgTxt(`彎矩（tf·m）控制組合「${q.L.name}」P_u = ${f(Lk.Pu/TF,0)} tf`,10.5)}</text>`);
+  // 圖例
+  [[C.dem,'X 向需求'],[C.cap,'X 向強度'],[C.demY,'Y 向需求'],[C.capY,'Y 向強度']].forEach(([c, t], i) => { const lx = 70 + i*110;
+    o.push(`<line x1="${lx}" y1="${Hh-12}" x2="${lx+18}" y2="${Hh-12}" stroke="${c}" stroke-width="2"/><text x="${lx+22}" y="${Hh-8}" font-size="10" fill="${C.txt}">${t}</text>`); });
+  o.push(`</svg>`);
+  return o.join('');
 }
 
 /* ---------- 柱立面：沿柱軸向箍筋配置 ---------- */
@@ -5826,6 +5951,7 @@ async function exportXlsx(fname){
       // P-M 互制曲線：與計算書相同的網頁圖（列印版），X、Y 左右並排成一張；圓形只有一張
       if(TAB!=='beam') inp.pmFig = await svgPng(pmPairSvg(MM), 2);
       inp.elevFig = (TAB==='beam' && MM.S.slab) ? null : await svgPng(TAB==='beam' ? svgBeamElev(MM, true) : svgColElev(MM, true), 2);
+      inp.envFig = await svgPng(TAB==='beam' ? svgBeamEnv(MM, true) : svgColEnv(MM, true), 2);
       inp.devSel = {f:[...sel.f], t:[...sel.t]};
       inp.devSched = sel.t.has('sched') ? devSchedule(MM.devPlan, MM).map(q=>({id:q.id, where:q.where, size:q.size, shape:q.shape, st:q.st, tail:q.tail, len:q.len, n:q.n, kg:q.kg})) : []; }
     inp.draft = draft;
@@ -6117,6 +6243,7 @@ function render(){
   cTieBarSync(M);
   document.getElementById('pmWrap').innerHTML=svgPM(M,AXIS,false);
   document.getElementById('elevWrap').innerHTML=svgColElev(M,false);
+  document.getElementById('envWrap').innerHTML=svgColEnv(M,false);
   document.getElementById('elevInfo').innerHTML=SB(elevInfoCol(M));
   document.getElementById('devInfo').innerHTML=SB(devTable(M.dev, {colNote: colDevNote(M)}));
   devCardRender('col', M); devExpRender('col', M);
@@ -6949,6 +7076,7 @@ function buildReport(M){
   }
   o.push(`<div class="rp-h3">9.${M.fin2?2:1} 沿${M.opt.pile?'樁':'柱'}軸向箍筋配置</div>`);
   o.push(`<div class="rp-fig">${svgColElev(M,true)}</div>`);
+  o.push(`<div class="rp-fig">${svgColEnv(M,true)}</div>`);
   o.push(`<div style="font-size:12px">${elevInfoCol(M)}</div>`);
 
   if(cf.MD){
@@ -9252,6 +9380,7 @@ function renderBeam(){
   document.getElementById('bElevCard').style.display = S.slab ? 'none' : '';
   if(!S.slab){
     document.getElementById('bElevWrap').innerHTML=svgBeamElev(B,false);
+    document.getElementById('bEnvWrap').innerHTML=svgBeamEnv(B,false);
     document.getElementById('bElevInfo').innerHTML=SB(elevInfoBeam(B));
   }
   devCardRender('beam', B); devExpRender('beam', B);
@@ -9788,6 +9917,7 @@ function buildBeamReport(B){
   }
   o.push(`<div class="rp-h3">沿梁軸向箍筋配置</div>`);
   o.push(`<div class="rp-fig">${svgBeamElev(B,true)}</div>`);
+  o.push(`<div class="rp-fig">${svgBeamEnv(B,true)}</div>`);
   o.push(`<div style="font-size:12px">${elevInfoBeam(B)}</div>`);
   }
   o.push(`</div>`);

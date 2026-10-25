@@ -839,7 +839,7 @@ function buildColumn(ExcelJS, inp){
   fitRowHeights(W['檢核表']); fitRowHeights(W['結構計算書(A4)']);
   draftMark(wb, inp.draft);
   return {wb, keys:S.keys, judgeRow:jt.r,
-          charts: columnCharts(inp, a4.fig).concat(figPic(inp.elevFig, '箍筋配置立面', a4.elev, FIG_EL_ROWS), a4.devPics, figPics)};
+          charts: columnCharts(inp, a4.fig).concat(figPic(inp.elevFig, '箍筋配置立面', a4.elev, FIG_EL_ROWS), figPic(inp.envFig, '需求包絡與設計強度', a4.env, FIG_EL_ROWS), a4.devPics, figPics)};
 }
 
 /* ---------- 沿構材軸向配置（柱、梁共用；需先定義 nEnds、lo、Lel、sUse、sUse2） ----------
@@ -1696,9 +1696,10 @@ function buildA4Column(ws, S, R, inp, jRow, sumRows){
     ws.getCell(sl,j).border={bottom:side(K.black)}; });
   const fig = a4Figures(ws, a, '附圖　斷面配筋圖與 P-M 互制曲線（匯出當下之網頁圖面；P-M 逐點數值詳「P-M_X」「P-M_Y」工作表）', 1);
   const elev = a4Elev(ws, a, '附圖　沿柱軸向箍筋配置立面（匯出當下之網頁圖面；柱寬為示意）', FIG_EL_ROWS);
+  const env = inp.envFig ? a4Elev(ws, a, '附圖　需求包絡與設計強度（沿柱高；匯出當下之網頁圖面）', FIG_EL_ROWS) : null;
   const devPics = a4DevFigs(ws, a, '附圖　主筋伸展與搭接配置', inp.devFigs);
   ws.pageSetup.printArea = `A1:F${a.n}`;
-  return {fig, elev, devPics};
+  return {fig, elev, env, devPics};
 }
 
 /* ======================================================================
@@ -2147,7 +2148,7 @@ function buildBeam(ExcelJS, inp){
   fitRowHeights(W['檢核表']); fitRowHeights(W['結構計算書(A4)']);
   draftMark(wb, inp.draft);
   return {wb, keys:S.keys, judgeRow:jt.r,
-          charts: figPic(inp.secFig, inp.slab ? '版斷面圖' : '梁斷面圖', a4.fig, FIG_SEC_ROWS).concat(inp.slab ? [] : figPic(inp.elevFig, '箍筋配置立面', a4.elev, FIG_ELB_ROWS), a4.devPics, figPics)};
+          charts: figPic(inp.secFig, inp.slab ? '版斷面圖' : '梁斷面圖', a4.fig, FIG_SEC_ROWS).concat(inp.slab ? [] : figPic(inp.elevFig, '箍筋配置立面', a4.elev, FIG_ELB_ROWS), figPic(inp.envFig, '需求包絡與設計強度', a4.env, FIG_ENVB_ROWS), a4.devPics, figPics)};
 }
 
 function buildBeamLoads(ws, R, loads){
@@ -2389,9 +2390,10 @@ function buildA4Beam(ws, R, inp, jRow, sumRows){
   [[2,'設計'],[3,'校核'],[5,'審核']].forEach(([j,h])=>{ const c=ws.getCell(sg,j); c.value=h; c.font={name:FONT,size:9,bold:true}; c.alignment={horizontal:'center'}; ws.getCell(sl,j).border={bottom:side(K.black)}; });
   const fig = a4Figures(ws, a, '附圖　斷面圖（匯出當下之網頁圖面）', 0);
   const elev = inp.slab ? null : a4Elev(ws, a, '附圖　沿梁軸向箍筋配置立面（匯出當下之網頁圖面；梁深為示意）', FIG_ELB_ROWS);
+  const env = inp.envFig ? a4Elev(ws, a, '附圖　需求包絡與設計強度（沿梁軸向；匯出當下之網頁圖面）', FIG_ENVB_ROWS) : null;
   const devPics = a4DevFigs(ws, a, '附圖　主筋伸展與搭接配置', inp.devFigs);
   ws.pageSetup.printArea=`A1:F${a.n}`;
-  return {fig, elev, devPics};
+  return {fig, elev, env, devPics};
 }
 
 /* ======================================================================
@@ -2606,7 +2608,7 @@ function columnCharts(inp, a4Start){
 
 /* 立面圖資料列數：依匯出時之總數留餘裕（在 Excel 內改小間距致數量超過時，多出者不繪） */
 const elevRows = inp => Math.min(2500, Math.max(80, Math.ceil((inp.layTotal||60)*1.6) + 20));
-const FIG_EL_ROWS = 44, FIG_ELB_ROWS = 20;
+const FIG_EL_ROWS = 44, FIG_ELB_ROWS = 20, FIG_ENVB_ROWS = 28;
 function a4Elev(ws, a, title, rows){
   ws.getRow(a.n).addPageBreak();
   a.chap(title);

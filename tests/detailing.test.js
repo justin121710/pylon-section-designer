@@ -406,3 +406,20 @@ test('梁柱接頭：Excel 同網頁（LibreOffice 重算）', {skip: !hasSoffic
   }
   await page.evaluate(() => applyPreset('bldg60'));
 });
+
+/* ---------------- 包絡線圖 ---------------- */
+test('包絡線圖：梁 V、M 與柱 V、M 皆可繪製，梁中央區 φV_n = φ(V_c + A_v f_yt d/s)', async () => {
+  const r = await page.evaluate(() => { document.getElementById('tabBeam').click(); applyBPreset('gradeBeam');
+    BLOADS.forEach(l => { l.Vu = 150; }); drawBLoads(); document.getElementById('bShearZ').value = '1';
+    const B = renderBeam(), svg = svgBeamEnv(B, true), z = B.lay.zones.find(q => q.tag === '中央區');
+    const exp = B.m.phiv*(B.sh.VcA + Math.min(B.sh.Av*B.m.fyt*B.sh.d/z.act, B.sh.VsMax));
+    const out = {svg, exp, wrap: document.getElementById('bEnvWrap').innerHTML.length};
+    document.getElementById('tabPylon').click(); applyPreset('pier100'); const M = render();
+    out.col = svgColEnv(M, true); out.cwrap = document.getElementById('envWrap').innerHTML.length;
+    const pile = (applyPreset('pileC120'), render()); out.pile = svgColEnv(pile, true);
+    applyBPreset('bldgBeam'); applyPreset('bldg60'); return out; });
+  assert.ok(r.wrap > 0 && r.cwrap > 0, '網頁顯示');
+  assert.match(r.svg, /剪力：/); assert.match(r.svg, /彎矩：/); assert.match(r.svg, /需求／強度/);
+  assert.ok(r.exp > 0);
+  assert.match(r.col, /最小/); assert.match(r.col, /繞/); assert.ok(r.pile.length > 1000, '基樁亦可繪製');
+});
